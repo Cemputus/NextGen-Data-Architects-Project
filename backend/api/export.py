@@ -16,6 +16,11 @@ if str(backend_dir) not in sys.path:
 from config import DATA_WAREHOUSE_CONN_STRING
 from rbac import Role, Resource, Permission, has_permission
 
+try:
+    from audit_log import log as audit_log
+except ImportError:
+    audit_log = None
+
 def get_user_scope(claims):
     """Get user's data scope based on role"""
     role_str = claims.get('role', 'student')
@@ -115,7 +120,8 @@ def export_excel():
             
             output.seek(0)
             engine.dispose()
-            
+            if audit_log:
+                audit_log('export_excel', 'export', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id=export_type, status='success')
             return send_file(
                 output,
                 mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -153,7 +159,8 @@ def export_excel():
             
             output.seek(0)
             engine.dispose()
-            
+            if audit_log:
+                audit_log('export_excel', 'export', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id='fex', status='success')
             return send_file(
                 output,
                 mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -181,7 +188,8 @@ def export_pdf():
         # Check export permission
         if not has_permission(user_scope['role'], Resource.ANALYTICS, Permission.EXPORT, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
-        
+        if audit_log:
+            audit_log('export_pdf', 'export', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id='report', status='success')
         # Redirect to existing PDF generator
         from flask import redirect
         return redirect('/api/report/generate')

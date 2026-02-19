@@ -18,6 +18,11 @@ if str(backend_dir) not in sys.path:
 
 from config import DATA_WAREHOUSE_CONN_STRING, MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_CHARSET
 
+try:
+    from audit_log import log as audit_log
+except ImportError:
+    audit_log = None
+
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
 
@@ -181,6 +186,11 @@ def run_etl():
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
+    claims = get_jwt()
+    username = claims.get('username') or ''
+    role_name = claims.get('role') or ''
+    if audit_log:
+        audit_log('etl_started', 'system', username=username, role_name=role_name, resource_id='etl_pipeline', status='success')
     thread = threading.Thread(target=_run_etl_in_background, daemon=True)
     thread.start()
     return jsonify({

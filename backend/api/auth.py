@@ -28,6 +28,11 @@ except ImportError:
 
 from config import DATA_WAREHOUSE_CONN_STRING
 
+try:
+    from audit_log import log as audit_log
+except ImportError:
+    audit_log = None
+
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 
@@ -223,9 +228,13 @@ def update_profile():
     try:
         data = request.get_json()
         claims = get_jwt()
-        
+        username = claims.get('username') or claims.get('access_number') or ''
+        role_name = claims.get('role') or ''
+
         # In production, update database
         # For now, just return success
+        if audit_log:
+            audit_log('profile_update', 'profile', username=username, role_name=role_name, status='success')
         return jsonify({
             'message': 'Profile updated successfully',
             'user': {
@@ -245,6 +254,11 @@ def update_profile():
 def logout():
     """Logout user"""
     try:
+        claims = get_jwt()
+        username = claims.get('username') or claims.get('access_number') or ''
+        role_name = claims.get('role') or ''
+        if audit_log:
+            audit_log('logout', 'auth', username=username, role_name=role_name, status='success')
         return jsonify({'message': 'Logged out successfully'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
