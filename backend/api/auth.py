@@ -3,11 +3,12 @@ Authentication API with RBAC support
 Handles login, registration, profile management, and Access Number authentication
 """
 from flask import Blueprint, request, jsonify, send_file
+from werkzeug.security import check_password_hash
 import base64
 import re
-import os
-from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
 from sqlalchemy import create_engine, text
+import pandas as pd
+from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
 from sqlalchemy.orm import sessionmaker
 import sys
 from pathlib import Path
@@ -166,8 +167,56 @@ def login():
                     }
                 }), 200
         
-        # Check if it's a username (non-student login)
-        elif identifier_lower in DEMO_USERS:
+        # Check app_users (real users added via Admin)
+        try:
+            rbac_engine = create_engine(RBAC_CONN_STRING)
+            result = pd.read_sql_query(
+                text("SELECT id, username, password_hash, role, full_name, faculty_id, department_id FROM app_users WHERE LOWER(username) = :uname"),
+                rbac_engine,
+                params={'uname': identifier_lower}
+            )
+            rbac_engine.dispose()
+            if not result.empty and check_password_hash(result.iloc[0]['password_hash'], password):
+                row = result.iloc[0]
+                claims = {
+                    'role': str(row['role']) if pd.notna(row['role']) else 'staff',
+                    'username': str(row['username']),
+                    'full_name': str(row['full_name']) if pd.notna(row['full_name']) else row['username'],
+                    'first_name': '',
+                    'last_name': '',
+                }
+                if pd.notna(row['faculty_id']):
+                    claims['faculty_id'] = int(row['faculty_id'])
+                if pd.notna(row['department_id']):
+                    claims['department_id'] = int(row['department_id'])
+                full = (claims.get('full_name') or '').strip()
+                if full:
+                    parts = full.split(None, 1)
+                    claims['first_name'] = parts[0]
+                    claims['last_name'] = parts[1] if len(parts) > 1 else ''
+                access_token = create_access_token(identity=row['username'], additional_claims=claims)
+                refresh_token = create_refresh_token(identity=row['username'])
+                _audit_log_login(row['username'], claims['role'], 'success')
+                return jsonify({
+                    'access_token': access_token,
+                    'refresh_token': refresh_token,
+                    'role': claims['role'],
+                    'user': {
+                        'id': str(row['id']),
+                        'username': row['username'],
+                        'role': claims['role'],
+                        'full_name': claims['full_name'],
+                        'first_name': claims.get('first_name', ''),
+                        'last_name': claims.get('last_name', ''),
+                        'faculty_id': claims.get('faculty_id'),
+                        'department_id': claims.get('department_id'),
+                    }
+                }), 200
+        except Exception:
+            pass
+
+        # Check if it's a username (non-student login) — demo users
+        if identifier_lower in DEMO_USERS:
             user_info = DEMO_USERS[identifier_lower]
             if user_info['password'] == password:
                 # Create token for non-student user
@@ -248,28 +297,68 @@ def get_profile():
 @auth_bp.route('/profile', methods=['PUT'])
 @jwt_required()
 def update_profile():
-    """Update current user's profile"""
+    """Update current user's profile (including optional profile picture as base64 data URL)."""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         claims = get_jwt()
+        identity = get_jwt_identity()
         username = claims.get('username') or claims.get('access_number') or ''
         role_name = claims.get('role') or ''
 
-        # In production, update database
-        # For now, just return success
+        # Optional: remove profile picture
+        profile_picture_url = None
+        if _has_profile_photo(identity):
+            profile_picture_url = '/api/auth/profile/photo'
+        if data.get('remove_profile_photo'):
+            path = _profile_photo_path(identity)
+            if path and path.exists():
+                try:
+                    path.unlink()
+                except Exception:
+                    pass
+            profile_picture_url = None
+        raw = data.get('profile_picture')
+        if raw and not data.get('remove_profile_photo'):
+            try:
+                if isinstance(raw, str) and raw.startswith('data:'):
+                    # data:image/jpeg;base64,<payload>
+                    raw = raw.split(',', 1)[-1]
+                buf = base64.b64decode(raw, validate=True)
+                path = _profile_photo_path(identity)
+                if path and len(buf) < 5 * 1024 * 1024:  # max 5MB
+                    with open(path, 'wb') as f:
+                        f.write(buf)
+                    profile_picture_url = '/api/auth/profile/photo'
+            except Exception:
+                pass
+
         if audit_log:
             audit_log('profile_update', 'profile', username=username, role_name=role_name, status='success')
-        return jsonify({
-            'message': 'Profile updated successfully',
-            'user': {
-                'id': claims.get('student_id') or claims.get('username'),
-                'first_name': data.get('first_name', claims.get('first_name')),
-                'last_name': data.get('last_name', claims.get('last_name')),
-                'email': data.get('email', claims.get('email')),
-                'phone': data.get('phone', claims.get('phone'))
-            }
-        }), 200
-        
+
+        user_payload = {
+            'id': claims.get('student_id') or claims.get('username'),
+            'first_name': data.get('first_name', claims.get('first_name')),
+            'last_name': data.get('last_name', claims.get('last_name')),
+            'email': data.get('email', claims.get('email')),
+            'phone': data.get('phone', claims.get('phone')),
+            'profile_picture_url': profile_picture_url,
+        }
+        return jsonify({'message': 'Profile updated successfully', 'user': user_payload}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@auth_bp.route('/profile/photo', methods=['GET'])
+@jwt_required()
+def get_profile_photo():
+    """Serve current user's profile photo."""
+    try:
+        identity = get_jwt_identity()
+        path = _profile_photo_path(identity)
+        if not path or not path.exists():
+            return jsonify({'error': 'No profile photo'}), 404
+        return send_file(path, mimetype='image/jpeg', last_modified=path.stat().st_mtime)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

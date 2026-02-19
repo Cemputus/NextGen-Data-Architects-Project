@@ -15,7 +15,8 @@ if __name__ == '__main__':
     print("="*80)
     print("Starting NextGen Data Architects Backend Server")
     print("="*80)
-    print("Server will be available at: http://localhost:5000")
+    print("Server: http://localhost:5000")
+    print("User Management API: http://localhost:5000/api/sysadmin/ping (test in browser)")
     print("Press Ctrl+C to stop the server")
     print("="*80)
     try:

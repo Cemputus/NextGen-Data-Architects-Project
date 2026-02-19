@@ -13,7 +13,7 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
+  const [user, setUserState] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true); // Add loading state
 
@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           setToken(null);
-          setUser(null);
+          setUserState(null);
           setIsAuthenticated(false);
           delete axios.defaults.headers.common['Authorization'];
           
@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }) => {
         if (storedToken && storedUser) {
           // Set token and user immediately for optimistic UI
           setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUserState(JSON.parse(storedUser));
           setIsAuthenticated(true);
           axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
           
@@ -77,7 +77,7 @@ export const AuthProvider = ({ children }) => {
               localStorage.removeItem('token');
               localStorage.removeItem('user');
               setToken(null);
-              setUser(null);
+              setUserState(null);
               setIsAuthenticated(false);
               delete axios.defaults.headers.common['Authorization'];
             }
@@ -91,7 +91,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setToken(null);
-        setUser(null);
+        setUserState(null);
         setIsAuthenticated(false);
       } finally {
         setLoading(false);
@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }) => {
       };
       
       setToken(access_token);
-      setUser(userWithRole);
+      setUserState(userWithRole);
       setIsAuthenticated(true);
       
       localStorage.setItem('token', access_token);
@@ -154,15 +154,22 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setToken(null);
-    setUser(null);
+    setUserState(null);
     setIsAuthenticated(false);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     delete axios.defaults.headers.common['Authorization'];
   };
 
+  const setUser = (nextUser) => {
+    setUserState(nextUser);
+    if (nextUser) {
+      localStorage.setItem('user', JSON.stringify(nextUser));
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, setUser, token, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

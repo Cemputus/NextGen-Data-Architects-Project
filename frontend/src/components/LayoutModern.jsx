@@ -12,27 +12,21 @@ import {
   DollarSign, Shield, FileText, TrendingUp, Menu, X
 } from 'lucide-react';
 import { Button } from './ui/button';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { useProfilePhoto } from '../hooks/useProfilePhoto';
 
 const LayoutModern = ({ children }) => {
   const { user, logout } = useAuth();
+  const profilePhotoUrl = useProfilePhoto(user?.profile_picture_url);
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const lastPathRef = useRef(null);
-
-  useEffect(() => {
-    const path = location.pathname;
-    if (user && path && path !== '/login' && path !== lastPathRef.current) {
-      lastPathRef.current = path;
-      logAuditEvent('page_view', 'navigation', path);
-    }
-  }, [location.pathname, user]);
 
   const getNavItems = () => {
     if (!user) return [];
@@ -115,6 +109,17 @@ const LayoutModern = ({ children }) => {
 
     return navItems[role] || [];
   };
+
+  useEffect(() => {
+    const path = location.pathname;
+    if (!user || !path || path === '/login' || path === lastPathRef.current) return;
+    lastPathRef.current = path;
+    const navItems = getNavItems();
+    const match = navItems.find((item) => item.path === path);
+    const pageName = match ? match.label : path.split('/').filter(Boolean).pop()?.replace(/-/g, ' ') || path;
+    const actionName = typeof pageName === 'string' ? pageName.charAt(0).toUpperCase() + pageName.slice(1) : pageName;
+    logAuditEvent(actionName, 'navigation', path);
+  }, [location.pathname, user]);
 
   const handleLogout = () => {
     logout();
@@ -200,6 +205,7 @@ const LayoutModern = ({ children }) => {
           <div className="p-4 border-t border-border bg-muted/30">
             <div className="flex items-center gap-3 mb-3">
               <Avatar className="h-10 w-10 ring-2 ring-primary/30">
+                {profilePhotoUrl && <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />}
                 <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
                   {user?.first_name?.[0]}{user?.last_name?.[0]}
                 </AvatarFallback>
@@ -297,8 +303,9 @@ const LayoutModern = ({ children }) => {
                   })}
                 </nav>
                 <div className="p-4 border-t border-border">
-                  <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-3 mb-3">
                     <Avatar className="h-10 w-10 ring-2 ring-primary/30">
+                      {profilePhotoUrl && <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />}
                       <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
                         {user?.first_name?.[0]}{user?.last_name?.[0]}
                       </AvatarFallback>
@@ -354,6 +361,7 @@ const LayoutModern = ({ children }) => {
                 <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
               </div>
               <Avatar className="h-10 w-10 ring-2 ring-primary/30">
+                {profilePhotoUrl && <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />}
                 <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                   {user?.first_name?.[0]}{user?.last_name?.[0]}
                 </AvatarFallback>

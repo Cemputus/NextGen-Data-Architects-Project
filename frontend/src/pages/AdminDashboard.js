@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { KPICard } from '../components/ui/kpi-card';
 import { DashboardGrid } from '../components/ui/dashboard-grid';
 import ExportButtons from '../components/ExportButtons';
+import UserManagementSection from '../components/admin/UserManagementSection';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 
@@ -134,20 +135,7 @@ const AdminDashboard = () => {
             </TabsList>
 
             <TabsContent value="users" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>User Management</CardTitle>
-                  <CardDescription>Manage system users, roles, and permissions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
-                    <div className="text-center">
-                      <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                      <p>User management interface</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <UserManagementSection showHeader={true} compact={false} showOpenFullPage={true} />
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-4">

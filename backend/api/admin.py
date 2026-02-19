@@ -10,6 +10,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt
+from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
 from sqlalchemy import create_engine, text
 
@@ -18,6 +19,8 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 from config import DATA_WAREHOUSE_CONN_STRING, MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_CHARSET
+
+RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace('UCU_DataWarehouse', 'ucu_rbac')
 
 try:
     from audit_log import log as audit_log
@@ -172,6 +175,261 @@ def _get_audit_logs(limit=200):
         return logs, None
     except Exception as e:
         return [], str(e)
+
+
+# Demo/staff accounts (same as auth.DEMO_USERS) for user list display only
+DEMO_ACCOUNTS = [
+    {'username': 'admin', 'role': 'sysadmin', 'full_name': 'System Administrator'},
+    {'username': 'analyst', 'role': 'analyst', 'full_name': 'Data Analyst'},
+    {'username': 'senate', 'role': 'senate', 'full_name': 'Senate Member'},
+    {'username': 'staff', 'role': 'staff', 'full_name': 'Staff Member'},
+    {'username': 'dean', 'role': 'dean', 'full_name': 'Faculty Dean'},
+    {'username': 'hod', 'role': 'hod', 'full_name': 'Head of Department'},
+    {'username': 'hr', 'role': 'hr', 'full_name': 'HR Manager'},
+    {'username': 'finance', 'role': 'finance', 'full_name': 'Finance Manager'},
+]
+
+
+def _ensure_app_users_table(engine):
+    """Create ucu_rbac DB if not exists, then app_users table (real users added via Admin)."""
+    import pymysql
+    try:
+        conn = pymysql.connect(
+            host=MYSQL_HOST, port=int(MYSQL_PORT), user=MYSQL_USER, password=MYSQL_PASSWORD
+        )
+        conn.cursor().execute("CREATE DATABASE IF NOT EXISTS ucu_rbac CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS app_users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(100) NOT NULL UNIQUE,
+                    password_hash VARCHAR(255) NOT NULL,
+                    role VARCHAR(50) NOT NULL,
+                    full_name VARCHAR(200),
+                    faculty_id INT NULL,
+                    department_id INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            conn.commit()
+    except Exception:
+        pass
+
+
+@admin_bp.route('/faculties', methods=['GET'])
+@jwt_required()
+def list_faculties():
+    """List faculties from dim_faculty for dean assignment. Sysadmin only."""
+    err, code = _require_sysadmin()
+    if err is not None:
+        return err, code
+    try:
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        df = pd.read_sql_query("SELECT faculty_id, faculty_name FROM dim_faculty ORDER BY faculty_name", engine)
+        engine.dispose()
+        return jsonify({'faculties': df.to_dict('records')})
+    except Exception as e:
+        return jsonify({'error': str(e), 'faculties': []}), 500
+
+
+@admin_bp.route('/departments', methods=['GET'])
+@jwt_required()
+def list_departments():
+    """List departments from dim_department, optionally by faculty_id. Sysadmin only."""
+    err, code = _require_sysadmin()
+    if err is not None:
+        return err, code
+    faculty_id = request.args.get('faculty_id', type=int)
+    try:
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        if faculty_id:
+            df = pd.read_sql_query(
+                text("SELECT department_id, department_name, faculty_id FROM dim_department WHERE faculty_id = :fid ORDER BY department_name"),
+                engine,
+                params={'fid': faculty_id}
+            )
+        else:
+            df = pd.read_sql_query(
+                "SELECT department_id, department_name, faculty_id FROM dim_department ORDER BY department_name",
+                engine
+            )
+        engine.dispose()
+        return jsonify({'departments': df.to_dict('records')})
+    except Exception as e:
+        return jsonify({'error': str(e), 'departments': []}), 500
+
+
+@admin_bp.route('/users', methods=['GET'])
+@jwt_required()
+def list_users():
+    """List users: students from dim_student + demo/staff accounts + app_users. Sysadmin only."""
+    err, code = _require_sysadmin()
+    if err is not None:
+        return err, code
+    search = (request.args.get('search') or '').strip().lower()
+    role_filter = (request.args.get('role') or '').strip().lower()
+    limit = min(max(request.args.get('limit', type=int) or 500, 1), 2000)
+    offset = max(request.args.get('offset', type=int) or 0, 0)
+    users = []
+    warning = None
+    try:
+        if not role_filter or role_filter == 'student':
+            try:
+                engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+                query = """
+                    SELECT student_id, access_number, reg_no, first_name, last_name
+                    FROM dim_student
+                """
+                params = {}
+                conditions = []
+                if search:
+                    conditions.append(
+                        "(LOWER(access_number) LIKE :search OR LOWER(reg_no) LIKE :search "
+                        "OR LOWER(first_name) LIKE :search OR LOWER(last_name) LIKE :search "
+                        "OR LOWER(CONCAT(first_name, ' ', last_name)) LIKE :search)"
+                    )
+                    params['search'] = f'%{search}%'
+                if conditions:
+                    query += " WHERE " + " AND ".join(conditions)
+                query += " ORDER BY last_name, first_name LIMIT :limit OFFSET :offset"
+                params['limit'] = limit
+                params['offset'] = offset
+                df = pd.read_sql_query(text(query), engine, params=params)
+                engine.dispose()
+                for _, row in df.iterrows():
+                    first = str(row['first_name']) if pd.notna(row['first_name']) else ''
+                    last = str(row['last_name']) if pd.notna(row['last_name']) else ''
+                    users.append({
+                        'id': str(row['student_id']),
+                        'username': str(row['access_number']) if pd.notna(row['access_number']) else '',
+                        'access_number': str(row['access_number']) if pd.notna(row['access_number']) else '',
+                        'reg_number': str(row['reg_no']) if pd.notna(row['reg_no']) else '',
+                        'first_name': first,
+                        'last_name': last,
+                        'full_name': f'{first} {last}'.strip() or '—',
+                        'role': 'student',
+                        'type': 'student',
+                    })
+            except Exception:
+                pass
+        if not role_filter or role_filter != 'student':
+            for acc in DEMO_ACCOUNTS:
+                if role_filter and acc['role'] != role_filter:
+                    continue
+                if search and search not in acc['username'].lower() and search not in (acc.get('full_name') or '').lower():
+                    continue
+                users.append({
+                    'id': acc['username'],
+                    'username': acc['username'],
+                    'access_number': None,
+                    'reg_number': None,
+                    'first_name': acc.get('full_name') or acc['username'],
+                    'last_name': '',
+                    'full_name': acc.get('full_name') or acc['username'],
+                    'role': acc['role'],
+                    'type': 'demo',
+                })
+        # Real users from app_users (added via Add User)
+        try:
+            rbac_engine = create_engine(RBAC_CONN_STRING)
+            _ensure_app_users_table(rbac_engine)
+            app_df = pd.read_sql_query(
+                "SELECT id, username, role, full_name, faculty_id, department_id FROM app_users",
+                rbac_engine
+            )
+            rbac_engine.dispose()
+            demo_usernames = {a['username'].lower() for a in DEMO_ACCOUNTS}
+            for _, row in app_df.iterrows():
+                uname = str(row['username']) if pd.notna(row['username']) else ''
+                if not uname or uname.lower() in demo_usernames:
+                    continue
+                if role_filter and (str(row['role']) if pd.notna(row['role']) else '').lower() != role_filter:
+                    continue
+                if search and search not in uname.lower() and search not in (str(row['full_name']) if pd.notna(row['full_name']) else '').lower():
+                    continue
+                users.append({
+                    'id': str(row['id']),
+                    'username': uname,
+                    'access_number': None,
+                    'reg_number': None,
+                    'first_name': str(row['full_name']) if pd.notna(row['full_name']) else uname,
+                    'last_name': '',
+                    'full_name': str(row['full_name']) if pd.notna(row['full_name']) else uname,
+                    'role': str(row['role']) if pd.notna(row['role']) else 'staff',
+                    'type': 'app_user',
+                    'faculty_id': int(row['faculty_id']) if pd.notna(row['faculty_id']) else None,
+                    'department_id': int(row['department_id']) if pd.notna(row['department_id']) else None,
+                })
+        except Exception:
+            pass
+    except Exception as e:
+        warning = str(e)
+    out = {'users': users, 'total': len(users)}
+    if warning:
+        out['warning'] = warning
+    return jsonify(out)
+
+
+@admin_bp.route('/users', methods=['POST'])
+@jwt_required()
+def create_user():
+    """Create a real user (dean, hod, staff, hr, finance) with optional faculty/department scope. Sysadmin only."""
+    err, code = _require_sysadmin()
+    if err is not None:
+        return err, code
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    role = (data.get('role') or 'staff').strip().lower()
+    full_name = (data.get('full_name') or '').strip() or username
+    faculty_id = data.get('faculty_id') if data.get('faculty_id') is not None else None
+    department_id = data.get('department_id') if data.get('department_id') is not None else None
+    if not username:
+        return jsonify({'error': 'Username is required'}), 400
+    if len(password) < 6:
+        return jsonify({'error': 'Password must be at least 6 characters'}), 400
+    allowed_roles = {'dean', 'hod', 'staff', 'hr', 'finance', 'analyst', 'sysadmin'}
+    if role not in allowed_roles:
+        return jsonify({'error': f'Role must be one of: {", ".join(sorted(allowed_roles))}'}), 400
+    if role == 'dean' and faculty_id is None:
+        return jsonify({'error': 'Dean must be assigned to a faculty'}), 400
+    if role == 'hod' and department_id is None:
+        return jsonify({'error': 'HOD must be assigned to a department'}), 400
+    demo_usernames = {a['username'].lower() for a in DEMO_ACCOUNTS}
+    if username.lower() in demo_usernames:
+        return jsonify({'error': 'Username is reserved for a demo account'}), 400
+    try:
+        rbac_engine = create_engine(RBAC_CONN_STRING)
+        _ensure_app_users_table(rbac_engine)
+        password_hash = generate_password_hash(password, method='pbkdf2:sha256')
+        with rbac_engine.connect() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO app_users (username, password_hash, role, full_name, faculty_id, department_id)
+                    VALUES (:username, :password_hash, :role, :full_name, :faculty_id, :department_id)
+                """),
+                {
+                    'username': username,
+                    'password_hash': password_hash,
+                    'role': role,
+                    'full_name': full_name,
+                    'faculty_id': faculty_id,
+                    'department_id': department_id,
+                }
+            )
+            conn.commit()
+        rbac_engine.dispose()
+        return jsonify({'message': 'User created successfully', 'username': username}), 201
+    except Exception as e:
+        msg = str(e)
+        if 'Duplicate' in msg or 'UNIQUE' in msg or '1062' in msg:
+            return jsonify({'error': 'Username already exists'}), 409
+        return jsonify({'error': msg}), 500
 
 
 @admin_bp.route('/system-status', methods=['GET'])
