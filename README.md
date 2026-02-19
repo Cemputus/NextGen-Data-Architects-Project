@@ -26,7 +26,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 
 - **Real-time Analytics**: Comprehensive dashboards for students, faculty, and administrators
 - **Predictive Analytics**: ML-powered predictions for student performance, attendance, and payment patterns
-- **Role-Based Access Control**: Secure multi-role system (Student, Staff, HOD, Dean, Senate, Finance)
+- **Role-Based Access Control**: Secure multi-role system (Student,HR, Staff, HOD, Dean, Senate, Finance)
 - **Data Warehousing**: Star schema data warehouse for efficient analytics
 - **ETL Pipeline**: Automated data extraction, transformation, and loading from source systems
 
