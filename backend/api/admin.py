@@ -251,8 +251,13 @@ def setup_audit_db():
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
+    claims = get_jwt()
+    username = claims.get('username') or ''
+    role_name = claims.get('role') or ''
     ok, msg = _ensure_audit_db()
     if ok:
+        if audit_log:
+            audit_log('audit_db_setup', 'system', username=username, role_name=role_name, resource_id='ucu_rbac', status='success')
         return jsonify({'message': 'Audit database and table created. You can now use Audit Logs.'}), 200
     return jsonify({'error': msg}), 500
 

@@ -2,8 +2,9 @@
  * Modern Layout Component - UCU Style with Advanced Styling
  * Clean, smooth sidebar navigation with professional design
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { logAuditEvent } from '../utils/audit';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Home, User, Settings, LogOut, 
@@ -22,6 +23,15 @@ const LayoutModern = ({ children }) => {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const lastPathRef = useRef(null);
+
+  useEffect(() => {
+    const path = location.pathname;
+    if (user && path && path !== '/login' && path !== lastPathRef.current) {
+      lastPathRef.current = path;
+      logAuditEvent('page_view', 'navigation', path);
+    }
+  }, [location.pathname, user]);
 
   const getNavItems = () => {
     if (!user) return [];

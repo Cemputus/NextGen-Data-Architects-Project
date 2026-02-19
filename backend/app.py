@@ -1017,6 +1017,7 @@ def generate_report():
     """Generate PDF report"""
     from pdf_generator import PDFReportGenerator
     from flask import send_file
+    from flask_jwt_extended import get_jwt
     import os
     
     try:
@@ -1030,6 +1031,12 @@ def generate_report():
         
         # Return PDF file
         if os.path.exists(output_path):
+            try:
+                from audit_log import log as audit_log
+                claims = get_jwt()
+                audit_log('report_generate', 'export', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id='pdf', status='success')
+            except Exception:
+                pass
             return send_file(
                 output_path, 
                 as_attachment=True, 

@@ -249,6 +249,25 @@ def update_profile():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@auth_bp.route('/audit-event', methods=['POST'])
+@jwt_required()
+def audit_event():
+    """Record a client-side audit event (page view, filter applied, etc.). Body: { action, resource, resource_id? }."""
+    try:
+        data = request.get_json() or {}
+        action = data.get('action') or 'unknown'
+        resource = data.get('resource') or 'app'
+        resource_id = data.get('resource_id')
+        claims = get_jwt()
+        username = claims.get('username') or claims.get('access_number') or ''
+        role_name = claims.get('role') or ''
+        if audit_log:
+            audit_log(action, resource, username=username, role_name=role_name, resource_id=resource_id, status='success')
+        return jsonify({'ok': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @auth_bp.route('/logout', methods=['POST'])
 @jwt_required()
 def logout():

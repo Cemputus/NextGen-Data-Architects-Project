@@ -12,6 +12,7 @@ import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import axios from 'axios';
 import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from '../utils/statePersistence';
+import { logAuditEvent } from '../utils/audit';
 
 const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'global' }) => {
   // Load persisted filters and search term
@@ -95,11 +96,8 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
     
     setFilters(newFilters);
     onFilterChange(newFilters);
-    
-    // Save filters to localStorage
+    logAuditEvent('filter_applied', 'filters', pageName);
     saveFilters(pageName, newFilters);
-    
-    // Reload filter options after a short delay to allow state to update
     setTimeout(() => {
       loadFilterOptions(newFilters);
     }, 100);
@@ -132,6 +130,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
     setFilters({});
     setSearchTerm('');
     onFilterChange({});
+    logAuditEvent('filter_cleared', 'filters', pageName);
     loadFilterOptions({});
   };
 

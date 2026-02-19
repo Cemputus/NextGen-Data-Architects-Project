@@ -28,6 +28,11 @@ except ImportError:
     print("Enhanced predictions module not available")
 from config import DATA_WAREHOUSE_CONN_STRING
 
+try:
+    from audit_log import log as audit_log
+except ImportError:
+    audit_log = None
+
 predictions_bp = Blueprint('predictions', __name__, url_prefix='/api/predictions')
 
 # Initialize predictor
@@ -134,7 +139,8 @@ def predict_student_performance():
             engine.dispose()
         
         prediction = predictor.predict(student_id, model_type)
-        
+        if audit_log:
+            audit_log('prediction', 'predictions', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id=str(student_id), status='success')
         return jsonify({
             'student_id': student_id,
             'model_type': model_type,
@@ -363,6 +369,8 @@ def predict_scenario():
             'description': f'Modified: Attendance={modified_attendance_rate:.1f}%, Payment={modified_payment_rate:.1f}%, Courses={modified_courses}'
         }
         
+        if audit_log:
+            audit_log('scenario_analysis', 'predictions', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id=str(student_id), status='success')
         return jsonify({
             'scenario': {
                 **scenario_description,
