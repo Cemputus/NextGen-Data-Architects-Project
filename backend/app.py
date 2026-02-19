@@ -27,6 +27,12 @@ try:
 except ImportError:
     export_bp = None
 
+# Admin API (system status, ETL, audit logs)
+try:
+    from api.admin import admin_bp
+except ImportError:
+    admin_bp = None
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
@@ -43,6 +49,8 @@ if predictions_bp:
     app.register_blueprint(predictions_bp)
 if export_bp:
     app.register_blueprint(export_bp)
+if admin_bp:
+    app.register_blueprint(admin_bp)
 
 # Initialize ML model
 predictor = MultiModelPredictor()
@@ -233,6 +241,7 @@ def get_dashboard_stats():
     finally:
         if engine:
             engine.dispose()
+
 
 @app.route('/api/dashboard/students-by-department', methods=['GET'])
 @jwt_required()

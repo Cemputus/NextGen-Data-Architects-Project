@@ -30,6 +30,27 @@ from config import DATA_WAREHOUSE_CONN_STRING
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
+
+def _audit_log_login(username, role_name, status='success', error_message=None):
+    """Write login event to ucu_rbac.audit_logs if available. Silently skip on failure."""
+    try:
+        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace('UCU_DataWarehouse', 'ucu_rbac')
+        engine = create_engine(rbac_conn)
+        with engine.connect() as conn:
+            conn.execute(text("""
+                INSERT INTO audit_logs (username, role_name, action, resource, status, error_message)
+                VALUES (:username, :role_name, 'login', 'auth', :status, :error_message)
+            """), {
+                'username': username or '',
+                'role_name': role_name or '',
+                'status': status,
+                'error_message': error_message,
+            })
+            conn.commit()
+        engine.dispose()
+    except Exception:
+        pass
+
 # Database connection for RBAC
 RBAC_DB_NAME = "ucu_rbac"
 RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace("UCU_DataWarehouse", RBAC_DB_NAME)
@@ -105,6 +126,7 @@ def login():
                 )
                 refresh_token = create_refresh_token(identity=user_data['student_id'])
                 
+                _audit_log_login(identifier.upper(), 'student', 'success')
                 return jsonify({
                     'access_token': access_token,
                     'refresh_token': refresh_token,
@@ -134,7 +156,7 @@ def login():
                     }
                 )
                 refresh_token = create_refresh_token(identity=identifier_lower)
-                
+                _audit_log_login(identifier_lower, user_info['role'], 'success')
                 return jsonify({
                     'access_token': access_token,
                     'refresh_token': refresh_token,
@@ -147,6 +169,7 @@ def login():
                     }
                 }), 200
         
+        _audit_log_login(identifier_lower or identifier, None, 'failure', 'Invalid credentials')
         return jsonify({'error': 'Invalid credentials'}), 401
         
     except Exception as e:

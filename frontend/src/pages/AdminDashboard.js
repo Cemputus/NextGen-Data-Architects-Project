@@ -2,6 +2,7 @@
  * Admin Dashboard - Smooth, Clean UI
  */
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Settings, Users, Database, History, Shield, Activity } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -14,9 +15,11 @@ import { Loader2 } from 'lucide-react';
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [systemStats, setSystemStats] = useState(null);
+  const [adminStatus, setAdminStatus] = useState(null);
 
   useEffect(() => {
     loadSystemStats();
+    loadAdminStatus();
   }, []);
 
   const loadSystemStats = async () => {
@@ -41,6 +44,22 @@ const AdminDashboard = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAdminStatus = async () => {
+    try {
+      const response = await axios.get('/api/admin/system-status', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setAdminStatus(response.data);
+    } catch (err) {
+      if (err.response?.status === 404) {
+        console.warn('Admin API not found (404). Ensure backend is up and admin blueprint is registered.');
+      } else if (err.response?.status !== 403) {
+        console.error('Error loading admin status:', err);
+      }
+      setAdminStatus(null);
     }
   };
 
@@ -151,16 +170,45 @@ const AdminDashboard = () => {
             <TabsContent value="etl" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>ETL Job Management</CardTitle>
-                  <CardDescription>Monitor and manage ETL pipeline jobs</CardDescription>
+                  <CardTitle>Data Warehouse & ETL Overview</CardTitle>
+                  <CardDescription>Live counts and last ETL run — full tracking on ETL Jobs page</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
-                    <div className="text-center">
-                      <Database className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                      <p>ETL job management</p>
+                  {adminStatus ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                        {adminStatus.warehouse && Object.entries(adminStatus.warehouse).map(([table, count]) => (
+                          <div key={table} className="rounded border bg-muted/30 px-3 py-2">
+                            <span className="font-medium text-muted-foreground">{table}</span>
+                            <span className="ml-2 font-semibold">{count != null ? count.toLocaleString() : '—'}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {adminStatus.etl_runs && adminStatus.etl_runs.length > 0 && (
+                        <div className="rounded border p-3 bg-muted/20">
+                          <p className="text-sm font-medium text-muted-foreground mb-1">Last ETL run</p>
+                          <p className="text-sm">
+                            {adminStatus.etl_runs[0].start_time || adminStatus.etl_runs[0].log_file}
+                            {adminStatus.etl_runs[0].duration && ` · ${adminStatus.etl_runs[0].duration}`}
+                            {' · '}
+                            <span className={adminStatus.etl_runs[0].success ? 'text-green-600' : 'text-amber-600'}>
+                              {adminStatus.etl_runs[0].success ? 'Success' : 'Failed'}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        <Link to="/admin/etl" className="underline">Open ETL Jobs</Link> for full run history and details.
+                      </p>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="h-32 flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
+                      <div className="text-center">
+                        <Database className="h-10 w-10 mx-auto mb-2 text-muted-foreground/50" />
+                        <p>Load admin status to see warehouse and ETL summary</p>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
