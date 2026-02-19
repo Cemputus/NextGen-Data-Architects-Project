@@ -9,11 +9,11 @@ A comprehensive data analytics and machine learning platform for Uganda Christia
 - [Key Features](#key-features)
 - [Machine Learning Models](#machine-learning-models)
 - [Technology Stack](#technology-stack)
-- [Installation & Setup](#installation--setup)
+- [Installation &amp; Setup](#installation--setup)
 - [API Documentation](#api-documentation)
 - [Database Schema](#database-schema)
 - [ETL Pipeline](#etl-pipeline)
-- [Security & RBAC](#security--rbac)
+- [Security &amp; RBAC](#security--rbac)
 - [Frontend Dashboard](#frontend-dashboard)
 - [Usage Examples](#usage-examples)
 - [Troubleshooting](#troubleshooting)
@@ -72,6 +72,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 ## ✨ Key Features
 
 ### 1. **Multi-Role Dashboards**
+
 - **Student Dashboard**: Personal performance, attendance, payment status
 - **Staff Dashboard**: Class-level analytics and student management
 - **HOD Dashboard**: Department-wide insights and trends
@@ -80,18 +81,21 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 - **Finance Dashboard**: Payment tracking, revenue analysis, and financial reports
 
 ### 2. **Advanced Analytics**
+
 - **FEX Analytics**: Failed Exam analysis with drill-down capabilities
 - **High School Analytics**: Enrollment patterns, retention rates, and performance by high school
 - **Payment Analytics**: Payment trends, completion rates, and outstanding balances
 - **Attendance Analytics**: Attendance patterns and correlation with performance
 
 ### 3. **Predictive Analytics**
+
 - Student performance prediction
 - Tuition-attendance-performance correlation
 - Scenario analysis (what-if predictions)
 - Batch predictions for multiple students
 
 ### 4. **Data Export**
+
 - Excel export for all analytics
 - PDF report generation
 - Customizable filters and date ranges
@@ -103,8 +107,9 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 ### 1. **Standard Performance Prediction Models**
 
 #### **Random Forest Regressor**
+
 - **Purpose**: Predict student average grade based on historical data
-- **Why Used**: 
+- **Why Used**:
   - Handles non-linear relationships well
   - Robust to outliers
   - Provides feature importance
@@ -113,6 +118,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 - **Performance**: R² = 0.9992, RMSE = 0.71
 
 #### **Gradient Boosting Regressor**
+
 - **Purpose**: Alternative ensemble method for performance prediction
 - **Why Used**:
   - Sequential learning improves accuracy
@@ -121,6 +127,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 - **Performance**: R² = 0.9995, RMSE = 0.59 (Best performing)
 
 #### **Neural Network (MLPRegressor)**
+
 - **Purpose**: Deep learning approach for performance prediction
 - **Why Used**:
   - Captures complex non-linear relationships
@@ -135,6 +142,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 ### 2. **Enhanced Prediction Models**
 
 #### **Tuition-Attendance-Performance Model**
+
 - **Type**: Gradient Boosting Regressor
 - **Purpose**: Predict student performance based on tuition payment timeliness and attendance patterns
 - **Why Used**:
@@ -153,6 +161,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 - **Use Case**: Early intervention for students with payment delays and poor attendance
 
 #### **Enrollment Trend Model**
+
 - **Type**: Random Forest Regressor
 - **Purpose**: Predict enrollment trends for resource allocation
 - **Why Used**:
@@ -162,6 +171,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 - **Features**: Year, quarter, program, department, faculty, historical enrollment data, lag features
 
 #### **Foundational Course Performance Model**
+
 - **Type**: Gradient Boosting Regressor
 - **Purpose**: Predict performance in foundational courses
 - **Why Used**:
@@ -175,6 +185,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 ### 3. **Model Training & Evaluation**
 
 **Training Process**:
+
 1. Data extraction from data warehouse
 2. Feature engineering and selection
 3. Train-test split (80/20)
@@ -184,10 +195,12 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 7. Model persistence (pickle files)
 
 **Model Storage**:
+
 - Standard models: `backend/models/multi_model_predictor.pkl`
 - Enhanced models: `backend/models/enhanced_predictor.pkl`
 
 **Retraining**: Models can be retrained using:
+
 ```bash
 cd backend
 python train_models.py
@@ -200,18 +213,21 @@ python train_models.py
 ### Backend Stack
 
 #### Core Framework & Runtime
+
 - **Python**: 3.8+
 - **Flask**: 2.3.0+ - Web framework
 - **Flask-CORS**: Cross-origin resource sharing
 - **Flask-JWT-Extended**: JWT authentication and authorization
 
 #### Database & ORM
+
 - **MySQL**: 8.0+ - Relational database
 - **SQLAlchemy**: 2.0+ - SQL toolkit and ORM
 - **PyMySQL**: MySQL database connector
 - **pymysql**: Pure Python MySQL client
 
 #### Machine Learning & Data Science
+
 - **scikit-learn**: 1.3.0+ - Machine learning library
   - RandomForestRegressor
   - GradientBoostingRegressor
@@ -221,11 +237,13 @@ python train_models.py
 - **numpy**: 1.24+ - Numerical computing
 
 #### Data Processing & ETL
+
 - **pandas**: 1.5.0+ - Data transformation and cleaning
 - **numpy**: 1.23.0+ - Numerical operations
 - **pyarrow**: 10.0.0+ - Columnar data processing
 
 #### Utilities & Tools
+
 - **python-dotenv**: 1.0.0 - Environment variable management
 - **bcrypt**: 4.1.2 - Password hashing
 - **openpyxl**: 3.1.0+ - Excel file generation
@@ -237,23 +255,27 @@ python train_models.py
 - **werkzeug**: 3.0.1 - WSGI utilities
 
 #### Development & Testing
+
 - **pytest**: Testing framework (optional)
 - **python-dateutil**: Date utilities
 
 ### Frontend Stack
 
 #### Core Framework
+
 - **React**: 18.2.0+ - UI library
 - **React DOM**: 18.2.0+ - React rendering
 - **React Router DOM**: 6.8+ - Client-side routing
 
 #### Build Tools
+
 - **Create React App**: React application scaffolding
 - **Webpack**: Module bundler (via CRA)
 - **Babel**: JavaScript compiler
 - **PostCSS**: CSS processing
 
 #### Styling & UI
+
 - **Tailwind CSS**: 3.3+ - Utility-first CSS framework
 - **PostCSS**: 8.5.6 - CSS post-processing
 - **Autoprefixer**: 10.4.22 - CSS vendor prefixing
@@ -263,6 +285,7 @@ python train_models.py
 - **class-variance-authority**: 0.7.1 - Component variants
 
 #### Data Visualization
+
 - **SciChart.js**: 4.0.920 - High-performance charting library (primary)
   - SciChart2D
   - XyDataSeries, FastLineRenderableSeries
@@ -274,10 +297,12 @@ python train_models.py
   - react-plotly.js: 2.6.0 - React wrapper for Plotly
 
 #### HTTP & API
+
 - **Axios**: 1.4+ - HTTP client for API requests
 - **Fetch API**: Native browser API (fallback)
 
 #### Icons & UI Components
+
 - **Lucide React**: 0.554.0 - Modern icon library
 - **React Icons**: 4.12.0 - Additional icon sets
 - **Chakra UI**: 2.8.2 - Component library (if used)
@@ -287,11 +312,13 @@ python train_models.py
 - **Radix UI**: @radix-ui/react-tabs - Accessible UI primitives
 
 #### State Management
+
 - **React Hooks**: Built-in state management
   - useState, useEffect, useContext
   - Custom hooks for API calls
 
 #### Export & File Handling
+
 - **ExcelJS**: 4.4.0 - Excel file generation
 - **xlsx**: 0.18.5 - Excel file parsing
 - **file-saver**: 2.0.5 - File download utility
@@ -300,19 +327,23 @@ python train_models.py
 - **html2canvas**: 1.4.1 - HTML to canvas conversion
 
 #### Date & Time
+
 - **date-fns**: 2.30.0 - Date utility library
 
 #### Tables & Data Display
+
 - **react-table**: 7.8.0 - Table component
 - **react-select**: 5.8.0 - Select dropdown component
 
 #### Development Tools
+
 - **ESLint**: Code linting
 - **Prettier**: Code formatting (if configured)
 
 ### Data Pipeline Stack
 
 #### ETL Framework
+
 - **Custom Python Pipeline**: Built with pandas and SQLAlchemy
 - **Data Layers**:
   - **Bronze**: Raw data storage (CSV files)
@@ -320,12 +351,14 @@ python train_models.py
   - **Gold**: Aggregated and transformed data
 
 #### Data Warehouse
+
 - **MySQL 8.0+**: Star schema design
 - **InnoDB Engine**: Transactional storage
 - **Indexes**: Optimized for query performance
 - **Foreign Keys**: Referential integrity
 
 #### Data Formats
+
 - **CSV**: Source data format
 - **JSON**: API data exchange
 - **Excel (.xlsx)**: Export format
@@ -334,20 +367,24 @@ python train_models.py
 ### Infrastructure & Deployment
 
 #### Server
+
 - **Development**: Flask development server
 - **Production**: Gunicorn (recommended) or uWSGI
 - **WSGI**: Python Web Server Gateway Interface
 
 #### Database
+
 - **MySQL 8.0+**: Primary database
 - **InnoDB**: Storage engine with ACID compliance
 - **Character Set**: utf8mb4 (full Unicode support)
 
 #### File Storage
+
 - **Local Filesystem**: CSV, PDF, Excel exports
 - **Model Storage**: Pickle files in `backend/models/`
 
 #### Security
+
 - **JWT**: JSON Web Tokens for authentication
 - **bcrypt**: Password hashing (bcrypt algorithm)
 - **CORS**: Cross-origin resource sharing enabled
@@ -356,21 +393,25 @@ python train_models.py
 ### Development Environment
 
 #### Version Control
+
 - **Git**: Source control
-- **GitHub/GitLab**: Repository hosting (if used)
+- **GitHub/GitLab**: Repository hosting
 
 #### IDE & Tools
+
 - **VS Code / PyCharm**: Development IDEs
 - **MySQL Workbench**: Database management
 - **Postman / Insomnia**: API testing
 
 #### Package Management
+
 - **pip**: Python package manager
 - **npm / yarn**: Node.js package manager
 
 ### Complete Dependency List
 
 #### Backend (`requirements.txt`)
+
 ```
 flask==3.0.0
 flask-cors==4.0.0
@@ -394,6 +435,7 @@ dash-bootstrap-components==1.5.0
 ```
 
 #### Frontend (`package.json`)
+
 ```json
 {
   "dependencies": {
@@ -438,6 +480,7 @@ dash-bootstrap-components==1.5.0
 ### System Requirements
 
 #### Minimum Requirements
+
 - **OS**: Windows 10+, Linux (Ubuntu 20.04+), macOS 10.15+
 - **Python**: 3.8 or higher
 - **Node.js**: 16.0 or higher
@@ -446,6 +489,7 @@ dash-bootstrap-components==1.5.0
 - **Storage**: 2GB free space
 
 #### Recommended Requirements
+
 - **OS**: Windows 11, Linux (Ubuntu 22.04+), macOS 12+
 - **Python**: 3.10 or higher
 - **Node.js**: 18.0 or higher
@@ -459,6 +503,7 @@ dash-bootstrap-components==1.5.0
 ## 📦 Installation & Setup
 
 ### Prerequisites
+
 - Python 3.8+
 - Node.js 16+
 - MySQL 8.0+
@@ -467,12 +512,14 @@ dash-bootstrap-components==1.5.0
 ### Backend Setup
 
 1. **Clone the repository**
+
 ```bash
-git clone <repository-url>
-cd "final year project"
+git clone <https://github.com/Cemputus/NextGen-Data-Architects-Project>
+cd "NextGen-Data-Architects-Project"
 ```
 
 2. **Set up Python virtual environment**
+
 ```bash
 cd backend
 python -m venv .venv
@@ -485,12 +532,15 @@ source .venv/bin/activate
 ```
 
 3. **Install dependencies**
+
 ```bash
 pip install -r requirements.txt
 ```
 
 4. **Configure database**
+
 - Edit `backend/config.py` with your MySQL credentials:
+
 ```python
 MYSQL_HOST = 'localhost'
 MYSQL_USER = 'your_username'
@@ -499,6 +549,7 @@ MYSQL_DATABASE = 'UCU_DataWarehouse'
 ```
 
 5. **Create database and run ETL**
+
 ```bash
 # Create database schema
 python setup_databases.py
@@ -508,11 +559,13 @@ python etl_pipeline.py
 ```
 
 6. **Train ML models**
+
 ```bash
 python train_models.py
 ```
 
 7. **Start backend server**
+
 ```bash
 python app.py
 # Or use the batch file
@@ -524,16 +577,19 @@ Backend will run on `http://localhost:5000`
 ### Frontend Setup
 
 1. **Navigate to frontend directory**
+
 ```bash
 cd frontend
 ```
 
 2. **Install dependencies**
+
 ```bash
 npm install
 ```
 
 3. **Start development server**
+
 ```bash
 npm start
 ```
@@ -543,6 +599,7 @@ Frontend will run on `http://localhost:3000`
 ### Quick Start (Windows)
 
 Use the provided batch files:
+
 ```bash
 # Start both backend and frontend
 start_all_services.bat
@@ -560,6 +617,7 @@ cd frontend && npm start
 ### Authentication
 
 #### Login
+
 ```http
 POST /api/auth/login
 Content-Type: application/json
@@ -571,6 +629,7 @@ Content-Type: application/json
 ```
 
 **Response**:
+
 ```json
 {
   "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
@@ -585,11 +644,13 @@ Content-Type: application/json
 ### Dashboard Endpoints
 
 All dashboard endpoints require JWT authentication. Include token in header:
+
 ```http
 Authorization: Bearer <access_token>
 ```
 
 #### Dashboard Statistics
+
 ```http
 GET /api/dashboard/stats
 ```
@@ -597,6 +658,7 @@ GET /api/dashboard/stats
 Returns: Total students, courses, average grade, payment statistics
 
 #### Payment Trends
+
 ```http
 GET /api/dashboard/payment-trends
 ```
@@ -604,6 +666,7 @@ GET /api/dashboard/payment-trends
 Returns: Payment trends over time (Finance role only)
 
 #### Grade Distribution
+
 ```http
 GET /api/dashboard/grade-distribution
 ```
@@ -613,6 +676,7 @@ Returns: Distribution of grades across the system
 ### Analytics Endpoints
 
 #### FEX Analytics
+
 ```http
 GET /api/analytics/fex?drilldown=overall
 ```
@@ -620,6 +684,7 @@ GET /api/analytics/fex?drilldown=overall
 **Drilldown options**: `overall`, `faculty`, `department`, `program`, `course`
 
 #### High School Analytics
+
 ```http
 GET /api/analytics/high-school
 ```
@@ -629,6 +694,7 @@ Returns: Enrollment, retention, and performance by high school
 ### Prediction Endpoints
 
 #### Student Performance Prediction
+
 ```http
 POST /api/predictions/predict
 Content-Type: application/json
@@ -641,6 +707,7 @@ Authorization: Bearer <token>
 ```
 
 **Response**:
+
 ```json
 {
   "student_id": "J21B05/001",
@@ -651,6 +718,7 @@ Authorization: Bearer <token>
 ```
 
 #### Tuition-Attendance-Performance Prediction
+
 ```http
 POST /api/predictions/tuition-attendance-performance
 Content-Type: application/json
@@ -662,6 +730,7 @@ Authorization: Bearer <token>
 ```
 
 #### Scenario Analysis
+
 ```http
 POST /api/predictions/scenario
 Content-Type: application/json
@@ -682,11 +751,13 @@ Authorization: Bearer <token>
 ### Export Endpoints
 
 #### Excel Export
+
 ```http
 GET /api/export/excel?type=dashboard&faculty_id=1
 ```
 
 #### PDF Export
+
 ```http
 GET /api/export/pdf?type=fex&department_id=5
 ```
@@ -700,6 +771,7 @@ GET /api/export/pdf?type=fex&department_id=5
 #### Dimension Tables
 
 **dim_student**
+
 - `student_id` (PK)
 - `access_number`, `reg_no`
 - `first_name`, `last_name`, `email`
@@ -709,23 +781,27 @@ GET /api/export/pdf?type=fex&department_id=5
 - `program_id`, `year_of_study`, `status`
 
 **dim_course**
+
 - `course_code` (PK)
 - `course_name`
 - `credits`
 - `department`
 
 **dim_time**
+
 - `date_key` (PK) - Format: YYYYMMDD
 - `date`, `year`, `quarter`, `month`
 - `month_name`, `day`, `day_of_week`, `day_name`
 - `is_weekend`
 
 **dim_semester**
+
 - `semester_id` (PK)
 - `semester_name`
 - `academic_year`
 
 **dim_program**
+
 - `program_id` (PK)
 - `program_name`
 - `degree_level`
@@ -733,12 +809,14 @@ GET /api/export/pdf?type=fex&department_id=5
 - `duration_years`
 
 **dim_department**
+
 - `department_id` (PK)
 - `department_name`
 - `faculty_id` (FK)
 - `head_of_department`
 
 **dim_faculty**
+
 - `faculty_id` (PK)
 - `faculty_name`
 - `dean_name`
@@ -746,6 +824,7 @@ GET /api/export/pdf?type=fex&department_id=5
 #### Fact Tables
 
 **fact_enrollment**
+
 - `enrollment_id` (PK)
 - `student_id` (FK)
 - `course_code` (FK)
@@ -754,6 +833,7 @@ GET /api/export/pdf?type=fex&department_id=5
 - `status`
 
 **fact_attendance**
+
 - `attendance_id` (PK)
 - `student_id` (FK)
 - `course_code` (FK)
@@ -763,6 +843,7 @@ GET /api/export/pdf?type=fex&department_id=5
 - `days_absent`
 
 **fact_payment**
+
 - `payment_id` (PK)
 - `student_id` (FK)
 - `date_key` (FK)
@@ -771,6 +852,7 @@ GET /api/export/pdf?type=fex&department_id=5
 - `payment_type` (Tuition/Functional Fees)
 
 **fact_grade**
+
 - `grade_id` (PK)
 - `student_id` (FK)
 - `course_code` (FK)
@@ -833,32 +915,33 @@ The system implements a comprehensive RBAC system with the following roles:
 #### Roles & Permissions
 
 1. **Student**
+
    - View own performance, attendance, payments
    - Access personal predictions
    - No administrative access
-
 2. **Staff**
+
    - View class-level analytics
    - Access students in assigned courses
    - Limited prediction access
-
 3. **HOD (Head of Department)**
+
    - View department-wide analytics
    - Access all students in department
    - Department-level predictions
-
 4. **Dean**
+
    - View faculty-wide analytics
    - Access all students in faculty
    - Faculty-level predictions and reports
-
 5. **Senate**
+
    - Full system access
    - University-wide analytics
    - All predictions and reports
    - System administration
-
 6. **Finance**
+
    - Payment analytics and reports
    - Financial predictions
    - Payment tracking
@@ -872,6 +955,7 @@ The system implements a comprehensive RBAC system with the following roles:
 ### Data Scoping
 
 All queries are automatically scoped based on user role:
+
 - Students see only their data
 - Staff see their class data
 - HOD sees department data
@@ -885,37 +969,38 @@ All queries are automatically scoped based on user role:
 ### Dashboard Components
 
 1. **Student Dashboard**
+
    - Personal performance metrics
    - Attendance calendar
    - Payment status
    - Grade history
    - Performance predictions
-
 2. **Staff Dashboard**
+
    - Class performance overview
    - Student list with filters
    - Attendance tracking
    - Grade entry interface
-
 3. **HOD Dashboard**
+
    - Department statistics
    - Program performance
    - Student distribution
    - Department trends
-
 4. **Dean Dashboard**
+
    - Faculty-wide metrics
    - Program comparisons
    - High school analytics
    - Faculty performance reports
-
 5. **Senate Dashboard**
+
    - University-wide statistics
    - Cross-faculty comparisons
    - Enrollment trends
    - System-wide analytics
-
 6. **Finance Dashboard**
+
    - Payment tracking
    - Revenue analytics
    - Outstanding balances
@@ -990,26 +1075,27 @@ response = requests.post(
 ### Common Issues
 
 1. **"Model not trained" error**
+
    ```bash
    cd backend
    python train_models.py
    ```
-
 2. **Database connection error**
+
    - Check MySQL is running
    - Verify credentials in `config.py`
    - Ensure database exists
-
 3. **Port already in use**
+
    - Change port in `app.py` or `start_server.py`
    - Kill existing process: `netstat -ano | findstr :5000`
-
 4. **Frontend not connecting to backend**
+
    - Check CORS settings in `app.py`
    - Verify backend is running on port 5000
    - Check API base URL in frontend
-
 5. **Charts not rendering**
+
    - Check browser console for errors
    - Verify SciChart.js WASM files are accessible
    - System will fallback to Recharts automatically
@@ -1024,13 +1110,13 @@ response = requests.post(
 
 ## 📊 Model Performance Summary
 
-| Model | Type | R² Score | RMSE | Use Case |
-|-------|------|----------|------|----------|
-| Random Forest | Regression | 0.9992 | 0.71 | General performance prediction |
-| Gradient Boosting | Regression | 0.9995 | 0.59 | General performance prediction (best) |
-| Neural Network | Regression | 0.9961 | 1.58 | Complex pattern recognition |
-| Tuition-Attendance | Regression | -0.42 | 4.86 | Early intervention prediction |
-| Enrollment Trend | Regression | - | - | Resource allocation |
+| Model              | Type       | R² Score | RMSE | Use Case                              |
+| ------------------ | ---------- | --------- | ---- | ------------------------------------- |
+| Random Forest      | Regression | 0.9992    | 0.71 | General performance prediction        |
+| Gradient Boosting  | Regression | 0.9995    | 0.59 | General performance prediction (best) |
+| Neural Network     | Regression | 0.9961    | 1.58 | Complex pattern recognition           |
+| Tuition-Attendance | Regression | -0.42     | 4.86 | Early intervention prediction         |
+| Enrollment Trend   | Regression | -         | -    | Resource allocation                   |
 
 **Note**: Negative R² scores indicate the model needs more training data or feature engineering.
 
@@ -1057,19 +1143,30 @@ This project is developed for Uganda Christian University (UCU) as part of a fin
 
 ## 👥 Contributors
 
-- NextGen Data Architects Team
+This project is proudly developed by the **NextGen Data Architects** team, a group of dedicated students pursuing their Bachelor of Science in Data Science and Analytics at Uganda Christian University.
+
+### Core Development Team
+
+- **Guloba Emmanuel Edube** - [@Edube20Emmanuel](https://github.com/Edube20Emmanuel)
+- **Emmanuel Nsubuga** - [@Cemputus](https://github.com/Cemputus)
+- **Asingwiire Enoch** - [@asingwiireenoch](https://github.com/asingwiireenoch)
+
+### Acknowledgments
+
+We extend our sincere gratitude to Uganda Christian University for providing the platform and resources that made this project possible. Special thanks to our academic advisors and the UCU community for their invaluable support throughout the development process.
 
 ---
 
 ## 📞 Support
 
 For issues or questions:
+
 1. Check the troubleshooting section
 2. Review API documentation
 3. Check logs for error messages
-4. Contact the development team
+4. Contact the development team: [ensubuga019@gmail.com](mailto:ensubuga019@gmail.com)
 
 ---
 
-**Last Updated**: November 2025
-**Version**: 1.0.0
+**Last Updated**: February 2026
+**Version**: 2.0.0
