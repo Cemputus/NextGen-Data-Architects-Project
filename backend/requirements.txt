@@ -1,0 +1,37 @@
+# Build / install (needed for pkg_resources on Python 3.12+)
+setuptools>=65.0.0
+
+# Core Flask & API
+flask==3.0.0
+flask-cors==4.0.0
+flask-jwt-extended==4.6.0
+werkzeug==3.0.1
+
+# Database
+sqlalchemy>=1.4.0,<2.1.0
+pymysql==1.1.0
+
+# Data & ML (ranges allow Python 3.13 wheels; avoid source build)
+pandas>=2.0.0
+numpy>=1.24.0,<3.0.0
+scikit-learn>=1.0.0,<1.4.0
+
+# Auth & security
+bcrypt==4.1.2
+cryptography>=3.4.0,<42.0.0
+
+# Export & reports
+reportlab==4.0.7
+openpyxl>=3.1.0
+
+# Config & HTTP
+python-dotenv==1.0.0
+requests==2.31.0
+
+# ETL / data (optional)
+pyarrow>=10.0.0,<14.0.0
+
+# Dash / Plotly (if used by dashboards)
+plotly==5.18.0
+dash==2.14.2
+dash-bootstrap-components==1.5.0
