@@ -157,11 +157,16 @@ const AdminDashboard = () => {
                   <CardDescription>Configure system parameters and preferences</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
-                    <div className="text-center">
-                      <Settings className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                      <p>System settings and configuration</p>
-                    </div>
+                  <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                    <Settings className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                    <p className="mb-4">Manage general, security, notifications, and appearance in the dedicated Settings page.</p>
+                    <Link
+                      to="/admin/settings"
+                      className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Open Settings
+                    </Link>
                   </div>
                 </CardContent>
               </Card>

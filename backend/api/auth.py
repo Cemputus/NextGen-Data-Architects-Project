@@ -2,7 +2,10 @@
 Authentication API with RBAC support
 Handles login, registration, profile management, and Access Number authentication
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
+import base64
+import re
+import os
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
@@ -34,6 +37,22 @@ except ImportError:
     audit_log = None
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+
+PROFILE_PHOTOS_DIR = backend_dir / 'data' / 'profile_photos'
+PROFILE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _profile_photo_path(identity):
+    """Safe filename from JWT identity."""
+    if not identity:
+        return None
+    safe = re.sub(r'[^\w\-.]', '_', str(identity).strip())[:64]
+    return PROFILE_PHOTOS_DIR / f"{safe}.jpg" if safe else None
+
+
+def _has_profile_photo(identity):
+    p = _profile_photo_path(identity)
+    return p and p.exists()
 
 
 def _audit_log_login(username, role_name, status='success', error_message=None):
@@ -207,7 +226,9 @@ def get_profile():
     """Get current user's profile"""
     try:
         claims = get_jwt()
-        
+        identity = get_jwt_identity()
+        profile_picture_url = '/api/auth/profile/photo' if _has_profile_photo(identity) else None
+
         return jsonify({
             'id': claims.get('student_id') or claims.get('username'),
             'username': claims.get('username'),
@@ -216,8 +237,11 @@ def get_profile():
             'reg_number': claims.get('reg_number'),
             'first_name': claims.get('first_name'),
             'last_name': claims.get('last_name'),
+            'email': claims.get('email'),
+            'phone': claims.get('phone'),
+            'profile_picture_url': profile_picture_url,
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

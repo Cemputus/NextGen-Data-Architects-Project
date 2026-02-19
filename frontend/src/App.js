@@ -5,6 +5,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { rbac } from './utils/rbac';
 import { Loader2 } from 'lucide-react';
 
@@ -93,6 +94,7 @@ function RoleRoute({ children, allowedRoles }) {
 function App() {
   return (
     <AuthProvider>
+      <ThemeProvider>
       <Router>
           <Routes>
             {/* Public Routes */}
@@ -281,6 +283,7 @@ function App() {
             />
           </Routes>
         </Router>
+      </ThemeProvider>
       </AuthProvider>
   );
 }

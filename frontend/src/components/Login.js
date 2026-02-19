@@ -11,6 +11,7 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
+import { ThemeSwitcher } from './ThemeSwitcher';
 import axios from 'axios';
 
 const Login = () => {
@@ -107,7 +108,7 @@ const Login = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -125,9 +126,13 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* Theme switcher - top right for all users */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeSwitcher />
+      </div>
+      {/* Animated background elements - subtle in dark mode */}
+      <div className="absolute inset-0 overflow-hidden opacity-30 dark:opacity-20">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float" style={{ animationDelay: '2s' }}></div>
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-indigo-400 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-float" style={{ animationDelay: '4s' }}></div>
@@ -154,7 +159,7 @@ const Login = () => {
             <h1 className="text-4xl font-bold text-gradient-blue mb-3">
               UCU Management Information System
             </h1>
-            <p className="text-gray-600 font-medium text-lg">
+            <p className="text-muted-foreground font-medium text-lg">
               Uganda Christian University
             </p>
           </motion.div>
@@ -165,9 +170,9 @@ const Login = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            <Card className="shadow-2xl border-0 glass backdrop-blur-xl bg-white/90">
+            <Card className="shadow-2xl border border-border backdrop-blur-xl bg-card/95">
               <CardHeader className="space-y-1 pb-6">
-                <CardTitle className="text-3xl text-center font-bold text-gray-900">
+                <CardTitle className="text-3xl text-center font-bold text-foreground">
                   Sign In
                 </CardTitle>
                 <CardDescription className="text-center text-base">

@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 const LayoutModern = ({ children }) => {
   const { user, logout } = useAuth();
@@ -124,16 +125,16 @@ const LayoutModern = ({ children }) => {
   const currentPath = location.pathname;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50 flex">
+    <div className="min-h-screen bg-background flex">
       {/* Desktop Sidebar */}
       <motion.aside
         initial={false}
         animate={{ width: sidebarOpen ? 256 : 80 }}
-        className="bg-white/80 backdrop-blur-xl border-r border-gray-200/50 hidden md:flex md:flex-col shadow-xl"
+        className="bg-card/80 backdrop-blur-xl border-r border-border hidden md:flex md:flex-col shadow-xl"
       >
         <div className="flex flex-col h-full">
           {/* Logo/Header */}
-          <div className="p-6 border-b border-gray-200/50">
+          <div className="p-6 border-b border-border">
             <div className="flex items-center justify-between">
               <AnimatePresence mode="wait">
                 {sidebarOpen && (
@@ -156,7 +157,7 @@ const LayoutModern = ({ children }) => {
                 variant="ghost"
                 size="icon"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="ml-auto h-9 w-9 hover:bg-blue-50 rounded-lg"
+                className="ml-auto h-9 w-9 hover:bg-muted rounded-lg"
               >
                 {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
               </Button>
@@ -181,7 +182,7 @@ const LayoutModern = ({ children }) => {
                       "w-full justify-start gap-3 h-11 font-medium transition-all duration-200",
                       isActive 
                         ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-indigo-700" 
-                        : "hover:bg-blue-50 hover:text-blue-700 text-gray-700",
+                        : "hover:bg-muted hover:text-foreground text-foreground",
                       !sidebarOpen && "justify-center px-0"
                     )}
                     onClick={() => navigate(item.path)}
@@ -196,10 +197,10 @@ const LayoutModern = ({ children }) => {
           </nav>
 
           {/* User Section */}
-          <div className="p-4 border-t border-gray-200/50 bg-gradient-to-t from-gray-50/50 to-transparent">
+          <div className="p-4 border-t border-border bg-muted/30">
             <div className="flex items-center gap-3 mb-3">
-              <Avatar className="h-10 w-10 ring-2 ring-blue-200">
-                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-500 text-white font-semibold text-sm">
+              <Avatar className="h-10 w-10 ring-2 ring-primary/30">
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
                   {user?.first_name?.[0]}{user?.last_name?.[0]}
                 </AvatarFallback>
               </Avatar>
@@ -209,10 +210,10 @@ const LayoutModern = ({ children }) => {
                   animate={{ opacity: 1 }}
                   className="flex-1 min-w-0"
                 >
-                  <p className="text-sm font-semibold text-gray-900 truncate">
+                  <p className="text-sm font-semibold text-foreground truncate">
                     {user?.first_name} {user?.last_name}
                   </p>
-                  <Badge variant="secondary" className="text-xs mt-1 bg-blue-100 text-blue-700 border-blue-200">
+                  <Badge variant="secondary" className="text-xs mt-1">
                     {user?.role}
                   </Badge>
                 </motion.div>
@@ -248,10 +249,10 @@ const LayoutModern = ({ children }) => {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed left-0 top-0 h-full bg-white/95 backdrop-blur-xl border-r border-gray-200 z-50 w-64 md:hidden shadow-2xl"
+              className="fixed left-0 top-0 h-full bg-card/95 backdrop-blur-xl border-r border-border z-50 w-64 md:hidden shadow-2xl"
             >
               <div className="flex flex-col h-full">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div className="p-6 border-b border-border flex items-center justify-between">
                   <div>
                     <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                       NextGen MIS
@@ -270,6 +271,9 @@ const LayoutModern = ({ children }) => {
                   </Button>
                 </div>
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                  <div className="mb-3 sm:hidden">
+                    <ThemeSwitcher />
+                  </div>
                   {navItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = currentPath === item.path;
@@ -279,7 +283,7 @@ const LayoutModern = ({ children }) => {
                         variant={isActive ? "default" : "ghost"}
                         className={cn(
                           "w-full justify-start gap-3 h-11 font-medium",
-                          isActive && "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                          isActive && "bg-primary text-primary-foreground shadow-lg"
                         )}
                         onClick={() => {
                           navigate(item.path);
@@ -292,18 +296,18 @@ const LayoutModern = ({ children }) => {
                     );
                   })}
                 </nav>
-                <div className="p-4 border-t border-gray-200">
+                <div className="p-4 border-t border-border">
                   <div className="flex items-center gap-3 mb-3">
-                    <Avatar className="h-10 w-10 ring-2 ring-blue-200">
-                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-500 text-white font-semibold text-sm">
+                    <Avatar className="h-10 w-10 ring-2 ring-primary/30">
+                      <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
                         {user?.first_name?.[0]}{user?.last_name?.[0]}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="text-sm font-semibold text-gray-900">
+                      <p className="text-sm font-semibold text-foreground">
                         {user?.first_name} {user?.last_name}
                       </p>
-                      <Badge variant="secondary" className="text-xs mt-1 bg-blue-100 text-blue-700">
+                      <Badge variant="secondary" className="text-xs mt-1">
                         {user?.role}
                       </Badge>
                     </div>
@@ -326,30 +330,31 @@ const LayoutModern = ({ children }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="bg-gradient-to-r from-white via-blue-50/50 to-white backdrop-blur-xl border-b border-gray-200/50 px-4 md:px-6 py-4 sticky top-0 z-30 shadow-sm">
+        <header className="bg-card/80 backdrop-blur-xl border-b border-border px-4 md:px-6 py-4 sticky top-0 z-30 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden h-10 w-10 hover:bg-blue-50 rounded-lg"
+                className="md:hidden h-10 w-10 hover:bg-muted rounded-lg"
                 onClick={() => setMobileMenuOpen(true)}
               >
                 <Menu className="h-5 w-5" />
               </Button>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl font-bold text-foreground">
                 {navItems.find(item => item.path === currentPath)?.label || 'Dashboard'}
               </h2>
             </div>
             <div className="flex items-center gap-3">
+              <ThemeSwitcher className="hidden sm:block" />
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold text-gray-900">
+                <p className="text-sm font-semibold text-foreground">
                   {user?.first_name} {user?.last_name}
                 </p>
                 <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
               </div>
-              <Avatar className="h-10 w-10 ring-2 ring-blue-200">
-                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-500 text-white font-semibold">
+              <Avatar className="h-10 w-10 ring-2 ring-primary/30">
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                   {user?.first_name?.[0]}{user?.last_name?.[0]}
                 </AvatarFallback>
               </Avatar>
@@ -358,7 +363,7 @@ const LayoutModern = ({ children }) => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/30">
+        <main className="flex-1 overflow-auto bg-muted/30">
           <div className="max-w-7xl mx-auto p-4 md:p-6">
             {children}
           </div>

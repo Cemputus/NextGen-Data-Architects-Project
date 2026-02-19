@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import threading
 import sys
+import json
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
@@ -25,11 +26,56 @@ except ImportError:
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
+SETTINGS_FILE = Path(backend_dir) / 'data' / 'admin_settings.json'
+
+
+def _load_settings():
+    """Load admin settings from JSON file; return dict or empty dict."""
+    if not SETTINGS_FILE.exists():
+        return {}
+    try:
+        with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_settings(settings):
+    """Persist admin settings to JSON file."""
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(settings, f, indent=2)
+
 
 @admin_bp.route('/ping', methods=['GET'])
 def ping():
     """No auth - confirm admin API is reachable (returns 200)."""
     return jsonify({'ok': True, 'message': 'Admin API active'}), 200
+
+
+@admin_bp.route('/settings', methods=['GET'])
+@jwt_required()
+def get_settings():
+    """Return persisted admin settings (sysadmin only)."""
+    err, code = _require_sysadmin()
+    if err is not None:
+        return err, code
+    return jsonify({'settings': _load_settings()})
+
+
+@admin_bp.route('/settings', methods=['PUT'])
+@jwt_required()
+def put_settings():
+    """Update and persist admin settings (sysadmin only)."""
+    err, code = _require_sysadmin()
+    if err is not None:
+        return err, code
+    data = request.get_json(silent=True) or {}
+    settings = data.get('settings')
+    if not isinstance(settings, dict):
+        return jsonify({'error': 'settings must be an object'}), 400
+    _save_settings(settings)
+    return jsonify({'settings': _load_settings()})
 
 
 def _require_sysadmin():
