@@ -26,7 +26,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 
 - **Real-time Analytics**: Comprehensive dashboards for students, faculty, and administrators
 - **Predictive Analytics**: ML-powered predictions for student performance, attendance, and payment patterns
-- **Role-Based Access Control**: Secure multi-role system (Student,HR, Staff, HOD, Dean, Senate, Finance)
+- **Role-Based Access Control**: Secure multi-role system (Student, Staff, HOD, Dean, Senate, Finance, HR, Analyst, System Admin)
 - **Data Warehousing**: Star schema data warehouse for efficient analytics
 - **ETL Pipeline**: Automated data extraction, transformation, and loading from source systems
 
@@ -74,11 +74,14 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 ### 1. **Multi-Role Dashboards**
 
 - **Student Dashboard**: Personal performance, attendance, payment status
-- **Staff Dashboard**: Class-level analytics and student management
-- **HOD Dashboard**: Department-wide insights and trends
+- **Staff Dashboard**: Class-level analytics and student management (assigned courses only)
+- **HOD Dashboard**: Department-wide insights and trends; assign classes to staff
 - **Dean Dashboard**: Faculty-level analytics and performance metrics
 - **Senate Dashboard**: University-wide statistics and trends
 - **Finance Dashboard**: Payment tracking, revenue analysis, and financial reports
+- **HR Dashboard**: Staff management and HR analytics
+- **Analyst Dashboard**: University-wide analytics, FEX, high school, and reports (read-only)
+- **System Admin (Sysadmin) Console**: User management, settings, ETL jobs, audit logs
 
 ### 2. **Advanced Analytics**
 
@@ -996,6 +999,21 @@ The system implements a comprehensive RBAC system with the following roles:
    - Payment analytics and reports
    - Financial predictions
    - Payment tracking
+7. **HR (Human Resource)**
+
+   - Staff management (view and manage HR-related staff data)
+   - HR analytics and dashboard
+   - Optional department assignment
+8. **Analyst**
+
+   - University-wide analytics (read-only)
+   - FEX analytics, high school analytics, reports
+   - No user or system administration; data and report access only
+9. **System Admin (Sysadmin)**
+
+   - Full user management: create, edit, delete app users (students, staff, HOD, dean, HR, finance, analyst)
+   - Admin console: dashboard, users, settings, ETL jobs, audit logs
+   - Only sysadmin can access `/admin/*` routes and user-management APIs
 
 ### Authentication
 
@@ -1011,7 +1029,11 @@ All queries are automatically scoped based on user role:
 - **Staff**: only data for students in **assigned courses** (from `staff_course_assignments`); staff with no assignments see no dashboard data until an HOD assigns classes
 - **HOD**: department data
 - **Dean**: faculty data
-- **Senate**: all data
+- **Senate**: all data (university-wide)
+- **HR**: dashboard and staff management (scope depends on backend configuration)
+- **Analyst**: university-wide read-only analytics (no scope restriction on analytics)
+- **Finance**: payment-related data
+- **Sysadmin**: no data-warehouse scope; access to RBAC, user management, ETL, and audit logs
 
 ### Staff course assignments and HOD assign-classes
 
@@ -1064,6 +1086,23 @@ All queries are automatically scoped based on user role:
    - Revenue analytics
    - Outstanding balances
    - Payment trends
+7. **HR Dashboard**
+
+   - HR dashboard and analytics
+   - Staff management (HR staff view)
+   - Profile
+8. **Analyst Dashboard (Workspace)**
+
+   - University-wide analytics
+   - FEX analysis, high school analytics, reports
+   - Predictions
+   - Read-only access; no user or system admin
+9. **System Admin Console**
+
+   - Admin dashboard (console)
+   - Users: view, create, edit, delete app users
+   - Settings, ETL jobs, audit logs
+   - Profile
 
 ### Chart Library
 
