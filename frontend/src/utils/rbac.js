@@ -23,7 +23,7 @@ export const rbac = {
       student: ['dashboard', 'grades', 'attendance', 'payments', 'profile'],
       staff: ['dashboard', 'classes', 'analytics', 'profile'],
       dean: ['dashboard', 'analytics', 'fex', 'high-school', 'profile'],
-      hod: ['dashboard', 'analytics', 'fex', 'high-school', 'profile'],
+      hod: ['dashboard', 'assign-classes', 'analytics', 'fex', 'high-school', 'profile'],
       hr: ['dashboard', 'analytics', 'staff', 'profile'],
       finance: ['dashboard', 'analytics', 'payments', 'profile'],
     };

@@ -4,8 +4,14 @@ import axios from 'axios';
 import './index.css';
 import App from './App';
 
-// Use proxy (no baseURL) so dev server forwards /api/* to backend. Set REACT_APP_API_URL only if proxy fails.
-axios.defaults.baseURL = process.env.REACT_APP_API_URL || '';
+// In dev, call backend directly so User Management never 404s. CORS allows localhost:3000 -> 127.0.0.1:5000.
+// Set REACT_APP_API_URL in .env to override (e.g. empty string to use proxy).
+axios.defaults.baseURL =
+  process.env.REACT_APP_API_URL !== undefined
+    ? process.env.REACT_APP_API_URL
+    : process.env.NODE_ENV === 'development'
+      ? 'http://127.0.0.1:5000'
+      : '';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

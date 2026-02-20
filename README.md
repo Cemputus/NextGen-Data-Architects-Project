@@ -748,9 +748,46 @@ Authorization: Bearer <token>
 }
 ```
 
-### Export Endpoints
+### HOD Endpoints (assign classes to staff)
 
-#### Excel Export
+All require `Authorization: Bearer <token>` and HOD role with department assigned.
+
+#### Department courses
+
+```http
+GET /api/hod/department-courses
+```
+
+Returns: `{ "courses": [ { "course_code": "...", "course_name": "..." }, ... ] }` for courses in the HOD’s department.
+
+#### Staff in department
+
+```http
+GET /api/hod/staff-in-department
+```
+
+Returns: `{ "staff": [ { "id": 1, "username": "...", "full_name": "..." }, ... ] }`.
+
+#### Get staff course assignments
+
+```http
+GET /api/hod/staff-assignments/<staff_id>
+```
+
+Returns: `{ "course_codes": ["CODE1", "CODE2", ... ] }`. 404 if staff is not in HOD’s department.
+
+#### Set staff course assignments
+
+```http
+PUT /api/hod/staff-assignments/<staff_id>
+Content-Type: application/json
+
+{ "course_codes": ["CODE1", "CODE2"] }
+```
+
+Replaces assignments for that staff. 404 if staff is not in HOD’s department.
+
+### Export Endpoints
 
 ```http
 GET /api/export/excel?type=dashboard&faculty_id=1
@@ -820,6 +857,20 @@ GET /api/export/pdf?type=fex&department_id=5
 - `faculty_id` (PK)
 - `faculty_name`
 - `dean_name`
+
+#### RBAC & App Users (MySQL)
+
+**app_users** (in RBAC database)
+
+- `id` (PK), `username`, `password_hash`, `role`, `full_name`
+- `faculty_id`, `department_id` (for staff, HOD, dean)
+- Staff must have both `faculty_id` and `department_id` set.
+
+**staff_course_assignments** (in RBAC database)
+
+- `app_user_id` (PK, FK → app_users.id ON DELETE CASCADE)
+- `course_code` (PK)
+- Defines which courses each staff user can see; only students in these courses appear in staff dashboards. HODs manage assignments via the "Assign classes" UI or API.
 
 #### Fact Tables
 
@@ -921,14 +972,14 @@ The system implements a comprehensive RBAC system with the following roles:
    - No administrative access
 2. **Staff**
 
-   - View class-level analytics
-   - Access students in assigned courses
-   - Limited prediction access
+   - View class-level analytics only for **assigned courses** (no department-wide access)
+   - Staff must be assigned to a **faculty** and **department**; an HOD assigns which **classes/courses** they can see
+   - Access students in assigned courses only; limited prediction access
 3. **HOD (Head of Department)**
 
    - View department-wide analytics
-   - Access all students in department
-   - Department-level predictions
+   - **Assign classes to staff**: manage which courses each staff user can see (Assign classes page and API)
+   - Access all students in department; department-level predictions
 4. **Dean**
 
    - View faculty-wide analytics
@@ -956,11 +1007,18 @@ The system implements a comprehensive RBAC system with the following roles:
 
 All queries are automatically scoped based on user role:
 
-- Students see only their data
-- Staff see their class data
-- HOD sees department data
-- Dean sees faculty data
-- Senate sees all data
+- **Students**: only their own data
+- **Staff**: only data for students in **assigned courses** (from `staff_course_assignments`); staff with no assignments see no dashboard data until an HOD assigns classes
+- **HOD**: department data
+- **Dean**: faculty data
+- **Senate**: all data
+
+### Staff course assignments and HOD assign-classes
+
+- **Table**: `staff_course_assignments` stores `(app_user_id, course_code)` so each staff user is restricted to specific courses. The table is created automatically at backend startup (RBAC DB).
+- **Scoping**: Dashboard and analytics for role **Staff** use `_get_staff_assigned_course_codes(identity)`; if the list is empty, staff see no data (`1=0`); otherwise only students enrolled in those course codes are included.
+- **HOD API**: HODs can list department courses (`GET /api/hod/department-courses`), list staff in department (`GET /api/hod/staff-in-department`), and get/update assignments per staff (`GET`/`PUT /api/hod/staff-assignments/<staff_id>` with body `{ "course_codes": ["CODE1", "CODE2"] }`). Only staff in the HOD’s department can be managed.
+- **HOD UI**: Under **HOD → Assign classes**, HODs see all staff in their department and a multi-select of department courses per staff; saving updates assignments via `PUT /api/hod/staff-assignments/<staff_id>`.
 
 ---
 
@@ -977,13 +1035,14 @@ All queries are automatically scoped based on user role:
    - Performance predictions
 2. **Staff Dashboard**
 
-   - Class performance overview
-   - Student list with filters
+   - Class performance overview for **assigned courses only** (assigned by HOD via Assign classes)
+   - Student list with filters (scoped to assigned classes)
    - Attendance tracking
    - Grade entry interface
 3. **HOD Dashboard**
 
    - Department statistics
+   - **Assign classes**: assign courses to staff in the department (staff then see only those courses)
    - Program performance
    - Student distribution
    - Department trends

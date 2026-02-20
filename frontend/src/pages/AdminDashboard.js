@@ -10,6 +10,7 @@ import { KPICard } from '../components/ui/kpi-card';
 import { DashboardGrid } from '../components/ui/dashboard-grid';
 import ExportButtons from '../components/ExportButtons';
 import UserManagementSection from '../components/admin/UserManagementSection';
+import AuditLogSection from '../components/admin/AuditLogSection';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 
@@ -207,20 +208,7 @@ const AdminDashboard = () => {
             </TabsContent>
 
             <TabsContent value="logs" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Audit Logs</CardTitle>
-                  <CardDescription>View system activity and audit trails</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
-                    <div className="text-center">
-                      <History className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                      <p>Audit log viewer</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <AuditLogSection showHeader={false} showSetupButton={true} compact={true} defaultLimit={5} />
             </TabsContent>
           </Tabs>
         </>

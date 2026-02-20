@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Search, Loader2, RefreshCw, UserCircle, ExternalLink, Plus, X } from 'lucide-react';
+import { Users, Search, Loader2, RefreshCw, UserCircle, ExternalLink, Plus, X, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -38,6 +38,8 @@ const ADD_USER_ROLES = [
   { value: 'finance', label: 'Finance' },
 ];
 
+const USER_LIMIT_OPTIONS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 500, 'all'];
+
 export default function UserManagementSection({ showHeader = true, compact = false, showOpenFullPage = false }) {
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
@@ -59,6 +61,17 @@ export default function UserManagementSection({ showHeader = true, compact = fal
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [addError, setAddError] = useState(null);
   const [listWarning, setListWarning] = useState(null);
+  const [usersLimit, setUsersLimit] = useState(5);
+  const [viewUser, setViewUser] = useState(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  const [editForm, setEditForm] = useState({ full_name: '', role: 'staff', faculty_id: '', department_id: '', password: '' });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [viewError, setViewError] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
 
   const loadUsers = useCallback(async () => {
     const token = getToken();
@@ -73,8 +86,9 @@ export default function UserManagementSection({ showHeader = true, compact = fal
       const params = new URLSearchParams();
       if (searchTerm.trim()) params.set('search', searchTerm.trim());
       if (roleFilter) params.set('role', roleFilter);
-      params.set('limit', '500');
-      const res = await axios.get(`/api/sysadmin/users?${params.toString()}`, {
+      const limitVal = usersLimit === 'all' ? 2000 : usersLimit;
+      params.set('limit', String(limitVal));
+      const res = await axios.get(`/api/user-mgmt/users?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUsers(res.data.users || []);
@@ -83,13 +97,22 @@ export default function UserManagementSection({ showHeader = true, compact = fal
     } catch (err) {
       setListWarning(null);
       if (!err.response) {
-        setError('Backend not reachable. 1) Start backend: double-click backend\\run_backend.bat  2) Restart frontend (npm start). 3) If you have frontend\\.env with REACT_APP_API_URL, remove that line so the proxy is used.');
+        setError(
+          <>
+            Backend not reachable. Start it first: double-click <code>backend\run_backend.bat</code> and keep that window open until you see &quot;OK: User Management at...&quot;. Then{' '}
+            <a href="http://127.0.0.1:5000/api/user-mgmt/ping" target="_blank" rel="noopener noreferrer">open this link</a> — if you see {`{"ok":true}`}, click Refresh here.
+          </>
+        );
+      } else if (err.response.status === 502) {
+        setError('Backend not running. Double-click backend\\run_backend.bat, keep the window open, then click Refresh.');
       } else if (err.response.status === 401) {
         setError('Session expired. Please log in again.');
       } else if (err.response.status === 403) {
         setError('You do not have permission to view users.');
       } else if (err.response.status === 404) {
-        setError('User Management API not found. Run backend\\run_backend.bat (or backend/run_backend.sh), then click Refresh.');
+        setError(
+          <>User Management API not found (404). Start the backend (<code>backend\run_backend.bat</code>), then <a href="http://127.0.0.1:5000/api/user-mgmt/ping" target="_blank" rel="noopener noreferrer">test ping</a>. If you see {`{"ok":true}`}, click Refresh here.</>
+        );
       } else if (err.response.status === 503) {
         setError(err.response?.data?.error || 'Admin module unavailable. Restart the backend and check server logs.');
       } else {
@@ -100,36 +123,57 @@ export default function UserManagementSection({ showHeader = true, compact = fal
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, roleFilter]);
+  }, [searchTerm, roleFilter, usersLimit]);
 
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
 
   useEffect(() => {
-    if (!addModalOpen) return;
+    if (!addModalOpen && !editUser) return;
     const token = getToken();
     if (!token) return;
-    axios.get('/api/sysadmin/faculties', { headers: { Authorization: `Bearer ${token}` } })
+    const role = addModalOpen ? addForm.role : editForm.role;
+    const facultyParams = new URLSearchParams();
+    if (role === 'dean') {
+      facultyParams.set('for_role', 'dean');
+      if (editUser?.faculty_id) facultyParams.set('current_faculty_id', String(editUser.faculty_id));
+    }
+    const facultyUrl = `/api/user-mgmt/faculties${facultyParams.toString() ? `?${facultyParams.toString()}` : ''}`;
+    axios.get(facultyUrl, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => setFaculties(r.data.faculties || []))
       .catch(() => setFaculties([]));
-    axios.get('/api/sysadmin/departments', { headers: { Authorization: `Bearer ${token}` } })
+    const deptParams = new URLSearchParams();
+    if (role === 'hod') {
+      deptParams.set('for_role', 'hod');
+      if (editUser?.department_id) deptParams.set('current_department_id', String(editUser.department_id));
+    }
+    const facultyId = addModalOpen ? addForm.faculty_id : editForm.faculty_id;
+    if (facultyId) deptParams.set('faculty_id', String(facultyId));
+    const deptUrl = `/api/user-mgmt/departments${deptParams.toString() ? `?${deptParams.toString()}` : ''}`;
+    axios.get(deptUrl, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => setDepartments(r.data.departments || []))
       .catch(() => setDepartments([]));
-  }, [addModalOpen]);
+  }, [addModalOpen, editUser, addForm.role, addForm.faculty_id, editForm.role, editForm.faculty_id]);
 
   // Refetch departments when faculty filter changes (for HOD/dean/staff/hr/finance)
   useEffect(() => {
-    if (!addModalOpen) return;
+    if (!addModalOpen && !editUser) return;
     const token = getToken();
     if (!token) return;
-    const url = addForm.faculty_id
-      ? `/api/sysadmin/departments?faculty_id=${addForm.faculty_id}`
-      : '/api/sysadmin/departments';
+    const facultyId = addModalOpen ? addForm.faculty_id : editForm.faculty_id;
+    const role = addModalOpen ? addForm.role : editForm.role;
+    const params = new URLSearchParams();
+    if (facultyId) params.set('faculty_id', String(facultyId));
+    if (role === 'hod') {
+      params.set('for_role', 'hod');
+      if (editUser?.department_id) params.set('current_department_id', String(editUser.department_id));
+    }
+    const url = `/api/user-mgmt/departments${params.toString() ? `?${params.toString()}` : ''}`;
     axios.get(url, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => setDepartments(r.data.departments || []))
       .catch(() => setDepartments([]));
-  }, [addModalOpen, addForm.role, addForm.faculty_id]);
+  }, [addModalOpen, addForm.role, addForm.faculty_id, editUser, editForm.faculty_id, editForm.role, editUser?.department_id]);
 
   const openAddModal = () => {
     setAddForm({ username: '', password: '', full_name: '', role: 'staff', faculty_id: '', department_id: '' });
@@ -151,15 +195,127 @@ export default function UserManagementSection({ showHeader = true, compact = fal
     };
     if (addForm.role === 'dean' && addForm.faculty_id) payload.faculty_id = parseInt(addForm.faculty_id, 10);
     if (addForm.role === 'hod' && addForm.department_id) payload.department_id = parseInt(addForm.department_id, 10);
-    if (['staff', 'hr', 'finance'].includes(addForm.role) && addForm.department_id) payload.department_id = parseInt(addForm.department_id, 10);
+    if (addForm.role === 'staff' && addForm.faculty_id && addForm.department_id) {
+      payload.faculty_id = parseInt(addForm.faculty_id, 10);
+      payload.department_id = parseInt(addForm.department_id, 10);
+    }
+    if (['hr', 'finance'].includes(addForm.role) && addForm.department_id) payload.department_id = parseInt(addForm.department_id, 10);
     try {
-      await axios.post('/api/sysadmin/users', payload, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.post('/api/user-mgmt/users', payload, { headers: { Authorization: `Bearer ${token}` } });
       setAddModalOpen(false);
       loadUsers();
     } catch (err) {
       setAddError(err.response?.data?.error || 'Failed to create user.');
     } finally {
       setAddSubmitting(false);
+    }
+  };
+
+  const openViewUser = async (u) => {
+    setViewError(null);
+    setViewUser({ id: u.id, type: u.type || 'student' });
+    setViewLoading(true);
+    const token = getToken();
+    if (!token) {
+      setViewError('Please log in again.');
+      setViewLoading(false);
+      return;
+    }
+    try {
+      const type = u.type || 'student';
+      const id = type === 'app_user' && (typeof u.id === 'number' || (String(u.id) && !Number.isNaN(Number(u.id))))
+        ? String(Number(u.id))
+        : String(u.id);
+      const res = await axios.get(`/api/user-mgmt/users/${type}/${encodeURIComponent(id)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setViewUser(res.data);
+    } catch (err) {
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to load user.';
+      setViewError(msg);
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  const openEditUser = (u) => {
+    if (u.type !== 'app_user') return;
+    setEditUser(u);
+    setEditForm({
+      full_name: u.full_name || u.first_name || u.username || '',
+      role: u.role || 'staff',
+      faculty_id: u.faculty_id ?? '',
+      department_id: u.department_id ?? '',
+      password: '',
+    });
+    setEditError(null);
+  };
+
+  const handleEditUser = async (e) => {
+    e.preventDefault();
+    if (!editUser) return;
+    setEditSubmitting(true);
+    setEditError(null);
+    const token = getToken();
+    if (!token) return;
+    const payload = {
+      full_name: editForm.full_name.trim(),
+      role: editForm.role,
+    };
+    if (editForm.role === 'dean') {
+      payload.faculty_id = editForm.faculty_id ? parseInt(editForm.faculty_id, 10) : null;
+    } else if (editForm.role === 'staff') {
+      payload.faculty_id = editForm.faculty_id ? parseInt(editForm.faculty_id, 10) : null;
+    } else {
+      payload.faculty_id = null;
+    }
+    if (editForm.role === 'hod') {
+      payload.department_id = editForm.department_id ? parseInt(editForm.department_id, 10) : null;
+    } else if (['staff', 'hr', 'finance'].includes(editForm.role)) {
+      payload.department_id = editForm.department_id ? parseInt(editForm.department_id, 10) : null;
+    } else {
+      payload.department_id = null;
+    }
+    if (editForm.password) payload.password = editForm.password;
+    try {
+      const appUserId = typeof editUser.id === 'number' ? editUser.id : parseInt(editUser.id, 10);
+      if (Number.isNaN(appUserId)) {
+        setEditError('Invalid user id.');
+        return;
+      }
+      await axios.patch(`/api/user-mgmt/users/app_user/${appUserId}`, payload, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      setEditUser(null);
+      loadUsers();
+    } catch (err) {
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to update user.';
+      setEditError(msg);
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteConfirm || deleteConfirm.type !== 'app_user') return;
+    setDeleteError(null);
+    setDeleteSubmitting(true);
+    const token = getToken();
+    if (!token) return;
+    try {
+      const appUserId = typeof deleteConfirm.id === 'number' ? deleteConfirm.id : parseInt(deleteConfirm.id, 10);
+      if (Number.isNaN(appUserId)) {
+        setDeleteError('Invalid user id.');
+        return;
+      }
+      await axios.delete(`/api/user-mgmt/users/app_user/${appUserId}`, { headers: { Authorization: `Bearer ${token}` } });
+      setDeleteConfirm(null);
+      loadUsers();
+    } catch (err) {
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to delete user.';
+      setDeleteError(msg);
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -270,15 +426,44 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                   </Select>
                 </div>
               )}
-              {(addForm.role === 'hod' || addForm.role === 'staff' || addForm.role === 'hr' || addForm.role === 'finance') && (
+              {addForm.role === 'staff' && (
+                <div>
+                  <Label htmlFor="add-faculty-staff">Faculty *</Label>
+                  <Select
+                    id="add-faculty-staff"
+                    value={addForm.faculty_id}
+                    onChange={(e) => setAddForm((f) => ({ ...f, faculty_id: e.target.value, department_id: '' }))}
+                    required
+                    className="mb-2"
+                  >
+                    <option value="">Select faculty</option>
+                    {faculties.map((f) => (
+                      <option key={f.faculty_id} value={f.faculty_id}>{f.faculty_name}</option>
+                    ))}
+                  </Select>
+                  <Label htmlFor="add-dept-staff">Department *</Label>
+                  <Select
+                    id="add-dept-staff"
+                    value={addForm.department_id}
+                    onChange={(e) => setAddForm((f) => ({ ...f, department_id: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select department</option>
+                    {departments.map((d) => (
+                      <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+              {(addForm.role === 'hod' || addForm.role === 'hr' || addForm.role === 'finance') && (
                 <div>
                   <Label htmlFor="add-dept">
                     {addForm.role === 'hod' ? 'Department *' : 'Department (optional)'}
                   </Label>
-                  {(addForm.role === 'staff' || addForm.role === 'hr' || addForm.role === 'finance') && (
+                  {(addForm.role === 'hr' || addForm.role === 'finance') && (
                     <p className="text-xs text-muted-foreground mb-1">Filter by faculty first to narrow departments</p>
                   )}
-                  {addForm.role === 'staff' || addForm.role === 'hr' || addForm.role === 'finance' ? (
+                  {addForm.role === 'hr' || addForm.role === 'finance' ? (
                     <>
                       <Select
                         value={addForm.faculty_id}
@@ -329,9 +514,236 @@ export default function UserManagementSection({ showHeader = true, compact = fal
           </div>
         </div>
       )}
+
+      {/* View user modal */}
+      {viewUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setViewUser(null); setViewError(null); }}>
+          <div className="bg-card rounded-xl shadow-xl max-w-md w-full p-6 border border-border" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-foreground">User details</h3>
+              <Button variant="ghost" size="icon" onClick={() => { setViewUser(null); setViewError(null); }}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {viewError && (
+              <div className="rounded-lg bg-destructive/10 text-destructive border border-destructive/20 px-3 py-2 text-sm mb-4">{viewError}</div>
+            )}
+            {viewLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : typeof viewUser.full_name === 'string' ? (
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-muted-foreground">Name</dt>
+                  <dd className="font-medium">{viewUser.full_name || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Username / Access #</dt>
+                  <dd>{viewUser.username || viewUser.access_number || '—'}</dd>
+                </div>
+                {viewUser.reg_number != null && (
+                  <div>
+                    <dt className="text-muted-foreground">Reg. #</dt>
+                    <dd>{viewUser.reg_number}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-muted-foreground">Role</dt>
+                  <dd className="capitalize">{viewUser.role || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Type</dt>
+                  <dd>{viewUser.type === 'app_user' ? 'App user' : viewUser.type === 'demo' ? 'Demo' : viewUser.type || '—'}</dd>
+                </div>
+                {viewUser.faculty_name != null && (
+                  <div>
+                    <dt className="text-muted-foreground">Faculty</dt>
+                    <dd>{viewUser.faculty_name || '—'}</dd>
+                  </div>
+                )}
+                {viewUser.department_name != null && (
+                  <div>
+                    <dt className="text-muted-foreground">Department</dt>
+                    <dd>{viewUser.department_name || '—'}</dd>
+                  </div>
+                )}
+              </dl>
+            ) : !viewError ? (
+              <p className="text-sm text-muted-foreground">No details available.</p>
+            ) : null}
+            <div className="mt-4 flex justify-end">
+              <Button variant="outline" onClick={() => { setViewUser(null); setViewError(null); }}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit user modal (app_user only) */}
+      {editUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => !editSubmitting && setEditUser(null)}>
+          <div className="bg-card rounded-xl shadow-xl max-w-md w-full p-6 border border-border max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-foreground">Edit user</h3>
+              <Button variant="ghost" size="icon" onClick={() => !editSubmitting && setEditUser(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Editing: <strong>{editUser.username}</strong>
+            </p>
+            <form onSubmit={handleEditUser} className="space-y-4">
+              {editError && (
+                <div className="rounded-lg bg-destructive/10 text-destructive border border-destructive/20 px-3 py-2 text-sm">{editError}</div>
+              )}
+              <div>
+                <Label htmlFor="edit-fullname">Full name</Label>
+                <Input
+                  id="edit-fullname"
+                  value={editForm.full_name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, full_name: e.target.value }))}
+                  placeholder="Full name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-role">Role</Label>
+                <Select
+                  id="edit-role"
+                  value={editForm.role}
+                  onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value, faculty_id: '', department_id: '' }))}
+                >
+                  {ADD_USER_ROLES.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </Select>
+              </div>
+              {editForm.role === 'dean' && (
+                <div>
+                  <Label htmlFor="edit-faculty">Faculty</Label>
+                  <Select
+                    id="edit-faculty"
+                    value={editForm.faculty_id}
+                    onChange={(e) => setEditForm((f) => ({ ...f, faculty_id: e.target.value, department_id: '' }))}
+                  >
+                    <option value="">Select faculty</option>
+                    {faculties.map((f) => (
+                      <option key={f.faculty_id} value={f.faculty_id}>{f.faculty_name}</option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+              {editForm.role === 'staff' && (
+                <div>
+                  <Label htmlFor="edit-faculty-staff">Faculty *</Label>
+                  <Select
+                    id="edit-faculty-staff"
+                    value={editForm.faculty_id}
+                    onChange={(e) => setEditForm((f) => ({ ...f, faculty_id: e.target.value, department_id: '' }))}
+                    required
+                    className="mb-2"
+                  >
+                    <option value="">Select faculty</option>
+                    {faculties.map((f) => (
+                      <option key={f.faculty_id} value={f.faculty_id}>{f.faculty_name}</option>
+                    ))}
+                  </Select>
+                  <Label htmlFor="edit-dept-staff">Department *</Label>
+                  <Select
+                    id="edit-dept-staff"
+                    value={editForm.department_id}
+                    onChange={(e) => setEditForm((f) => ({ ...f, department_id: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select department</option>
+                    {departments.map((d) => (
+                      <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+              {(editForm.role === 'hod' || editForm.role === 'hr' || editForm.role === 'finance') && (
+                <div>
+                  <Label htmlFor="edit-dept">
+                    {editForm.role === 'hod' ? 'Department' : 'Department (optional)'}
+                  </Label>
+                  {(editForm.role === 'hr' || editForm.role === 'finance') && (
+                    <Select
+                      value={editForm.faculty_id}
+                      onChange={(e) => setEditForm((f) => ({ ...f, faculty_id: e.target.value, department_id: '' }))}
+                      className="mb-2"
+                    >
+                      <option value="">All faculties</option>
+                      {faculties.map((f) => (
+                        <option key={f.faculty_id} value={f.faculty_id}>{f.faculty_name}</option>
+                      ))}
+                    </Select>
+                  )}
+                  <Select
+                    id="edit-dept"
+                    value={editForm.department_id}
+                    onChange={(e) => setEditForm((f) => ({ ...f, department_id: e.target.value }))}
+                    required={editForm.role === 'hod'}
+                  >
+                    <option value="">Select department</option>
+                    {departments.map((d) => (
+                      <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+              <div>
+                <Label htmlFor="edit-password">New password (leave blank to keep current)</Label>
+                <Input
+                  id="edit-password"
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))}
+                  placeholder="••••••••"
+                  minLength={6}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button type="submit" disabled={editSubmitting} className="gap-2">
+                  {editSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save changes
+                </Button>
+                <Button type="button" variant="outline" onClick={() => !editSubmitting && setEditUser(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { if (!deleteSubmitting) { setDeleteConfirm(null); setDeleteError(null); } }}>
+          <div className="bg-card rounded-xl shadow-xl max-w-sm w-full p-6 border border-border" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Delete user</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Are you sure you want to delete <strong>{deleteConfirm.full_name || deleteConfirm.username}</strong>? This cannot be undone.
+            </p>
+            {deleteError && (
+              <div className="rounded-lg bg-destructive/10 text-destructive border border-destructive/20 px-3 py-2 text-sm mb-4">{deleteError}</div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => { if (!deleteSubmitting) { setDeleteConfirm(null); setDeleteError(null); } }} disabled={deleteSubmitting}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteUser} disabled={deleteSubmitting} className="gap-2">
+                {deleteSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <CardContent className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by name, username, or access number..."
@@ -352,6 +764,23 @@ export default function UserManagementSection({ showHeader = true, compact = fal
               </option>
             ))}
           </Select>
+          <label className="flex items-center gap-2 text-sm shrink-0">
+            <span className="text-muted-foreground whitespace-nowrap">Show last</span>
+            <Select
+              value={String(usersLimit)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setUsersLimit(val === 'all' ? 'all' : Number(val));
+              }}
+              className="w-28"
+            >
+              {USER_LIMIT_OPTIONS.map((n) => (
+                <option key={n} value={String(n)}>
+                  {n === 'all' ? 'All' : `${n}`}
+                </option>
+              ))}
+            </Select>
+          </label>
           <Button onClick={loadUsers} disabled={loading} className="gap-2">
             <Search className="h-4 w-4" />
             Search
@@ -385,12 +814,13 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                     <th className="text-left font-semibold p-3">Reg. #</th>
                     <th className="text-left font-semibold p-3">Role</th>
                     <th className="text-left font-semibold p-3">Type</th>
+                    <th className="text-left font-semibold p-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                      <td colSpan={6} className="p-8 text-center text-muted-foreground">
                         <UserCircle className="h-10 w-10 mx-auto mb-2 opacity-50" />
                         <p>No users match your filters.</p>
                       </td>
@@ -398,7 +828,7 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                   ) : (
                     users.map((u) => (
                       <tr
-                        key={u.id}
+                        key={u.type === 'student' ? `student-${u.id}` : u.type === 'demo' ? `demo-${u.id}` : `app-${u.id}`}
                         className="border-b border-border/50 hover:bg-muted/30 transition-colors"
                       >
                         <td className="p-3 font-medium text-foreground">
@@ -420,6 +850,41 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                         </td>
                         <td className="p-3 text-muted-foreground">
                           {u.type === 'app_user' ? 'App user' : u.type === 'demo' ? 'Demo' : (u.type || '—')}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => openViewUser(u)}
+                              title="View details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            {u.type === 'app_user' && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => openEditUser(u)}
+                                  title="Edit user"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => setDeleteConfirm(u)}
+                                  title="Delete user"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))

@@ -19,6 +19,7 @@ import Login from './components/Login';
 import StudentDashboard from './pages/StudentDashboard';
 import StaffDashboard from './pages/StaffDashboard';
 import HODDashboard from './pages/HODDashboard';
+import HODAssignClasses from './pages/HODAssignClasses';
 import DeanDashboard from './pages/DeanDashboard';
 import SenateDashboard from './pages/SenateDashboard';
 import AnalystDashboard from './pages/AnalystDashboard';
@@ -142,6 +143,7 @@ function App() {
                 <PrivateRoute requiredRole="hod">
                   <Routes>
                     <Route path="dashboard" element={<HODDashboard />} />
+                    <Route path="assign-classes" element={<HODAssignClasses />} />
                     <Route path="analytics" element={<AnalyticsPage type="hod" />} />
                     <Route path="fex" element={<FEXAnalytics />} />
                     <Route path="high-school" element={<HighSchoolAnalytics />} />

@@ -30,7 +30,7 @@ except ImportError:
     Resource = None
     Permission = None
 
-from config import DATA_WAREHOUSE_CONN_STRING
+from config import DATA_WAREHOUSE_CONN_STRING, MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD
 
 try:
     from audit_log import log as audit_log
@@ -79,6 +79,37 @@ def _audit_log_login(username, role_name, status='success', error_message=None):
 # Database connection for RBAC
 RBAC_DB_NAME = "ucu_rbac"
 RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace("UCU_DataWarehouse", RBAC_DB_NAME)
+
+
+def _ensure_app_users_table(engine):
+    """Create ucu_rbac DB and app_users table if not present (so app users can log in)."""
+    try:
+        import pymysql
+        conn = pymysql.connect(
+            host=MYSQL_HOST, port=int(MYSQL_PORT), user=MYSQL_USER, password=MYSQL_PASSWORD
+        )
+        conn.cursor().execute("CREATE DATABASE IF NOT EXISTS ucu_rbac CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS app_users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(100) NOT NULL UNIQUE,
+                    password_hash VARCHAR(255) NOT NULL,
+                    role VARCHAR(50) NOT NULL,
+                    full_name VARCHAR(200),
+                    faculty_id INT NULL,
+                    department_id INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            conn.commit()
+    except Exception:
+        pass
 
 def validate_access_number(access_number: str) -> bool:
     """Validate Access Number format: A##### or B#####"""
@@ -170,50 +201,58 @@ def login():
         # Check app_users (real users added via Admin)
         try:
             rbac_engine = create_engine(RBAC_CONN_STRING)
+            _ensure_app_users_table(rbac_engine)
             result = pd.read_sql_query(
                 text("SELECT id, username, password_hash, role, full_name, faculty_id, department_id FROM app_users WHERE LOWER(username) = :uname"),
                 rbac_engine,
                 params={'uname': identifier_lower}
             )
             rbac_engine.dispose()
-            if not result.empty and check_password_hash(result.iloc[0]['password_hash'], password):
+            if not result.empty:
                 row = result.iloc[0]
-                claims = {
-                    'role': str(row['role']) if pd.notna(row['role']) else 'staff',
-                    'username': str(row['username']),
-                    'full_name': str(row['full_name']) if pd.notna(row['full_name']) else row['username'],
-                    'first_name': '',
-                    'last_name': '',
-                }
-                if pd.notna(row['faculty_id']):
-                    claims['faculty_id'] = int(row['faculty_id'])
-                if pd.notna(row['department_id']):
-                    claims['department_id'] = int(row['department_id'])
-                full = (claims.get('full_name') or '').strip()
-                if full:
-                    parts = full.split(None, 1)
-                    claims['first_name'] = parts[0]
-                    claims['last_name'] = parts[1] if len(parts) > 1 else ''
-                access_token = create_access_token(identity=row['username'], additional_claims=claims)
-                refresh_token = create_refresh_token(identity=row['username'])
-                _audit_log_login(row['username'], claims['role'], 'success')
-                return jsonify({
-                    'access_token': access_token,
-                    'refresh_token': refresh_token,
-                    'role': claims['role'],
-                    'user': {
-                        'id': str(row['id']),
-                        'username': row['username'],
-                        'role': claims['role'],
-                        'full_name': claims['full_name'],
-                        'first_name': claims.get('first_name', ''),
-                        'last_name': claims.get('last_name', ''),
-                        'faculty_id': claims.get('faculty_id'),
-                        'department_id': claims.get('department_id'),
+                if check_password_hash(row['password_hash'], password):
+                    claims = {
+                        'role': str(row['role']) if pd.notna(row['role']) else 'staff',
+                        'username': str(row['username']),
+                        'full_name': str(row['full_name']) if pd.notna(row['full_name']) else row['username'],
+                        'first_name': '',
+                        'last_name': '',
                     }
-                }), 200
-        except Exception:
-            pass
+                    if pd.notna(row['faculty_id']):
+                        claims['faculty_id'] = int(row['faculty_id'])
+                    if pd.notna(row['department_id']):
+                        claims['department_id'] = int(row['department_id'])
+                    full = (claims.get('full_name') or '').strip()
+                    if full:
+                        parts = full.split(None, 1)
+                        claims['first_name'] = parts[0]
+                        claims['last_name'] = parts[1] if len(parts) > 1 else ''
+                    access_token = create_access_token(identity=row['username'], additional_claims=claims)
+                    refresh_token = create_refresh_token(identity=row['username'])
+                    _audit_log_login(row['username'], claims['role'], 'success')
+                    return jsonify({
+                        'access_token': access_token,
+                        'refresh_token': refresh_token,
+                        'role': claims['role'],
+                        'user': {
+                            'id': str(row['id']),
+                            'username': row['username'],
+                            'role': claims['role'],
+                            'full_name': claims['full_name'],
+                            'first_name': claims.get('first_name', ''),
+                            'last_name': claims.get('last_name', ''),
+                            'faculty_id': claims.get('faculty_id'),
+                            'department_id': claims.get('department_id'),
+                        }
+                    }), 200
+                else:
+                    role_for_audit = str(row['role']) if pd.notna(row['role']) else 'staff'
+                    _audit_log_login(row['username'], role_for_audit, 'failure', 'Invalid password')
+                    return jsonify({'error': 'Invalid credentials'}), 401
+        except Exception as e:
+            import traceback
+            print(f"App user login check error: {e}")
+            traceback.print_exc()
 
         # Check if it's a username (non-student login) — demo users
         if identifier_lower in DEMO_USERS:
@@ -241,8 +280,11 @@ def login():
                         'full_name': user_info['full_name']
                     }
                 }), 200
-        
-        _audit_log_login(identifier_lower or identifier, None, 'failure', 'Invalid credentials')
+            else:
+                _audit_log_login(identifier_lower, user_info['role'], 'failure', 'Invalid password')
+                return jsonify({'error': 'Invalid credentials'}), 401
+
+        _audit_log_login(identifier_lower or identifier, '', 'failure', 'Invalid credentials')
         return jsonify({'error': 'Invalid credentials'}), 401
         
     except Exception as e:

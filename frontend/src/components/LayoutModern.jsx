@@ -50,6 +50,7 @@ const LayoutModern = ({ children }) => {
       ],
       hod: [
         { path: '/hod/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/hod/assign-classes', label: 'Assign classes', icon: GraduationCap },
         { path: '/hod/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/hod/fex', label: 'FEX Analysis', icon: FileText },
         { path: '/hod/high-school', label: 'High School', icon: Building2 },

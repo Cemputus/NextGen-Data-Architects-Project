@@ -1,0 +1,9 @@
+To fix "User Management API not found (404)" or "Backend not reachable":
+
+1. Close any existing backend window (so only one backend runs on port 5000).
+2. Start backend: double-click  backend\run_backend.bat  (leave the window open).
+   You should see: "OK: User Management API registered at /api/admin/users..."
+3. Start frontend:  cd frontend  then  npm start
+4. Open the app, go to User Management, click Refresh.
+
+The frontend calls http://127.0.0.1:5000 directly. Only this project's backend should be on port 5000.

@@ -76,6 +76,7 @@ const Layout = ({ children }) => {
       ],
       hod: [
         { path: '/hod/dashboard', label: 'Department Dashboard', icon: FaHome },
+        { path: '/hod/assign-classes', label: 'Assign classes', icon: FaHome },
         { path: '/hod/analytics', label: 'Department Analytics', icon: FaHome },
         { path: '/hod/fex', label: 'FEX Analysis', icon: FaHome },
         { path: '/hod/high-school', label: 'High School Analysis', icon: FaHome },
