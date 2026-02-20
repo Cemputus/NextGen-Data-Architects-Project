@@ -75,6 +75,52 @@ def _ensure_app_users_table(engine):
         pass
 
 
+# Default app user so you can always log in as an app user (username: Cemputus, password: cen123)
+DEFAULT_APP_USER = {
+    'username': 'Cemputus',
+    'password': 'cen123',
+    'role': 'staff',
+    'full_name': 'Emmanuel Nsubuga',
+    'faculty_id': 1,
+    'department_id': 1,
+}
+
+
+def _ensure_default_app_user(engine):
+    """Ensure default app user Cemputus exists with password cen123 so app-user login works."""
+    try:
+        ph = generate_password_hash(DEFAULT_APP_USER['password'], method='pbkdf2:sha256')
+        with engine.connect() as conn:
+            r = pd.read_sql_query(
+                text("SELECT id FROM app_users WHERE LOWER(username) = :uname"),
+                conn, params={'uname': DEFAULT_APP_USER['username'].lower()}
+            )
+            if not r.empty:
+                conn.execute(
+                    text("UPDATE app_users SET password_hash = :ph, full_name = :fn, role = :role, faculty_id = :fid, department_id = :did WHERE LOWER(username) = :uname"),
+                    {
+                        'ph': ph, 'fn': DEFAULT_APP_USER['full_name'], 'role': DEFAULT_APP_USER['role'],
+                        'fid': DEFAULT_APP_USER['faculty_id'], 'did': DEFAULT_APP_USER['department_id'],
+                        'uname': DEFAULT_APP_USER['username'].lower(),
+                    }
+                )
+            else:
+                conn.execute(
+                    text("""
+                        INSERT INTO app_users (username, password_hash, role, full_name, faculty_id, department_id)
+                        VALUES (:username, :ph, :role, :fn, :fid, :did)
+                    """),
+                    {
+                        'username': DEFAULT_APP_USER['username'],
+                        'ph': ph, 'role': DEFAULT_APP_USER['role'], 'fn': DEFAULT_APP_USER['full_name'],
+                        'fid': DEFAULT_APP_USER['faculty_id'], 'did': DEFAULT_APP_USER['department_id'],
+                    }
+                )
+            conn.commit()
+    except Exception:
+        pass
+
+
 def _get_staff_assigned_course_codes(identity):
     """Return list of course_code for staff user (identity=username). Empty if not staff or no assignments."""
     try:
@@ -480,7 +526,7 @@ def admin_update_user(user_id):
             if 'department_id' in data:
                 updates.append('department_id = :department_id')
                 params['department_id'] = department_id
-            password = data.get('password')
+            password = (data.get('password') or '').strip()
             if password and len(password) >= 6:
                 updates.append('password_hash = :password_hash')
                 params['password_hash'] = generate_password_hash(password, method='pbkdf2:sha256')
@@ -552,6 +598,43 @@ def admin_delete_user(user_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/user-mgmt/users/reset-password', methods=['POST'], strict_slashes=False)
+@jwt_required()
+def admin_reset_app_user_password():
+    """Reset an app user's password by username. Sysadmin only. Body: { username, new_password }."""
+    err = _require_sysadmin()
+    if err is not None:
+        return err
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    new_password = (data.get('new_password') or '').strip()
+    if not username:
+        return jsonify({'error': 'Username is required'}), 400
+    if len(new_password) < 6:
+        return jsonify({'error': 'New password must be at least 6 characters'}), 400
+    try:
+        rbac_engine = create_engine(RBAC_CONN_STRING)
+        _ensure_app_users_table(rbac_engine)
+        with rbac_engine.connect() as conn:
+            check = pd.read_sql_query(
+                text("SELECT id FROM app_users WHERE LOWER(username) = :uname"),
+                conn, params={'uname': username.lower()}
+            )
+            if check.empty:
+                rbac_engine.dispose()
+                return jsonify({'error': 'App user not found'}), 404
+            uid = int(check.iloc[0]['id'])
+            conn.execute(
+                text("UPDATE app_users SET password_hash = :ph WHERE id = :uid"),
+                {'ph': generate_password_hash(new_password, method='pbkdf2:sha256'), 'uid': uid}
+            )
+            conn.commit()
+        rbac_engine.dispose()
+        return jsonify({'message': 'Password reset successfully', 'username': username}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/user-mgmt/users', methods=['POST'], strict_slashes=False)
 @app.route('/api/sysadmin/users', methods=['POST'], strict_slashes=False)
 @app.route('/api/admin/users', methods=['POST'], strict_slashes=False)
@@ -563,7 +646,7 @@ def admin_create_user():
         return err
     data = request.get_json() or {}
     username = (data.get('username') or '').strip()
-    password = data.get('password') or ''
+    password = (data.get('password') or '').strip()
     role = (data.get('role') or 'staff').strip().lower()
     full_name = (data.get('full_name') or '').strip() or username
     faculty_id = data.get('faculty_id') if data.get('faculty_id') is not None else None
@@ -2048,6 +2131,16 @@ def generate_report():
         })
 
 if __name__ == '__main__':
+    # Ensure ucu_rbac DB, app_users table, and default app user (Cemputus / cen123) exist
+    try:
+        from sqlalchemy import create_engine
+        _rbac = create_engine(RBAC_CONN_STRING)
+        _ensure_app_users_table(_rbac)
+        _ensure_default_app_user(_rbac)
+        _rbac.dispose()
+        print(f"  - Default app user: {DEFAULT_APP_USER['username']} / {DEFAULT_APP_USER['password']}")
+    except Exception as ex:
+        print(f"Warning: Could not ensure RBAC DB (app-user login may fail): {ex}")
     # ML models are already initialized above
     print("Starting Flask server...")
     print("Backend API: http://localhost:5000")

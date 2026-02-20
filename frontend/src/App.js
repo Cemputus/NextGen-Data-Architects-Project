@@ -75,8 +75,9 @@ function PrivateRoute({ children, requiredRole = null }) {
     return <Navigate to="/login" />;
   }
   
-  if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to={rbac.getDefaultRoute(user?.role)} />;
+  const userRole = (user?.role || '').toString().toLowerCase();
+  if (requiredRole && userRole !== requiredRole) {
+    return <Navigate to={rbac.getDefaultRoute(userRole)} />;
   }
   
   return <LayoutModern>{children}</LayoutModern>;

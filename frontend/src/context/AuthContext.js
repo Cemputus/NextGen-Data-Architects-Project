@@ -115,10 +115,11 @@ export const AuthProvider = ({ children }) => {
       
       const { access_token, refresh_token, user, role } = response.data;
       
-      // Ensure user object has role (from top level or user object)
+      // Ensure user object has role (normalized to lowercase so role-based UI always works)
+      const rawRole = (role || user?.role || 'student').toString().toLowerCase();
       const userWithRole = {
         ...user,
-        role: role || user?.role || 'student'
+        role: rawRole
       };
       
       setToken(access_token);

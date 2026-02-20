@@ -30,8 +30,7 @@ const LayoutModern = ({ children }) => {
 
   const getNavItems = () => {
     if (!user) return [];
-    const role = user.role;
-    
+    const role = (user.role || '').toString().toLowerCase();
     const navItems = {
       student: [
         { path: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard },

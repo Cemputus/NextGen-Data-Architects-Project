@@ -11,6 +11,7 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
+import { rbac } from '../utils/rbac';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import axios from 'axios';
 
@@ -25,19 +26,9 @@ const Login = () => {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      const role = JSON.parse(localStorage.getItem('user'))?.role;
-      const routes = {
-        senate: '/senate/dashboard',
-        sysadmin: '/admin/dashboard',
-        analyst: '/analyst/dashboard',
-        student: '/student/dashboard',
-        staff: '/staff/dashboard',
-        dean: '/dean/dashboard',
-        hod: '/hod/dashboard',
-        hr: '/hr/dashboard',
-        finance: '/finance/dashboard',
-      };
-      navigate(routes[role] || '/student/dashboard');
+      const role = (JSON.parse(localStorage.getItem('user'))?.role || '').toString().toLowerCase();
+      const route = rbac.getDefaultRoute(role) || '/student/dashboard';
+      navigate(route);
     }
   }, [isAuthenticated, authLoading, navigate]);
 
@@ -47,21 +38,16 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Check if backend is reachable first
+      // Check if backend is reachable (use no-auth endpoint to avoid 401/422 noise)
       try {
-        await axios.get('/api/dashboard/stats', {
-          headers: { Authorization: 'Bearer test' },
-          timeout: 3000
-        }).catch(() => {
-          // Expected to fail, but confirms backend is reachable
-        });
+        await axios.get('/api/user-mgmt/ping', { timeout: 3000 });
       } catch (networkErr) {
-        if (networkErr.code === 'ECONNABORTED' || networkErr.message.includes('timeout')) {
+        if (networkErr.code === 'ECONNABORTED' || networkErr.message?.includes('timeout')) {
           setError('Network timeout: Backend server is not responding. Please ensure the backend is running on http://localhost:5000');
           setLoading(false);
           return;
         }
-        if (networkErr.message.includes('Network Error') || networkErr.code === 'ERR_NETWORK') {
+        if (networkErr.message?.includes('Network Error') || networkErr.code === 'ERR_NETWORK') {
           setError('Network error: Cannot connect to backend server. Please ensure the backend is running on http://localhost:5000');
           setLoading(false);
           return;
@@ -85,12 +71,15 @@ const Login = () => {
           hr: '/hr/dashboard',
           finance: '/finance/dashboard',
         };
-        
-        const route = routes[role] || '/student/dashboard';
+        const roleKey = (role || '').toString().toLowerCase();
+        const route = routes[roleKey] || rbac.getDefaultRoute(roleKey) || '/student/dashboard';
         console.log('Navigating to:', route);
         navigate(route);
       } else {
-        const errorMsg = result.error || 'Invalid credentials. Please check your username and password.';
+        let errorMsg = result.error || 'Invalid credentials. Please check your username and password.';
+        if (errorMsg.toLowerCase().includes('invalid credentials')) {
+          errorMsg += ' If you are an app user, ask an admin to reset your password in Admin → Users → Edit user.';
+        }
         setError(errorMsg);
         console.error('Login failed:', result.error);
       }

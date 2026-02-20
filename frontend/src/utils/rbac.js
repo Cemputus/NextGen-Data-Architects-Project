@@ -43,7 +43,8 @@ export const rbac = {
       hr: '/hr/dashboard',
       finance: '/finance/dashboard',
     };
-    return routes[role] || '/dashboard';
+    const key = (role || '').toString().toLowerCase();
+    return routes[key] || '/dashboard';
   },
 };
 
