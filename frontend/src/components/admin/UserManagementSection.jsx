@@ -222,16 +222,17 @@ export default function UserManagementSection({ showHeader = true, compact = fal
       return;
     }
     try {
-      const type = u.type || 'student';
-      const id = type === 'app_user' && (typeof u.id === 'number' || (String(u.id) && !Number.isNaN(Number(u.id))))
-        ? String(Number(u.id))
-        : String(u.id);
-      const res = await axios.get(`/api/user-mgmt/users/${type}/${encodeURIComponent(id)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const type = (u.type || 'student').toLowerCase();
+      let id = String(u.id ?? '');
+      if (type === 'app_user') {
+        const numId = typeof u.id === 'number' ? u.id : parseInt(u.id, 10);
+        id = !Number.isNaN(numId) ? String(numId) : (u.username ? String(u.username) : id);
+      }
+      const url = `/api/user-mgmt/users/${type}/${encodeURIComponent(id)}`;
+      const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
       setViewUser(res.data);
     } catch (err) {
-      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to load user.';
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || (err.request ? 'Backend unreachable. Start backend (run_backend.bat) and try again.' : 'Failed to load user.');
       setViewError(msg);
     } finally {
       setViewLoading(false);
@@ -289,7 +290,10 @@ export default function UserManagementSection({ showHeader = true, compact = fal
       setEditUser(null);
       loadUsers();
     } catch (err) {
-      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to update user.';
+      let msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to update user.';
+      if (!err.response && err.request) {
+        msg = 'Network error: backend unreachable or CORS. Start backend (run_backend.bat), ensure it shows "User Management at /api/user-mgmt/...", then try again.';
+      }
       setEditError(msg);
     } finally {
       setEditSubmitting(false);

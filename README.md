@@ -80,7 +80,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 - **Senate Dashboard**: University-wide statistics and trends
 - **Finance Dashboard**: Payment tracking, revenue analysis, and financial reports
 - **HR Dashboard**: Staff management and HR analytics
-- **Analyst Dashboard**: University-wide analytics, FEX, high school, and reports (read-only)
+- **Analyst Workspace**: Create workspaces, dashboards, analytics, FEX and high school analyses, reports, and predictions
 - **System Admin (Sysadmin) Console**: User management, settings, ETL jobs, audit logs
 
 ### 2. **Advanced Analytics**
@@ -1006,9 +1006,10 @@ The system implements a comprehensive RBAC system with the following roles:
    - Optional department assignment
 8. **Analyst**
 
-   - University-wide analytics (read-only)
-   - FEX analytics, high school analytics, reports
-   - No user or system administration; data and report access only
+   - Create and use **workspaces** and **dashboards**
+   - Build analytics, FEX analysis, high school analysis, and reports
+   - Access predictions and scenario analysis
+   - University-wide data access for building views; no user or system administration
 9. **System Admin (Sysadmin)**
 
    - Full user management: create, edit, delete app users (students, staff, HOD, dean, HR, finance, analyst)
@@ -1031,7 +1032,7 @@ All queries are automatically scoped based on user role:
 - **Dean**: faculty data
 - **Senate**: all data (university-wide)
 - **HR**: dashboard and staff management (scope depends on backend configuration)
-- **Analyst**: university-wide read-only analytics (no scope restriction on analytics)
+- **Analyst**: university-wide data for building workspaces, dashboards, and analytics (no scope restriction)
 - **Finance**: payment-related data
 - **Sysadmin**: no data-warehouse scope; access to RBAC, user management, ETL, and audit logs
 
@@ -1091,12 +1092,12 @@ All queries are automatically scoped based on user role:
    - HR dashboard and analytics
    - Staff management (HR staff view)
    - Profile
-8. **Analyst Dashboard (Workspace)**
+8. **Analyst Workspace**
 
-   - University-wide analytics
-   - FEX analysis, high school analytics, reports
-   - Predictions
-   - Read-only access; no user or system admin
+   - Create and manage **workspaces** and **dashboards**
+   - Build analytics, FEX analysis, high school analysis, and reports
+   - Predictions and scenario analysis
+   - No user or system administration; focused on creating and viewing analytics
 9. **System Admin Console**
 
    - Admin dashboard (console)
