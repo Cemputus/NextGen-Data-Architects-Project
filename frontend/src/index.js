@@ -4,8 +4,8 @@ import axios from 'axios';
 import './index.css';
 import App from './App';
 
-// Always hit the backend directly (avoids proxy/404). Override with REACT_APP_API_URL if needed.
-axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// Use proxy (no baseURL) so dev server forwards /api/* to backend. Set REACT_APP_API_URL only if proxy fails.
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || '';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

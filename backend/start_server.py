@@ -1,5 +1,10 @@
 """
-Start the Flask server
+Start the Flask server.
+
+Run inside the project venv:
+  Windows:  backend\\venv\\Scripts\\activate  then  python start_server.py
+  Linux/Mac: source backend/venv/bin/activate  then  python start_server.py
+  Or use: run_backend.bat (Windows) / run_backend.sh (Linux/Mac)
 """
 import sys
 from pathlib import Path
@@ -15,8 +20,8 @@ if __name__ == '__main__':
     print("="*80)
     print("Starting NextGen Data Architects Backend Server")
     print("="*80)
-    print("Server: http://localhost:5000")
-    print("User Management API: http://localhost:5000/api/sysadmin/ping (test in browser)")
+    print("Server: http://127.0.0.1:5000  (frontend uses this URL)")
+    print("Test: http://127.0.0.1:5000/api/admin/ping")
     print("Press Ctrl+C to stop the server")
     print("="*80)
     try:

@@ -83,13 +83,13 @@ export default function UserManagementSection({ showHeader = true, compact = fal
     } catch (err) {
       setListWarning(null);
       if (!err.response) {
-        setError('Cannot reach server. Is the backend running?');
+        setError('Backend not reachable. 1) Start backend: double-click backend\\run_backend.bat  2) Restart frontend (npm start). 3) If you have frontend\\.env with REACT_APP_API_URL, remove that line so the proxy is used.');
       } else if (err.response.status === 401) {
         setError('Session expired. Please log in again.');
       } else if (err.response.status === 403) {
         setError('You do not have permission to view users.');
       } else if (err.response.status === 404) {
-        setError('User Management API not found. From project root run: cd backend && python start_server.py, then refresh.');
+        setError('User Management API not found. Run backend\\run_backend.bat (or backend/run_backend.sh), then click Refresh.');
       } else if (err.response.status === 503) {
         setError(err.response?.data?.error || 'Admin module unavailable. Restart the backend and check server logs.');
       } else {
