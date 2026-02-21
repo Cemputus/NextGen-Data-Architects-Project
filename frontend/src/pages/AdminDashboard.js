@@ -14,40 +14,12 @@ import AuditLogSection from '../components/admin/AuditLogSection';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 
+const CONSOLE_KPI_POLL_INTERVAL_MS = 30000; // 30s - live KPIs refresh when new data or users are added
+
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [systemStats, setSystemStats] = useState(null);
   const [adminStatus, setAdminStatus] = useState(null);
-
-  useEffect(() => {
-    loadSystemStats();
-    loadAdminStatus();
-  }, []);
-
-  const loadSystemStats = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get('/api/dashboard/stats', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      setSystemStats({
-        total_users: response.data.total_students || 0,
-        active_sessions: 12,
-        etl_jobs: 3,
-        system_health: 98.5
-      });
-    } catch (err) {
-      console.error('Error loading system stats:', err);
-      setSystemStats({
-        total_users: 0,
-        active_sessions: 0,
-        etl_jobs: 0,
-        system_health: 0
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const loadAdminStatus = async () => {
     try {
@@ -55,6 +27,27 @@ const AdminDashboard = () => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setAdminStatus(response.data);
+      // Live KPIs from backend (registered users, active sessions, ETL jobs, system health)
+      const kpis = response.data?.console_kpis;
+      if (kpis) {
+        setSystemStats({
+          total_users: kpis.registered_users ?? 0,
+          active_sessions: kpis.active_sessions ?? 0,
+          etl_jobs: kpis.etl_jobs ?? 0,
+          system_health: kpis.system_health ?? 0
+        });
+      } else {
+        // Fallback when backend does not yet return console_kpis
+        const wh = response.data?.warehouse || {};
+        const students = wh.dim_student ?? 0;
+        const etlRuns = response.data?.etl_runs?.length ?? 0;
+        setSystemStats({
+          total_users: students,
+          active_sessions: 0,
+          etl_jobs: etlRuns,
+          system_health: 100
+        });
+      }
     } catch (err) {
       if (err.response?.status === 404) {
         console.warn('Admin API not found (404). Ensure backend is up and admin blueprint is registered.');
@@ -62,8 +55,24 @@ const AdminDashboard = () => {
         console.error('Error loading admin status:', err);
       }
       setAdminStatus(null);
+      setSystemStats(prev => prev ?? { total_users: 0, active_sessions: 0, etl_jobs: 0, system_health: 0 });
     }
   };
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      await loadAdminStatus();
+      if (mounted) setLoading(false);
+    };
+    load();
+    const interval = setInterval(() => loadAdminStatus(), CONSOLE_KPI_POLL_INTERVAL_MS);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -101,9 +110,9 @@ const AdminDashboard = () => {
             />
             <KPICard
               title="ETL Jobs"
-              value={systemStats?.etl_jobs || 0}
+              value={systemStats?.etl_jobs ?? 0}
               icon={Database}
-              subtitle="Running ETL processes"
+              subtitle="Recent ETL runs"
             />
             <KPICard
               title="System Health"

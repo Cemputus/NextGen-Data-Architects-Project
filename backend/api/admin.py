@@ -106,6 +106,49 @@ def _get_warehouse_counts(engine):
     return counts
 
 
+def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
+    """Live KPIs for admin console: registered users, active sessions, ETL jobs, system health."""
+    kpis = {
+        'registered_users': 0,
+        'active_sessions': 0,
+        'etl_jobs': len(etl_runs) if etl_runs else 0,
+        'system_health': 100,
+    }
+    # Students in warehouse (updates when new data is loaded)
+    try:
+        r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM dim_student"), warehouse_engine)
+        total_students = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
+    except Exception:
+        total_students = 0
+        kpis['system_health'] = 50
+    # App users in ucu_rbac (updates when admin adds users)
+    try:
+        rbac_engine = create_engine(RBAC_CONN_STRING)
+        try:
+            r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM app_users"), rbac_engine)
+            app_users_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
+        except Exception:
+            app_users_count = 0
+            if kpis['system_health'] > 0:
+                kpis['system_health'] = 50
+        try:
+            r = pd.read_sql_query(text("""
+                SELECT COUNT(*) as c FROM audit_logs
+                WHERE action = 'login' AND status = 'success'
+                AND created_at >= NOW() - INTERVAL 30 MINUTE
+            """), rbac_engine)
+            kpis['active_sessions'] = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
+        except Exception:
+            pass
+        rbac_engine.dispose()
+    except Exception:
+        app_users_count = 0
+        if kpis['system_health'] > 0:
+            kpis['system_health'] = 50
+    kpis['registered_users'] = total_students + app_users_count
+    return kpis
+
+
 def _get_etl_run_history(log_dir, max_runs=20):
     """Parse ETL log directory and return list of runs."""
     log_dir = Path(log_dir)
@@ -248,9 +291,11 @@ def system_status():
         warehouse = _get_warehouse_counts(engine)
         log_dir = Path(backend_dir) / 'logs'
         etl_runs = _get_etl_run_history(log_dir, max_runs=limit)
+        console_kpis = _get_console_kpis(engine, etl_runs, log_dir)
         return jsonify({
             'warehouse': warehouse,
             'etl_runs': etl_runs,
+            'console_kpis': console_kpis,
             'source_databases': {
                 'UCU_SourceDB1': 'Academics',
                 'UCU_SourceDB2': 'Administration',
