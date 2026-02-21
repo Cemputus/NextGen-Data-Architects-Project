@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, UCU_COLORS } from './charts/EChartsComponents';
+import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, SciDonutChart, UCU_COLORS } from './charts/EChartsComponents';
 
 // Modern, visually appealing chart color palettes
 const DEPT_COLORS = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE']; // Vibrant indigo to light purple gradient
@@ -249,7 +249,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin" style={{ color: UCU_COLORS.blue }} />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden />
       </div>
     );
   }
@@ -387,16 +387,11 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                       />
                     </div>
                   ) : (
-                    <SciStackedColumnChart
+                    <SciDonutChart
                       data={safeChartData.paymentStatus}
-                      xDataKey="name"
-                      yDataKey="value"
-                      xAxisLabel="Payment Status"
-                      yAxisLabel="Number of Students"
+                      nameKey="name"
+                      valueKey="value"
                       colors={getPaymentColors(safeChartData.paymentStatus)}
-                      showLegend={true}
-                      showGrid={true}
-                      showPercentages={true}
                     />
                   )
                 ) : (
@@ -419,20 +414,15 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Grade Distribution</CardTitle>
-              <CardDescription className="text-xs">Distribution of letter grades across all students</CardDescription>
+              <CardDescription className="text-xs">Proportion of letter grades across students</CardDescription>
             </CardHeader>
             <CardContent className="p-4 pt-0">
               <div className={chartContainerClass} data-chart-title="Grade Distribution" data-chart-container="true">
-                <SciStackedColumnChart
+                <SciDonutChart
                   data={safeChartData.gradeDistribution}
-                  xDataKey="name"
-                  yDataKey="value"
-                  xAxisLabel="Grade"
-                  yAxisLabel="Number of Students"
+                  nameKey="name"
+                  valueKey="value"
                   colors={GRADE_COLORS}
-                  showLegend={true}
-                  showGrid={true}
-                  showPercentages={true}
                 />
               </div>
             </CardContent>

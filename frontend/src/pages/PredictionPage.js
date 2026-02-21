@@ -29,6 +29,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
+import { PageHeader, PageContent } from '../components/ui/page-header';
+import { LoadingState } from '../components/ui/state-messages';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
@@ -149,24 +151,16 @@ const PredictionPage = () => {
 
   if (loading && !predictions) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-muted-foreground">Analyzing student data...</p>
-        </div>
-      </div>
+      <PageContent>
+        <PageHeader title="Performance Prediction" description="Predict student performance using multiple ML models" />
+        <LoadingState message="Analyzing student data..." />
+      </PageContent>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Performance Prediction</h1>
-          <p className="text-muted-foreground">Predict student performance using multiple ML models</p>
-        </div>
-      </div>
+    <PageContent>
+      <PageHeader title="Performance Prediction" description="Predict student performance using multiple ML models" />
 
       {/* Prediction Form */}
       <Card>
@@ -482,7 +476,7 @@ const PredictionPage = () => {
         <Card className="border-2 border-blue-200 bg-blue-50">
           <CardContent className="p-6">
             <div className="flex items-start gap-3">
-              <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+              <Info className="h-5 w-5 text-primary mt-0.5" />
               <div>
                 <h3 className="font-semibold text-blue-900 mb-1">Access Restricted</h3>
                 <p className="text-sm text-blue-700">
@@ -493,8 +487,7 @@ const PredictionPage = () => {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageContent>
   );
 };
-
 export default PredictionPage;

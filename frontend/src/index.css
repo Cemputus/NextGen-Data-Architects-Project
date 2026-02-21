@@ -20,10 +20,14 @@
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
-    --radius: 0.75rem;
+    --radius: 0.5rem;
   }
 
   .dark {
@@ -43,6 +47,10 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 94.9%;
@@ -55,20 +63,42 @@
   }
   
   body {
-    @apply text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    @apply text-foreground text-sm antialiased;
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
     min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* Design system typography — use these classes or Tailwind equivalents */
+  .text-page-title {
+    @apply text-xl font-semibold tracking-tight sm:text-2xl;
+  }
+  .text-section-title {
+    @apply text-lg font-semibold tracking-tight;
+  }
+  .text-card-title {
+    @apply text-base font-semibold tracking-tight;
+  }
+  .text-body {
+    @apply text-sm;
+  }
+  .text-label {
+    @apply text-xs font-medium text-muted-foreground;
   }
 
   html:not(.dark) body {
-    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 25%, #f0f9ff 50%, #e0f2fe 75%, #f0f9ff 100%);
-    background-size: 400% 400%;
-    animation: gradient 15s ease infinite;
+    background: hsl(var(--background));
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html:not(.dark) body {
+      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 35%, #e2e8f0 100%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html:not(.dark) body {
+      background: #f8fafc;
+    }
   }
 
   html.dark body {
@@ -250,6 +280,35 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Login page — lively gradient + float */
+  .login-gradient-bg {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 25%, #2563eb 50%, #3b82f6 75%, #60a5fa 100%);
+    background-size: 200% 200%;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .login-gradient-bg {
+      animation: login-gradient-shift 12s ease infinite;
+    }
+  }
+  @keyframes login-gradient-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .login-float {
+    animation: login-float 8s ease-in-out infinite;
+  }
+  .login-float-2 { animation-delay: -2s; }
+  .login-float-3 { animation-delay: -4s; }
+  @media (prefers-reduced-motion: reduce) {
+    .login-float, .login-float-2, .login-float-3 { animation: none; }
+  }
+  @keyframes login-float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(12px, -15px) scale(1.05); }
+    66% { transform: translate(-8px, 10px) scale(0.98); }
   }
 }
 

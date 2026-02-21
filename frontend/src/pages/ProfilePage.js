@@ -8,6 +8,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
+import { PageHeader, PageContent } from '../components/ui/page-header';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { cn } from '../lib/utils';
@@ -255,7 +256,7 @@ export default function ProfilePage() {
     .slice(0, 2) || (user?.username?.[0] ?? '?');
 
   return (
-    <div className="space-y-8 max-w-3xl mx-auto">
+    <PageContent className="max-w-3xl mx-auto space-y-6">
       {/* Camera capture modal */}
       {cameraOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
@@ -303,11 +304,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">My Profile</h1>
-        <p className="text-muted-foreground mt-1">Manage your account and profile picture</p>
-      </div>
+      <PageHeader title="My Profile" description="Manage your account and profile picture" />
 
       {/* Profile card */}
       <Card className="overflow-hidden">
@@ -522,6 +519,6 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
-    </div>
+    </PageContent>
   );
 }

@@ -6,6 +6,7 @@ import { BarChart3, TrendingUp, Filter, FileText, Plus, Download } from 'lucide-
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
+import { PageHeader } from '../components/ui/page-header';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import FEXAnalytics from './FEXAnalytics';
@@ -16,20 +17,19 @@ const AnalystDashboard = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header Actions */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-wrap">
-        <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Analytics Workspace</h1>
-          <p className="text-sm text-muted-foreground">Create and modify analytics dashboards</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ExportButtons filename="analyst_workspace" />
-          <Button className="gap-2 h-9">
-            <Plus className="h-4 w-4" />
-            New Dashboard
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Analytics Workspace"
+        subtitle="Create and modify analytics dashboards"
+        actions={
+          <>
+            <ExportButtons filename="analyst_workspace" />
+            <Button className="gap-2" size="default">
+              <Plus className="h-4 w-4" />
+              New Dashboard
+            </Button>
+          </>
+        }
+      />
 
       {/* Filters */}
       <GlobalFilterPanel onFilterChange={setFilters} />

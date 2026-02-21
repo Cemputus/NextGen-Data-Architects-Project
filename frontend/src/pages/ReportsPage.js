@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Download, Share2, Filter } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { PageHeader, PageContent } from '../components/ui/page-header';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
@@ -38,14 +39,12 @@ const ReportsPage = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-          <p className="text-muted-foreground">Generate and download comprehensive reports</p>
-        </div>
-        <ExportButtons stats={{}} filters={filters} filename="comprehensive_report" />
-      </div>
+    <PageContent>
+      <PageHeader
+        title="Reports"
+        description="Generate and download comprehensive reports"
+        actions={<ExportButtons stats={{}} filters={filters} filename="comprehensive_report" />}
+      />
 
       <GlobalFilterPanel onFilterChange={setFilters} />
 
@@ -108,10 +107,9 @@ const ReportsPage = () => {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </PageContent>
   );
 };
-
 export default ReportsPage;
 
 

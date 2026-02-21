@@ -4,7 +4,7 @@
  */
 import React, { useMemo } from 'react';
 import { BaseChart } from './BaseChart';
-import { UCU_COLORS, defaultGrid, defaultTooltip, defaultTextStyle } from '../../lib/chartTheme';
+import { UCU_COLORS, defaultGrid, defaultTooltip, defaultTextStyle, defaultTitleTextStyle, formatTooltipValue } from '../../lib/chartTheme';
 
 const chartHeight = 280;
 const chartMinHeight = 200;
@@ -286,6 +286,57 @@ export function SciStackedColumnChart({
       minHeight={chartMinHeight}
       maxHeight={chartMaxHeight}
     />
+  );
+}
+
+/** Donut chart – proportions / composition (use sparingly) */
+export function SciDonutChart({
+  data = [],
+  nameKey = 'name',
+  valueKey = 'value',
+  title = '',
+  colors = [UCU_COLORS.blue, UCU_COLORS.gold, UCU_COLORS['blue-light'], UCU_COLORS.green, UCU_COLORS.maroon],
+  innerRadius = '55%',
+  minHeight = chartMinHeight,
+  maxHeight = chartMaxHeight,
+}) {
+  const option = useMemo(() => {
+    const seriesData = (data || []).map((d, i) => ({
+      name: String(d[nameKey] ?? ''),
+      value: Number(d[valueKey]) || 0,
+      itemStyle: { color: colors[i % colors.length] },
+    })).filter((d) => d.value > 0);
+    return {
+      tooltip: {
+        ...defaultTooltip,
+        trigger: 'item',
+        formatter: ({ name, value, percent }) =>
+          `${name}: ${formatTooltipValue(value)} (${percent}%)`,
+      },
+      legend: { show: true, bottom: 0, textStyle: defaultTextStyle },
+      title: title ? { text: title, left: 'center', top: 8, textStyle: defaultTitleTextStyle } : undefined,
+      series: [
+        {
+          type: 'pie',
+          radius: [innerRadius, '75%'],
+          center: ['50%', '45%'],
+          avoidLabelOverlap: true,
+          label: { show: true, fontSize: 11, formatter: '{b}: {d}%' },
+          labelLine: { show: true },
+          data: seriesData,
+        },
+      ],
+    };
+  }, [data, nameKey, valueKey, title, colors, innerRadius]);
+
+  if (!data || data.length === 0) {
+    return (
+      <BaseChart option={{}} loading={false} minHeight={minHeight} maxHeight={maxHeight} />
+    );
+  }
+
+  return (
+    <BaseChart option={option} minHeight={minHeight} maxHeight={maxHeight} />
   );
 }
 

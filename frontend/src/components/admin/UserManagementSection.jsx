@@ -6,10 +6,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Search, Loader2, RefreshCw, UserCircle, ExternalLink, Plus, X, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
+import { Modal, ModalHeader, ModalBody } from '../ui/modal';
+import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Select } from '../ui/select';
 import { Label } from '../ui/label';
+import { LoadingState, EmptyState, ErrorState } from '../ui/state-messages';
 import axios from 'axios';
 import { cn } from '../../lib/utils';
 
@@ -353,15 +356,9 @@ export default function UserManagementSection({ showHeader = true, compact = fal
         </CardHeader>
       )}
 
-      {addModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => !addSubmitting && setAddModalOpen(false)}>
-          <div className="bg-card rounded-xl shadow-xl max-w-md w-full p-6 border border-border" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-foreground">Add User</h3>
-              <Button variant="ghost" size="icon" onClick={() => !addSubmitting && setAddModalOpen(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+      <Modal open={addModalOpen} onClose={() => !addSubmitting && setAddModalOpen(false)} titleId="add-user-title" maxWidth="max-w-lg">
+        <ModalHeader title="Add User" titleId="add-user-title" onClose={() => !addSubmitting && setAddModalOpen(false)} />
+        <ModalBody>
             <p className="text-sm text-muted-foreground mb-4">
               Create a real user. Deans are scoped to a faculty; HODs to a department. Students sign in with Access Number (no add here).
             </p>
@@ -515,20 +512,13 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
       {/* View user modal */}
-      {viewUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setViewUser(null); setViewError(null); }}>
-          <div className="bg-card rounded-xl shadow-xl max-w-md w-full p-6 border border-border" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-foreground">User details</h3>
-              <Button variant="ghost" size="icon" onClick={() => { setViewUser(null); setViewError(null); }}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+      <Modal open={!!viewUser} onClose={() => { setViewUser(null); setViewError(null); }} titleId="view-user-title" maxWidth="max-w-lg">
+        <ModalHeader title="User details" titleId="view-user-title" onClose={() => { setViewUser(null); setViewError(null); }} />
+        <ModalBody>
             {viewError && (
               <div className="rounded-lg bg-destructive/10 text-destructive border border-destructive/20 px-3 py-2 text-sm mb-4">{viewError}</div>
             )}
@@ -579,20 +569,13 @@ export default function UserManagementSection({ showHeader = true, compact = fal
             <div className="mt-4 flex justify-end">
               <Button variant="outline" onClick={() => { setViewUser(null); setViewError(null); }}>Close</Button>
             </div>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
       {/* Edit user modal (app_user only) */}
-      {editUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => !editSubmitting && setEditUser(null)}>
-          <div className="bg-card rounded-xl shadow-xl max-w-md w-full p-6 border border-border max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-foreground">Edit user</h3>
-              <Button variant="ghost" size="icon" onClick={() => !editSubmitting && setEditUser(null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+      <Modal open={!!editUser} onClose={() => !editSubmitting && setEditUser(null)} titleId="edit-user-title" maxWidth="max-w-lg">
+        <ModalHeader title="Edit user" titleId="edit-user-title" onClose={() => !editSubmitting && setEditUser(null)} />
+        <ModalBody>
             <p className="text-sm text-muted-foreground mb-4">
               Editing: <strong>{editUser.username}</strong>
             </p>
@@ -717,17 +700,15 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
       {/* Delete confirmation */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { if (!deleteSubmitting) { setDeleteConfirm(null); setDeleteError(null); } }}>
-          <div className="bg-card rounded-xl shadow-xl max-w-sm w-full p-6 border border-border" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Delete user</h3>
+      <Modal open={!!deleteConfirm} onClose={() => { if (!deleteSubmitting) { setDeleteConfirm(null); setDeleteError(null); } }} titleId="delete-user-title" maxWidth="max-w-sm">
+        <ModalHeader title="Delete user" titleId="delete-user-title" onClose={() => { if (!deleteSubmitting) { setDeleteConfirm(null); setDeleteError(null); } }} />
+        <ModalBody>
             <p className="text-sm text-muted-foreground mb-4">
-              Are you sure you want to delete <strong>{deleteConfirm.full_name || deleteConfirm.username}</strong>? This cannot be undone.
+              Are you sure you want to delete <strong>{deleteConfirm?.full_name || deleteConfirm?.username}</strong>? This cannot be undone.
             </p>
             {deleteError && (
               <div className="rounded-lg bg-destructive/10 text-destructive border border-destructive/20 px-3 py-2 text-sm mb-4">{deleteError}</div>
@@ -741,26 +722,30 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                 Delete
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+        </ModalBody>
+      </Modal>
 
       <CardContent className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
             <Input
+              type="search"
               placeholder="Search by name, username, or access number..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && loadUsers()}
               className="pl-10"
+              aria-label="Search users by name, username, or access number"
             />
           </div>
+          <label className="sr-only" htmlFor="user-role-filter">Filter by role</label>
           <Select
+            id="user-role-filter"
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
             className="w-full sm:w-40"
+            aria-label="Filter by role"
           >
             {ROLES.map((r) => (
               <option key={r.value || 'all'} value={r.value}>
@@ -768,15 +753,17 @@ export default function UserManagementSection({ showHeader = true, compact = fal
               </option>
             ))}
           </Select>
-          <label className="flex items-center gap-2 text-sm shrink-0">
+          <label className="flex items-center gap-2 text-sm shrink-0" htmlFor="users-limit">
             <span className="text-muted-foreground whitespace-nowrap">Show last</span>
             <Select
+              id="users-limit"
               value={String(usersLimit)}
               onChange={(e) => {
                 const val = e.target.value;
                 setUsersLimit(val === 'all' ? 'all' : Number(val));
               }}
               className="w-28"
+              aria-label="Number of users to show"
             >
               {USER_LIMIT_OPTIONS.map((n) => (
                 <option key={n} value={String(n)}>
@@ -803,44 +790,40 @@ export default function UserManagementSection({ showHeader = true, compact = fal
         )}
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Loader2 className="h-8 w-8 animate-spin mb-3" />
-            <p>Loading users...</p>
-          </div>
+          <LoadingState message="Loading users..." />
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/50 border-b border-border">
-                    <th className="text-left font-semibold p-3">Name</th>
-                    <th className="text-left font-semibold p-3">Username / Access #</th>
-                    <th className="text-left font-semibold p-3">Reg. #</th>
-                    <th className="text-left font-semibold p-3">Role</th>
-                    <th className="text-left font-semibold p-3">Type</th>
-                    <th className="text-left font-semibold p-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+          <TableWrapper className="border-0 rounded-none">
+            <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Username / Access #</TableHead>
+                    <TableHead>Reg. #</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {users.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                        <UserCircle className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                        <p>No users match your filters.</p>
-                      </td>
-                    </tr>
+                    <TableRow>
+                      <TableCell colSpan={6} className="p-8 text-center">
+                        <UserCircle className="h-10 w-10 mx-auto mb-2 opacity-50" aria-hidden />
+                        <p className="text-sm text-muted-foreground">No users match your filters.</p>
+                      </TableCell>
+                    </TableRow>
                   ) : (
                     users.map((u) => (
-                      <tr
+                      <TableRow
                         key={u.type === 'student' ? `student-${u.id}` : u.type === 'demo' ? `demo-${u.id}` : `app-${u.id}`}
-                        className="border-b border-border/50 hover:bg-muted/30 transition-colors"
                       >
-                        <td className="p-3 font-medium text-foreground">
+                        <TableCell className="font-medium text-foreground">
                           {u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || '—'}
-                        </td>
-                        <td className="p-3 text-muted-foreground">{u.username || u.access_number || '—'}</td>
-                        <td className="p-3 text-muted-foreground">{u.reg_number || '—'}</td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell>{u.username || u.access_number || '—'}</TableCell>
+                        <TableCell>{u.reg_number || '—'}</TableCell>
+                        <TableCell>
                           <span
                             className={cn(
                               'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize',
@@ -851,11 +834,11 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                           >
                             {u.role || '—'}
                           </span>
-                        </td>
-                        <td className="p-3 text-muted-foreground">
+                        </TableCell>
+                        <TableCell>
                           {u.type === 'app_user' ? 'App user' : u.type === 'demo' ? 'Demo' : (u.type || '—')}
-                        </td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-1">
                             <Button
                               variant="ghost"
@@ -863,6 +846,7 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                               className="h-8 w-8"
                               onClick={() => openViewUser(u)}
                               title="View details"
+                              aria-label="View details"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -874,6 +858,7 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                                   className="h-8 w-8"
                                   onClick={() => openEditUser(u)}
                                   title="Edit user"
+                                  aria-label="Edit user"
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
@@ -883,19 +868,20 @@ export default function UserManagementSection({ showHeader = true, compact = fal
                                   className="h-8 w-8 text-destructive hover:text-destructive"
                                   onClick={() => setDeleteConfirm(u)}
                                   title="Delete user"
+                                  aria-label="Delete user"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+            </Table>
+          </TableWrapper>
             {users.length > 0 && (
               <div className="px-3 py-2 border-t border-border bg-muted/30 text-xs text-muted-foreground">
                 Showing {users.length} user{users.length !== 1 ? 's' : ''}

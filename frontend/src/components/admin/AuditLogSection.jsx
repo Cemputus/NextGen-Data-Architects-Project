@@ -8,6 +8,8 @@ import { FileText, Search, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
+import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
+import { LoadingState, EmptyState, ErrorState } from '../ui/state-messages';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 
@@ -162,26 +164,32 @@ export default function AuditLogSection({ showHeader = true, showSetupButton = t
     console.log(`[AuditLogSection] loadLogs(${newLimit}) completed`);
   };
 
+  const actionButtons = (
+    <div className="flex gap-2">
+      <Button variant="outline" onClick={() => loadLogs(logsLimit)} disabled={loading} size={compact ? 'sm' : 'default'}>
+        <RefreshCw className="h-4 w-4 mr-2" aria-hidden />
+        Refresh
+      </Button>
+      {showSetupButton && message && (
+        <Button onClick={setupAuditDb} disabled={settingUp} size={compact ? 'sm' : 'default'}>
+          {settingUp ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden /> : null}
+          Set up audit DB
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-4">
-      {showHeader && (
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Audit Logs</h2>
-            <p className="text-muted-foreground text-sm">System activity and security audit trail</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => loadLogs(logsLimit)} disabled={loading} size={compact ? 'sm' : 'default'}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-            {showSetupButton && message && (
-              <Button onClick={setupAuditDb} disabled={settingUp} size={compact ? 'sm' : 'default'}>
-                {settingUp ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                Set up audit DB
-              </Button>
-            )}
-          </div>
+      {(showHeader || showSetupButton) && (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {showHeader && (
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Audit Logs</h2>
+              <p className="text-sm text-muted-foreground">System activity and security audit trail</p>
+            </div>
+          )}
+          {actionButtons}
         </div>
       )}
 
@@ -226,60 +234,63 @@ export default function AuditLogSection({ showHeader = true, showSetupButton = t
         <CardContent className={compact ? 'py-3' : ''}>
           <div className="flex gap-2 mb-4">
             <Input
+              type="search"
               placeholder="Search by user, action, resource, role..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1"
+              aria-label="Search audit logs"
             />
-            <Button variant="secondary" size="icon" title="Search">
+            <Button variant="secondary" size="icon" title="Search" aria-label="Search">
               <Search className="h-4 w-4" />
             </Button>
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            </div>
+            <LoadingState message="Loading audit logs..." />
           ) : error ? (
-            <div className="text-center py-8 text-muted-foreground">{error}</div>
+            <ErrorState message={error} retry={() => loadLogs(logsLimit)} />
           ) : filteredLogs.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No audit log entries found. Set up the <code className="bg-muted px-1 rounded">ucu_rbac</code> database and <code className="bg-muted px-1 rounded">audit_logs</code> table for a full trail.
-            </div>
+            <EmptyState
+              message="No audit log entries found."
+              hint="Set up the ucu_rbac database and audit_logs table for a full trail."
+            />
           ) : (
-            <div className="overflow-x-auto">
+            <>
               <div className="mb-2 text-xs text-muted-foreground">
                 Showing {filteredLogs.length} of {logs.length} loaded entries {logsLimit !== 'all' ? `(limit: ${logsLimit})` : '(all)'}
               </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 font-medium">Time</th>
-                    <th className="text-left py-2 font-medium">User</th>
-                    <th className="text-left py-2 font-medium">Role</th>
-                    <th className="text-left py-2 font-medium">Action</th>
-                    <th className="text-left py-2 font-medium">Resource</th>
-                    <th className="text-left py-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLogs.map((log) => (
-                    <tr key={log.log_id ?? `${log.created_at}-${log.username}`} className="border-b border-muted/50">
-                      <td className="py-2 text-muted-foreground whitespace-nowrap">{log.created_at}</td>
-                      <td className="py-2">{log.username || '—'}</td>
-                      <td className="py-2">{log.role_name || '—'}</td>
-                      <td className="py-2">{log.action || '—'}</td>
-                      <td className="py-2">{log.resource || '—'}</td>
-                      <td className="py-2">
-                        <span className={log.status === 'success' ? 'text-green-600' : log.status === 'failure' ? 'text-amber-600' : ''}>
-                          {log.status || '—'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              <TableWrapper>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Time</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Resource</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredLogs.map((log) => (
+                      <TableRow key={log.log_id ?? `${log.created_at}-${log.username}`}>
+                        <TableCell className="whitespace-nowrap">{log.created_at}</TableCell>
+                        <TableCell>{log.username || '—'}</TableCell>
+                        <TableCell>{log.role_name || '—'}</TableCell>
+                        <TableCell>{log.action || '—'}</TableCell>
+                        <TableCell>{log.resource || '—'}</TableCell>
+                        <TableCell>
+                          <span className={log.status === 'success' ? 'text-green-600' : log.status === 'failure' ? 'text-amber-600' : ''}>
+                            {log.status || '—'}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableWrapper>
+            </>
           )}
         </CardContent>
       </Card>

@@ -149,7 +149,7 @@ const LayoutModern = ({ children }) => {
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    <h1 className="text-xl font-semibold text-primary">
                       NextGen MIS
                     </h1>
                     <p className="text-xs text-muted-foreground font-medium mt-1">
@@ -228,7 +228,7 @@ const LayoutModern = ({ children }) => {
             {sidebarOpen && (
               <Button
                 variant="ghost"
-                className="w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 h-10 font-medium rounded-lg"
+                className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 h-9 font-medium rounded-lg"
                 onClick={handleLogout}
               >
                 <LogOut className="h-4 w-4" />
@@ -260,7 +260,7 @@ const LayoutModern = ({ children }) => {
               <div className="flex flex-col h-full">
                 <div className="p-6 border-b border-border flex items-center justify-between">
                   <div>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    <h1 className="text-xl font-semibold text-primary">
                       NextGen MIS
                     </h1>
                     <p className="text-xs text-muted-foreground font-medium mt-1">

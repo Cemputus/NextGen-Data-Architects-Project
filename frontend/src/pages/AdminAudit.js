@@ -1,16 +1,18 @@
 /**
  * Admin Audit Logs Page - System audit logs (sysadmin only)
- * Uses AuditLogSection with ETL-style "Show last N" filter.
  */
 import React from 'react';
+import { PageHeader, PageContent } from '../components/ui/page-header';
 import AuditLogSection from '../components/admin/AuditLogSection';
 
-const AdminAudit = () => {
-  return (
-    <div className="space-y-6">
-      <AuditLogSection showHeader={true} showSetupButton={true} compact={false} />
-    </div>
-  );
-};
+const AdminAudit = () => (
+  <PageContent>
+    <PageHeader
+      title="Audit Logs"
+      description="System activity and security audit trail"
+    />
+    <AuditLogSection showHeader={false} showSetupButton={true} compact={false} />
+  </PageContent>
+);
 
 export default AdminAudit;

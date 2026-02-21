@@ -15,6 +15,8 @@ import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { SciBarChart, UCU_COLORS } from '../components/charts/EChartsComponents';
+import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
+import { EmptyState } from '../components/ui/state-messages';
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState, loadDrilldown, saveDrilldown } from '../utils/statePersistence';
 
@@ -261,55 +263,39 @@ const FEXAnalytics = () => {
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
                   {chartData.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-100">
-                          <tr>
-                            <th className="px-4 py-2 text-left">Faculty/Department</th>
-                            <th className="px-4 py-2 text-right">FEX</th>
-                            <th className="px-4 py-2 text-right">MEX</th>
-                            <th className="px-4 py-2 text-right">FCW</th>
-                            <th className="px-4 py-2 text-right">Completed</th>
-                            <th className="px-4 py-2 text-right">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                    <TableWrapper>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Faculty/Department</TableHead>
+                            <TableHead className="text-right">FEX</TableHead>
+                            <TableHead className="text-right">MEX</TableHead>
+                            <TableHead className="text-right">FCW</TableHead>
+                            <TableHead className="text-right">Completed</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {chartData.slice(0, 20).map((row, idx) => (
-                            <tr key={idx} className="border-b hover:bg-gray-50">
-                              <td className="px-4 py-2">{row[getDataKey()] || 'N/A'}</td>
-                              <td className="px-4 py-2 text-right text-red-600 font-semibold">{row.total_fex || 0}</td>
-                              <td className="px-4 py-2 text-right text-orange-600">{row.total_mex || 0}</td>
-                              <td className="px-4 py-2 text-right text-purple-600">{row.total_fcw || 0}</td>
-                              <td className="px-4 py-2 text-right text-green-600">{row.total_completed || 0}</td>
-                              <td className="px-4 py-2 text-right font-medium">{row.total_exams || 0}</td>
-                            </tr>
+                            <TableRow key={idx}>
+                              <TableCell>{row[getDataKey()] || 'N/A'}</TableCell>
+                              <TableCell className="text-right text-red-600 font-semibold">{row.total_fex || 0}</TableCell>
+                              <TableCell className="text-right text-orange-600">{row.total_mex || 0}</TableCell>
+                              <TableCell className="text-right text-purple-600">{row.total_fcw || 0}</TableCell>
+                              <TableCell className="text-right text-green-600">{row.total_completed || 0}</TableCell>
+                              <TableCell className="text-right font-medium">{row.total_exams || 0}</TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        </TableBody>
+                      </Table>
+                    </TableWrapper>
                   ) : (
-                    <div className="h-64 flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
-                      <div className="text-center p-6">
-                        <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                        <p className="text-lg font-medium">No data available</p>
-                        <p className="text-sm mt-2">
-                          {fexData?.debug_info?.message || 'Try adjusting your filters or check if data exists.'}
-                        </p>
-                        {fexData?.debug_info && (
-                          <div className="mt-4 text-xs text-gray-500 space-y-1">
-                            {fexData.debug_info.total_records_in_db > 0 && (
-                              <p>Total records in database: {fexData.debug_info.total_records_in_db}</p>
-                            )}
-                            {fexData.debug_info.drilldown && (
-                              <p>Drilldown level: {fexData.debug_info.drilldown}</p>
-                            )}
-                            {fexData.debug_info.filters_applied && Object.keys(fexData.debug_info.filters_applied).length > 0 && (
-                              <p>Active filters: {Object.keys(fexData.debug_info.filters_applied).filter(k => k !== 'drilldown').join(', ')}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <EmptyState
+                      icon={FileText}
+                      message="No data available"
+                      hint={fexData?.debug_info?.message || 'Try adjusting your filters or check if data exists.'}
+                      className="border-2 border-dashed rounded-lg"
+                    />
                   )}
                 </CardContent>
               </Card>

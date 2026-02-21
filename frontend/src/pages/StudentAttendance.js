@@ -37,7 +37,7 @@ const StudentAttendance = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-9 w-9 animate-spin text-primary" />
       </div>
     );
   }
@@ -61,7 +61,7 @@ const StudentAttendance = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-blue-600">
+            <div className="text-3xl font-bold text-primary">
               {stats?.avg_attendance_hours?.toFixed(1) || '0'} hours
             </div>
             <p className="text-sm text-muted-foreground mt-2">Per course</p>

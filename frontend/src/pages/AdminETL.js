@@ -5,6 +5,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, RefreshCw, Database, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { PageHeader, PageContent } from '../components/ui/page-header';
+import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
+import { LoadingState, ErrorState } from '../components/ui/state-messages';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 
@@ -84,23 +87,19 @@ const AdminETL = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        <p className="text-muted-foreground">Loading system status...</p>
-      </div>
+      <PageContent>
+        <PageHeader title="ETL & Data Warehouse" description="Track pipeline runs and data warehouse counts" />
+        <LoadingState message="Loading system status..." />
+      </PageContent>
     );
   }
 
   if (error) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-gray-900">ETL Jobs</h1>
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            {error}
-          </CardContent>
-        </Card>
-      </div>
+      <PageContent>
+        <PageHeader title="ETL & Data Warehouse" description="Track pipeline runs and data warehouse counts" />
+        <ErrorState message={error} retry={() => loadStatus(false)} />
+      </PageContent>
     );
   }
 
@@ -109,23 +108,23 @@ const AdminETL = () => {
   const sourceDbs = status?.source_databases || {};
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">ETL & Data Warehouse</h1>
-          <p className="text-muted-foreground">Track pipeline runs and data warehouse counts</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-          <Button onClick={runETL} disabled={running}>
-            {running ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-            Run ETL
-          </Button>
-        </div>
-      </div>
+    <PageContent>
+      <PageHeader
+        title="ETL & Data Warehouse"
+        description="Track pipeline runs and data warehouse counts"
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+              <RefreshCw className="h-4 w-4 mr-2" aria-hidden />
+              Refresh
+            </Button>
+            <Button onClick={runETL} disabled={running}>
+              {running ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden /> : <Play className="h-4 w-4 mr-2" aria-hidden />}
+              Run ETL
+            </Button>
+          </div>
+        }
+      />
 
       {etlMessage && (
         <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
@@ -161,24 +160,24 @@ const AdminETL = () => {
           <CardDescription>UCU_DataWarehouse — dimension and fact table row counts</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 font-medium">Table</th>
-                  <th className="text-right py-2 font-medium">Count</th>
-                </tr>
-              </thead>
-              <tbody>
+          <TableWrapper>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Table</TableHead>
+                  <TableHead className="text-right">Count</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {Object.entries(warehouse).map(([table, count]) => (
-                  <tr key={table} className="border-b border-muted/50">
-                    <td className="py-2 font-mono">{table}</td>
-                    <td className="text-right py-2">{count != null ? count.toLocaleString() : '—'}</td>
-                  </tr>
+                  <TableRow key={table}>
+                    <TableCell className="font-mono">{table}</TableCell>
+                    <TableCell className="text-right">{count != null ? count.toLocaleString() : '—'}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableWrapper>
         </CardContent>
       </Card>
 
@@ -190,12 +189,14 @@ const AdminETL = () => {
               <CardTitle>ETL Run History</CardTitle>
               <CardDescription>One row per run (latest first). Use the filter to choose how many to show.</CardDescription>
             </div>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm" htmlFor="etl-runs-limit">
               <span className="text-muted-foreground">Show last</span>
               <select
+                id="etl-runs-limit"
                 value={etlRunsLimit}
                 onChange={(e) => setEtlRunsLimit(Number(e.target.value))}
-                className="rounded border border-input bg-background px-2 py-1.5 text-sm"
+                className="rounded border border-input bg-background px-2 py-1.5 text-sm h-9"
+                aria-label="Number of ETL runs to show"
               >
                 {ETL_RUNS_LIMIT_OPTIONS.map((n) => (
                   <option key={n} value={n}>{n} runs</option>
@@ -208,45 +209,44 @@ const AdminETL = () => {
           {etlRuns.length === 0 ? (
             <p className="text-muted-foreground text-sm py-4">No ETL log files found. Click Run ETL to add one run.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 font-medium">Log file</th>
-                    <th className="text-left py-2 font-medium">Start time</th>
-                    <th className="text-left py-2 font-medium">Duration</th>
-                    <th className="text-left py-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <TableWrapper>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Log file</TableHead>
+                    <TableHead>Start time</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {etlRuns.map((run) => (
-                    <tr key={run.log_file} className="border-b border-muted/50">
-                      <td className="py-2 font-mono text-muted-foreground">{run.log_file}</td>
-                      <td className="py-2">{run.start_time || '—'}</td>
-                      <td className="py-2">{run.duration || '—'}</td>
-                      <td className="py-2">
+                    <TableRow key={run.log_file}>
+                      <TableCell className="font-mono">{run.log_file}</TableCell>
+                      <TableCell>{run.start_time || '—'}</TableCell>
+                      <TableCell>{run.duration || '—'}</TableCell>
+                      <TableCell>
                         {run.success ? (
                           <span className="inline-flex items-center gap-1 text-green-600">
-                            <CheckCircle className="h-4 w-4" /> Success
+                            <CheckCircle className="h-4 w-4" aria-hidden /> Success
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-amber-600">
-                            <XCircle className="h-4 w-4" /> Failed
+                            <XCircle className="h-4 w-4" aria-hidden /> Failed
                           </span>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableWrapper>
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageContent>
   );
 };
-
 export default AdminETL;
 
 

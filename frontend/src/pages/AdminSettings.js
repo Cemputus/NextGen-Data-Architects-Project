@@ -20,6 +20,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select } from '../components/ui/select';
+import { PageHeader, PageContent } from '../components/ui/page-header';
 import { useTheme } from '../context/ThemeContext';
 
 const defaultSettings = {
@@ -103,41 +104,40 @@ const AdminSettings = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">System Settings</h1>
-          <p className="text-muted-foreground mt-1">
-            Configure system preferences, security, and notifications
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {message && (
-            <span
-              className={`flex items-center gap-2 text-sm ${
-                message.type === 'success'
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-amber-600 dark:text-amber-400'
-              }`}
-            >
-              {message.type === 'success' ? (
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-              ) : (
-                <AlertCircle className="h-4 w-4 shrink-0" />
-              )}
-              {message.text}
-            </span>
-          )}
-          <Button onClick={handleSave} disabled={saving || !dirty}>
-            {saving ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
+    <PageContent>
+      <PageHeader
+        title="System Settings"
+        description="Configure system preferences, security, and notifications"
+        actions={
+          <div className="flex items-center gap-3">
+            {message && (
+              <span
+                className={`flex items-center gap-2 text-sm ${
+                  message.type === 'success'
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-amber-600 dark:text-amber-400'
+                }`}
+                role={message.type === 'error' ? 'alert' : undefined}
+              >
+                {message.type === 'success' ? (
+                  <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+                ) : (
+                  <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
+                )}
+                {message.text}
+              </span>
             )}
-            Save settings
-          </Button>
-        </div>
-      </div>
+            <Button onClick={handleSave} disabled={saving || !dirty}>
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden />
+              ) : (
+                <Save className="h-4 w-4 mr-2" aria-hidden />
+              )}
+              Save settings
+            </Button>
+          </div>
+        }
+      />
 
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList className="flex flex-wrap gap-1 bg-muted/50 p-1 rounded-lg">
@@ -271,7 +271,7 @@ const AdminSettings = () => {
                   type="checkbox"
                   checked={settings.enableNotifications}
                   onChange={(e) => update('enableNotifications', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 />
                 <span className="text-sm font-medium">Enable in-app notifications</span>
               </label>
@@ -280,7 +280,7 @@ const AdminSettings = () => {
                   type="checkbox"
                   checked={settings.emailOnEtlFailure}
                   onChange={(e) => update('emailOnEtlFailure', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 />
                 <span className="text-sm font-medium">Email on ETL failure</span>
               </label>
@@ -289,7 +289,7 @@ const AdminSettings = () => {
                   type="checkbox"
                   checked={settings.dailyDigest}
                   onChange={(e) => update('dailyDigest', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 />
                 <span className="text-sm font-medium">Daily digest email</span>
               </label>
@@ -328,7 +328,7 @@ const AdminSettings = () => {
                   type="checkbox"
                   checked={settings.compactSidebar}
                   onChange={(e) => update('compactSidebar', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 />
                 <span className="text-sm font-medium">Compact sidebar</span>
               </label>
@@ -357,8 +357,7 @@ const AdminSettings = () => {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContent>
   );
 };
-
 export default AdminSettings;

@@ -78,7 +78,7 @@ const StudentGrades = () => {
                 <CardTitle className="text-lg">Average Grade</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-blue-600">
+                <div className="text-3xl font-bold text-primary">
                   {stats?.avg_grade?.toFixed(2) || 'N/A'}%
                 </div>
               </CardContent>

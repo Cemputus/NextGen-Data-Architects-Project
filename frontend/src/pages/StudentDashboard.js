@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { Award, BookOpen, Calendar, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { PageHeader } from '../components/ui/page-header';
 import ModernStatsCards from '../components/ModernStatsCards';
 import RoleBasedCharts from '../components/RoleBasedCharts';
 import ExportButtons from '../components/ExportButtons';
@@ -53,8 +54,8 @@ const StudentDashboard = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-muted-foreground">Loading your dashboard...</p>
+          <Loader2 className="h-9 w-9 animate-spin text-primary" aria-hidden />
+          <p className="text-sm text-muted-foreground">Loading your dashboard...</p>
         </div>
       </div>
     );
@@ -64,7 +65,7 @@ const StudentDashboard = () => {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-red-600">Error</CardTitle>
+          <CardTitle className="text-destructive">Error</CardTitle>
           <CardDescription>{error}</CardDescription>
         </CardHeader>
       </Card>
@@ -73,14 +74,11 @@ const StudentDashboard = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header with Export */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">My Academic Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Your academic performance and progress</p>
-        </div>
-        <ExportButtons stats={stats} filename="student_dashboard" />
-      </div>
+      <PageHeader
+        title="My Academic Dashboard"
+        subtitle="Your academic performance and progress"
+        actions={<ExportButtons stats={stats} filename="student_dashboard" />}
+      />
 
       {/* KPI Cards - 1 col mobile, 2 tablet, 4 desktop */}
       <ModernStatsCards stats={stats} type="student" />
