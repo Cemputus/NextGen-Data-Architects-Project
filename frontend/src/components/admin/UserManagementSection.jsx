@@ -526,7 +526,7 @@ export default function UserManagementSection({ showHeader = true, compact = fal
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : typeof viewUser.full_name === 'string' ? (
+            ) : viewUser && typeof viewUser.full_name === 'string' ? (
               <dl className="space-y-3 text-sm">
                 <div>
                   <dt className="text-muted-foreground">Name</dt>
@@ -577,7 +577,7 @@ export default function UserManagementSection({ showHeader = true, compact = fal
         <ModalHeader title="Edit user" titleId="edit-user-title" onClose={() => !editSubmitting && setEditUser(null)} />
         <ModalBody>
             <p className="text-sm text-muted-foreground mb-4">
-              Editing: <strong>{editUser.username}</strong>
+              Editing: <strong>{editUser?.username ?? '—'}</strong>
             </p>
             <form onSubmit={handleEditUser} className="space-y-4">
               {editError && (

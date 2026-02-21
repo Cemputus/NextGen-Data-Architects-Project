@@ -1016,13 +1016,41 @@ def _dashboard_role_scope():
 @app.route('/api/dashboard/stats', methods=['GET'])
 @jwt_required()
 def get_dashboard_stats():
-    """Get dashboard statistics (scoped by faculty for dean, department for HOD)."""
+    """Get dashboard statistics (scoped by role and optional faculty/department/program/semester filters)."""
     engine = None
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         role_join, role_where = _dashboard_role_scope()
-        scope_join = f" {role_join} " if role_join else ""
-        scope_where = f" WHERE {role_where} " if role_where else ""
+        filters = request.args.to_dict()
+        filter_join = ""
+        filter_where_parts = []
+        if filters.get('faculty_id') and str(filters.get('faculty_id', '')).strip().lower() not in ('', 'all'):
+            filter_join = """
+        JOIN dim_program dp ON ds.program_id = dp.program_id
+        JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            """
+            filter_where_parts.append(f"df.faculty_id = {filters['faculty_id']}")
+        if filters.get('department_id') and str(filters.get('department_id', '')).strip().lower() not in ('', 'all'):
+            if not filter_join:
+                filter_join = """
+        JOIN dim_program dp ON ds.program_id = dp.program_id
+        JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+                """
+            filter_where_parts.append(f"ddept.department_id = {filters['department_id']}")
+        if filters.get('program_id') and str(filters.get('program_id', '')).strip().lower() not in ('', 'all'):
+            if not filter_join:
+                filter_join = """
+        JOIN dim_program dp ON ds.program_id = dp.program_id
+        JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+                """
+            filter_where_parts.append(f"ds.program_id = {filters['program_id']}")
+        use_join = role_join or filter_join
+        scope_join = f" {use_join} " if use_join else ""
+        all_where = [w for w in [role_where, " AND ".join(filter_where_parts) if filter_where_parts else ""] if w]
+        scope_where = f" WHERE {' AND '.join(all_where)} " if all_where else ""
 
         # Total students - with role scope
         try:
@@ -1343,10 +1371,12 @@ def get_grades_over_time():
             where_clauses.append(f"ds.program_id = {filters['program_id']}")
         if filters.get('semester_id') and str(filters['semester_id']).strip() and str(filters['semester_id']).lower() != 'all':
             where_clauses.append(f"fg.semester_id = {filters['semester_id']}")
+        # Limit to quarters from 2023 to now for trend line (multiple data points)
+        where_clauses.append("dt.year >= 2023")
         
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
         
-        # Join with department and faculty for role-based filtering or when filters are used
+        # Join with department and faculty for role-based filtering or when filters are applied
         # For SENATE role, we don't need joins unless filters are applied
         join_clause = ""
         needs_join = (role in [Role.HOD, Role.DEAN, Role.STAFF] or 
@@ -1719,6 +1749,8 @@ def get_attendance_trends():
             where_clauses.append(f"ddept.department_id = {filters['department_id']}")
         if filters.get('program_id') and str(filters['program_id']).strip() and str(filters['program_id']).lower() != 'all':
             where_clauses.append(f"ds.program_id = {filters['program_id']}")
+        # Limit to quarters from 2023 to now for trend charts
+        where_clauses.append("dt.year >= 2023")
         
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
         

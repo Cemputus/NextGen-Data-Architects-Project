@@ -20,20 +20,21 @@ import { EmptyState } from '../components/ui/state-messages';
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState, loadDrilldown, saveDrilldown } from '../utils/statePersistence';
 
-const FEXAnalytics = () => {
+const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
   const [loading, setLoading] = useState(true);
   const [fexData, setFexData] = useState(null);
   
-  // Load persisted state on mount
   const savedState = loadPageState('fex_analytics', { filters: {}, drilldown: 'overall', tab: 'distribution' });
   const [drilldown, setDrilldown] = useState(savedState.drilldown || 'overall');
-  const [filters, setFilters] = useState(savedState.filters || {});
+  const [internalFilters, setInternalFilters] = useState(savedState.filters || {});
   const [activeTab, setActiveTab] = useState(savedState.tab || 'distribution');
 
-  // Save state whenever it changes
+  const filters = externalFilters != null ? externalFilters : internalFilters;
+  const isControlled = externalFilters != null;
+
   useEffect(() => {
-    savePageState('fex_analytics', { filters, drilldown, tab: activeTab });
-  }, [filters, drilldown, activeTab]);
+    if (!isControlled) savePageState('fex_analytics', { filters: internalFilters, drilldown, tab: activeTab });
+  }, [isControlled, internalFilters, drilldown, activeTab]);
 
   useEffect(() => {
     loadFEXData();
@@ -136,7 +137,7 @@ const FEXAnalytics = () => {
       </div>
 
       {/* Global Filter Panel */}
-      <GlobalFilterPanel onFilterChange={setFilters} pageName="fex_analytics" />
+      {!isControlled && <GlobalFilterPanel onFilterChange={setInternalFilters} pageName="fex_analytics" />}
 
       {loading ? (
         <div className="flex items-center justify-center py-8">

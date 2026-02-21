@@ -15,23 +15,24 @@ import { SciBarChart, SciLineChart, UCU_COLORS } from '../components/charts/ECha
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState } from '../utils/statePersistence';
 
-const HighSchoolAnalytics = () => {
+const HighSchoolAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
   const [loading, setLoading] = useState(true);
   const [hsData, setHsData] = useState(null);
   
-  // Load persisted state
   const savedState = loadPageState('high_school_analytics', { filters: {}, tab: 'enrollment' });
-  const [filters, setFilters] = useState(savedState.filters || {});
+  const [internalFilters, setInternalFilters] = useState(savedState.filters || {});
   const [activeTab, setActiveTab] = useState(savedState.tab || 'enrollment');
+
+  const filters = externalFilters != null ? externalFilters : internalFilters;
+  const isControlled = externalFilters != null;
 
   useEffect(() => {
     loadHighSchoolData();
   }, [filters]);
 
-  // Save state whenever it changes
   useEffect(() => {
-    savePageState('high_school_analytics', { filters, tab: activeTab });
-  }, [filters, activeTab]);
+    if (!isControlled) savePageState('high_school_analytics', { filters: internalFilters, tab: activeTab });
+  }, [isControlled, internalFilters, activeTab]);
 
   const loadHighSchoolData = async () => {
     try {
@@ -98,8 +99,9 @@ const HighSchoolAnalytics = () => {
         />
       </div>
 
-      {/* Global Filter Panel */}
-      <GlobalFilterPanel onFilterChange={setFilters} pageName="high_school_analytics" />
+      {!isControlled && (
+        <GlobalFilterPanel onFilterChange={setInternalFilters} pageName="high_school_analytics" />
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-8">

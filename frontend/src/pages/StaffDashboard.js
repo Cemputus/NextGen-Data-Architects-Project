@@ -24,13 +24,14 @@ const StaffDashboard = () => {
 
   useEffect(() => {
     loadStaffData();
-  }, []);
+  }, [filters]);
 
   const loadStaffData = async () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/analytics/staff/classes', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        params: filters
       });
       setClasses(response.data.classes || []);
       setStats(response.data.stats || null);

@@ -313,13 +313,20 @@ export function SciDonutChart({
         formatter: ({ name, value, percent }) =>
           `${name}: ${formatTooltipValue(value)} (${percent}%)`,
       },
-      legend: { show: true, bottom: 0, textStyle: defaultTextStyle },
+      legend: {
+        show: true,
+        bottom: 0,
+        top: 'auto',
+        padding: [14, 0, 4, 0],
+        itemGap: 10,
+        textStyle: defaultTextStyle,
+      },
       title: title ? { text: title, left: 'center', top: 8, textStyle: defaultTitleTextStyle } : undefined,
       series: [
         {
           type: 'pie',
-          radius: [innerRadius, '75%'],
-          center: ['50%', '45%'],
+          radius: [innerRadius, '72%'],
+          center: ['50%', '38%'],
           avoidLabelOverlap: true,
           label: { show: true, fontSize: 11, formatter: '{b}: {d}%' },
           labelLine: { show: true },

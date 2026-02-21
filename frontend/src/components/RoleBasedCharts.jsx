@@ -18,7 +18,24 @@ import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, SciDonu
 // Modern, visually appealing chart color palettes
 const DEPT_COLORS = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE']; // Vibrant indigo to light purple gradient
 const PAYMENT_COLORS = ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0']; // Fresh green gradient
-const GRADE_COLORS = ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE', '#EDE9FE']; // Rich purple gradient
+const GRADE_COLORS = ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE', '#EDE9FE']; // Rich purple gradient (legacy)
+// Distinct colors per letter grade for Grade Distribution donut
+const GRADE_DISTRIBUTION_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#F97316', '#EF4444', '#8B5CF6', '#06B6D4', '#6366F1'];
+
+const getGradeDistributionColors = (data) => {
+  if (!data || !Array.isArray(data)) return GRADE_DISTRIBUTION_COLORS;
+  const gradeToColor = {
+    A: '#10B981', 'A+': '#059669', 'A-': '#34D399',
+    B: '#3B82F6', 'B+': '#2563EB', 'B-': '#60A5FA',
+    C: '#F59E0B', 'C+': '#D97706', 'C-': '#FBBF24',
+    D: '#F97316', 'D+': '#EA580C', 'D-': '#FB923C',
+    F: '#EF4444',
+  };
+  return data.map((d, i) => {
+    const name = (d?.name ?? '').toString().trim().toUpperCase();
+    return gradeToColor[name] || GRADE_DISTRIBUTION_COLORS[i % GRADE_DISTRIBUTION_COLORS.length];
+  });
+};
 const ATTENDANCE_COLORS = ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A']; // Warm amber gradient
 const TREND_COLORS = ['#06B6D4', '#22D3EE', '#67E8F9', '#A5F3FC']; // Cool cyan gradient
 
@@ -305,11 +322,11 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Trend Analysis of Grades Over Time</CardTitle>
               <CardDescription className="text-xs">
-                {role === 'staff' && 'Your courses performance over time'}
-                {role === 'hod' && 'Your department performance over time'}
-                {role === 'dean' && 'Your faculty/school performance over time'}
-                {role === 'senate' && 'Institution-wide performance over time'}
-                {role === 'student' && 'Your academic performance over time'}
+                {role === 'staff' && 'Your courses performance by quarter (2023–present)'}
+                {role === 'hod' && 'Your department performance by quarter (2023–present)'}
+                {role === 'dean' && 'Your faculty/school performance by quarter (2023–present)'}
+                {role === 'senate' && 'Institution-wide performance by quarter (2023–present)'}
+                {role === 'student' && 'Your academic performance by quarter (2023–present)'}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4 pt-0">
@@ -318,11 +335,11 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                   data={safeChartData.gradesOverTime}
                   xDataKey="period"
                   yDataKey="grade"
-                  xAxisLabel="Time Period (Quarter)"
-                  yAxisLabel="Average Grade (%)"
+                  xAxisLabel="Quarter (2023–present)"
+                  yAxisLabel="Average grade (%)"
                   strokeColor="#8B5CF6"
                   strokeWidth={3}
-                  showLegend={true}
+                  showLegend={false}
                   showGrid={true}
                 />
               </div>
@@ -422,7 +439,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                   data={safeChartData.gradeDistribution}
                   nameKey="name"
                   valueKey="value"
-                  colors={GRADE_COLORS}
+                  colors={getGradeDistributionColors(safeChartData.gradeDistribution)}
                 />
               </div>
             </CardContent>
@@ -491,25 +508,24 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Attendance Trends</CardTitle>
             <CardDescription className="text-xs">
-              {role === 'staff' && 'Attendance in your courses over time'}
-              {role === 'hod' && 'Attendance in your department over time'}
-              {role === 'dean' && 'Attendance in your faculty/school over time'}
-              {role === 'senate' && 'Institution-wide attendance trends over quarters'}
-              {role === 'student' && 'Your attendance over time'}
+              {role === 'staff' && 'Attendance in your courses by quarter (2023–present)'}
+              {role === 'hod' && 'Attendance in your department by quarter (2023–present)'}
+              {role === 'dean' && 'Attendance in your faculty/school by quarter (2023–present)'}
+              {role === 'senate' && 'Institution-wide attendance by quarter (2023–present)'}
+              {role === 'student' && 'Your attendance by quarter (2023–present)'}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className={chartContainerClass} data-chart-title="Attendance Trends" data-chart-container="true">
-              <SciAreaChart
+              <SciLineChart
                 data={safeChartData.attendance}
                 xDataKey="period"
                 yDataKey="attendance"
-                xAxisLabel="Time Period (Quarter)"
-                yAxisLabel="Average Attendance (Hours)"
-                fillColor="#8B5CF6"
-                strokeColor="#8B5CF6"
+                xAxisLabel="Quarter (2023–present)"
+                yAxisLabel="Avg attendance (hours)"
+                strokeColor={UCU_COLORS.cyan}
                 strokeWidth={3}
-                showLegend={true}
+                showLegend={false}
                 showGrid={true}
               />
             </div>

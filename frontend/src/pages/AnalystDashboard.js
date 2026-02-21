@@ -62,7 +62,7 @@ const AnalystDashboard = () => {
               <CardDescription className="text-xs">Analyze student performance and identify at-risk students</CardDescription>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <FEXAnalytics />
+              <FEXAnalytics filters={filters} onFilterChange={setFilters} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -74,7 +74,7 @@ const AnalystDashboard = () => {
               <CardDescription className="text-xs">Track student performance by high school and district</CardDescription>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <HighSchoolAnalytics />
+              <HighSchoolAnalytics filters={filters} onFilterChange={setFilters} />
             </CardContent>
           </Card>
         </TabsContent>
