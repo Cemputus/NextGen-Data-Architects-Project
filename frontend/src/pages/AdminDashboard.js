@@ -95,8 +95,8 @@ const AdminDashboard = () => {
         </div>
       ) : (
         <>
-          {/* System KPI Cards */}
-          <DashboardGrid cols={{ default: 2, sm: 2, md: 4 }}>
+          {/* System KPI Cards - 5 cols so all fit in one row */}
+          <DashboardGrid cols={{ default: 2, sm: 2, md: 5, lg: 5 }} className="md:grid-cols-5 lg:grid-cols-5">
             <KPICard
               title="Total Users"
               value={systemStats?.total_users || 0}
