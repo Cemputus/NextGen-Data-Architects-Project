@@ -132,14 +132,16 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             if kpis['system_health'] > 0:
                 kpis['system_health'] = 50
         try:
+            # Ensure audit_logs exists so active-sessions count works (no-op if already exists)
+            _ensure_audit_db()
             r = pd.read_sql_query(text("""
-                SELECT COUNT(*) as c FROM audit_logs
+                SELECT COUNT(DISTINCT username) as c FROM audit_logs
                 WHERE action = 'login' AND status = 'success'
-                AND created_at >= NOW() - INTERVAL 30 MINUTE
+                AND created_at >= DATE_SUB(NOW(), INTERVAL 30 MINUTE)
             """), rbac_engine)
             kpis['active_sessions'] = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[_get_console_kpis] active_sessions query failed: {e}")
         rbac_engine.dispose()
     except Exception:
         app_users_count = 0
