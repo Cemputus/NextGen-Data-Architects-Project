@@ -24,3 +24,11 @@ Utility scripts are grouped under `backend`:
   Run from backend: `python test_scripts/test_apis.py` (or from `test_scripts`: `python test_apis.py`).
 - **verify_Scripts** — Data verification (e.g. `verify_data.py`, `verify_fex_data.py`).  
   Run from backend: `python verify_Scripts/verify_data.py` (or from `verify_Scripts`: `python verify_data.py`).
+
+## Code quality (format & lint)
+
+Backend uses **Black** (formatting) and **Ruff** (linting); config is in `pyproject.toml`. Optional:
+
+- `pip install black ruff`
+- Format: `black .` or `black api app.py`
+- Lint: `ruff check .` or `ruff check api app.py --fix`

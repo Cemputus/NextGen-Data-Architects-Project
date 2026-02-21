@@ -68,20 +68,15 @@ export default function AuditLogSection({ showHeader = true, showSetupButton = t
           requestLimit = 500; // Cap at backend max
         }
       }
-      
-      console.log(`[AuditLogSection] Loading logs with limit: ${requestLimit} (from ${limit})`);
-      
+
       const response = await axios.get('/api/admin/audit-logs', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         params: { limit: requestLimit },
       });
       
       const receivedLogs = response.data.logs || [];
-      const backendLimit = response.data.limit;
-      console.log(`[AuditLogSection] Received ${receivedLogs.length} logs (requested ${requestLimit}, backend limit: ${backendLimit})`);
-      
       if (limit !== 'all' && receivedLogs.length > limit) {
-        console.error(`[AuditLogSection] ERROR: Received ${receivedLogs.length} logs but requested only ${limit}!`);
+        console.error(`[AuditLogSection] Received ${receivedLogs.length} logs but requested only ${limit}`);
       }
       
       setLogs(receivedLogs);
@@ -98,9 +93,6 @@ export default function AuditLogSection({ showHeader = true, showSetupButton = t
 
   // Initial load on mount - use the initialized logsLimit state
   useEffect(() => {
-    const initialLimit = getInitialLimit();
-    console.log(`[AuditLogSection] Component mounted. Initial limit from storage/default: ${initialLimit}, state logsLimit: ${logsLimit}`);
-    // Load with the state value (which should match initialLimit)
     loadLogs(logsLimit);
   }, []); // Only run once on mount - loadLogs and logsLimit are stable
 
@@ -109,7 +101,6 @@ export default function AuditLogSection({ showHeader = true, showSetupButton = t
     try {
       if (logsLimit !== undefined && logsLimit !== null) {
         localStorage.setItem(storageKey, String(logsLimit));
-        console.log(`[AuditLogSection] Saved limit ${logsLimit} to ${storageKey}`);
       }
     } catch (e) {
       console.error('[AuditLogSection] Error saving to localStorage:', e);
@@ -156,12 +147,8 @@ export default function AuditLogSection({ showHeader = true, showSetupButton = t
         return;
       }
     }
-    console.log(`[AuditLogSection] Filter dropdown changed from "${logsLimit}" to "${newLimit}"`);
-    console.log(`[AuditLogSection] Calling loadLogs(${newLimit}) immediately...`);
     setLogsLimit(newLimit);
-    // CRITICAL: Load immediately with the new limit value
     await loadLogs(newLimit);
-    console.log(`[AuditLogSection] loadLogs(${newLimit}) completed`);
   };
 
   const actionButtons = (

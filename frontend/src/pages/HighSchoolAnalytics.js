@@ -41,15 +41,14 @@ const HighSchoolAnalytics = ({ filters: externalFilters, onFilterChange: externa
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         params: filters
       });
-      
-      // Log response for debugging
-      console.log('High School Analytics Response:', response.data);
-      
+
       if (response.data.error) {
         console.error('API returned error:', response.data.error);
-        console.error('Debug info:', response.data.debug_info);
+        if (response.data.debug_info) {
+          console.error('Debug info:', response.data.debug_info);
+        }
       }
-      
+
       setHsData(response.data);
     } catch (err) {
       console.error('Error loading high school data:', err);

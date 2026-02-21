@@ -1,0 +1,10 @@
+---
+description: Keep the codebase clean: use lint and format, avoid debug logs in app code.
+globs: ["**/*.js", "**/*.jsx", "**/*.py"]
+---
+
+# Clean code
+
+- **Frontend**: Prefer `console.warn`/`console.error`; avoid `console.log` in production code. Run `npm run lint` and `npm run format` from `frontend/` before committing.
+- **Backend**: Use logging in app code instead of `print()` for production paths. Run `black .` and `ruff check .` from `backend/` when making Python changes.
+- See **docs/CLEAN_CODE.md** for full guidelines and commands.
