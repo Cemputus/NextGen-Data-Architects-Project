@@ -95,7 +95,8 @@ def _get_warehouse_counts(engine):
     counts = {}
     tables = [
         'dim_student', 'dim_course', 'dim_semester', 'dim_faculty', 'dim_department',
-        'dim_program', 'dim_time', 'fact_enrollment', 'fact_attendance', 'fact_payment', 'fact_grade',
+        'dim_program', 'dim_time', 'dim_employee',
+        'fact_enrollment', 'fact_attendance', 'fact_payment', 'fact_grade',
     ]
     for table in tables:
         try:
@@ -107,12 +108,13 @@ def _get_warehouse_counts(engine):
 
 
 def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
-    """Live KPIs for admin console: registered users, active sessions, ETL jobs, system health."""
+    """Live KPIs for admin console: registered users (students + app users + faculty), active sessions, ETL jobs, system health, staff/lecturers."""
     kpis = {
         'registered_users': 0,
         'active_sessions': 0,
         'etl_jobs': len(etl_runs) if etl_runs else 0,
         'system_health': 100,
+        'staff_lecturers': 0,
     }
     # Students in warehouse (updates when new data is loaded)
     try:
@@ -121,9 +123,16 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
     except Exception:
         total_students = 0
         kpis['system_health'] = 50
-    # App users in ucu_rbac (updates when admin adds users)
+    # Staff/lecturers in warehouse (dim_employee – loaded by ETL from employees)
+    try:
+        r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM dim_employee"), warehouse_engine)
+        kpis['staff_lecturers'] = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
+    except Exception:
+        pass
+    # App users in ucu_rbac (staff, dean, hod, hr, finance, analyst, sysadmin – login accounts)
     try:
         rbac_engine = create_engine(RBAC_CONN_STRING)
+        _ensure_app_users_table(rbac_engine)
         try:
             r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM app_users"), rbac_engine)
             app_users_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
@@ -132,7 +141,21 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             if kpis['system_health'] > 0:
                 kpis['system_health'] = 50
         try:
-            # Ensure audit_logs exists so active-sessions count works (no-op if already exists)
+            # Staff/lecturers = app users with role staff, dean, or hod (override if we already have dim_employee count)
+            r = pd.read_sql_query(text("""
+                SELECT COUNT(*) as c FROM app_users
+                WHERE LOWER(TRIM(role)) IN ('staff', 'dean', 'hod')
+            """), rbac_engine)
+            app_staff = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
+            if app_staff > 0 and kpis['staff_lecturers'] == 0:
+                kpis['staff_lecturers'] = app_staff
+            elif app_staff > 0 and kpis['staff_lecturers'] > 0:
+                pass  # keep warehouse count; app_staff is alternative
+            elif app_staff > 0:
+                kpis['staff_lecturers'] = app_staff
+        except Exception:
+            pass
+        try:
             _ensure_audit_db()
             r = pd.read_sql_query(text("""
                 SELECT COUNT(DISTINCT username) as c FROM audit_logs
@@ -147,6 +170,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
         app_users_count = 0
         if kpis['system_health'] > 0:
             kpis['system_health'] = 50
+    # Total users = students (warehouse) + app users (all roles: staff, dean, hod, hr, finance, analyst, sysadmin)
     kpis['registered_users'] = total_students + app_users_count
     return kpis
 

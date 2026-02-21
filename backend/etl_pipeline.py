@@ -504,7 +504,8 @@ class ETLPipeline:
             # Pass through dimension tables from bronze
             'faculties_db1': bronze_data.get('faculties_db1', pd.DataFrame()),
             'departments_db1': bronze_data.get('departments_db1', pd.DataFrame()),
-            'programs_db1': bronze_data.get('programs_db1', pd.DataFrame())
+            'programs_db1': bronze_data.get('programs_db1', pd.DataFrame()),
+            'employees_db2': bronze_data.get('employees_db2', pd.DataFrame())
         }
     
     def load_to_warehouse(self, silver_data):
@@ -752,6 +753,45 @@ class ETLPipeline:
                 programs_dim.to_sql('dim_program', engine, if_exists='append', index=False)
                 self.logger.info(f"  -> Loaded {len(programs_dim)} programs into dim_program")
                 print(f"  -> Loaded {len(programs_dim)} programs into dim_program")
+        
+        # Dim_Employee (staff/lecturers) - from source database 2 (Administration)
+        if 'employees_db2' in silver_data and not silver_data['employees_db2'].empty:
+            employees_dim = silver_data['employees_db2'].copy()
+            if 'EmployeeID' in employees_dim.columns:
+                employees_dim['employee_id'] = employees_dim['EmployeeID']
+            if 'FullName' in employees_dim.columns:
+                employees_dim['full_name'] = employees_dim['FullName']
+            if 'PositionID' in employees_dim.columns:
+                employees_dim['position_id'] = employees_dim['PositionID']
+            if 'DepartmentID' in employees_dim.columns:
+                employees_dim['department_id'] = employees_dim['DepartmentID']
+            if 'ContractType' in employees_dim.columns:
+                employees_dim['contract_type'] = employees_dim['ContractType']
+            if 'Status' in employees_dim.columns:
+                employees_dim['status'] = employees_dim['Status']
+            emp_cols = ['employee_id', 'full_name', 'position_id', 'department_id', 'contract_type', 'status']
+            available_emp_cols = [c for c in emp_cols if c in employees_dim.columns]
+            if available_emp_cols:
+                employees_dim = employees_dim[available_emp_cols].drop_duplicates(subset=['employee_id'], keep='first')
+                with engine.connect() as conn:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS dim_employee (
+                            employee_id INT PRIMARY KEY,
+                            full_name VARCHAR(200),
+                            position_id INT,
+                            department_id INT,
+                            contract_type VARCHAR(50),
+                            status VARCHAR(50),
+                            INDEX idx_department (department_id),
+                            INDEX idx_status (status)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    """))
+                    conn.commit()
+                    conn.execute(text("DELETE FROM dim_employee"))
+                    conn.commit()
+                employees_dim.to_sql('dim_employee', engine, if_exists='append', index=False)
+                self.logger.info(f"  -> Loaded {len(employees_dim)} employees (staff/lecturers) into dim_employee")
+                print(f"  -> Loaded {len(employees_dim)} employees (staff/lecturers) into dim_employee")
         
     def _populate_time_dimension(self, engine):
         """Populate time dimension table"""

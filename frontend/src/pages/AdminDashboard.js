@@ -34,7 +34,8 @@ const AdminDashboard = () => {
           total_users: kpis.registered_users ?? 0,
           active_sessions: kpis.active_sessions ?? 0,
           etl_jobs: kpis.etl_jobs ?? 0,
-          system_health: kpis.system_health ?? 0
+          system_health: kpis.system_health ?? 0,
+          staff_lecturers: kpis.staff_lecturers ?? 0
         });
       } else {
         // Fallback when backend does not yet return console_kpis
@@ -100,7 +101,7 @@ const AdminDashboard = () => {
               title="Total Users"
               value={systemStats?.total_users || 0}
               icon={Users}
-              subtitle="Registered users"
+              subtitle={systemStats?.staff_lecturers != null ? `Students + app users (incl. ${systemStats.staff_lecturers} staff/lecturers)` : 'Students + app users'}
             />
             <KPICard
               title="Active Sessions"
@@ -120,6 +121,12 @@ const AdminDashboard = () => {
               changeType={systemStats?.system_health > 95 ? 'positive' : 'negative'}
               icon={Shield}
               subtitle="Overall system status"
+            />
+            <KPICard
+              title="Staff / Lecturers"
+              value={systemStats?.staff_lecturers ?? 0}
+              icon={Users}
+              subtitle="From warehouse (dim_employee) or app users (staff, dean, hod)"
             />
           </DashboardGrid>
 
