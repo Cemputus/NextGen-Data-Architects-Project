@@ -43,7 +43,7 @@ const StudentPayments = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex items-center justify-center py-8">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     );
@@ -56,11 +56,11 @@ const StudentPayments = () => {
   const pendingPercentage = totalRequired > 0 ? (totalPending / totalRequired * 100).toFixed(1) : 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Payments</h1>
-          <p className="text-muted-foreground">View your fee payments and outstanding balances</p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">My Payments</h1>
+          <p className="text-sm text-muted-foreground">View your fee payments and outstanding balances</p>
         </div>
         <ExportButtons stats={stats} filename="student_payments" />
       </div>

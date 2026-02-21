@@ -67,12 +67,12 @@ const SenateDashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header Actions */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Senate Dashboard</h1>
-          <p className="text-muted-foreground">Institution-wide analytics and comprehensive reporting</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Senate Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Institution-wide analytics and comprehensive reporting</p>
         </div>
         <ExportButtons 
           stats={stats} 
@@ -93,10 +93,10 @@ const SenateDashboard = () => {
       <GlobalFilterPanel onFilterChange={setFilters} pageName="senate_dashboard" />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-muted-foreground">Loading institution data...</p>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading institution data...</p>
           </div>
         </div>
       ) : (
@@ -108,8 +108,8 @@ const SenateDashboard = () => {
           <Tabs value={activeTab} onValueChange={(value) => {
             setActiveTab(value);
             savePageState('senate_dashboard', { filters, tab: value });
-          }} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+          }} className="space-y-3">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Overview
@@ -128,52 +128,52 @@ const SenateDashboard = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Institution Overview</CardTitle>
-                  <CardDescription>Comprehensive analytics across all faculties</CardDescription>
+            <TabsContent value="overview" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Institution Overview</CardTitle>
+                  <CardDescription className="text-xs">Comprehensive analytics across all faculties</CardDescription>
                 </CardHeader>
-                <CardContent data-chart-container="true" data-chart-title="Institution Overview">
+                <CardContent className="p-4 pt-0" data-chart-container="true" data-chart-title="Institution Overview">
                   <RoleBasedCharts filters={filters} type="institution" />
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="academics" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Academic Performance</CardTitle>
-                  <CardDescription>Institution-wide academic metrics and trends</CardDescription>
+            <TabsContent value="academics" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Academic Performance</CardTitle>
+                  <CardDescription className="text-xs">Institution-wide academic metrics and trends</CardDescription>
                 </CardHeader>
-                <CardContent data-chart-container="true" data-chart-title="Academic Performance">
+                <CardContent className="p-4 pt-0" data-chart-container="true" data-chart-title="Academic Performance">
                   <RoleBasedCharts filters={filters} type="academic" />
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="finance" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Financial Overview</CardTitle>
-                  <CardDescription>Revenue, budget, and financial performance</CardDescription>
+            <TabsContent value="finance" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Financial Overview</CardTitle>
+                  <CardDescription className="text-xs">Revenue, budget, and financial performance</CardDescription>
                 </CardHeader>
-                <CardContent data-chart-container="true" data-chart-title="Financial Overview">
+                <CardContent className="p-4 pt-0" data-chart-container="true" data-chart-title="Financial Overview">
                   <RoleBasedCharts filters={filters} type="finance" />
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="reports" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Generated Reports</CardTitle>
-                  <CardDescription>Access and download comprehensive reports</CardDescription>
+            <TabsContent value="reports" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Generated Reports</CardTitle>
+                  <CardDescription className="text-xs">Access and download comprehensive reports</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
-                    <div className="text-center">
-                      <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg">
+                    <div className="text-center p-4">
+                      <FileText className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
                       <p>No reports generated yet</p>
                       <p className="text-sm text-muted-foreground mt-2">Use the export buttons above to generate reports</p>
                     </div>

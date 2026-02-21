@@ -56,12 +56,12 @@ const SenateFinance = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Financial Analytics</h1>
-          <p className="text-muted-foreground">Institution-wide financial performance and revenue analysis</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Financial Analytics</h1>
+          <p className="text-sm text-muted-foreground">Institution-wide financial performance and revenue analysis</p>
         </div>
         <ExportButtons 
           stats={stats} 
@@ -79,10 +79,10 @@ const SenateFinance = () => {
       <GlobalFilterPanel onFilterChange={setFilters} pageName="senate_finance" />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-muted-foreground">Loading financial data...</p>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading financial data...</p>
           </div>
         </div>
       ) : (

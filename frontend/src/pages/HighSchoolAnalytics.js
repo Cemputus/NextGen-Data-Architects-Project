@@ -11,7 +11,7 @@ import ExportButtons from '../components/ExportButtons';
 import { KPICard } from '../components/ui/kpi-card';
 import { DashboardGrid } from '../components/ui/dashboard-grid';
 import axios from 'axios';
-import { SciBarChart, SciLineChart, UCU_COLORS } from '../components/SciChartComponents';
+import { SciBarChart, SciLineChart, UCU_COLORS } from '../components/charts/EChartsComponents';
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState } from '../utils/statePersistence';
 
@@ -76,13 +76,14 @@ const HighSchoolAnalytics = () => {
     avg_graduation_rate: 0
   };
 
+  const chartContainerClass = "min-h-[200px] max-h-[320px] w-full";
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">High School Analytics</h1>
-          <p className="text-muted-foreground">Enrollment, Retention, Graduation, and Performance Analysis</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-wrap">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">High School Analytics</h1>
+          <p className="text-sm text-muted-foreground">Enrollment, Retention, Graduation, and Performance Analysis</p>
         </div>
         <ExportButtons 
           data={hsData?.data} 
@@ -101,10 +102,10 @@ const HighSchoolAnalytics = () => {
       <GlobalFilterPanel onFilterChange={setFilters} pageName="high_school_analytics" />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-muted-foreground">Loading high school analytics...</p>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading high school analytics...</p>
           </div>
         </div>
       ) : (
@@ -143,8 +144,8 @@ const HighSchoolAnalytics = () => {
           <Tabs value={activeTab} onValueChange={(value) => {
             setActiveTab(value);
             savePageState('high_school_analytics', { filters, tab: value });
-          }} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-5">
+          }} className="space-y-3">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 p-1">
               <TabsTrigger value="enrollment" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Enrollment
@@ -167,14 +168,14 @@ const HighSchoolAnalytics = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="enrollment" className="space-y-4">
-              <Card className="bg-gradient-to-br from-white to-blue-50/50 border-blue-200/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-blue-700">Enrollment by High School</CardTitle>
-                  <CardDescription>Student enrollment distribution across high schools</CardDescription>
+            <TabsContent value="enrollment" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold text-blue-700">Enrollment by High School</CardTitle>
+                  <CardDescription className="text-xs">Student enrollment distribution across high schools</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[400px]" data-chart-title="Enrollment by High School" data-chart-container="true">
+                <CardContent className="p-4 pt-0">
+                  <div className={chartContainerClass} data-chart-title="Enrollment by High School" data-chart-container="true">
                     {chartData.length > 0 ? (
                       <SciBarChart
                         data={chartData.slice(0, 20)}
@@ -183,7 +184,6 @@ const HighSchoolAnalytics = () => {
                           { key: 'total_students', label: 'Total Students', color: '#3182CE' },
                           { key: 'enrolled_students', label: 'Enrolled', color: '#38A169' }
                         ]}
-                        height={400}
                         xAxisLabel="High School"
                         yAxisLabel="Number of Students"
                         showLegend={true}
@@ -221,19 +221,18 @@ const HighSchoolAnalytics = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="retention" className="space-y-4">
-              <Card className="bg-gradient-to-br from-white to-green-50/50 border-green-200/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-green-700">Retention & Graduation Rates</CardTitle>
-                  <CardDescription>Retention, graduation, and dropout rates by high school</CardDescription>
+            <TabsContent value="retention" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold text-green-700">Retention & Graduation Rates</CardTitle>
+                  <CardDescription className="text-xs">Retention, graduation, and dropout rates by high school</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[400px]" data-chart-title="Retention & Graduation Rates" data-chart-container="true">
+                <CardContent className="p-4 pt-0">
+                  <div className={chartContainerClass} data-chart-title="Retention & Graduation Rates" data-chart-container="true">
                     <SciLineChart
                       data={chartData.slice(0, 20)}
                       xDataKey="high_school"
                       yDataKey="retention_rate"
-                      height={400}
                       xAxisLabel="High School"
                       yAxisLabel="Rate (%)"
                       strokeColor="#10B981"
@@ -246,14 +245,14 @@ const HighSchoolAnalytics = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="performance" className="space-y-4">
-              <Card className="bg-gradient-to-br from-white to-purple-50/50 border-purple-200/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-purple-700">Performance Analysis</CardTitle>
-                  <CardDescription>Academic performance metrics by high school</CardDescription>
+            <TabsContent value="performance" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold text-purple-700">Performance Analysis</CardTitle>
+                  <CardDescription className="text-xs">Academic performance metrics by high school</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[400px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[280px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg">
                     <div className="text-center">
                       <School className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
                       <p>Performance analysis charts</p>
@@ -264,14 +263,14 @@ const HighSchoolAnalytics = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="programs" className="space-y-4">
-              <Card className="bg-gradient-to-br from-white to-orange-50/50 border-orange-200/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-orange-700">Program Distribution</CardTitle>
-                  <CardDescription>Program distribution by high school</CardDescription>
+            <TabsContent value="programs" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold text-orange-700">Program Distribution</CardTitle>
+                  <CardDescription className="text-xs">Program distribution by high school</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[400px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[280px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg">
                     <div className="text-center">
                       <GraduationCap className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
                       <p>Program distribution charts</p>
@@ -282,14 +281,14 @@ const HighSchoolAnalytics = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="tuition" className="space-y-4">
-              <Card className="bg-gradient-to-br from-white to-yellow-50/50 border-yellow-200/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-yellow-700">Tuition Completion Rates</CardTitle>
-                  <CardDescription>Tuition completion rates by high school</CardDescription>
+            <TabsContent value="tuition" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold text-yellow-700">Tuition Completion Rates</CardTitle>
+                  <CardDescription className="text-xs">Tuition completion rates by high school</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[400px]" data-chart-title="Performance Analysis" data-chart-container="true">
+                <CardContent className="p-4 pt-0">
+                  <div className={chartContainerClass} data-chart-title="Tuition / Performance" data-chart-container="true">
                     <SciBarChart
                       data={chartData.slice(0, 20)}
                       xDataKey="high_school"
@@ -298,7 +297,6 @@ const HighSchoolAnalytics = () => {
                         { key: 'total_fex', label: 'FEX Count', color: '#ef4444' },
                         { key: 'total_mex', label: 'MEX Count', color: '#f59e0b' }
                       ]}
-                      height={400}
                       xAxisLabel="High School"
                       yAxisLabel="Count / Grade"
                       showLegend={true}

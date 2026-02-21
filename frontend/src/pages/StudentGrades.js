@@ -39,24 +39,24 @@ const StudentGrades = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Grades</h1>
-          <p className="text-muted-foreground">View your academic performance and grades</p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">My Grades</h1>
+          <p className="text-sm text-muted-foreground">View your academic performance and grades</p>
         </div>
         <ExportButtons stats={stats} filename="student_grades" />
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="overview" className="space-y-3">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 gap-1 p-1">
           <TabsTrigger value="overview">
             <Award className="h-4 w-4 mr-2" />
             Overview

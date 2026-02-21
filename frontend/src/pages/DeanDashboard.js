@@ -37,12 +37,12 @@ const DeanDashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header with Export */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Faculty Dashboard</h1>
-          <p className="text-muted-foreground">Faculty-wide analytics and insights</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Faculty Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Faculty-wide analytics and insights</p>
         </div>
         <ExportButtons stats={stats} filters={filters} filename="faculty_dashboard" />
       </div>
@@ -51,10 +51,10 @@ const DeanDashboard = () => {
       <GlobalFilterPanel onFilterChange={setFilters} />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-muted-foreground">Loading faculty data...</p>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading faculty data...</p>
           </div>
         </div>
       ) : (
@@ -63,8 +63,8 @@ const DeanDashboard = () => {
           <ModernStatsCards stats={stats} type="faculty" />
 
           {/* Main Analytics Tabs */}
-          <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+          <Tabs defaultValue="overview" className="space-y-3">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Overview
@@ -83,52 +83,52 @@ const DeanDashboard = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Faculty Overview</CardTitle>
-                  <CardDescription>Key metrics and trends</CardDescription>
+            <TabsContent value="overview" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Faculty Overview</CardTitle>
+                  <CardDescription className="text-xs">Key metrics and trends</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 pt-0">
                   <RoleBasedCharts filters={filters} type="faculty" />
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="students" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Student Analytics</CardTitle>
-                  <CardDescription>Student enrollment, distribution, and performance metrics</CardDescription>
+            <TabsContent value="students" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Student Analytics</CardTitle>
+                  <CardDescription className="text-xs">Student enrollment, distribution, and performance metrics</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 pt-0">
                   <RoleBasedCharts filters={filters} type="faculty" />
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="academics" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Academic Performance</CardTitle>
-                  <CardDescription>Grades, courses, and academic achievements</CardDescription>
+            <TabsContent value="academics" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Academic Performance</CardTitle>
+                  <CardDescription className="text-xs">Grades, courses, and academic achievements</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                     Academic performance charts
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="finance" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Financial Overview</CardTitle>
-                  <CardDescription>Revenue, payments, and financial metrics</CardDescription>
+            <TabsContent value="finance" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Financial Overview</CardTitle>
+                  <CardDescription className="text-xs">Revenue, payments, and financial metrics</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                     Financial analytics charts
                   </div>
                 </CardContent>

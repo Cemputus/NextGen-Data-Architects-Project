@@ -61,11 +61,11 @@ const AnalyticsPage = ({ type = 'general' }) => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{getTitle()}</h1>
-          <p className="text-muted-foreground">Comprehensive analytics and insights</p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">{getTitle()}</h1>
+          <p className="text-sm text-muted-foreground">Comprehensive analytics and insights</p>
         </div>
         <ExportButtons 
           stats={stats} 
@@ -82,18 +82,18 @@ const AnalyticsPage = ({ type = 'general' }) => {
       <GlobalFilterPanel onFilterChange={setFilters} pageName={`${type}_analytics`} />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
         <>
           <ModernStatsCards stats={stats} type={type} />
-          <Card>
-            <CardHeader>
-              <CardTitle>Analytics Overview</CardTitle>
-              <CardDescription>Detailed analytics and visualizations</CardDescription>
+          <Card className="border shadow-sm">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-base font-semibold">Analytics Overview</CardTitle>
+              <CardDescription className="text-xs">Detailed analytics and visualizations</CardDescription>
             </CardHeader>
-            <CardContent data-chart-container="true">
+            <CardContent className="p-4 pt-0" data-chart-container="true">
               <RoleBasedCharts filters={filters} type={type} />
             </CardContent>
           </Card>

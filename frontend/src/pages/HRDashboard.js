@@ -48,12 +48,12 @@ const HRDashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header with Export */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">HR Dashboard</h1>
-          <p className="text-muted-foreground">Human resources analytics and management</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">HR Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Human resources analytics and management</p>
         </div>
         <ExportButtons stats={stats} filters={filters} filename="hr_dashboard" />
       </div>
@@ -62,10 +62,10 @@ const HRDashboard = () => {
       <GlobalFilterPanel onFilterChange={setFilters} />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-muted-foreground">Loading HR data...</p>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading HR data...</p>
           </div>
         </div>
       ) : (
@@ -74,8 +74,8 @@ const HRDashboard = () => {
           <ModernStatsCards stats={stats} type="hr" />
 
           {/* Main Analytics Tabs */}
-          <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+          <Tabs defaultValue="overview" className="space-y-3">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Overview
@@ -94,54 +94,54 @@ const HRDashboard = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>HR Overview</CardTitle>
-                  <CardDescription>Key workforce metrics and trends</CardDescription>
+            <TabsContent value="overview" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">HR Overview</CardTitle>
+                  <CardDescription className="text-xs">Key workforce metrics and trends</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 pt-0">
                   <RoleBasedCharts filters={filters} type="hr" />
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="employees" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Employee Management</CardTitle>
-                  <CardDescription>Employee profiles, departments, and organizational structure</CardDescription>
+            <TabsContent value="employees" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Employee Management</CardTitle>
+                  <CardDescription className="text-xs">Employee profiles, departments, and organizational structure</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                     Employee management charts
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="attendance" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Attendance Analytics</CardTitle>
-                  <CardDescription>Employee attendance rates and patterns</CardDescription>
+            <TabsContent value="attendance" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Attendance Analytics</CardTitle>
+                  <CardDescription className="text-xs">Employee attendance rates and patterns</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                     Attendance analytics visualization
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="payroll" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Payroll Management</CardTitle>
-                  <CardDescription>Payroll totals, trends, and department breakdown</CardDescription>
+            <TabsContent value="payroll" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Payroll Management</CardTitle>
+                  <CardDescription className="text-xs">Payroll totals, trends, and department breakdown</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                     Payroll analytics visualization
                   </div>
                 </CardContent>

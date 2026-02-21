@@ -76,27 +76,27 @@ const AdminDashboard = () => {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header with Export */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Admin Console</h1>
-          <p className="text-muted-foreground">System administration and management</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Admin Console</h1>
+          <p className="text-sm text-muted-foreground">System administration and management</p>
         </div>
         <ExportButtons stats={systemStats} filename="admin_console" />
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-muted-foreground">Loading system data...</p>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading system data...</p>
           </div>
         </div>
       ) : (
         <>
           {/* System KPI Cards - 5 cols so all fit in one row */}
-          <DashboardGrid cols={{ default: 2, sm: 2, md: 5, lg: 5 }} className="md:grid-cols-5 lg:grid-cols-5">
+          <DashboardGrid cols={{ default: 2, sm: 2, md: 5, lg: 5 }}>
             <KPICard
               title="Total Users"
               value={systemStats?.total_users || 0}
@@ -131,8 +131,8 @@ const AdminDashboard = () => {
           </DashboardGrid>
 
           {/* Main Management Tabs */}
-          <Tabs defaultValue="users" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+          <Tabs defaultValue="users" className="space-y-3">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Users
@@ -151,20 +151,20 @@ const AdminDashboard = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="users" className="space-y-4">
+            <TabsContent value="users" className="space-y-3">
               <UserManagementSection showHeader={true} compact={false} showOpenFullPage={true} />
             </TabsContent>
 
-            <TabsContent value="settings" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>System Settings</CardTitle>
-                  <CardDescription>Configure system parameters and preferences</CardDescription>
+            <TabsContent value="settings" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">System Settings</CardTitle>
+                  <CardDescription className="text-xs">Configure system parameters and preferences</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                    <Settings className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                    <p className="mb-4">Manage general, security, notifications, and appearance in the dedicated Settings page.</p>
+                <CardContent className="p-4 pt-0">
+                  <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground text-sm">
+                    <Settings className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                    <p className="mb-3">Manage general, security, notifications, and appearance in the dedicated Settings page.</p>
                     <Link
                       to="/admin/settings"
                       className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
@@ -177,13 +177,13 @@ const AdminDashboard = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="etl" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Data Warehouse & ETL Overview</CardTitle>
-                  <CardDescription>Live counts and last ETL run — full tracking on ETL Jobs page</CardDescription>
+            <TabsContent value="etl" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Data Warehouse & ETL Overview</CardTitle>
+                  <CardDescription className="text-xs">Live counts and last ETL run — full tracking on ETL Jobs page</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 pt-0">
                   {adminStatus ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
@@ -223,7 +223,7 @@ const AdminDashboard = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="logs" className="space-y-4">
+            <TabsContent value="logs" className="space-y-3">
               <AuditLogSection showHeader={false} showSetupButton={true} compact={true} defaultLimit={5} />
             </TabsContent>
           </Tabs>

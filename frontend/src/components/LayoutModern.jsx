@@ -348,7 +348,7 @@ const LayoutModern = ({ children }) => {
               >
                 <Menu className="h-5 w-5" />
               </Button>
-              <h2 className="text-xl font-bold text-foreground">
+              <h2 className="text-base sm:text-lg md:text-xl font-bold text-foreground truncate">
                 {navItems.find(item => item.path === currentPath)?.label || 'Dashboard'}
               </h2>
             </div>
@@ -370,9 +370,9 @@ const LayoutModern = ({ children }) => {
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-muted/30">
-          <div className="max-w-7xl mx-auto p-4 md:p-6">
+        {/* Page Content - responsive padding, no overflow-x; compact density */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-muted/30">
+          <div className="w-full max-w-7xl mx-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-5">
             {children}
           </div>
         </main>

@@ -42,12 +42,12 @@ const StaffDashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header with Export */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Staff Dashboard</h1>
-          <p className="text-muted-foreground">Class management and teaching analytics</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Staff Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Class management and teaching analytics</p>
         </div>
         <ExportButtons stats={stats} filters={filters} filename="staff_dashboard" />
       </div>
@@ -56,10 +56,10 @@ const StaffDashboard = () => {
       <GlobalFilterPanel onFilterChange={setFilters} />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-muted-foreground">Loading staff data...</p>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading staff data...</p>
           </div>
         </div>
       ) : (
@@ -68,8 +68,8 @@ const StaffDashboard = () => {
           {stats && <ModernStatsCards stats={stats} type="general" />}
 
           {/* Main Content */}
-          <Tabs defaultValue="classes" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs defaultValue="classes" className="space-y-3">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 gap-1 p-1">
               <TabsTrigger value="classes" className="flex items-center gap-2">
                 <GraduationCap className="h-4 w-4" />
                 My Classes
@@ -84,13 +84,13 @@ const StaffDashboard = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="classes" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>My Classes</CardTitle>
-                  <CardDescription>Manage your assigned courses and classes</CardDescription>
+            <TabsContent value="classes" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">My Classes</CardTitle>
+                  <CardDescription className="text-xs">Manage your assigned courses and classes</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 pt-0">
                   <div className="space-y-4">
                     {classes.length > 0 ? (
                       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -122,14 +122,14 @@ const StaffDashboard = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="students" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Student Management</CardTitle>
-                  <CardDescription>Search and manage students in your classes</CardDescription>
+            <TabsContent value="students" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Student Management</CardTitle>
+                  <CardDescription className="text-xs">Search and manage students in your classes</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex gap-2 mb-4">
+                <CardContent className="p-4 pt-0">
+                  <div className="flex flex-col sm:flex-row gap-2 mb-3">
                     <Input
                       placeholder="Search students..."
                       value={studentSearch}
@@ -141,20 +141,20 @@ const StaffDashboard = () => {
                       Search
                     </Button>
                   </div>
-                  <div className="h-64 flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
+                  <div className="min-h-[160px] max-h-[280px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg">
                     Student list and management tools
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="analytics" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Teaching Analytics</CardTitle>
-                  <CardDescription>Performance metrics and class statistics</CardDescription>
+            <TabsContent value="analytics" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Teaching Analytics</CardTitle>
+                  <CardDescription className="text-xs">Performance metrics and class statistics</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 pt-0">
                   <RoleBasedCharts filters={filters} type="staff" />
                 </CardContent>
               </Card>

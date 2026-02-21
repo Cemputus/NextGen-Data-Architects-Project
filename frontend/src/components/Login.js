@@ -146,7 +146,7 @@ const Login = () => {
               <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-indigo-400 rounded-2xl blur-xl opacity-50 animate-pulse-glow"></div>
             </motion.div>
             <h1 className="text-4xl font-bold text-gradient-blue mb-3">
-              UCU Management Information System
+              NEXTGEN MIS
             </h1>
             <p className="text-muted-foreground font-medium text-lg">
               Uganda Christian University

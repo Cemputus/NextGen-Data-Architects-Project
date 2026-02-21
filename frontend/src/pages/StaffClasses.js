@@ -36,32 +36,32 @@ const StaffClasses = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Classes</h1>
-          <p className="text-muted-foreground">Manage your assigned courses and classes</p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">My Classes</h1>
+          <p className="text-sm text-muted-foreground">Manage your assigned courses and classes</p>
         </div>
         <ExportButtons stats={{ classes: classes.length }} filename="staff_classes" />
       </div>
 
       {classes.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {classes.map((cls, idx) => (
             <Card 
               key={idx} 
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+              className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => setSelectedClass(cls)}
             >
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <BookOpen className="h-5 w-5" />
                   {cls.course_name || `Class ${idx + 1}`}
                 </CardTitle>
@@ -82,23 +82,23 @@ const StaffClasses = () => {
           ))}
         </div>
       ) : (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center">
-              <GraduationCap className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-              <p className="text-muted-foreground">No classes assigned</p>
+        <Card className="border shadow-sm">
+          <CardContent className="py-8">
+            <div className="text-center text-sm text-muted-foreground">
+              <GraduationCap className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+              <p>No classes assigned</p>
             </div>
           </CardContent>
         </Card>
       )}
 
       {selectedClass && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{selectedClass.course_name}</CardTitle>
-            <CardDescription>Class details and student management</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold">{selectedClass.course_name}</CardTitle>
+            <CardDescription className="text-xs">Class details and student management</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0">
             <div className="flex gap-2 mb-4">
               <Input
                 placeholder="Search students..."

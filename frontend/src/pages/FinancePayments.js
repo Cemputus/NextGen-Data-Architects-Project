@@ -40,11 +40,11 @@ const FinancePayments = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Payment Management</h1>
-          <p className="text-muted-foreground">Manage student payments and financial transactions</p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Payment Management</h1>
+          <p className="text-sm text-muted-foreground">Manage student payments and financial transactions</p>
         </div>
         <ExportButtons stats={stats} filters={filters} filename="finance_payments" />
       </div>
@@ -52,16 +52,16 @@ const FinancePayments = () => {
       <GlobalFilterPanel onFilterChange={setFilters} />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
+        <div className="flex items-center justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
         </div>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment Analytics</CardTitle>
-            <CardDescription>Payment status, trends, and collection efficiency</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold">Payment Analytics</CardTitle>
+            <CardDescription className="text-xs">Payment status, trends, and collection efficiency</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0">
             <RoleBasedCharts filters={filters} type="finance" />
           </CardContent>
         </Card>

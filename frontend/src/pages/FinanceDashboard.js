@@ -48,12 +48,12 @@ const FinanceDashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header with Export */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Finance Dashboard</h1>
-          <p className="text-muted-foreground">Financial analytics and payment insights</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Finance Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Financial analytics and payment insights</p>
         </div>
         <ExportButtons stats={stats} filters={filters} filename="finance_dashboard" />
       </div>
@@ -62,10 +62,10 @@ const FinanceDashboard = () => {
       <GlobalFilterPanel onFilterChange={setFilters} />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-muted-foreground">Loading financial data...</p>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading financial data...</p>
           </div>
         </div>
       ) : (
@@ -74,8 +74,8 @@ const FinanceDashboard = () => {
           <ModernStatsCards stats={stats} type="finance" />
 
           {/* Main Analytics Tabs */}
-          <Tabs defaultValue="revenue" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+          <Tabs defaultValue="revenue" className="space-y-3">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
               <TabsTrigger value="revenue" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Revenue
@@ -94,54 +94,54 @@ const FinanceDashboard = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="revenue" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Revenue Analysis</CardTitle>
-                  <CardDescription>Total revenue by period, program, and student type</CardDescription>
+            <TabsContent value="revenue" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Revenue Analysis</CardTitle>
+                  <CardDescription className="text-xs">Total revenue by period, program, and student type</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 pt-0">
                   <RoleBasedCharts filters={filters} type="finance" />
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="payments" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Payment Analytics</CardTitle>
-                  <CardDescription>Payment status, trends, and collection efficiency</CardDescription>
+            <TabsContent value="payments" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Payment Analytics</CardTitle>
+                  <CardDescription className="text-xs">Payment status, trends, and collection efficiency</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                     Payment analytics charts
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="outstanding" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Outstanding Payments</CardTitle>
-                  <CardDescription>Pending payments and collection status</CardDescription>
+            <TabsContent value="outstanding" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Outstanding Payments</CardTitle>
+                  <CardDescription className="text-xs">Pending payments and collection status</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                     Outstanding payments visualization
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="reports" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Financial Reports</CardTitle>
-                  <CardDescription>Generate and export financial reports</CardDescription>
+            <TabsContent value="reports" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">Financial Reports</CardTitle>
+                  <CardDescription className="text-xs">Generate and export financial reports</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-96 flex items-center justify-center text-muted-foreground">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                     Financial reports and exports
                   </div>
                 </CardContent>

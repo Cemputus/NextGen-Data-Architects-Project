@@ -35,11 +35,11 @@ const StaffAnalytics = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Teaching Analytics</h1>
-          <p className="text-muted-foreground">Performance metrics and class statistics</p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Teaching Analytics</h1>
+          <p className="text-sm text-muted-foreground">Performance metrics and class statistics</p>
         </div>
         <ExportButtons stats={stats} filters={filters} filename="staff_analytics" />
       </div>
@@ -47,16 +47,16 @@ const StaffAnalytics = () => {
       <GlobalFilterPanel onFilterChange={setFilters} />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Class Performance Analytics</CardTitle>
-            <CardDescription>Analytics for your assigned classes</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold">Class Performance Analytics</CardTitle>
+            <CardDescription className="text-xs">Analytics for your assigned classes</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0">
             <RoleBasedCharts filters={filters} type="staff" />
           </CardContent>
         </Card>

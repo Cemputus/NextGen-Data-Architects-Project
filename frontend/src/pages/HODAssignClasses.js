@@ -76,10 +76,10 @@ export default function HODAssignClasses() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Assign classes to staff</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Assign classes to staff</h1>
+        <p className="text-sm text-muted-foreground">
           Staff can only see data for students in the classes you assign. Select courses per staff and save.
         </p>
       </div>
@@ -91,8 +91,8 @@ export default function HODAssignClasses() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : staff.length === 0 ? (
         <Card>

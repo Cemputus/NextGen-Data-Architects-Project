@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
-import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, UCU_COLORS } from './SciChartComponents';
+import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, UCU_COLORS } from './charts/EChartsComponents';
 
 // Modern, visually appealing color themes
 const DEPT_COLORS = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE']; // Vibrant indigo to light purple gradient
@@ -99,28 +99,27 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         {/* Students by Department */}
-        <Card className="bg-gradient-to-br from-white to-blue-50/50 border-blue-200/50 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-blue-700">Students by Department</CardTitle>
-            <CardDescription>Student distribution across departments {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold text-blue-700">Students by Department</CardTitle>
+            <CardDescription className="text-xs">Student distribution across departments {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]" data-chart-container="true">
+          <CardContent className="p-4 pt-0">
+            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
               <SciBarChart
                 data={chartData.departments}
                 xDataKey="name"
                 yDataKey="students"
-                height={300}
                 xAxisLabel="Department"
                 yAxisLabel="Number of Students"
                 fillColor="#3b82f6"
@@ -132,18 +131,17 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
         </Card>
 
         {/* Average Grades Over Time */}
-        <Card className="bg-gradient-to-br from-white to-purple-50/50 border-purple-200/50 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-purple-700">Average Grades Over Time</CardTitle>
-            <CardDescription>Grade trends across periods {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold text-purple-700">Average Grades Over Time</CardTitle>
+            <CardDescription className="text-xs">Grade trends across periods {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]" data-chart-container="true">
+          <CardContent className="p-4 pt-0">
+            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
               <SciLineChart
                 data={chartData.gradesOverTime}
                 xDataKey="period"
                 yDataKey="grade"
-                height={300}
                 xAxisLabel="Time Period"
                 yAxisLabel="Average Grade (%)"
                 strokeColor="#8b5cf6"
@@ -156,20 +154,19 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         {/* Payment Status Distribution */}
-        <Card className="bg-gradient-to-br from-white to-green-50/50 border-green-200/50 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-green-700">Payment Status Distribution</CardTitle>
-            <CardDescription>Payment status breakdown {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold text-green-700">Payment Status Distribution</CardTitle>
+            <CardDescription className="text-xs">Payment status breakdown {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]" data-chart-container="true">
+          <CardContent className="p-4 pt-0">
+            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
               <SciStackedColumnChart
                 data={chartData.paymentStatus}
                 xDataKey="name"
                 yDataKey="value"
-                height={300}
                 xAxisLabel="Payment Status"
                 yAxisLabel="Number of Students"
                 colors={PAYMENT_COLORS}
@@ -182,18 +179,17 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
         </Card>
 
         {/* Grade Distribution */}
-        <Card className="bg-gradient-to-br from-white to-orange-50/50 border-orange-200/50 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-orange-700">Grade Distribution</CardTitle>
-            <CardDescription>Distribution of letter grades {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold text-orange-700">Grade Distribution</CardTitle>
+            <CardDescription className="text-xs">Distribution of letter grades {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]" data-chart-container="true">
+          <CardContent className="p-4 pt-0">
+            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
               <SciStackedColumnChart
                 data={chartData.gradeDistribution}
                 xDataKey="name"
                 yDataKey="value"
-                height={300}
                 xAxisLabel="Grade"
                 yAxisLabel="Number of Students"
                 colors={GRADE_COLORS}
@@ -206,20 +202,19 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         {/* Top Students */}
-        <Card className="bg-gradient-to-br from-white to-red-50/50 border-red-200/50 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-red-700">Top 10 Students</CardTitle>
-            <CardDescription>Highest performing students {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold text-red-700">Top 10 Students</CardTitle>
+            <CardDescription className="text-xs">Highest performing students {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]" data-chart-container="true">
+          <CardContent className="p-4 pt-0">
+            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
               <SciBarChart
                 data={chartData.topStudents}
                 xDataKey="name"
                 yDataKey="grade"
-                height={300}
                 xAxisLabel="Student Name"
                 yAxisLabel="Average Grade (%)"
                 fillColor="#ef4444"
@@ -231,18 +226,17 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
         </Card>
 
         {/* Attendance Trends */}
-        <Card className="bg-gradient-to-br from-white to-yellow-50/50 border-yellow-200/50 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-yellow-700">Attendance Trends</CardTitle>
-            <CardDescription>Attendance over time {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold text-yellow-700">Attendance Trends</CardTitle>
+            <CardDescription className="text-xs">Attendance over time {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]" data-chart-container="true">
+          <CardContent className="p-4 pt-0">
+            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
               <SciAreaChart
                 data={chartData.attendance}
                 xDataKey="period"
                 yDataKey="attendance"
-                height={300}
                 xAxisLabel="Time Period"
                 yAxisLabel="Average Attendance (Hours)"
                 fillColor="#fbbf24"

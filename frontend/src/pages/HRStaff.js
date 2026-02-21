@@ -30,11 +30,11 @@ const HRStaff = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
-          <p className="text-muted-foreground">Manage staff members and their information</p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Staff Management</h1>
+          <p className="text-sm text-muted-foreground">Manage staff members and their information</p>
         </div>
         <Button>
           <Plus className="h-4 w-4 mr-2" />
@@ -42,13 +42,13 @@ const HRStaff = () => {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Staff Directory</CardTitle>
-          <CardDescription>All staff members in the system</CardDescription>
+      <Card className="border shadow-sm">
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-base font-semibold">Staff Directory</CardTitle>
+          <CardDescription className="text-xs">All staff members in the system</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-2 mb-4">
+        <CardContent className="p-4 pt-0">
+          <div className="flex flex-col sm:flex-row gap-2 mb-3">
             <Input
               placeholder="Search staff..."
               value={searchTerm}
@@ -61,8 +61,8 @@ const HRStaff = () => {
             </Button>
           </div>
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">

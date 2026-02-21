@@ -72,22 +72,22 @@ const StudentDashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header with Export */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Academic Dashboard</h1>
-          <p className="text-muted-foreground">Your academic performance and progress</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">My Academic Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Your academic performance and progress</p>
         </div>
         <ExportButtons stats={stats} filename="student_dashboard" />
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards - 1 col mobile, 2 tablet, 4 desktop */}
       <ModernStatsCards stats={stats} type="student" />
 
       {/* Main Content Tabs */}
-      <Tabs defaultValue="performance" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="performance" className="space-y-3">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
           <TabsTrigger value="performance" className="flex items-center gap-2">
             <Award className="h-4 w-4" />
             Performance

@@ -14,8 +14,7 @@ import { DashboardGrid } from '../components/ui/dashboard-grid';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
-// FEXAnalytics no longer uses Recharts - all charts migrated to SciChart
-import { SciBarChart, UCU_COLORS } from '../components/SciChartComponents';
+import { SciBarChart, UCU_COLORS } from '../components/charts/EChartsComponents';
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState, loadDrilldown, saveDrilldown } from '../utils/statePersistence';
 
@@ -95,15 +94,16 @@ const FEXAnalytics = () => {
     fex_rate: 0
   };
 
+  const chartContainerClass = "min-h-[200px] max-h-[320px] w-full";
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">FEX Analytics</h1>
-          <p className="text-muted-foreground">Failed Exam Analysis with Drilldown Capabilities</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-wrap">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">FEX Analytics</h1>
+          <p className="text-sm text-muted-foreground">Failed Exam Analysis with Drilldown Capabilities</p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
           <Select
             value={drilldown}
             onChange={(e) => {
@@ -111,7 +111,7 @@ const FEXAnalytics = () => {
               setDrilldown(newDrilldown);
               saveDrilldown('fex_analytics', newDrilldown);
             }}
-            className="w-48"
+            className="w-full sm:w-48"
           >
             <option value="overall">Overall</option>
             <option value="faculty">By Faculty</option>
@@ -137,10 +137,10 @@ const FEXAnalytics = () => {
       <GlobalFilterPanel onFilterChange={setFilters} pageName="fex_analytics" />
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-muted-foreground">Loading FEX analytics...</p>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading FEX analytics...</p>
           </div>
         </div>
       ) : (
@@ -179,8 +179,8 @@ const FEXAnalytics = () => {
           <Tabs value={activeTab} onValueChange={(value) => {
             setActiveTab(value);
             savePageState('fex_analytics', { filters, drilldown, tab: value });
-          }} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+          }} className="space-y-3">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
               <TabsTrigger value="distribution" className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 Distribution
@@ -199,14 +199,14 @@ const FEXAnalytics = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="distribution" className="space-y-4">
-              <Card className="bg-gradient-to-br from-white to-red-50/50 border-red-200/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-red-700">FEX Distribution</CardTitle>
-                  <CardDescription>Failed exam distribution by {drilldown}</CardDescription>
+            <TabsContent value="distribution" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold text-red-700">FEX Distribution</CardTitle>
+                  <CardDescription className="text-xs">Failed exam distribution by {drilldown}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[400px]" data-chart-title={`FEX Distribution by ${drilldown}`} data-chart-container="true">
+                <CardContent className="p-4 pt-0">
+                  <div className={chartContainerClass} data-chart-title={`FEX Distribution by ${drilldown}`} data-chart-container="true">
                     <SciBarChart
                       data={chartData}
                       xDataKey={getDataKey()}
@@ -215,7 +215,6 @@ const FEXAnalytics = () => {
                         { key: 'total_mex', label: 'MEX', color: '#f59e0b' },
                         { key: 'total_fcw', label: 'FCW', color: '#8b5cf6' }
                       ]}
-                      height={400}
                       xAxisLabel={drilldown.charAt(0).toUpperCase() + drilldown.slice(1)}
                       yAxisLabel="Count"
                       showLegend={true}
@@ -226,41 +225,41 @@ const FEXAnalytics = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="trends" className="space-y-4">
-              <Card className="bg-gradient-to-br from-white to-orange-50/50 border-orange-200/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-orange-700">FEX Trends</CardTitle>
-                  <CardDescription>Trend analysis over time</CardDescription>
+            <TabsContent value="trends" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold text-orange-700">FEX Trends</CardTitle>
+                  <CardDescription className="text-xs">Trend analysis over time</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[280px] flex items-center justify-center text-muted-foreground text-sm">
                     Trend analysis charts - Coming soon
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="comparison" className="space-y-4">
-              <Card className="bg-gradient-to-br from-white to-purple-50/50 border-purple-200/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-purple-700">Comparison Analysis</CardTitle>
-                  <CardDescription>Compare FEX rates across different dimensions</CardDescription>
+            <TabsContent value="comparison" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold text-purple-700">Comparison Analysis</CardTitle>
+                  <CardDescription className="text-xs">Compare FEX rates across different dimensions</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+                <CardContent className="p-4 pt-0">
+                  <div className="min-h-[200px] max-h-[280px] flex items-center justify-center text-muted-foreground text-sm">
                     Comparison charts - Coming soon
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="table" className="space-y-4">
-              <Card className="bg-gradient-to-br from-white to-blue-50/50 border-blue-200/50 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="text-blue-700">Detailed FEX Data</CardTitle>
-                  <CardDescription>Complete breakdown of failed exams</CardDescription>
+            <TabsContent value="table" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold text-blue-700">Detailed FEX Data</CardTitle>
+                  <CardDescription className="text-xs">Complete breakdown of failed exams</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 pt-0">
                   {chartData.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
