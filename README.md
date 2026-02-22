@@ -16,7 +16,38 @@ A comprehensive data analytics and machine learning platform for Uganda Christia
 - [Security &amp; RBAC](#security--rbac)
 - [Frontend Dashboard](#frontend-dashboard)
 - [Usage Examples](#usage-examples)
+- [Recent changes (Admin, export, KPIs)](#recent-changes-admin-export-kpis)
 - [Troubleshooting](#troubleshooting)
+
+---
+
+## 📌 Recent changes (Admin, export, KPIs)
+
+The following updates were made to the Admin console, export behaviour, and KPI definitions:
+
+### Admin console
+
+- **Refresh**: One **Refresh** button at the top of the Admin page refreshes all KPIs, user list, and audit logs in one go.
+- **KPIs after user changes**: Adding, editing, or deleting a user from the Admin user list automatically refreshes KPI counts (e.g. Total users, Employees, Staff) so the dashboard stays in sync.
+- **Employees & Staff KPIs**:
+  - **Employees**: ETL count from `dim_employee` **plus** all app users (non-students) from `ucu_rbac.app_users`. Subtitle: *"ETL (dim_employee) + all app users (non-students). Refresh after ETL."*
+  - **Staff**: ETL count from `dim_employee` **plus** app users with role **Staff** only. Subtitle: *"ETL (dim_employee) + app users with role Staff. Refresh after ETL."*
+  - If the RBAC database is empty or unreachable, demo app users are used as a fallback so the KPIs show at least **Employees: 8** and **Staff: 1** (no zero counts).
+- **Total users**: Subtitle clarified as *"Students (warehouse) + app users (all roles)"* (no separate "incl. X staff" line).
+- **Recent ETL runs**: The ETL KPI card is labelled **"Recent ETL runs"** with subtitle *"Last 50 runs (log files)"*; the backend returns at most 50 runs so the number is capped and clearly refers to run history, not employee count.
+
+### Export (Admin)
+
+- **Full admin export**: Excel and PDF export from the Admin console now include **all** admin data: summary KPIs, **users** (up to 500), **audit logs** (up to 500), **ETL runs**, and **warehouse** table counts—not only the KPI summary.
+
+### User management (HR/Finance)
+
+- When adding **HR** or **Finance** users via the Admin user form, **faculty** and **department** can be selected and are sent to the backend (`faculty_id`, `department_id`); they are stored for the new user so HR/Finance are no longer left unassigned.
+
+### Technical notes
+
+- Admin KPIs use the same RBAC connection as the main app (`ucu_rbac`); if the SQLAlchemy path fails, a direct PyMySQL fallback to `ucu_rbac` is used for app user counts.
+- Demo user fallback ensures Employees and Staff KPIs are never zero when `ucu_rbac` is empty or unavailable.
 
 ---
 
@@ -102,6 +133,7 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 - Excel export for all analytics
 - PDF report generation
 - Customizable filters and date ranges
+- **Admin console**: Full export (Excel/PDF) includes KPIs, users, audit logs, ETL runs, and warehouse counts (not only KPIs)
 
 ---
 
@@ -1100,9 +1132,11 @@ All queries are automatically scoped based on user role:
    - No user or system administration; focused on creating and viewing analytics
 9. **System Admin Console**
 
-   - Admin dashboard (console)
-   - Users: view, create, edit, delete app users
+   - Admin dashboard (console) with one **Refresh** button to reload KPIs, users, and audit logs
+   - **KPIs**: Total users (students + app users), Employees (ETL dim_employee + all app users), Staff (ETL + app users with role Staff), Recent ETL runs (last 50), system health
+   - Users: view, create, edit, delete app users (HR/Finance can have faculty and department assigned)
    - Settings, ETL jobs, audit logs
+   - Full export: Excel/PDF with KPIs, users, audit logs, ETL runs, warehouse counts
    - Profile
 
 ### Chart Library
@@ -1270,3 +1304,5 @@ For issues or questions:
 **Last Updated**: February 2026
 
 **Version**: 2.0.0
+
+**Changelog (v2.0.0)**: Admin console Refresh and KPI behaviour; Employees/Staff KPI definitions (ETL + app users; demo fallback); full admin export (users, audit logs, ETL, warehouse); HR/Finance faculty/department on create; Recent ETL runs label and 50-run cap.
