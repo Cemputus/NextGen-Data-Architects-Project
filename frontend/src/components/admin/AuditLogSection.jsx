@@ -15,7 +15,13 @@ import { Loader2 } from 'lucide-react';
 
 const AUDIT_LIMIT_OPTIONS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 500, 'all'];
 
-export default function AuditLogSection({ showHeader = true, showSetupButton = true, compact = false, defaultLimit = 10 }) {
+export default function AuditLogSection({
+  showHeader = true,
+  showSetupButton = true,
+  compact = false,
+  defaultLimit = 10,
+  refreshTrigger,
+}) {
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState([]);
   const [message, setMessage] = useState(null);
@@ -95,6 +101,13 @@ export default function AuditLogSection({ showHeader = true, showSetupButton = t
   useEffect(() => {
     loadLogs(logsLimit);
   }, []); // Only run once on mount - loadLogs and logsLimit are stable
+
+  // Refetch when parent requests a full-page refresh (e.g. Admin Console Refresh button)
+  useEffect(() => {
+    if (typeof refreshTrigger === 'number' && refreshTrigger > 0) {
+      loadLogs(logsLimit);
+    }
+  }, [refreshTrigger]);
 
   // Persist limit changes to localStorage
   useEffect(() => {

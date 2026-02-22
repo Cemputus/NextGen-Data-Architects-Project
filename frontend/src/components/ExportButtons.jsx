@@ -5,7 +5,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, FileText, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
-import { exportToExcel, exportToPDF, exportDashboard, captureChartImages } from '../utils/exportUtils';
+import { exportToExcel, exportToPDF, exportDashboard, exportAdminToExcel, exportAdminToPDF, captureChartImages } from '../utils/exportUtils';
 
 const ExportButtons = ({ 
   stats, 
@@ -13,7 +13,8 @@ const ExportButtons = ({
   filters = {}, 
   data = null, 
   filename = 'export',
-  chartSelectors = [] // Array of CSS selectors or refs for charts to capture
+  chartSelectors = [], // Array of CSS selectors or refs for charts to capture
+  getExportData = null, // Optional: () => Promise<{ kpis, users, auditLogs, etlRuns, warehouse }> for admin_console full export
 }) => {
   const [exporting, setExporting] = useState({ excel: false, pdf: false });
   const [capturingCharts, setCapturingCharts] = useState(false);
@@ -81,17 +82,19 @@ const ExportButtons = ({
     try {
       setExporting({ ...exporting, excel: true });
       
-      // Capture chart images
       const chartImages = await captureCharts();
       
+      if (filename === 'admin_console' && typeof getExportData === 'function') {
+        const adminData = await getExportData();
+        await exportAdminToExcel(adminData, filename, chartImages);
+        return;
+      }
+      
       if (data) {
-        // Export specific data with charts
         await exportToExcel(data, filename, filters, chartImages);
       } else if (stats && charts) {
-        // Export dashboard with charts
         await exportDashboard(stats, charts, filters, chartImages);
       } else {
-        // Export stats with charts
         await exportToExcel([stats], filename, filters, chartImages);
       }
     } catch (error) {
@@ -106,8 +109,13 @@ const ExportButtons = ({
     try {
       setExporting({ ...exporting, pdf: true });
       
-      // Capture chart images
       const chartImages = await captureCharts();
+      
+      if (filename === 'admin_console' && typeof getExportData === 'function') {
+        const adminData = await getExportData();
+        await exportAdminToPDF(adminData, filename, chartImages);
+        return;
+      }
       
       await exportToPDF(filters, filename.includes('fex') ? 'fex' : filename.includes('high-school') ? 'high-school' : 'dashboard', chartImages, data, stats);
     } catch (error) {

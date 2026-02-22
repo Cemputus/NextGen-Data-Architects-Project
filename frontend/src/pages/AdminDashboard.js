@@ -3,7 +3,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Settings, Users, Database, History, Shield, Activity } from 'lucide-react';
+import { Settings, Users, Database, History, Shield, Activity, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { KPICard } from '../components/ui/kpi-card';
@@ -12,14 +12,17 @@ import ExportButtons from '../components/ExportButtons';
 import UserManagementSection from '../components/admin/UserManagementSection';
 import AuditLogSection from '../components/admin/AuditLogSection';
 import axios from 'axios';
+import { Button } from '../components/ui/button';
 import { Loader2 } from 'lucide-react';
 
 const CONSOLE_KPI_POLL_INTERVAL_MS = 30000; // 30s - live KPIs refresh when new data or users are added
 
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [systemStats, setSystemStats] = useState(null);
   const [adminStatus, setAdminStatus] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const loadAdminStatus = async () => {
     try {
@@ -75,6 +78,49 @@ const AdminDashboard = () => {
     };
   }, []);
 
+  const handleRefreshAll = async () => {
+    setRefreshing(true);
+    try {
+      await loadAdminStatus();
+      setRefreshTrigger((t) => t + 1);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleUsersChanged = () => {
+    loadAdminStatus();
+  };
+
+  const getExportData = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return { kpis: systemStats, users: [], auditLogs: [], etlRuns: [], warehouse: {} };
+    try {
+      const [usersRes, logsRes] = await Promise.all([
+        axios.get('/api/user-mgmt/users', { headers: { Authorization: `Bearer ${token}` }, params: { limit: 500 } }),
+        axios.get('/api/admin/audit-logs', { headers: { Authorization: `Bearer ${token}` }, params: { limit: 500 } }),
+      ]);
+      const users = usersRes.data?.users || [];
+      const auditLogs = logsRes.data?.logs || [];
+      return {
+        kpis: systemStats || {},
+        users,
+        auditLogs,
+        etlRuns: adminStatus?.etl_runs || [],
+        warehouse: adminStatus?.warehouse || {},
+      };
+    } catch (err) {
+      console.error('Error loading export data:', err);
+      return {
+        kpis: systemStats || {},
+        users: [],
+        auditLogs: [],
+        etlRuns: adminStatus?.etl_runs || [],
+        warehouse: adminStatus?.warehouse || {},
+      };
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header with Export */}
@@ -83,7 +129,20 @@ const AdminDashboard = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Admin Console</h1>
           <p className="text-sm text-muted-foreground">System administration and management</p>
         </div>
-        <ExportButtons stats={systemStats} filename="admin_console" />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="default"
+            onClick={handleRefreshAll}
+            disabled={loading || refreshing}
+            className="gap-2"
+            aria-label="Refresh all data"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </Button>
+          <ExportButtons stats={systemStats} filename="admin_console" getExportData={getExportData} />
+        </div>
       </div>
 
       {loading ? (
@@ -110,10 +169,10 @@ const AdminDashboard = () => {
               subtitle="Current active sessions"
             />
             <KPICard
-              title="ETL Jobs"
+              title="Recent ETL runs"
               value={systemStats?.etl_jobs ?? 0}
               icon={Database}
-              subtitle="Recent ETL runs"
+              subtitle="Last 50 runs (log files)"
             />
             <KPICard
               title="System Health"
@@ -152,7 +211,13 @@ const AdminDashboard = () => {
             </TabsList>
 
             <TabsContent value="users" className="space-y-3">
-              <UserManagementSection showHeader={true} compact={false} showOpenFullPage={true} />
+              <UserManagementSection
+                showHeader={true}
+                compact={false}
+                showOpenFullPage={true}
+                refreshTrigger={refreshTrigger}
+                onUsersChanged={handleUsersChanged}
+              />
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-3">
@@ -224,7 +289,13 @@ const AdminDashboard = () => {
             </TabsContent>
 
             <TabsContent value="logs" className="space-y-3">
-              <AuditLogSection showHeader={false} showSetupButton={true} compact={true} defaultLimit={5} />
+              <AuditLogSection
+                showHeader={false}
+                showSetupButton={true}
+                compact={true}
+                defaultLimit={5}
+                refreshTrigger={refreshTrigger}
+              />
             </TabsContent>
           </Tabs>
         </>

@@ -43,7 +43,13 @@ const ADD_USER_ROLES = [
 
 const USER_LIMIT_OPTIONS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 500, 'all'];
 
-export default function UserManagementSection({ showHeader = true, compact = false, showOpenFullPage = false }) {
+export default function UserManagementSection({
+  showHeader = true,
+  compact = false,
+  showOpenFullPage = false,
+  refreshTrigger,
+  onUsersChanged,
+}) {
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -133,6 +139,12 @@ export default function UserManagementSection({ showHeader = true, compact = fal
   }, [loadUsers]);
 
   useEffect(() => {
+    if (typeof refreshTrigger === 'number' && refreshTrigger > 0) {
+      loadUsers();
+    }
+  }, [refreshTrigger]);
+
+  useEffect(() => {
     if (!addModalOpen && !editUser) return;
     const token = getToken();
     if (!token) return;
@@ -202,11 +214,15 @@ export default function UserManagementSection({ showHeader = true, compact = fal
       payload.faculty_id = parseInt(addForm.faculty_id, 10);
       payload.department_id = parseInt(addForm.department_id, 10);
     }
-    if (['hr', 'finance'].includes(addForm.role) && addForm.department_id) payload.department_id = parseInt(addForm.department_id, 10);
+    if (['hr', 'finance'].includes(addForm.role)) {
+      if (addForm.faculty_id) payload.faculty_id = parseInt(addForm.faculty_id, 10);
+      if (addForm.department_id) payload.department_id = parseInt(addForm.department_id, 10);
+    }
     try {
       await axios.post('/api/user-mgmt/users', payload, { headers: { Authorization: `Bearer ${token}` } });
       setAddModalOpen(false);
-      loadUsers();
+      await loadUsers();
+      onUsersChanged?.();
     } catch (err) {
       setAddError(err.response?.data?.error || 'Failed to create user.');
     } finally {
@@ -291,7 +307,8 @@ export default function UserManagementSection({ showHeader = true, compact = fal
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
       setEditUser(null);
-      loadUsers();
+      await loadUsers();
+      onUsersChanged?.();
     } catch (err) {
       let msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to update user.';
       if (!err.response && err.request) {
@@ -317,7 +334,8 @@ export default function UserManagementSection({ showHeader = true, compact = fal
       }
       await axios.delete(`/api/user-mgmt/users/app_user/${appUserId}`, { headers: { Authorization: `Bearer ${token}` } });
       setDeleteConfirm(null);
-      loadUsers();
+      await loadUsers();
+      onUsersChanged?.();
     } catch (err) {
       const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to delete user.';
       setDeleteError(msg);

@@ -571,3 +571,195 @@ const getExportTitle = (filename, role) => {
 export const exportDashboard = async (stats, charts, filters = {}, chartImages = []) => {
   return exportToExcel(null, 'dashboard_export', filters, chartImages);
 };
+
+/**
+ * Admin console full export: KPIs, Users, Audit Logs, ETL Runs, Warehouse counts.
+ * adminData: { kpis, users[], auditLogs[], etlRuns[], warehouse{} }
+ */
+export const exportAdminToExcel = async (adminData, filename = 'admin_console', chartImages = []) => {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    alert('Please log in to export.');
+    return;
+  }
+  const workbook = new ExcelJS.Workbook();
+  const dateStr = new Date().toISOString().split('T')[0];
+
+  // Sheet 1: Summary / KPIs
+  const summarySheet = workbook.addWorksheet('Summary', { pageSetup: { fitToPage: true } });
+  summarySheet.addRow(['Admin Console Export', dateStr]).font = { size: 14, bold: true };
+  summarySheet.addRow([]);
+  if (adminData.kpis && typeof adminData.kpis === 'object') {
+    summarySheet.addRow(['Metric', 'Value']).font = { bold: true };
+    Object.entries(adminData.kpis).forEach(([k, v]) => {
+      summarySheet.addRow([k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), v]);
+    });
+  }
+  summarySheet.addRow([]);
+  if (adminData.warehouse && typeof adminData.warehouse === 'object') {
+    summarySheet.addRow(['Warehouse table', 'Count']).font = { bold: true };
+    Object.entries(adminData.warehouse).forEach(([table, count]) => {
+      summarySheet.addRow([table, count != null ? count : '—']);
+    });
+  }
+
+  // Sheet 2: Users
+  const usersSheet = workbook.addWorksheet('Users', { pageSetup: { fitToPage: true } });
+  const users = adminData.users || [];
+  if (users.length > 0) {
+    const userHeaders = ['Name', 'Username / Access #', 'Reg. #', 'Role', 'Type', 'Faculty', 'Department'];
+    usersSheet.addRow(userHeaders).font = { bold: true };
+    users.forEach((u) => {
+      usersSheet.addRow([
+        u.full_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || '—',
+        u.username || u.access_number || '—',
+        u.reg_number || '—',
+        u.role || '—',
+        u.type === 'app_user' ? 'App user' : u.type || '—',
+        u.faculty_name || '—',
+        u.department_name || '—',
+      ]);
+    });
+  } else {
+    usersSheet.addRow(['No users in this export.']);
+  }
+
+  // Sheet 3: Audit Logs
+  const auditSheet = workbook.addWorksheet('Audit Logs', { pageSetup: { fitToPage: true } });
+  const logs = adminData.auditLogs || [];
+  if (logs.length > 0) {
+    const logHeaders = ['Time', 'Username', 'Action', 'Resource', 'Role', 'Status', 'Details'];
+    auditSheet.addRow(logHeaders).font = { bold: true };
+    logs.forEach((l) => {
+      auditSheet.addRow([
+        l.created_at || l.timestamp || '—',
+        l.username || '—',
+        l.action || '—',
+        l.resource || '—',
+        l.role_name || '—',
+        l.status || '—',
+        typeof l.details === 'string' ? l.details : (l.details ? JSON.stringify(l.details) : '—'),
+      ]);
+    });
+  } else {
+    auditSheet.addRow(['No audit logs in this export.']);
+  }
+
+  // Sheet 4: ETL Runs
+  const etlSheet = workbook.addWorksheet('ETL Runs', { pageSetup: { fitToPage: true } });
+  const etlRuns = adminData.etlRuns || [];
+  if (etlRuns.length > 0) {
+    etlSheet.addRow(['Log file', 'Start time', 'Duration', 'Success']).font = { bold: true };
+    etlRuns.forEach((r) => {
+      etlSheet.addRow([r.log_file || '—', r.start_time || '—', r.duration || '—', r.success ? 'Yes' : 'No']);
+    });
+  } else {
+    etlSheet.addRow(['No ETL runs in this export.']);
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  saveAs(blob, `${filename}_${dateStr}.xlsx`);
+  return true;
+};
+
+/**
+ * Admin console full PDF: same sections as Excel.
+ */
+export const exportAdminToPDF = async (adminData, filename = 'admin_console', chartImages = []) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let y = 20;
+
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Admin Console Report', pageWidth / 2, y, { align: 'center' });
+  y += 8;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(new Date().toLocaleDateString(), pageWidth / 2, y, { align: 'center' });
+  y += 15;
+
+  const addSection = (title, rows) => {
+    if (y > pageHeight - 40) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, 20, y);
+    y += 8;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    if (!rows || rows.length === 0) {
+      doc.text('No data.', 25, y);
+      y += 10;
+      return;
+    }
+    const headers = rows[0];
+    const body = rows.slice(1).map((row) => row.map((v) => (v == null ? '' : String(v))));
+    doc.autoTable({
+      head: [headers],
+      body,
+      startY: y,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: 'bold' },
+      margin: { left: 20, right: 20 },
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  };
+
+  if (adminData.kpis && typeof adminData.kpis === 'object') {
+    addSection('Summary (KPIs)', [
+      ['Metric', 'Value'],
+      ...Object.entries(adminData.kpis).map(([k, v]) => [k.replace(/_/g, ' '), v]),
+    ]);
+  }
+
+  const users = adminData.users || [];
+  if (users.length > 0) {
+    addSection('Users', [
+      ['Name', 'Username', 'Role', 'Type'],
+      ...users.slice(0, 100).map((u) => [
+        u.full_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || '—',
+        u.username || u.access_number || '—',
+        u.role || '—',
+        u.type === 'app_user' ? 'App user' : u.type || '—',
+      ]),
+    ]);
+  }
+
+  const logs = adminData.auditLogs || [];
+  if (logs.length > 0) {
+    addSection('Audit Logs', [
+      ['Time', 'User', 'Action', 'Resource', 'Status'],
+      ...logs.slice(0, 100).map((l) => [
+        l.created_at || l.timestamp || '—',
+        l.username || '—',
+        l.action || '—',
+        l.resource || '—',
+        l.status || '—',
+      ]),
+    ]);
+  }
+
+  const etlRuns = adminData.etlRuns || [];
+  if (etlRuns.length > 0) {
+    addSection('ETL Runs', [
+      ['Log file', 'Start time', 'Duration', 'Success'],
+      ...etlRuns.slice(0, 50).map((r) => [r.log_file || '—', r.start_time || '—', r.duration || '—', r.success ? 'Yes' : 'No']),
+    ]);
+  }
+
+  if (adminData.warehouse && Object.keys(adminData.warehouse).length > 0) {
+    addSection('Warehouse counts', [
+      ['Table', 'Count'],
+      ...Object.entries(adminData.warehouse).map(([t, c]) => [t, c != null ? c : '—']),
+    ]);
+  }
+
+  const dateStr = new Date().toISOString().split('T')[0];
+  doc.save(`${filename}_${dateStr}.pdf`);
+  return true;
+};

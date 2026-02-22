@@ -108,11 +108,11 @@ def _get_warehouse_counts(engine):
 
 
 def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
-    """Live KPIs for admin console: registered users (students + app users + faculty), active sessions, ETL jobs, system health, staff/lecturers."""
+    """Live KPIs for admin console: registered users (students + app users), active sessions, recent ETL runs (capped), system health, staff/lecturers."""
     kpis = {
         'registered_users': 0,
         'active_sessions': 0,
-        'etl_jobs': len(etl_runs) if etl_runs else 0,
+        'etl_jobs': min(len(etl_runs) if etl_runs else 0, 50),
         'system_health': 100,
         'staff_lecturers': 0,
     }
@@ -310,7 +310,7 @@ def system_status():
     limit = request.args.get('etl_runs_limit', type=int)
     if limit is None or limit < 1:
         limit = 20
-    limit = min(max(limit, 1), 100)
+    limit = min(max(limit, 1), 50)
     engine = None
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
