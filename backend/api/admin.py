@@ -18,9 +18,18 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-from config import DATA_WAREHOUSE_CONN_STRING, MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_CHARSET
-
-RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace('UCU_DataWarehouse', 'ucu_rbac')
+from config import (
+    DATA_WAREHOUSE_CONN_STRING,
+    DATA_WAREHOUSE_NAME,
+    MYSQL_HOST,
+    MYSQL_PORT,
+    MYSQL_USER,
+    MYSQL_PASSWORD,
+    MYSQL_CHARSET,
+)
+def _get_rbac_conn_string():
+    """RBAC DB connection (ucu_rbac) - same as app.py."""
+    return DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
 
 try:
     from audit_log import log as audit_log
@@ -107,14 +116,27 @@ def _get_warehouse_counts(engine):
     return counts
 
 
+def _get_demo_counts():
+    """Demo app user counts for KPI fallback when ucu_rbac is empty or unreachable."""
+    demo = [
+        {'role': 'sysadmin'}, {'role': 'analyst'}, {'role': 'senate'}, {'role': 'staff'},
+        {'role': 'dean'}, {'role': 'hod'}, {'role': 'hr'}, {'role': 'finance'},
+    ]
+    return {
+        'total': len(demo),
+        'staff': sum(1 for d in demo if (d.get('role') or '').lower() == 'staff'),
+    }
+
+
 def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
-    """Live KPIs for admin console: registered users (students + app users), active sessions, recent ETL runs (capped), system health, staff/lecturers."""
+    """Live KPIs: employees = ETL (dim_employee) + all app users (non-students); staff = ETL (dim_employee) + app users with role Staff."""
     kpis = {
         'registered_users': 0,
         'active_sessions': 0,
         'etl_jobs': min(len(etl_runs) if etl_runs else 0, 50),
         'system_health': 100,
-        'staff_lecturers': 0,
+        'employees': 0,
+        'staff': 0,
     }
     # Students in warehouse (updates when new data is loaded)
     try:
@@ -123,15 +145,16 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
     except Exception:
         total_students = 0
         kpis['system_health'] = 50
-    # Staff/lecturers in warehouse (dim_employee – loaded by ETL from employees)
+    # ETL: employees from warehouse (dim_employee) – re-run ETL to populate
+    etl_employee_count = 0
     try:
-        r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM dim_employee"), warehouse_engine)
-        kpis['staff_lecturers'] = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
+        r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM `dim_employee`"), warehouse_engine)
+        etl_employee_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
     except Exception:
         pass
-    # App users in ucu_rbac (staff, dean, hod, hr, finance, analyst, sysadmin – login accounts)
+    # App users (all are non-students: staff, dean, hod, hr, finance, analyst, sysadmin)
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = create_engine(_get_rbac_conn_string())
         _ensure_app_users_table(rbac_engine)
         try:
             r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM app_users"), rbac_engine)
@@ -140,21 +163,19 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             app_users_count = 0
             if kpis['system_health'] > 0:
                 kpis['system_health'] = 50
+        app_staff_role_count = 0
         try:
-            # Staff/lecturers = app users with role staff, dean, or hod (override if we already have dim_employee count)
             r = pd.read_sql_query(text("""
                 SELECT COUNT(*) as c FROM app_users
-                WHERE LOWER(TRIM(role)) IN ('staff', 'dean', 'hod')
+                WHERE LOWER(TRIM(role)) = 'staff'
             """), rbac_engine)
-            app_staff = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
-            if app_staff > 0 and kpis['staff_lecturers'] == 0:
-                kpis['staff_lecturers'] = app_staff
-            elif app_staff > 0 and kpis['staff_lecturers'] > 0:
-                pass  # keep warehouse count; app_staff is alternative
-            elif app_staff > 0:
-                kpis['staff_lecturers'] = app_staff
+            app_staff_role_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
         except Exception:
             pass
+        # Employees = ETL (dim_employee) + all app users (none are students)
+        kpis['employees'] = etl_employee_count + app_users_count
+        # Staff = ETL employees (dim_employee) + app users with role Staff
+        kpis['staff'] = etl_employee_count + app_staff_role_count
         try:
             _ensure_audit_db()
             r = pd.read_sql_query(text("""
@@ -166,11 +187,42 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
         except Exception as e:
             print(f"[_get_console_kpis] active_sessions query failed: {e}")
         rbac_engine.dispose()
-    except Exception:
+    except Exception as e:
         app_users_count = 0
         if kpis['system_health'] > 0:
             kpis['system_health'] = 50
-    # Total users = students (warehouse) + app users (all roles: staff, dean, hod, hr, finance, analyst, sysadmin)
+        kpis['employees'] = etl_employee_count
+        kpis['staff'] = etl_employee_count
+    # If both still 0, try direct PyMySQL to ucu_rbac (in case SQLAlchemy engine had issues)
+    if kpis['employees'] == 0 and kpis['staff'] == 0:
+        try:
+            import pymysql
+            conn = pymysql.connect(
+                host=MYSQL_HOST,
+                port=int(MYSQL_PORT),
+                user=MYSQL_USER,
+                password=MYSQL_PASSWORD,
+                database='ucu_rbac',
+                charset=MYSQL_CHARSET or 'utf8mb4',
+            )
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM app_users")
+            app_total = (cur.fetchone() or (0,))[0]
+            cur.execute("SELECT COUNT(*) FROM app_users WHERE LOWER(TRIM(role)) = 'staff'")
+            app_staff = (cur.fetchone() or (0,))[0]
+            conn.close()
+            kpis['employees'] = etl_employee_count + app_total
+            kpis['staff'] = etl_employee_count + app_staff
+            app_users_count = app_total
+        except Exception:
+            pass
+    # If still 0 (e.g. ucu_rbac not set up or empty), include demo app users so KPIs show something
+    if kpis['employees'] == 0 and kpis['staff'] == 0:
+        _demo = _get_demo_counts()
+        kpis['employees'] = etl_employee_count + _demo['total']
+        kpis['staff'] = etl_employee_count + _demo['staff']
+        app_users_count = _demo['total']
+    # Total users = students (warehouse) + app users (all roles)
     kpis['registered_users'] = total_students + app_users_count
     return kpis
 

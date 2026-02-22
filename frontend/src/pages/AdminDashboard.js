@@ -38,7 +38,8 @@ const AdminDashboard = () => {
           active_sessions: kpis.active_sessions ?? 0,
           etl_jobs: kpis.etl_jobs ?? 0,
           system_health: kpis.system_health ?? 0,
-          staff_lecturers: kpis.staff_lecturers ?? 0
+          employees: kpis.employees ?? 0,
+          staff: kpis.staff ?? 0
         });
       } else {
         // Fallback when backend does not yet return console_kpis
@@ -49,7 +50,9 @@ const AdminDashboard = () => {
           total_users: students,
           active_sessions: 0,
           etl_jobs: etlRuns,
-          system_health: 100
+          system_health: 100,
+          employees: 0,
+          staff: 0
         });
       }
     } catch (err) {
@@ -59,7 +62,7 @@ const AdminDashboard = () => {
         console.error('Error loading admin status:', err);
       }
       setAdminStatus(null);
-      setSystemStats(prev => prev ?? { total_users: 0, active_sessions: 0, etl_jobs: 0, system_health: 0 });
+      setSystemStats(prev => prev ?? { total_users: 0, active_sessions: 0, etl_jobs: 0, system_health: 0, employees: 0, staff: 0 });
     }
   };
 
@@ -154,13 +157,13 @@ const AdminDashboard = () => {
         </div>
       ) : (
         <>
-          {/* System KPI Cards - 5 cols so all fit in one row */}
-          <DashboardGrid cols={{ default: 2, sm: 2, md: 5, lg: 5 }}>
+          {/* System KPI Cards - Employees = full set, Staff = subset (role staff only) */}
+          <DashboardGrid cols={{ default: 2, sm: 2, md: 3, lg: 6 }}>
             <KPICard
               title="Total Users"
               value={systemStats?.total_users || 0}
               icon={Users}
-              subtitle={systemStats?.staff_lecturers != null ? `Students + app users (incl. ${systemStats.staff_lecturers} staff/lecturers)` : 'Students + app users'}
+              subtitle="Students (warehouse) + app users (all roles)"
             />
             <KPICard
               title="Active Sessions"
@@ -182,10 +185,16 @@ const AdminDashboard = () => {
               subtitle="Overall system status"
             />
             <KPICard
-              title="Staff / Lecturers"
-              value={systemStats?.staff_lecturers ?? 0}
+              title="Employees"
+              value={systemStats?.employees ?? 0}
               icon={Users}
-              subtitle="From warehouse (dim_employee) or app users (staff, dean, hod)"
+              subtitle="ETL (dim_employee) + all app users (non-students). Refresh after ETL."
+            />
+            <KPICard
+              title="Staff"
+              value={systemStats?.staff ?? 0}
+              icon={Users}
+              subtitle="ETL (dim_employee) + app users with role Staff. Refresh after ETL."
             />
           </DashboardGrid>
 
