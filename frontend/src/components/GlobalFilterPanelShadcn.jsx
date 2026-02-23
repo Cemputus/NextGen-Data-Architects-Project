@@ -136,7 +136,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
   const activeFiltersCount = Object.keys(filters).filter(k => filters[k]).length;
 
   return (
-    <Card className="w-full shadow-lg border-2">
+    <Card className="w-full shadow-lg border-2 border-border">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -314,7 +314,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-2 border-t">
+          <div className="flex items-center justify-between pt-2 border-t border-border">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Sparkles className="h-4 w-4" />
               <span>Filters automatically sync when parent selections change</span>

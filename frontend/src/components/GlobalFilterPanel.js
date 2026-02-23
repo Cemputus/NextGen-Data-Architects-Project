@@ -142,22 +142,22 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className="mb-6 border-0 shadow-xl bg-white/90 backdrop-blur-sm hover:shadow-2xl transition-all duration-300">
+      <Card className="mb-6 border border-border shadow-xl bg-card/95 backdrop-blur-sm hover:shadow-2xl transition-all duration-300">
         <CardContent className="p-6">
           <div className="space-y-5">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg">
-                  <Filter className="h-5 w-5 text-white" />
+                <div className="p-2 bg-gradient-to-br from-primary to-primary/80 rounded-lg">
+                  <Filter className="h-5 w-5 text-primary-foreground" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Filters</h3>
+                  <h3 className="text-lg font-bold text-foreground">Filters</h3>
                   <p className="text-sm text-muted-foreground">Synced filters - selections cascade automatically</p>
                 </div>
               </div>
               {activeFiltersCount > 0 && (
-                <Badge className="bg-blue-100 text-blue-700 border-blue-200 px-3 py-1">
+                <Badge className="bg-primary/10 text-primary border border-primary/20 px-3 py-1">
                   {activeFiltersCount} active
                 </Badge>
               )}
@@ -172,13 +172,13 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  className="pl-12 h-12 text-base border-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-lg shadow-sm hover:shadow-md transition-all"
+                  className="pl-12 h-12 text-base border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg shadow-sm hover:shadow-md transition-all"
                 />
               </div>
               <Button 
                 onClick={handleSearch} 
                 size="default" 
-                className="h-12 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all"
+                className="h-12 px-6 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all"
               >
                 <Search className="h-4 w-4 mr-2" />
                 Search
@@ -191,7 +191,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                 value={filters.faculty_id || ''}
                 onChange={(e) => handleFilterChange('faculty_id', e.target.value || null)}
                 disabled={loading}
-                className="h-11 border-2 rounded-lg shadow-sm hover:shadow-md transition-all focus:border-blue-500"
+                className="h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary"
               >
                 <option value="">All Faculties</option>
                 {filterOptions.faculties?.map((f, idx) => (
@@ -205,7 +205,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                 value={filters.department_id || ''}
                 onChange={(e) => handleFilterChange('department_id', e.target.value || null)}
                 disabled={loading || !filters.faculty_id}
-                className={`h-11 border-2 rounded-lg shadow-sm hover:shadow-md transition-all focus:border-blue-500 ${
+                className={`h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary ${
                   !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
@@ -223,7 +223,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                 value={filters.program_id || ''}
                 onChange={(e) => handleFilterChange('program_id', e.target.value || null)}
                 disabled={loading || !filters.faculty_id}
-                className={`h-11 border-2 rounded-lg shadow-sm hover:shadow-md transition-all focus:border-blue-500 ${
+                className={`h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary ${
                   !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
@@ -241,7 +241,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                 value={filters.course_code || ''}
                 onChange={(e) => handleFilterChange('course_code', e.target.value || null)}
                 disabled={loading}
-                className="h-11 border-2 rounded-lg shadow-sm hover:shadow-md transition-all focus:border-blue-500"
+                className="h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary"
               >
                 <option value="">All Courses</option>
                 {filterOptions.courses?.map((c, idx) => (
@@ -255,7 +255,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                 value={filters.semester_id || ''}
                 onChange={(e) => handleFilterChange('semester_id', e.target.value || null)}
                 disabled={loading}
-                className="h-11 border-2 rounded-lg shadow-sm hover:shadow-md transition-all focus:border-blue-500"
+                className="h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary"
               >
                 <option value="">All Semesters</option>
                 {filterOptions.semesters?.map((s, idx) => (
@@ -269,7 +269,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                 value={filters.high_school || ''}
                 onChange={(e) => handleFilterChange('high_school', e.target.value || null)}
                 disabled={loading}
-                className="h-11 border-2 rounded-lg shadow-sm hover:shadow-md transition-all focus:border-blue-500"
+                className="h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary"
               >
                 <option value="">All High Schools</option>
                 {filterOptions.high_schools?.map((hs, idx) => (
@@ -283,7 +283,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                 value={filters.intake_year || ''}
                 onChange={(e) => handleFilterChange('intake_year', e.target.value || null)}
                 disabled={loading}
-                className="h-11 border-2 rounded-lg shadow-sm hover:shadow-md transition-all focus:border-blue-500"
+                className="h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary"
               >
                 <option value="">All Years</option>
                 {filterOptions.intake_years?.map((year, idx) => (
@@ -299,10 +299,10 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                className="flex items-center justify-between pt-4 border-t border-gray-200"
+                className="flex items-center justify-between pt-4 border-t border-border"
               >
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-gray-700">Active filters:</span>
+                  <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
                   {Object.entries(filters).map(([key, value], idx) => {
                     if (!value) return null;
                     const displayValue = filterOptions.faculties?.find(f => f.faculty_id == value)?.faculty_name ||
@@ -313,13 +313,13 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                       <Badge
                         key={`filter-${key}-${value}-${idx}`}
                         variant="secondary"
-                        className="gap-1 pr-1 bg-blue-100 text-blue-700 border-blue-200 font-medium"
+                        className="gap-1 pr-1 bg-primary/10 text-primary border border-primary/20 font-medium"
                       >
                         {key.replace('_', ' ')}: {displayValue}
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-4 w-4 p-0 ml-1 hover:bg-blue-200 rounded-full"
+                          className="h-4 w-4 p-0 ml-1 hover:bg-primary/20 rounded-full"
                           onClick={() => handleFilterChange(key, null)}
                         >
                           <X className="h-3 w-3" />
@@ -332,7 +332,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                   variant="outline"
                   size="sm"
                   onClick={clearFilters}
-                  className="gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-medium"
+                  className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive/50 font-medium"
                 >
                   <X className="h-4 w-4" />
                   Clear All
