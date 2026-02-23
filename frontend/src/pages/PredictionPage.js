@@ -193,11 +193,12 @@ const PredictionPage = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <label htmlFor="prediction-model-select" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                 <Cpu className="h-4 w-4 text-purple-500" />
                 Prediction Model
               </label>
               <Select 
+                id="prediction-model-select"
                 value={modelType} 
                 onChange={(e) => setModelType(e.target.value)}
               >

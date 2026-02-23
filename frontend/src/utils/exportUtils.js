@@ -113,10 +113,10 @@ export const captureChartImages = async (chartSelectors = []) => {
       
       const canvas = await html2canvas(targetElement, {
         backgroundColor: '#ffffff',
-        scale: 1.5, // Reduced scale for better performance
+        scale: 1.2, // Lower scale to reduce image size and avoid PDF failures
         logging: false,
         useCORS: true,
-        allowTaint: false, // Changed to false for better compatibility
+        allowTaint: false, // Keep false - tainted canvas would block toDataURL
         width: targetElement.offsetWidth || rect.width || 800,
         height: targetElement.offsetHeight || rect.height || 600,
         windowWidth: targetElement.scrollWidth || rect.width,
@@ -328,46 +328,79 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
     doc.text(dateStr, (pageWidth - dateWidth) / 2, yPosition);
     yPosition += 15;
     
-    // Add filter information
+    // Applied Filters — organised table
     if (Object.keys(filters).length > 0) {
-      doc.setFontSize(12);
-      doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Applied Filters:', 20, yPosition);
-      yPosition += 7;
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value && key !== 'drilldown') {
-          doc.text(`${key}: ${value}`, 25, yPosition);
-          yPosition += 6;
+      const filterEntries = Object.entries(filters)
+        .filter(([k, v]) => v && k !== 'drilldown')
+        .map(([k, v]) => [k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), String(v)]);
+      if (filterEntries.length > 0) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Applied Filters', 20, yPosition);
+        yPosition += 6;
+        if (typeof doc.autoTable === 'function') {
+          doc.autoTable({
+            head: [['Filter', 'Value']],
+            body: filterEntries,
+            startY: yPosition,
+            theme: 'striped',
+            styles: { fontSize: 9, cellPadding: 3 },
+            headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [245, 248, 250] },
+            columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 'auto' } },
+            margin: { left: 20, right: 20 },
+            tableLineColor: [200, 200, 200],
+            tableLineWidth: 0.1,
+          });
+          yPosition = doc.lastAutoTable.finalY + 12;
+        } else {
+          filterEntries.forEach(([k, v]) => {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${k}: ${v}`, 25, yPosition);
+            yPosition += 6;
+          });
+          yPosition += 5;
         }
-      });
-      yPosition += 5;
+      }
     }
     
-    // Add stats/KPIs if available
+    // Summary Statistics — organised table
     if (stats) {
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Summary Statistics', 20, yPosition);
-      yPosition += 7;
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      Object.entries(stats).forEach(([key, value]) => {
-        if (typeof value === 'number' || typeof value === 'string') {
-          const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-          doc.text(`${label}: ${value}`, 25, yPosition);
-          yPosition += 6;
-          if (yPosition > pageHeight - 30) {
-            doc.addPage();
-            yPosition = 20;
-          }
+      const statEntries = Object.entries(stats)
+        .filter(([, v]) => typeof v === 'number' || typeof v === 'string')
+        .map(([k, v]) => [k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), String(v)]);
+      if (statEntries.length > 0) {
+        if (yPosition > pageHeight - 60) { doc.addPage(); yPosition = 20; }
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Summary Statistics', 20, yPosition);
+        yPosition += 6;
+        if (typeof doc.autoTable === 'function') {
+          doc.autoTable({
+            head: [['Metric', 'Value']],
+            body: statEntries,
+            startY: yPosition,
+            theme: 'striped',
+            styles: { fontSize: 9, cellPadding: 3 },
+            headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [245, 248, 250] },
+            columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 'auto' } },
+            margin: { left: 20, right: 20 },
+            tableLineColor: [200, 200, 200],
+            tableLineWidth: 0.1,
+          });
+          yPosition = doc.lastAutoTable.finalY + 12;
+        } else {
+          statEntries.forEach(([k, v]) => {
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${k}: ${v}`, 25, yPosition);
+            yPosition += 6;
+          });
+          yPosition += 5;
         }
-      });
-      yPosition += 5;
+      }
     }
     
     // Add chart images
@@ -418,16 +451,27 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
           continue;
         }
         
-        // Add image - handle both base64 and data URL formats
+        // Add image - extract base64 for jsPDF compatibility (some versions fail with full data URL)
         let imageData = chart.data;
+        if (typeof imageData !== 'string' || !imageData || imageData.length < 100) {
+          console.warn('Invalid or empty chart image data, skipping');
+          continue;
+        }
+        // Extract raw base64 - jsPDF works best with base64 only
+        let base64Data = imageData;
         if (imageData.startsWith('data:image')) {
-          // Already in correct format
+          const commaIdx = imageData.indexOf(',');
+          base64Data = commaIdx >= 0 ? imageData.slice(commaIdx + 1) : imageData;
         } else if (imageData.startsWith('data:')) {
-          // Remove data URL prefix if present
-          imageData = imageData.split(',')[1] || imageData;
+          base64Data = imageData.split(',')[1] || imageData;
+        }
+        // Skip very large images to avoid memory/PDF issues
+        if (base64Data.length > 3000000) {
+          console.warn('Chart image too large, skipping to avoid PDF failure');
+          continue;
         }
         
-        doc.addImage(imageData, 'PNG', (pageWidth - imgWidth) / 2, yPosition, imgWidth, imgHeight);
+        doc.addImage(base64Data, 'PNG', (pageWidth - imgWidth) / 2, yPosition, imgWidth, imgHeight);
         yPosition += imgHeight + 10;
         
         if (yPosition > pageHeight - 30) {
@@ -456,33 +500,52 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
         
         const firstRow = data[0];
         if (firstRow && typeof firstRow === 'object') {
-          const headers = Object.keys(firstRow);
+          const rawHeaders = Object.keys(firstRow).filter(h => h && typeof h === 'string');
+          const headers = rawHeaders.map(h => h.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
           if (headers.length > 0) {
             const tableData = data.slice(0, 50).map(row => {
-              return headers.map(h => {
+              return rawHeaders.map(h => {
                 const value = row[h];
-                // Convert to string, handle null/undefined
                 if (value === null || value === undefined) return '';
-                if (typeof value === 'object') return JSON.stringify(value);
-                return String(value);
+                if (typeof value === 'object') return JSON.stringify(value).slice(0, 150);
+                return String(value).slice(0, 150);
               });
             });
             
-            doc.autoTable({
-              head: [headers],
-              body: tableData,
-              startY: yPosition,
-              styles: { 
-                fontSize: 8,
-                cellPadding: 2
-              },
-              headStyles: {
-                fillColor: [0, 51, 102], // UCU Blue
-                textColor: [255, 255, 255],
-                fontStyle: 'bold'
-              },
-              margin: { left: 20, right: 20 }
-            });
+            if (typeof doc.autoTable === 'function') {
+              const colCount = headers.length;
+              const colWidth = Math.max(25, (pageWidth - 50) / colCount);
+              const colStyles = {};
+              headers.forEach((_, i) => { colStyles[i] = { cellWidth: colWidth }; });
+              doc.autoTable({
+                head: [headers],
+                body: tableData,
+                startY: yPosition,
+                theme: 'striped',
+                styles: { fontSize: 8, cellPadding: 3 },
+                headStyles: {
+                  fillColor: [0, 51, 102],
+                  textColor: [255, 255, 255],
+                  fontStyle: 'bold',
+                  halign: 'left',
+                },
+                bodyStyles: { halign: 'left' },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                columnStyles: colStyles,
+                margin: { left: 20, right: 20 },
+                tableLineColor: [200, 200, 200],
+                tableLineWidth: 0.1,
+              });
+              yPosition = doc.lastAutoTable.finalY + 10;
+            } else {
+              // Fallback if autoTable not loaded
+              tableData.forEach((row, i) => {
+                if (yPosition > pageHeight - 15) { doc.addPage(); yPosition = 20; }
+                doc.setFontSize(8);
+                doc.text(row.join(' | '), 25, yPosition);
+                yPosition += 5;
+              });
+            }
           }
         }
       } catch (tableError) {
@@ -519,7 +582,12 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
     
     // Save PDF
     const filename = `${reportType}_${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(filename);
+    try {
+      doc.save(filename);
+    } catch (saveError) {
+      console.error('Error saving PDF file:', saveError);
+      throw new Error(saveError.message || 'Could not save PDF file. Try closing other PDFs or check browser permissions.');
+    }
     return true;
   } catch (error) {
     console.error('Error exporting to PDF:', error);
@@ -667,14 +735,15 @@ export const exportAdminToExcel = async (adminData, filename = 'admin_console', 
  * Admin console full PDF: same sections as Excel.
  */
 export const exportAdminToPDF = async (adminData, filename = 'admin_console', chartImages = []) => {
-  const doc = new jsPDF('p', 'mm', 'a4');
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  let y = 20;
+  try {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let y = 20;
 
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Admin Console Report', pageWidth / 2, y, { align: 'center' });
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Admin Console Report', pageWidth / 2, y, { align: 'center' });
   y += 8;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
@@ -697,17 +766,46 @@ export const exportAdminToPDF = async (adminData, filename = 'admin_console', ch
       y += 10;
       return;
     }
-    const headers = rows[0];
-    const body = rows.slice(1).map((row) => row.map((v) => (v == null ? '' : String(v))));
-    doc.autoTable({
-      head: [headers],
-      body,
-      startY: y,
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: 'bold' },
-      margin: { left: 20, right: 20 },
-    });
-    y = doc.lastAutoTable.finalY + 10;
+    const headers = rows[0].map((h) => (h == null ? '' : String(h)));
+    const body = rows.slice(1).map((row) => row.map((v) => {
+      if (v == null) return '';
+      if (typeof v === 'object') return JSON.stringify(v).slice(0, 150);
+      return String(v).slice(0, 150);
+    }));
+    if (typeof doc.autoTable === 'function') {
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const colCount = headers.length;
+      const colWidth = Math.max(20, (pageWidth - 50) / colCount);
+      const colStyles = {};
+      headers.forEach((_, i) => { colStyles[i] = { cellWidth: colWidth }; });
+      doc.autoTable({
+        head: [headers],
+        body,
+        startY: y,
+        theme: 'striped',
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: {
+          fillColor: [0, 51, 102],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          halign: 'left',
+        },
+        bodyStyles: { halign: 'left' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: colStyles,
+        margin: { left: 20, right: 20 },
+        tableLineColor: [200, 200, 200],
+        tableLineWidth: 0.1,
+      });
+      y = doc.lastAutoTable.finalY + 12;
+    } else {
+      body.forEach((row) => {
+        if (y > pageHeight - 15) { doc.addPage(); y = 20; }
+        doc.text(row.join(' | '), 25, y);
+        y += 5;
+      });
+      y += 5;
+    }
   };
 
   if (adminData.kpis && typeof adminData.kpis === 'object') {
@@ -760,6 +858,16 @@ export const exportAdminToPDF = async (adminData, filename = 'admin_console', ch
   }
 
   const dateStr = new Date().toISOString().split('T')[0];
-  doc.save(`${filename}_${dateStr}.pdf`);
-  return true;
+    try {
+      doc.save(`${filename}_${dateStr}.pdf`);
+    } catch (saveErr) {
+      console.error('Error saving admin PDF:', saveErr);
+      throw new Error(saveErr.message || 'Could not save PDF file.');
+    }
+    return true;
+  } catch (error) {
+    console.error('Error exporting admin to PDF:', error);
+    alert(`Failed to export to PDF: ${error.message || 'Unknown error'}. Please try again.`);
+    throw error;
+  }
 };

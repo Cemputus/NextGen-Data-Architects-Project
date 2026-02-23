@@ -129,7 +129,7 @@ def _get_demo_counts():
 
 
 def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
-    """Live KPIs: employees = ETL (dim_employee) + all app users (non-students); staff = ETL (dim_employee) + app users with role Staff."""
+    """Live KPIs: employees = ETL (dim_employee) + all app users; staff = dim_employee (staff/lecturers) + app users with role Staff only."""
     kpis = {
         'registered_users': 0,
         'active_sessions': 0,
@@ -147,9 +147,11 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
         kpis['system_health'] = 50
     # ETL: employees from warehouse (dim_employee) – re-run ETL to populate
     etl_employee_count = 0
+    etl_staff_lecturer_count = 0  # dim_employee rows (all are staff/lecturers per ETL)
     try:
         r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM `dim_employee`"), warehouse_engine)
         etl_employee_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
+        etl_staff_lecturer_count = etl_employee_count  # dim_employee = staff/lecturers only
     except Exception:
         pass
     # App users (all are non-students: staff, dean, hod, hr, finance, analyst, sysadmin)
@@ -174,8 +176,8 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             pass
         # Employees = ETL (dim_employee) + all app users (none are students)
         kpis['employees'] = etl_employee_count + app_users_count
-        # Staff = ETL employees (dim_employee) + app users with role Staff
-        kpis['staff'] = etl_employee_count + app_staff_role_count
+        # Staff = only employees with role Staff: dim_employee (staff/lecturers) + app users with role Staff
+        kpis['staff'] = etl_staff_lecturer_count + app_staff_role_count
         try:
             _ensure_audit_db()
             r = pd.read_sql_query(text("""
@@ -192,7 +194,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
         if kpis['system_health'] > 0:
             kpis['system_health'] = 50
         kpis['employees'] = etl_employee_count
-        kpis['staff'] = etl_employee_count
+        kpis['staff'] = etl_staff_lecturer_count  # at least ETL staff/lecturers
     # If both still 0, try direct PyMySQL to ucu_rbac (in case SQLAlchemy engine had issues)
     if kpis['employees'] == 0 and kpis['staff'] == 0:
         try:
@@ -212,7 +214,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             app_staff = (cur.fetchone() or (0,))[0]
             conn.close()
             kpis['employees'] = etl_employee_count + app_total
-            kpis['staff'] = etl_employee_count + app_staff
+            kpis['staff'] = etl_staff_lecturer_count + app_staff
             app_users_count = app_total
         except Exception:
             pass
@@ -220,7 +222,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
     if kpis['employees'] == 0 and kpis['staff'] == 0:
         _demo = _get_demo_counts()
         kpis['employees'] = etl_employee_count + _demo['total']
-        kpis['staff'] = etl_employee_count + _demo['staff']
+        kpis['staff'] = etl_staff_lecturer_count + _demo['staff']
         app_users_count = _demo['total']
     # Total users = students (warehouse) + app users (all roles)
     kpis['registered_users'] = total_students + app_users_count
@@ -355,19 +357,21 @@ def _ensure_app_users_table(engine):
 @admin_bp.route('/system-status', methods=['GET'])
 @jwt_required()
 def system_status():
-    """Data warehouse counts and ETL run history. Optional query: etl_runs_limit=5|10|20|50 (default 20)."""
+    """Data warehouse counts and ETL run history. Optional query: etl_runs_limit=5|10|20|50 (default 50 for KPI)."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
     limit = request.args.get('etl_runs_limit', type=int)
     if limit is None or limit < 1:
-        limit = 20
+        limit = 50  # Default 50 so "Recent ETL runs" KPI matches "Last 50 runs (log files)"
     limit = min(max(limit, 1), 50)
     engine = None
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         warehouse = _get_warehouse_counts(engine)
+        # ETL log dir: same as etl_pipeline.py (backend/logs) so KPI picks from actual ETL jobs
         log_dir = Path(backend_dir) / 'logs'
+        log_dir.mkdir(parents=True, exist_ok=True)
         etl_runs = _get_etl_run_history(log_dir, max_runs=limit)
         console_kpis = _get_console_kpis(engine, etl_runs, log_dir)
         return jsonify({

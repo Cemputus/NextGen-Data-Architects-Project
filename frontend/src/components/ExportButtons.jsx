@@ -120,7 +120,8 @@ const ExportButtons = ({
       await exportToPDF(filters, filename.includes('fex') ? 'fex' : filename.includes('high-school') ? 'high-school' : 'dashboard', chartImages, data, stats);
     } catch (error) {
       console.error('Error exporting to PDF:', error);
-      alert('Failed to export to PDF. Please try again.');
+      const msg = error?.message || 'Unknown error';
+      alert(`Failed to export to PDF: ${msg}. Please try again.`);
     } finally {
       setExporting({ ...exporting, pdf: false });
     }

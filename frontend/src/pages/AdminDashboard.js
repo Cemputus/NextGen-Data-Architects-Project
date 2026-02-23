@@ -27,7 +27,8 @@ const AdminDashboard = () => {
   const loadAdminStatus = async () => {
     try {
       const response = await axios.get('/api/admin/system-status', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        params: { etl_runs_limit: 50 }, // So "Recent ETL runs" KPI uses last 50 log files
       });
       setAdminStatus(response.data);
       // Live KPIs from backend (registered users, active sessions, ETL jobs, system health)
@@ -157,7 +158,7 @@ const AdminDashboard = () => {
         </div>
       ) : (
         <>
-          {/* System KPI Cards - Employees = full set, Staff = subset (role staff only) */}
+          {/* System KPI Cards - Employees = dim_employee + all app users; Staff = dim_employee (staff/lecturers) + app users with role Staff only */}
           <DashboardGrid cols={{ default: 2, sm: 2, md: 3, lg: 6 }}>
             <KPICard
               title="Total Users"
@@ -194,7 +195,7 @@ const AdminDashboard = () => {
               title="Staff"
               value={systemStats?.staff ?? 0}
               icon={Users}
-              subtitle="ETL (dim_employee) + app users with role Staff. Refresh after ETL."
+              subtitle="Only staff/lecturers: dim_employee (ETL) + app users with role Staff. Refresh after ETL."
             />
           </DashboardGrid>
 

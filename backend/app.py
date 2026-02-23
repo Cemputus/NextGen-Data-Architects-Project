@@ -399,6 +399,7 @@ def admin_get_user(user_type, user_id):
                 sid_param = int(user_id)
             except (ValueError, TypeError):
                 sid_param = user_id
+            # Be flexible: allow lookup by student_id, access_number, or reg_no
             df = pd.read_sql_query(
                 text("""
                     SELECT ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name,
@@ -406,9 +407,11 @@ def admin_get_user(user_type, user_id):
                            dp.program_name
                     FROM dim_student ds
                     LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
-                    WHERE ds.student_id = :sid OR ds.access_number = :sid2
+                    WHERE ds.student_id = :sid
+                       OR ds.access_number = :sid2
+                       OR ds.reg_no = :sid3
                 """),
-                engine, params={'sid': sid_param, 'sid2': str(user_id)}
+                engine, params={'sid': sid_param, 'sid2': str(user_id), 'sid3': str(user_id)}
             )
             engine.dispose()
             if df.empty:
