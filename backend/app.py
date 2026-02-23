@@ -288,27 +288,31 @@ def admin_list_users():
             try:
                 engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
                 q = """
-                    SELECT student_id, access_number, reg_no, first_name, last_name
-                    FROM dim_student
+                    SELECT ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name,
+                           ds.admission_date, ds.year_of_study, dp.program_name
+                    FROM dim_student ds
+                    LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
                 """
                 params = {}
                 conditions = []
                 if search:
                     conditions.append(
-                        "(LOWER(access_number) LIKE :search OR LOWER(reg_no) LIKE :search "
-                        "OR LOWER(first_name) LIKE :search OR LOWER(last_name) LIKE :search "
-                        "OR LOWER(CONCAT(first_name, ' ', last_name)) LIKE :search)"
+                        "(LOWER(ds.access_number) LIKE :search OR LOWER(ds.reg_no) LIKE :search "
+                        "OR LOWER(ds.first_name) LIKE :search OR LOWER(ds.last_name) LIKE :search "
+                        "OR LOWER(CONCAT(ds.first_name, ' ', ds.last_name)) LIKE :search)"
                     )
                     params['search'] = f'%{search}%'
                 if conditions:
                     q += " WHERE " + " AND ".join(conditions)
-                q += " ORDER BY last_name, first_name LIMIT :limit"
+                q += " ORDER BY ds.last_name, ds.first_name LIMIT :limit"
                 params['limit'] = 2000
                 df = pd.read_sql_query(text(q), engine, params=params)
                 engine.dispose()
                 for _, row in df.iterrows():
                     first = str(row['first_name']) if pd.notna(row['first_name']) else ''
                     last = str(row['last_name']) if pd.notna(row['last_name']) else ''
+                    adm = row.get('admission_date')
+                    year_of_admission = int(adm.year) if adm is not None and pd.notna(adm) and hasattr(adm, 'year') else None
                     users.append({
                         'id': str(row['student_id']),
                         'username': str(row['access_number']) if pd.notna(row['access_number']) else '',
@@ -317,6 +321,9 @@ def admin_list_users():
                         'first_name': first, 'last_name': last,
                         'full_name': f'{first} {last}'.strip() or '—',
                         'role': 'student', 'type': 'student',
+                        'program_name': str(row['program_name']) if pd.notna(row.get('program_name')) else None,
+                        'year_of_admission': year_of_admission,
+                        'year_of_study': int(row['year_of_study']) if pd.notna(row.get('year_of_study')) else None,
                     })
             except Exception:
                 pass

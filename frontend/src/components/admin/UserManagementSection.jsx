@@ -864,6 +864,8 @@ export default function UserManagementSection({
                     <TableHead>Name</TableHead>
                     <TableHead>Username / Access #</TableHead>
                     <TableHead>Reg. #</TableHead>
+                    <TableHead>Program</TableHead>
+                    <TableHead>Year</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Actions</TableHead>
@@ -872,7 +874,7 @@ export default function UserManagementSection({
                 <TableBody>
                   {users.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="p-8 text-center">
+                      <TableCell colSpan={8} className="p-8 text-center">
                         <UserCircle className="h-10 w-10 mx-auto mb-2 opacity-50" aria-hidden />
                         <p className="text-sm text-muted-foreground">No users match your filters.</p>
                       </TableCell>
@@ -887,6 +889,12 @@ export default function UserManagementSection({
                         </TableCell>
                         <TableCell>{u.username || u.access_number || '—'}</TableCell>
                         <TableCell>{u.reg_number || '—'}</TableCell>
+                        <TableCell>{u.type === 'student' ? (u.program_name || '—') : '—'}</TableCell>
+                        <TableCell>
+                          {u.type === 'student'
+                            ? (u.year_of_study != null ? `Y${u.year_of_study}` : u.year_of_admission ?? '—')
+                            : '—'}
+                        </TableCell>
                         <TableCell>
                           <span
                             className={cn(
