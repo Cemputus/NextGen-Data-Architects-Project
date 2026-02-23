@@ -188,7 +188,6 @@ export default function ProfilePage() {
       setPreviewUrl(null);
       setPhotoFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      if (cameraInputRef.current) cameraInputRef.current.value = '';
       setMessage({ type: 'success', text: 'Profile picture removed.' });
     } catch (err) {
       setMessage({

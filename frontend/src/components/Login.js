@@ -222,7 +222,6 @@ const Login = () => {
                         onChange={(e) => setUsername(e.target.value)}
                         className="pl-10 h-10 rounded-xl border-input bg-background focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all duration-200"
                         required
-                        autoFocus
                         autoComplete="username"
                         aria-describedby={error ? 'login-error' : undefined}
                       />

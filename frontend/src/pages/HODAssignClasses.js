@@ -110,10 +110,16 @@ export default function HODAssignClasses() {
                 <CardDescription>{s.username}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <label className="text-sm font-medium text-foreground">Assigned classes (courses)</label>
+                <label
+                  className="text-sm font-medium text-foreground"
+                  htmlFor={`assigned-classes-${s.id}`}
+                >
+                  Assigned classes (courses)
+                </label>
                 <select
                   multiple
                   className="w-full min-h-[120px] rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  id={`assigned-classes-${s.id}`}
                   value={assignments[s.id] || []}
                   onChange={(e) => handleAssignmentsChange(s.id, e)}
                 >

@@ -27,7 +27,6 @@ const Modal = ({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
-      onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId || undefined}
@@ -38,7 +37,6 @@ const Modal = ({
           maxWidth,
           className
         )}
-        onClick={(e) => e.stopPropagation()}
         {...props}
       >
         {children}

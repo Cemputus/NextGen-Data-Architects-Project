@@ -17,7 +17,9 @@ function getStoredTheme() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
-  } catch (_) {}
+  } catch (_) {
+    // Intentionally ignore storage errors and fall back to system preference
+  }
   return 'system';
 }
 
@@ -60,7 +62,9 @@ export function ThemeProvider({ children }) {
     setPreferenceState(value);
     try {
       localStorage.setItem(STORAGE_KEY, value);
-    } catch (_) {}
+    } catch (_) {
+      // Intentionally ignore storage write errors
+    }
   };
 
   const value = useMemo(
