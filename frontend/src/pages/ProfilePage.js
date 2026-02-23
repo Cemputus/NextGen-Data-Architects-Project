@@ -182,7 +182,8 @@ export default function ProfilePage() {
         { ...profile, remove_profile_photo: true },
         { headers: { Authorization: `Bearer ${getToken()}` } }
       );
-      setUser(res.data.user);
+      const updatedUser = { ...(user || {}), ...(res.data?.user || {}) };
+      setUser(updatedUser);
       if (avatarUrl) URL.revokeObjectURL(avatarUrl);
       setAvatarUrl(null);
       setPreviewUrl(null);
@@ -217,7 +218,8 @@ export default function ProfilePage() {
       const res = await axios.put('/api/auth/profile', payload, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      setUser(res.data.user);
+      const updatedUser = { ...(user || {}), ...(res.data?.user || {}) };
+      setUser(updatedUser);
       setMessage({ type: 'success', text: 'Profile updated successfully.' });
       setPhotoFile(null);
       if (previewUrl) {

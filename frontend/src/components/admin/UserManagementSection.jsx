@@ -568,6 +568,40 @@ export default function UserManagementSection({
                   <dt className="text-muted-foreground">Type</dt>
                   <dd>{viewUser.type === 'app_user' ? 'App user' : viewUser.type === 'demo' ? 'Demo' : viewUser.type || '—'}</dd>
                 </div>
+                {viewUser.type === 'student' && (
+                  <>
+                    {viewUser.program_name != null && (
+                      <div>
+                        <dt className="text-muted-foreground">Program</dt>
+                        <dd>{viewUser.program_name || '—'}</dd>
+                      </div>
+                    )}
+                    {viewUser.year_of_admission != null && (
+                      <div>
+                        <dt className="text-muted-foreground">Year of admission</dt>
+                        <dd>{viewUser.year_of_admission}</dd>
+                      </div>
+                    )}
+                    {viewUser.year_of_study != null && (
+                      <div>
+                        <dt className="text-muted-foreground">Current year of study</dt>
+                        <dd>{viewUser.year_of_study}</dd>
+                      </div>
+                    )}
+                    {viewUser.admission_date != null && (
+                      <div>
+                        <dt className="text-muted-foreground">Admission date</dt>
+                        <dd>{viewUser.admission_date}</dd>
+                      </div>
+                    )}
+                    {viewUser.status != null && (
+                      <div>
+                        <dt className="text-muted-foreground">Status</dt>
+                        <dd className="capitalize">{viewUser.status}</dd>
+                      </div>
+                    )}
+                  </>
+                )}
                 {viewUser.faculty_name != null && (
                   <div>
                     <dt className="text-muted-foreground">Faculty</dt>

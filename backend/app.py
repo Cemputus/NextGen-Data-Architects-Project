@@ -394,8 +394,12 @@ def admin_get_user(user_type, user_id):
                 sid_param = user_id
             df = pd.read_sql_query(
                 text("""
-                    SELECT student_id, access_number, reg_no, first_name, last_name
-                    FROM dim_student WHERE student_id = :sid OR access_number = :sid2
+                    SELECT ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name,
+                           ds.admission_date, ds.year_of_study, ds.status,
+                           dp.program_name
+                    FROM dim_student ds
+                    LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+                    WHERE ds.student_id = :sid OR ds.access_number = :sid2
                 """),
                 engine, params={'sid': sid_param, 'sid2': str(user_id)}
             )
@@ -405,6 +409,16 @@ def admin_get_user(user_type, user_id):
             row = df.iloc[0]
             first = str(row['first_name']) if pd.notna(row['first_name']) else ''
             last = str(row['last_name']) if pd.notna(row['last_name']) else ''
+            adm_date = row.get('admission_date')
+            year_of_admission = None
+            if adm_date is not None and pd.notna(adm_date):
+                if hasattr(adm_date, 'year'):
+                    year_of_admission = int(adm_date.year)
+                elif isinstance(adm_date, str) and len(adm_date) >= 4:
+                    try:
+                        year_of_admission = int(adm_date[:4])
+                    except (ValueError, TypeError):
+                        pass
             return jsonify({
                 'id': str(row['student_id']),
                 'username': str(row['access_number']) if pd.notna(row['access_number']) else '',
@@ -413,6 +427,11 @@ def admin_get_user(user_type, user_id):
                 'first_name': first, 'last_name': last,
                 'full_name': f'{first} {last}'.strip() or '—',
                 'role': 'student', 'type': 'student',
+                'admission_date': adm_date.strftime('%Y-%m-%d') if adm_date is not None and pd.notna(adm_date) and hasattr(adm_date, 'strftime') else None,
+                'year_of_admission': year_of_admission,
+                'year_of_study': int(row['year_of_study']) if pd.notna(row.get('year_of_study')) else None,
+                'program_name': str(row['program_name']) if pd.notna(row.get('program_name')) else None,
+                'status': str(row['status']) if pd.notna(row.get('status')) else None,
             })
         if user_type == 'demo':
             for acc in DEMO_ACCOUNTS_FOR_LIST:
