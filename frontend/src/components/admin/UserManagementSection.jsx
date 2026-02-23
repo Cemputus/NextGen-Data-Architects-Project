@@ -794,6 +794,18 @@ export default function UserManagementSection({
             <Search className="h-4 w-4" />
             Search
           </Button>
+          {!showHeader && (
+            <>
+              <Button variant="outline" size="sm" onClick={loadUsers} disabled={loading} className="gap-2 shrink-0">
+                <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} aria-hidden />
+                Refresh
+              </Button>
+              <Button size="sm" onClick={openAddModal} className="gap-2 shrink-0">
+                <Plus className="h-4 w-4" aria-hidden />
+                Add User
+              </Button>
+            </>
+          )}
         </div>
 
         {error && (
