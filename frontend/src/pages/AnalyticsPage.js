@@ -2,7 +2,7 @@
  * Generic Analytics Page - For roles that need analytics (HOD, Dean, Senate, Analyst, HR, Finance)
  */
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp } from 'lucide-react';
+import { BarChart3, TrendingUp, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import RoleBasedCharts from '../components/RoleBasedCharts';
@@ -67,16 +67,26 @@ const AnalyticsPage = ({ type = 'general' }) => {
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">{getTitle()}</h1>
           <p className="text-sm text-muted-foreground">Comprehensive analytics and insights</p>
         </div>
-        <ExportButtons 
-          stats={stats} 
-          filters={filters} 
-          filename={`${type}_analytics`}
-          chartSelectors={[
-            '.recharts-wrapper', // All recharts components
-            '[class*="chart"]',
-            '[data-chart]'
-          ]}
-        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFilters({})}
+            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Reset filters
+          </button>
+          <ExportButtons 
+            stats={stats} 
+            filters={filters} 
+            filename={`${type}_analytics`}
+            chartSelectors={[
+              '.recharts-wrapper', // All recharts components
+              '[class*="chart"]',
+              '[data-chart]'
+            ]}
+          />
+        </div>
       </div>
 
       <GlobalFilterPanel onFilterChange={setFilters} pageName={`${type}_analytics`} />

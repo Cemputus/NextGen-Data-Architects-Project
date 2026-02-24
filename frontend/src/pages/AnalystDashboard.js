@@ -1,27 +1,72 @@
 /**
  * Analyst Dashboard - Smooth, Clean UI
  */
-import React, { useState } from 'react';
-import { BarChart3, TrendingUp, Filter, FileText, Plus, Download } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BarChart3, TrendingUp, Filter, FileText, Plus, Users, Activity, AlertTriangle, GraduationCap, RefreshCw, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { PageHeader } from '../components/ui/page-header';
+import { KPICard } from '../components/ui/kpi-card';
+import { DashboardGrid } from '../components/ui/dashboard-grid';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import FEXAnalytics from './FEXAnalytics';
 import HighSchoolAnalytics from './HighSchoolAnalytics';
+import axios from 'axios';
+
+const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
 const AnalystDashboard = () => {
   const [filters, setFilters] = useState({});
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [stats, setStats] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadStats = async () => {
+    try {
+      if (!stats) {
+        setLoadingStats(true);
+      }
+      const response = await axios.get('/api/dashboard/stats', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        params: filters,
+      });
+      setStats(response.data);
+    } catch (err) {
+      console.error('Error loading analyst dashboard stats:', err);
+    } finally {
+      setLoadingStats(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStats();
+    const interval = setInterval(loadStats, ANALYST_KPI_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(filters)]);
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Analytics Workspace"
-        subtitle="Create and modify analytics dashboards"
+        subtitle="Live analytics workspace powered by the data warehouse"
         actions={
           <>
+            <Button
+              onClick={() => {
+                setRefreshing(true);
+                loadStats();
+              }}
+              disabled={refreshing || loadingStats}
+              className="gap-2"
+              size="sm"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing || loadingStats ? 'Refreshing…' : 'Refresh KPIs'}
+            </Button>
             <ExportButtons filename="analyst_workspace" />
             <Button className="gap-2" size="default">
               <Plus className="h-4 w-4" />
@@ -30,6 +75,58 @@ const AnalystDashboard = () => {
           </>
         }
       />
+
+      {/* Live KPIs – ETL-driven, scoped by filters */}
+      {loadingStats && !stats ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <DashboardGrid cols={{ default: 1, sm: 2, md: 3, lg: 4 }}>
+          <KPICard
+            title="Total Students"
+            value={stats?.total_students ?? 0}
+            icon={Users}
+            subtitle="Scoped by applied filters"
+          />
+          <KPICard
+            title="Average Grade"
+            value={stats?.avg_grade ?? 0}
+            icon={TrendingUp}
+            subtitle="Completed exams only"
+          />
+          <KPICard
+            title="Failed Exams (FEX)"
+            value={stats?.failed_exams ?? 0}
+            icon={AlertTriangle}
+            subtitle="Total failed exam records"
+          />
+          <KPICard
+            title="Missed Exams (MEX)"
+            value={stats?.missed_exams ?? 0}
+            icon={Activity}
+            subtitle="Total missed exam records"
+          />
+          <KPICard
+            title="Avg Attendance"
+            value={stats?.avg_attendance ?? 0}
+            icon={Activity}
+            subtitle="Average total hours attended"
+          />
+          <KPICard
+            title="Retention Rate"
+            value={`${stats?.retention_rate ?? 0}%`}
+            icon={BarChart3}
+            subtitle="Active students / total"
+          />
+          <KPICard
+            title="Graduation Rate"
+            value={`${stats?.graduation_rate ?? 0}%`}
+            icon={GraduationCap}
+            subtitle="Graduated / total"
+          />
+        </DashboardGrid>
+      )}
 
       {/* Filters */}
       <GlobalFilterPanel onFilterChange={setFilters} />
@@ -83,13 +180,20 @@ const AnalystDashboard = () => {
           <Card className="border shadow-sm">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base font-semibold">Custom Analytics Builder</CardTitle>
-              <CardDescription className="text-xs">Create custom analytics dashboards</CardDescription>
+              <CardDescription className="text-xs">
+                Create custom analytics dashboards. Use the full Analytics Builder for advanced charts and saved filters.
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg">
-                <div className="text-center p-4">
-                  <BarChart3 className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-                  <p>Custom analytics builder coming soon</p>
+              <div className="space-y-3">
+                <div className="min-h-[160px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg">
+                  <div className="text-center p-4 space-y-2">
+                    <BarChart3 className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+                    <p className="font-medium">Use Analytics → Workspace for full chart builder</p>
+                    <p className="text-xs text-muted-foreground">
+                      Filters you set here are shared with the Analytics pages and are automatically remembered.
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>
