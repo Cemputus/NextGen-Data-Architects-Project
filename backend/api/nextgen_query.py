@@ -6,6 +6,7 @@ NOTE: This endpoint trusts analyst users and does not restrict statements
 to read-only. Use with care in production.
 """
 import time
+import re
 from typing import List, Dict, Any
 
 import pandas as pd
@@ -78,7 +79,7 @@ def execute_query():
 
     safe_sql = normalized
     # If user did not specify a LIMIT on a read query, append one to minimize errors
-    if is_select_like and " limit " not in lower:
+    if is_select_like and not re.search(r"\blimit\b", lower):
         safe_sql = f"{normalized} LIMIT {max_rows}"
 
     engine = None

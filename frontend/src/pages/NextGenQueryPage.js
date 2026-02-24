@@ -5,7 +5,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import { Editor } from '@monaco-editor/react';
-import { Database, Play, Trash2, History, Loader2, BarChart3, LineChart, PieChart, AreaChart, Download, AlertTriangle } from 'lucide-react';
+import { Database, Play, Trash2, History, Loader2, BarChart3, LineChart, PieChart, AreaChart, Download, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader, PageContent } from '../components/ui/page-header';
@@ -73,6 +73,15 @@ const NextGenQueryPage = () => {
 
   const handleRun = async () => {
     setError('');
+
+    // Track every executed query in history (most recent first, deduped)
+    setHistory((prev) => {
+      const trimmed = query.trim();
+      if (!trimmed) return prev;
+      const withoutDupes = prev.filter((q) => q.trim() !== trimmed);
+      return [trimmed, ...withoutDupes].slice(0, 20);
+    });
+
     setLoading(true);
     try {
       const response = await axios.post(
@@ -83,14 +92,6 @@ const NextGenQueryPage = () => {
         }
       );
       setResult(response.data || null);
-
-      // Maintain simple query history (most recent first, deduped)
-      setHistory((prev) => {
-        const trimmed = query.trim();
-        if (!trimmed) return prev;
-        const withoutDupes = prev.filter((q) => q.trim() !== trimmed);
-        return [trimmed, ...withoutDupes].slice(0, 10);
-      });
     } catch (err) {
       const msg =
         err.response?.data?.error ||
@@ -229,10 +230,23 @@ const NextGenQueryPage = () => {
 
   const chartData = useMemo(() => {
     if (!result || !rows.length || !xColumn || !yColumn) return [];
-    return rows.map((row, index) => ({
-      category: row[xColumn] ?? `Row ${index + 1}`,
-      value: Number(row[yColumn]) || 0,
-    }));
+
+    // Build data for charts and defensively filter out bad values
+    const mapped = rows.map((row, index) => {
+      const rawVal = row[yColumn];
+      const numVal = Number(rawVal);
+      return {
+        category: row[xColumn] ?? `Row ${index + 1}`,
+        value: Number.isFinite(numVal) ? numVal : 0,
+      };
+    });
+
+    // If everything is zero, ECharts can behave oddly with tooltips; ensure at least one non-zero if possible
+    const hasNonZero = mapped.some((d) => d.value !== 0);
+    const safeData = hasNonZero ? mapped : mapped.map((d, idx) => ({ ...d, value: idx === 0 ? 1 : 0 }));
+
+    // Hard cap to avoid massive charts causing runtime glitches
+    return safeData.slice(0, 500);
   }, [result, rows, xColumn, yColumn]);
 
   const monacoTheme = effectiveTheme === 'dark' ? 'vs-dark' : 'vs-light';
@@ -272,8 +286,8 @@ const NextGenQueryPage = () => {
               SQL Workspace
             </CardTitle>
             <CardDescription className="text-xs">
-              Read-only queries against the data warehouse. Only SELECT / WITH
-              statements are allowed.
+              Trusted analyst SQL workspace against the data warehouse. All SQL
+              statements are allowed; use with care.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -287,6 +301,17 @@ const NextGenQueryPage = () => {
             >
               <Trash2 className="h-3 w-3" />
               Clear
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRun}
+              disabled={loading || !query.trim()}
+              className="gap-1"
+            >
+              <RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />
+              Refresh
             </Button>
             <Button
               type="button"
