@@ -8,6 +8,7 @@ from flask_jwt_extended import JWTManager, jwt_required, get_jwt, verify_jwt_in_
 import pandas as pd
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text
+import re
 from config import (
     DATA_WAREHOUSE_CONN_STRING,
     SECRET_KEY,
@@ -168,6 +169,15 @@ except Exception as e:
     print("Admin blueprint failed to load:", e)
     traceback.print_exc()
     admin_bp = None
+
+# NextGen Query API (analyst SQL workspace)
+try:
+    from api.nextgen_query import nextgen_query_bp
+except Exception as e:
+    import traceback
+    print("NextGen Query blueprint failed to load:", e)
+    traceback.print_exc()
+    nextgen_query_bp = None
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -944,6 +954,8 @@ if export_bp:
     app.register_blueprint(export_bp)
 if admin_bp:
     app.register_blueprint(admin_bp)
+if nextgen_query_bp:
+    app.register_blueprint(nextgen_query_bp)
 
 
 # Fallback: catch /api/admin/users, faculties, departments, ping when exact route didn't match (e.g. path quirk). Registered after blueprint so other /api/admin/* routes still work.

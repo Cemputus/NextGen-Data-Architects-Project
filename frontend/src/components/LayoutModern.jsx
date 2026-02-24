@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Home, User, Settings, LogOut, 
   BarChart3, GraduationCap, Building2, Users, 
-  DollarSign, Shield, FileText, TrendingUp, Menu, X
+  DollarSign, Shield, FileText, TrendingUp, Menu, X, Database
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -77,6 +77,7 @@ const LayoutModern = ({ children }) => {
       analyst: [
         { path: '/analyst/dashboard', label: 'Workspace', icon: LayoutDashboard },
         { path: '/analyst/analytics', label: 'Analytics', icon: BarChart3 },
+        { path: '/analyst/query', label: 'NextGen Query', icon: Database },
         { path: '/analyst/fex', label: 'FEX Analysis', icon: FileText },
         { path: '/analyst/high-school', label: 'High School', icon: Building2 },
         { path: '/analyst/predictions', label: 'Predictions', icon: TrendingUp },

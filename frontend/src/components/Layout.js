@@ -101,6 +101,7 @@ const Layout = ({ children }) => {
       analyst: [
         { path: '/analyst/dashboard', label: 'Analyst Workspace', icon: FaHome },
         { path: '/analyst/analytics', label: 'Create Analytics', icon: FaHome },
+        { path: '/analyst/query', label: 'NextGen Query', icon: FaHome },
         { path: '/analyst/fex', label: 'FEX Analysis', icon: FaHome },
         { path: '/analyst/high-school', label: 'High School Analysis', icon: FaHome },
         { path: '/analyst/predictions', label: 'Predictions', icon: FaHome },

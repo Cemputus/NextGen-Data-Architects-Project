@@ -34,6 +34,7 @@ import ProfilePage from './pages/ProfilePage';
 import PredictionPage from './pages/PredictionPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import ReportsPage from './pages/ReportsPage';
+import NextGenQueryPage from './pages/NextGenQueryPage';
 
 // Student Pages
 import StudentGrades from './pages/StudentGrades';
@@ -206,6 +207,7 @@ function App() {
                     <Route path="high-school" element={<HighSchoolAnalytics />} />
                     <Route path="predictions" element={<PredictionPage />} />
                     <Route path="reports" element={<ReportsPage />} />
+                    <Route path="query" element={<NextGenQueryPage />} />
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="*" element={<Navigate to="/analyst/dashboard" />} />
                   </Routes>
