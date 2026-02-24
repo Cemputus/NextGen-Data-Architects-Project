@@ -220,7 +220,7 @@ const Login = () => {
                         placeholder="e.g. j.doe or AccessNumber"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        className="pl-10 h-10 rounded-xl border-input bg-background focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all duration-200"
+                        className="pl-10 h-10 rounded-xl border-input bg-background dark:bg-secondary text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all duration-200"
                         required
                         autoComplete="username"
                         aria-describedby={error ? 'login-error' : undefined}
@@ -240,7 +240,7 @@ const Login = () => {
                         placeholder="Enter your password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 h-10 rounded-xl border-input bg-background focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all duration-200"
+                        className="pl-10 h-10 rounded-xl border-input bg-background dark:bg-secondary text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all duration-200"
                         required
                         autoComplete="current-password"
                         aria-describedby={error ? 'login-error' : undefined}
