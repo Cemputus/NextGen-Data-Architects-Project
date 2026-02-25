@@ -56,6 +56,31 @@ const NextGenQueryPage = () => {
     [columns]
   );
 
+  // Restore persisted NextGen Query workspace from backend (per-user, survives logout/login)
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    axios
+      .get('/api/auth/state/nextgen_query', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        const state = res.data?.state;
+        if (!state) return;
+        if (typeof state.query === 'string' && state.query.trim().length > 0) {
+          setQuery(state.query);
+        }
+        if (Array.isArray(state.history)) {
+          setHistory(state.history);
+        }
+        if (state.chartType) setChartType(state.chartType);
+        if (state.xColumn) setXColumn(state.xColumn);
+        if (state.yColumn) setYColumn(state.yColumn);
+        if (state.result) setResult(state.result);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     // When new results arrive, reset paging and choose sensible defaults for chart axes
     setPage(1);
@@ -74,13 +99,14 @@ const NextGenQueryPage = () => {
   const handleRun = async () => {
     setError('');
 
-    // Track every executed query in history (most recent first, deduped)
-    setHistory((prev) => {
-      const trimmed = query.trim();
-      if (!trimmed) return prev;
-      const withoutDupes = prev.filter((q) => q.trim() !== trimmed);
-      return [trimmed, ...withoutDupes].slice(0, 20);
-    });
+    // Build new history entry (most recent first, deduped)
+    const trimmed = query.trim();
+    let newHistory = history;
+    if (trimmed) {
+      const withoutDupes = history.filter((q) => q.trim() !== trimmed);
+      newHistory = [trimmed, ...withoutDupes].slice(0, 20);
+      setHistory(newHistory);
+    }
 
     setLoading(true);
     try {
@@ -91,7 +117,36 @@ const NextGenQueryPage = () => {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         }
       );
-      setResult(response.data || null);
+      const resultData = response.data || null;
+      setResult(resultData);
+
+      // Persist workspace state to backend so it survives logout/login and across devices
+      const token = localStorage.getItem('token');
+      if (token) {
+        const stateToSave = {
+          query,
+          history: newHistory,
+          chartType,
+          xColumn,
+          yColumn,
+          // Persist a truncated snapshot of results to avoid huge payloads
+          result: resultData
+            ? {
+                ...resultData,
+                rows: Array.isArray(resultData.rows)
+                  ? resultData.rows.slice(0, 200)
+                  : [],
+              }
+            : null,
+        };
+        axios
+          .put(
+            '/api/auth/state/nextgen_query',
+            { state: stateToSave },
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+          .catch(() => {});
+      }
     } catch (err) {
       const msg =
         err.response?.data?.error ||

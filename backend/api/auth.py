@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 import base64
 import re
+import json
 from sqlalchemy import create_engine, text
 import pandas as pd
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
@@ -108,6 +109,60 @@ def _ensure_ucu_rbac_database():
             cur.execute("CREATE DATABASE IF NOT EXISTS ucu_rbac CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
         conn.commit()
         conn.close()
+    except Exception:
+        pass
+
+
+def _ensure_user_profiles_table(engine):
+    """
+    Ensure user_profiles table exists in ucu_rbac.
+    Stores per-user profile details so they persist across logins/devices.
+    """
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS user_profiles (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(100) NOT NULL UNIQUE,
+                    role VARCHAR(50),
+                    first_name VARCHAR(100),
+                    last_name VARCHAR(100),
+                    email VARCHAR(255),
+                    phone VARCHAR(20),
+                    profile_picture_url VARCHAR(255),
+                    preferences TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_username (username),
+                    INDEX idx_role (role)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """))
+            conn.commit()
+    except Exception:
+        pass
+
+
+def _ensure_user_state_table(engine):
+    """
+    Ensure user_state table exists in ucu_rbac.
+    Stores arbitrary per-user page/workspace state (e.g. NextGen Query).
+    """
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS user_state (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(100) NOT NULL,
+                    role VARCHAR(50) NOT NULL,
+                    state_key VARCHAR(100) NOT NULL,
+                    state_json LONGTEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uniq_user_state (username, role, state_key),
+                    INDEX idx_username (username),
+                    INDEX idx_role (role),
+                    INDEX idx_state_key (state_key)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """))
+            conn.commit()
     except Exception:
         pass
 
@@ -453,10 +508,14 @@ def get_profile():
         identity = get_jwt_identity()
         profile_picture_url = '/api/auth/profile/photo' if _has_profile_photo(identity) else None
 
-        return jsonify({
+        username = claims.get('username') or claims.get('access_number') or ''
+        role_name = claims.get('role') or ''
+
+        # Start with values from JWT claims
+        profile = {
             'id': claims.get('student_id') or claims.get('username'),
             'username': claims.get('username'),
-            'role': claims.get('role'),
+            'role': role_name,
             'access_number': claims.get('access_number'),
             'reg_number': claims.get('reg_number'),
             'first_name': claims.get('first_name'),
@@ -464,7 +523,37 @@ def get_profile():
             'email': claims.get('email'),
             'phone': claims.get('phone'),
             'profile_picture_url': profile_picture_url,
-        }), 200
+        }
+
+        # Overlay any persisted profile data from ucu_rbac.user_profiles
+        try:
+            if username:
+                _ensure_ucu_rbac_database()
+                engine = create_engine(RBAC_CONN_STRING)
+                _ensure_user_profiles_table(engine)
+                df = pd.read_sql_query(
+                    text("SELECT first_name, last_name, email, phone, profile_picture_url FROM user_profiles WHERE username = :uname"),
+                    engine,
+                    params={'uname': username},
+                )
+                engine.dispose()
+                if not df.empty:
+                    row = df.iloc[0]
+                    if pd.notna(row.get('first_name')):
+                        profile['first_name'] = str(row['first_name'])
+                    if pd.notna(row.get('last_name')):
+                        profile['last_name'] = str(row['last_name'])
+                    if pd.notna(row.get('email')):
+                        profile['email'] = str(row['email'])
+                    if pd.notna(row.get('phone')):
+                        profile['phone'] = str(row['phone'])
+                    if pd.notna(row.get('profile_picture_url')):
+                        profile['profile_picture_url'] = str(row['profile_picture_url'])
+        except Exception:
+            # If profile DB is unavailable, fall back to claims only
+            pass
+
+        return jsonify(profile), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -510,6 +599,46 @@ def update_profile():
         if audit_log:
             audit_log('profile_update', 'profile', username=username, role_name=role_name, status='success')
 
+        # Persist profile fields to ucu_rbac.user_profiles so they survive logout/login and across devices
+        try:
+            if username:
+                _ensure_ucu_rbac_database()
+                engine = create_engine(RBAC_CONN_STRING)
+                _ensure_user_profiles_table(engine)
+                first_name = data.get('first_name', claims.get('first_name'))
+                last_name = data.get('last_name', claims.get('last_name'))
+                email = data.get('email', claims.get('email'))
+                phone = data.get('phone', claims.get('phone'))
+                with engine.connect() as conn:
+                    conn.execute(
+                        text(
+                            """
+                        INSERT INTO user_profiles (username, role, first_name, last_name, email, phone, profile_picture_url)
+                        VALUES (:username, :role, :first_name, :last_name, :email, :phone, :pp)
+                        ON DUPLICATE KEY UPDATE
+                            first_name = VALUES(first_name),
+                            last_name = VALUES(last_name),
+                            email = VALUES(email),
+                            phone = VALUES(phone),
+                            profile_picture_url = VALUES(profile_picture_url)
+                        """
+                        ),
+                        {
+                            'username': username,
+                            'role': role_name,
+                            'first_name': first_name,
+                            'last_name': last_name,
+                            'email': email,
+                            'phone': phone,
+                            'pp': profile_picture_url,
+                        },
+                    )
+                    conn.commit()
+                engine.dispose()
+        except Exception:
+            # If profile DB is unavailable, still return success with in-memory update
+            pass
+
         user_payload = {
             'id': claims.get('student_id') or claims.get('username'),
             'first_name': data.get('first_name', claims.get('first_name')),
@@ -519,6 +648,92 @@ def update_profile():
             'profile_picture_url': profile_picture_url,
         }
         return jsonify({'message': 'Profile updated successfully', 'user': user_payload}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@auth_bp.route('/state/<state_key>', methods=['GET', 'PUT'])
+@jwt_required()
+def user_state(state_key):
+    """
+    Per-user persistent UI/workspace state (e.g. NextGen Query).
+    - GET:  returns {'state': {...}} or {'state': None}
+    - PUT:  body {'state': {...}} to upsert
+    """
+    try:
+        # Simple validation to avoid abuse
+        state_key = (state_key or '').strip()
+        if not state_key or len(state_key) > 100 or not re.match(r'^[\w\-]+$', state_key):
+            return jsonify({'error': 'Invalid state key'}), 400
+
+        claims = get_jwt()
+        username = claims.get('username') or claims.get('access_number') or ''
+        role_name = claims.get('role') or ''
+        if not username:
+            return jsonify({'state': None}), 200
+
+        _ensure_ucu_rbac_database()
+        engine = create_engine(RBAC_CONN_STRING)
+        _ensure_user_state_table(engine)
+
+        if request.method == 'GET':
+            try:
+                df = pd.read_sql_query(
+                    text(
+                        "SELECT state_json FROM user_state WHERE username = :uname AND role = :role AND state_key = :skey"
+                    ),
+                    engine,
+                    params={'uname': username, 'role': role_name, 'skey': state_key},
+                )
+                engine.dispose()
+                if df.empty:
+                    return jsonify({'state': None}), 200
+                raw = df.iloc[0]['state_json']
+                try:
+                    state_obj = json.loads(raw) if isinstance(raw, str) else None
+                except Exception:
+                    state_obj = None
+                return jsonify({'state': state_obj}), 200
+            except Exception:
+                engine.dispose()
+                return jsonify({'state': None}), 200
+
+        # PUT: save state
+        body = request.get_json(silent=True) or {}
+        state = body.get('state')
+        if state is None:
+            engine.dispose()
+            return jsonify({'error': 'Missing state payload'}), 400
+        try:
+            state_json = json.dumps(state)
+        except Exception:
+            engine.dispose()
+            return jsonify({'error': 'State must be JSON-serializable'}), 400
+
+        try:
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        """
+                    INSERT INTO user_state (username, role, state_key, state_json)
+                    VALUES (:username, :role, :skey, :state_json)
+                    ON DUPLICATE KEY UPDATE state_json = VALUES(state_json)
+                    """
+                    ),
+                    {
+                        'username': username,
+                        'role': role_name,
+                        'skey': state_key,
+                        'state_json': state_json,
+                    },
+                )
+                conn.commit()
+            engine.dispose()
+            return jsonify({'ok': True}), 200
+        except Exception as e:
+            engine.dispose()
+            return jsonify({'error': str(e)}), 500
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
