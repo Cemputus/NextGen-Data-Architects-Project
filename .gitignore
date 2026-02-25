@@ -109,3 +109,6 @@ credentials.json
 # Package files
 *.tar.gz
 *.zip
+
+# Backend scratch / serialized layer
+backend/__sl__/
