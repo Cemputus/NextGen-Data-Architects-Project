@@ -112,3 +112,4 @@ credentials.json
 
 # Backend scratch / serialized layer
 backend/__sl__/
+.cursor/
