@@ -148,6 +148,13 @@ def _get_staff_assigned_course_codes(identity):
 # Import blueprints
 from api.auth import auth_bp
 from api.analytics import analytics_bp
+try:
+    from api.dashboards import dashboards_bp
+except Exception as e:
+    import traceback
+    print("Dashboards blueprint failed to load:", e)
+    traceback.print_exc()
+    dashboards_bp = None
 
 # Import predictions blueprint
 try:
@@ -948,6 +955,8 @@ def hod_set_staff_assignments(staff_id):
 # --- Now register blueprints (sysadmin routes above are already on the app) ---
 app.register_blueprint(auth_bp)
 app.register_blueprint(analytics_bp)
+if dashboards_bp:
+    app.register_blueprint(dashboards_bp)
 if predictions_bp:
     app.register_blueprint(predictions_bp)
 if export_bp:

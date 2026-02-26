@@ -35,6 +35,7 @@ import PredictionPage from './pages/PredictionPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import ReportsPage from './pages/ReportsPage';
 import NextGenQueryPage from './pages/NextGenQueryPage';
+import AnalystDashboardsPage from './pages/AnalystDashboardsPage';
 
 // Student Pages
 import StudentGrades from './pages/StudentGrades';
@@ -203,6 +204,7 @@ function App() {
                   <Routes>
                     <Route path="dashboard" element={<AnalystDashboard />} />
                     <Route path="analytics" element={<AnalyticsPage type="analyst" />} />
+                    <Route path="dashboards" element={<AnalystDashboardsPage />} />
                     <Route path="fex" element={<FEXAnalytics />} />
                     <Route path="high-school" element={<HighSchoolAnalytics />} />
                     <Route path="predictions" element={<PredictionPage />} />

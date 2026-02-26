@@ -77,6 +77,7 @@ const LayoutModern = ({ children }) => {
       analyst: [
         { path: '/analyst/dashboard', label: 'Workspace', icon: LayoutDashboard },
         { path: '/analyst/analytics', label: 'Analytics', icon: BarChart3 },
+        { path: '/analyst/dashboards', label: 'Dashboards', icon: LayoutDashboard },
         { path: '/analyst/query', label: 'NextGen Query', icon: Database },
         { path: '/analyst/fex', label: 'FEX Analysis', icon: FileText },
         { path: '/analyst/high-school', label: 'High School', icon: Building2 },
