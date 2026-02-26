@@ -332,7 +332,7 @@ const LayoutModern = ({ children }) => {
                   })}
                 </nav>
                 <div className="p-4 border-t border-border">
-                    <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-3 mb-3">
                     <button
                       type="button"
                       className="cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -356,7 +356,6 @@ const LayoutModern = ({ children }) => {
                       <Badge variant="secondary" className="text-xs mt-1">
                         {user?.role}
                       </Badge>
-                    </div>
                     </div>
                   </div>
                   <Button
