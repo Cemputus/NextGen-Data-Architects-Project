@@ -135,6 +135,19 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 - Customizable filters and date ranges
 - **Admin console**: Full export (Excel/PDF) includes KPIs, users, audit logs, ETL runs, and warehouse counts (not only KPIs)
 
+### 5. **NextGen Query – Analyst SQL Workspace**
+
+- **Role**: Analyst (and Sysadmin if granted)
+- **Route**: `/analyst/query`
+- **Features**:
+  - Full-screen **SQL editor** with syntax highlighting (Monaco), line numbers, auto-indentation, and history
+  - **Secure execution** of arbitrary SQL against the data warehouse via `/api/query/execute`
+  - **Results grid** with sorting, column filters, pagination, and CSV/Excel export
+  - **Automatic visualizations** (bar, line, area, donut) powered by ECharts; numeric columns auto-detected
+  - **Workspace persistence**: last query, history, chart type, X/Y columns, and a snapshot of the last result are saved per user and restored on login (even on another device)
+
+---
+
 ---
 
 ## 🤖 Machine Learning Models
@@ -990,6 +1003,45 @@ python etl_pipeline.py
 
 ETL logs are saved in `backend/logs/etl_pipeline_*.log`
 
+### User & RBAC Snapshot Seeding (App Users, Profiles, Workspace State)
+
+To make app users, profiles, and analyst/admin workspaces fully reproducible across environments, the ETL pipeline seeds the RBAC database (`ucu_rbac`) from a JSON snapshot before running the main warehouse ETL.
+
+- **Snapshot contents** (version-controlled in `backend/etl_seeds/user_snapshot.json`):
+  - `app_users` – all app users (including `password_hash`, role, faculty/department)
+  - `user_profiles` – `first_name`, `last_name`, `email`, `phone`, `profile_picture_url`, preferences
+  - `user_state` – per-user workspace state (e.g. NextGen Query layout, filters, last results)
+- **Avatar portability**:
+  - Profile photos are stored under `backend/data/profile_photos/`
+  - A copy of current photos is stored under `backend/etl_seeds/profile_photos/` and restored to `data/profile_photos` during ETL on new environments
+
+#### How it works
+
+1. **Export snapshot (authoritative environment)**  
+   When a Sysadmin clicks **Run ETL** in the Admin Console (or calls `/api/admin/run-etl`), the backend:
+   - Runs `python -m export_user_snapshot` to:
+     - Export `app_users`, `user_profiles`, `user_state` from `ucu_rbac` into `etl_seeds/user_snapshot.json`
+     - Copy current `data/profile_photos/` into `etl_seeds/profile_photos/`
+   - Then runs `python -m etl_pipeline`, which:
+     - Calls `seed_user_system_from_snapshot()` to reset and bulk-load those tables into a clean `ucu_rbac`
+     - Restores profile photos into `backend/data/profile_photos/`
+
+2. **Reproducing on a new machine**  
+   - Clone the repo (including `backend/etl_seeds/user_snapshot.json` and `backend/etl_seeds/profile_photos/`)
+   - Configure MySQL credentials in `backend/config.py`
+   - Run ETL via Admin **Run ETL** or:
+
+   ```bash
+   cd backend
+   python -m etl_pipeline
+   ```
+
+   After ETL, the new environment will contain:
+   - All app users and demo users with working login credentials (via stored `password_hash`)
+   - All persisted profiles (names, emails, phones, avatar references)
+   - All saved workspaces/state entries (e.g. NextGen Query)
+   - Matching profile photos in `backend/data/profile_photos/`
+
 ---
 
 ## 🔐 Security & RBAC
@@ -1051,8 +1103,22 @@ The system implements a comprehensive RBAC system with the following roles:
 ### Authentication
 
 - **JWT Tokens**: Access tokens (24h expiry) and refresh tokens (30 days)
-- **Password Hashing**: bcrypt for secure password storage
+- **Password Hashing**: bcrypt for secure password storage (`password_hash` stored in `ucu_rbac.app_users` and/or `ucu_rbac.users`)
 - **Token Refresh**: Automatic token refresh mechanism
+
+### Persistent Profiles & Avatars
+
+- **Profiles**:
+  - Per-user profile data (first name, last name, email, phone, preferences) is stored in `ucu_rbac.user_profiles`
+  - `GET /api/auth/profile` merges JWT claims with `user_profiles` so dashboards and headers always show the latest details without requiring a manual visit to the Profile page
+  - `PUT /api/auth/profile` updates both the JWT-visible payload and the `user_profiles` table for all roles (students, staff, HOD, dean, senate, finance, HR, analyst, sysadmin, app users, demo users)
+- **Avatars**:
+  - Avatar images are stored as JPEG files in `backend/data/profile_photos/` (one file per identity)
+  - Only the reference URL (`/api/auth/profile/photo`) is stored in `user_profiles.profile_picture_url`
+  - Deleting a profile picture removes both the file on disk and the DB reference
+- **Immediate hydration on login**:
+  - After a successful login, the frontend immediately calls `GET /api/auth/profile` and merges the result into the in-memory `user` object used by all dashboards
+  - This ensures that **welcome messages**, avatars, and names on every dashboard are correct right after login and persist across refresh, logout, and device changes
 
 ### Data Scoping
 
