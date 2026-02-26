@@ -129,6 +129,27 @@ const LayoutModern = ({ children }) => {
 
   const navItems = getNavItems();
   const currentPath = location.pathname;
+  const role = (user?.role || '').toString().toLowerCase();
+  const profilePath =
+    role === 'student'
+      ? '/student/profile'
+      : role === 'staff'
+      ? '/staff/profile'
+      : role === 'hod'
+      ? '/hod/profile'
+      : role === 'dean'
+      ? '/dean/profile'
+      : role === 'senate'
+      ? '/senate/profile'
+      : role === 'analyst'
+      ? '/analyst/profile'
+      : role === 'sysadmin'
+      ? '/admin/profile'
+      : role === 'hr'
+      ? '/hr/profile'
+      : role === 'finance'
+      ? '/finance/profile'
+      : '/profile';
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -205,12 +226,19 @@ const LayoutModern = ({ children }) => {
           {/* User Section */}
           <div className="p-4 border-t border-border bg-muted/30">
             <div className="flex items-center gap-3 mb-3">
-              <Avatar className="h-10 w-10 ring-2 ring-primary/30">
-                {profilePhotoUrl && <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />}
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
-                  {user?.first_name?.[0]}{user?.last_name?.[0]}
-                </AvatarFallback>
-              </Avatar>
+              <button
+                type="button"
+                onClick={() => navigate(profilePath)}
+                title="View profile"
+                className="cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              >
+                <Avatar className="h-10 w-10 ring-2 ring-primary/30">
+                  {profilePhotoUrl && <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />}
+                  <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
+                    {user?.first_name?.[0]}{user?.last_name?.[0]}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
               {sidebarOpen && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -305,12 +333,22 @@ const LayoutModern = ({ children }) => {
                 </nav>
                 <div className="p-4 border-t border-border">
                     <div className="flex items-center gap-3 mb-3">
-                    <Avatar className="h-10 w-10 ring-2 ring-primary/30">
-                      {profilePhotoUrl && <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />}
-                      <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
-                        {user?.first_name?.[0]}{user?.last_name?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
+                    <button
+                      type="button"
+                      className="cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        navigate(profilePath);
+                      }}
+                      title="View profile"
+                    >
+                      <Avatar className="h-10 w-10 ring-2 ring-primary/30">
+                        {profilePhotoUrl && <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />}
+                        <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
+                          {user?.first_name?.[0]}{user?.last_name?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
                     <div>
                       <p className="text-sm font-semibold text-foreground">
                         {user?.first_name} {user?.last_name}
@@ -318,6 +356,7 @@ const LayoutModern = ({ children }) => {
                       <Badge variant="secondary" className="text-xs mt-1">
                         {user?.role}
                       </Badge>
+                    </div>
                     </div>
                   </div>
                   <Button
@@ -361,12 +400,19 @@ const LayoutModern = ({ children }) => {
                 </p>
                 <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
               </div>
-              <Avatar className="h-10 w-10 ring-2 ring-primary/30">
-                {profilePhotoUrl && <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />}
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                  {user?.first_name?.[0]}{user?.last_name?.[0]}
-                </AvatarFallback>
-              </Avatar>
+              <button
+                type="button"
+                onClick={() => navigate(profilePath)}
+                title="View profile"
+                className="cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              >
+                <Avatar className="h-10 w-10 ring-2 ring-primary/30">
+                  {profilePhotoUrl && <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />}
+                  <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                    {user?.first_name?.[0]}{user?.last_name?.[0]}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
             </div>
           </div>
         </header>

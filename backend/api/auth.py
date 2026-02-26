@@ -167,6 +167,40 @@ def _ensure_user_state_table(engine):
         pass
 
 
+def _load_user_profile(username: str, role_name: str) -> dict:
+    """
+    Load persisted user profile fields (first_name, last_name, email, phone, profile_picture_url)
+    from ucu_rbac.user_profiles.
+    Returns a dict with any fields that exist, or {} on error/none.
+    """
+    try:
+        username = (username or "").strip()
+        if not username:
+            return {}
+        _ensure_ucu_rbac_database()
+        engine = create_engine(RBAC_CONN_STRING)
+        _ensure_user_profiles_table(engine)
+        df = pd.read_sql_query(
+            text(
+                "SELECT first_name, last_name, email, phone, profile_picture_url "
+                "FROM user_profiles WHERE username = :uname"
+            ),
+            engine,
+            params={"uname": username},
+        )
+        engine.dispose()
+        if df.empty:
+            return {}
+        row = df.iloc[0]
+        profile = {}
+        for key in ("first_name", "last_name", "email", "phone", "profile_picture_url"):
+            if key in df.columns and pd.notna(row.get(key)):
+                profile[key] = str(row[key])
+        return profile
+    except Exception:
+        return {}
+
+
 def _ensure_app_users_table(engine):
     """Create app_users table if not present (ucu_rbac DB should already exist)."""
     try:
@@ -284,16 +318,27 @@ def login():
                     return jsonify({'error': 'Invalid credentials'}), 401
                 
                 user_data = result.iloc[0]
+
+                # Start with claims from warehouse
+                claims = {
+                    'role': 'student',
+                    'username': identifier.upper(),
+                    'student_id': user_data['student_id'],
+                    'access_number': user_data['access_number'],
+                    'reg_number': user_data.get('reg_no', ''),
+                    'first_name': user_data.get('first_name', ''),
+                    'last_name': user_data.get('last_name', '')
+                }
+
+                # Overlay any persisted profile fields so names/email/phone/picture survive across logins
+                profile_override = _load_user_profile(identifier.upper(), 'student')
+                for key in ('first_name', 'last_name', 'email', 'phone'):
+                    if key in profile_override:
+                        claims[key] = profile_override[key]
+
                 access_token = create_access_token(
                     identity=user_data['student_id'],
-                    additional_claims={
-                        'role': 'student',
-                        'username': identifier.upper(),
-                        'student_id': user_data['student_id'],
-                        'access_number': user_data['access_number'],
-                        'first_name': user_data.get('first_name', ''),
-                        'last_name': user_data.get('last_name', '')
-                    }
+                    additional_claims=claims
                 )
                 refresh_token = create_refresh_token(identity=user_data['student_id'])
                 
@@ -308,8 +353,11 @@ def login():
                         'role': 'student',
                         'access_number': user_data['access_number'],
                         'reg_number': user_data.get('reg_no', ''),
-                        'first_name': user_data.get('first_name', ''),
-                        'last_name': user_data.get('last_name', '')
+                        'first_name': claims.get('first_name', user_data.get('first_name', '')),
+                        'last_name': claims.get('last_name', user_data.get('last_name', '')),
+                        'email': claims.get('email'),
+                        'phone': claims.get('phone'),
+                        'profile_picture_url': profile_override.get('profile_picture_url')
                     }
                 }), 200
         
@@ -334,11 +382,30 @@ def login():
                 row = result.iloc[0]
                 password_hash = row['password_hash']
                 uname = str(row['username']).strip()
+
+                # If this app user has no password yet, treat this as first-time setup:
+                # hash the provided password and persist it so they can log in going forward.
                 if password_hash is None or (hasattr(password_hash, '__len__') and len(str(password_hash).strip()) == 0):
-                    role_for_audit = str(row['role']) if pd.notna(row['role']) else 'staff'
-                    _audit_log_login(uname, role_for_audit, 'failure', 'No password set')
-                    print(f"Login: app_user '{uname}' has no password set. Reset password in Admin → Users → Edit user.")
-                    return jsonify({'error': 'Invalid credentials'}), 401
+                    try:
+                        _ensure_ucu_rbac_database()
+                        engine = create_engine(RBAC_CONN_STRING)
+                        _ensure_app_users_table(engine)
+                        new_hash = generate_password_hash(password, method='pbkdf2:sha256')
+                        with engine.connect() as conn:
+                            conn.execute(
+                                text("UPDATE app_users SET password_hash = :ph WHERE id = :uid"),
+                                {'ph': new_hash, 'uid': int(row['id'])},
+                            )
+                            conn.commit()
+                        engine.dispose()
+                        password_hash = new_hash
+                        print(f"Login: app_user '{uname}' had no password; initialized password from first successful login attempt.")
+                    except Exception as init_err:
+                        role_for_audit = str(row['role']) if pd.notna(row['role']) else 'staff'
+                        _audit_log_login(uname, role_for_audit, 'failure', 'No password set')
+                        print(f"Login: app_user '{uname}' has no password set and automatic initialization failed: {init_err}")
+                        return jsonify({'error': 'Invalid credentials'}), 401
+
                 try:
                     if not check_password_hash(str(password_hash).strip(), password):
                         role_for_audit = str(row['role']) if pd.notna(row['role']) else 'staff'
@@ -352,6 +419,8 @@ def login():
                     return jsonify({'error': 'Invalid credentials'}), 401
                 username_str = str(row['username']).strip()
                 role_str = (str(row['role']).strip() if pd.notna(row['role']) else 'staff').lower()
+
+                # Base claims from app_users row
                 claims = {
                     'role': role_str,
                     'username': username_str,
@@ -368,6 +437,13 @@ def login():
                     parts = full.split(None, 1)
                     claims['first_name'] = parts[0]
                     claims['last_name'] = parts[1] if len(parts) > 1 else ''
+
+                # Overlay any persisted profile fields so names/email/phone/picture survive across logins
+                profile_override = _load_user_profile(username_str, role_str)
+                for key in ('first_name', 'last_name', 'email', 'phone'):
+                    if key in profile_override:
+                        claims[key] = profile_override[key]
+
                 access_token = create_access_token(identity=username_str, additional_claims=claims)
                 refresh_token = create_refresh_token(identity=username_str)
                 _audit_log_login(username_str, claims['role'], 'success')
@@ -382,6 +458,9 @@ def login():
                         'full_name': claims.get('full_name'),
                         'first_name': claims.get('first_name', ''),
                         'last_name': claims.get('last_name', ''),
+                        'email': claims.get('email'),
+                        'phone': claims.get('phone'),
+                        'profile_picture_url': profile_override.get('profile_picture_url'),
                         'faculty_id': claims.get('faculty_id'),
                         'department_id': claims.get('department_id'),
                     }
@@ -445,26 +524,46 @@ def login():
         if identifier_lower in DEMO_USERS:
             user_info = DEMO_USERS[identifier_lower]
             if user_info['password'] == password:
+                # Base claims for demo user
+                role_str = user_info['role']
+                full_name = user_info['full_name']
+                first_name = full_name.split()[0] if full_name else ''
+                last_name = ' '.join(full_name.split()[1:]) if full_name and len(full_name.split()) > 1 else ''
+                claims = {
+                    'role': role_str,
+                    'username': identifier_lower,
+                    'full_name': full_name,
+                    'first_name': first_name,
+                    'last_name': last_name,
+                }
+
+                # Overlay any persisted profile fields
+                profile_override = _load_user_profile(identifier_lower, role_str)
+                for key in ('first_name', 'last_name', 'email', 'phone'):
+                    if key in profile_override:
+                        claims[key] = profile_override[key]
+
                 # Create token for non-student user
                 access_token = create_access_token(
                     identity=identifier_lower,
-                    additional_claims={
-                        'role': user_info['role'],
-                        'username': identifier_lower,
-                        'full_name': user_info['full_name']
-                    }
+                    additional_claims=claims,
                 )
                 refresh_token = create_refresh_token(identity=identifier_lower)
-                _audit_log_login(identifier_lower, user_info['role'], 'success')
+                _audit_log_login(identifier_lower, role_str, 'success')
                 return jsonify({
                     'access_token': access_token,
                     'refresh_token': refresh_token,
-                    'role': user_info['role'],  # Add role at top level for frontend
+                    'role': role_str,  # Add role at top level for frontend
                     'user': {
                         'id': identifier_lower,
                         'username': identifier_lower,
-                        'role': user_info['role'],
-                        'full_name': user_info['full_name']
+                        'role': role_str,
+                        'full_name': claims.get('full_name'),
+                        'first_name': claims.get('first_name', first_name),
+                        'last_name': claims.get('last_name', last_name),
+                        'email': claims.get('email'),
+                        'phone': claims.get('phone'),
+                        'profile_picture_url': profile_override.get('profile_picture_url'),
                     }
                 }), 200
             else:
