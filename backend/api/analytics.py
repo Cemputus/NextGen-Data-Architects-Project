@@ -1379,6 +1379,26 @@ def get_student_analytics():
         """
         timeline_df = pd.read_sql_query(text(timeline_query), engine, params=params)
 
+        # Infer residence / student type from payments (national vs international mapped to resident vs non-resident)
+        residence_status = 'Unknown'
+        try:
+            residence_query = f"""
+            SELECT 
+                COALESCE(MAX(fp.student_type), 'national') AS student_type
+            FROM fact_payment fp
+            JOIN dim_student ds ON fp.student_id = ds.student_id
+            {where_clause}
+            """
+            res_df = pd.read_sql_query(text(residence_query), engine, params=params)
+            if not res_df.empty:
+                stype = str(res_df.iloc[0]['student_type'] or '').strip().lower()
+                if stype == 'international':
+                    residence_status = 'Non-resident'
+                elif stype == 'national':
+                    residence_status = 'Resident'
+        except Exception:
+            residence_status = 'Unknown'
+
         engine.dispose()
         
         return jsonify({
@@ -1409,6 +1429,7 @@ def get_student_analytics():
             'avg_grade': round(float(student_data['avg_grade']), 2) if pd.notna(student_data['avg_grade']) else 0,
             'total_payments': round(float(student_data['total_paid']), 2) if pd.notna(student_data['total_paid']) else 0,
             'avg_attendance': round(float(student_data['avg_attendance_hours']), 2) if pd.notna(student_data['avg_attendance_hours']) else 0,
+            'residence_status': residence_status,
             'course_performance': course_df.to_dict('records') if not course_df.empty else [],
             'payments_by_semester': tuition_df.to_dict('records') if not tuition_df.empty else [],
             'payment_timeline': [

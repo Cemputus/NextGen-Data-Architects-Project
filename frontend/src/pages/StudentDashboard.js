@@ -7,9 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { PageHeader } from '../components/ui/page-header';
 import ModernStatsCards from '../components/ModernStatsCards';
-import RoleBasedCharts from '../components/RoleBasedCharts';
 import ExportButtons from '../components/ExportButtons';
-import { SciBarChart } from '../components/charts/EChartsComponents';
+import { SciBarChart, SciLineChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
@@ -20,6 +19,7 @@ const StudentDashboard = () => {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [attendanceTrends, setAttendanceTrends] = useState([]);
 
   useEffect(() => {
     loadStudentData();
@@ -48,6 +48,24 @@ const StudentDashboard = () => {
           params: { access_number: user?.access_number || user?.username }
         });
         setStats(response.data);
+      }
+
+      // Load attendance trends for this student only
+      try {
+        const trendsRes = await axios.get('/api/dashboard/attendance-trends', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        if (trendsRes.data && Array.isArray(trendsRes.data.periods)) {
+          const mapped = trendsRes.data.periods.map((period, idx) => ({
+            period,
+            attendance: trendsRes.data.attendance?.[idx] ?? 0,
+          }));
+          setAttendanceTrends(mapped);
+        } else {
+          setAttendanceTrends([]);
+        }
+      } catch (_err) {
+        setAttendanceTrends([]);
       }
     } catch (err) {
       console.error('Error loading student data:', err);
@@ -84,6 +102,13 @@ const StudentDashboard = () => {
       </Card>
     );
   }
+
+  // Derived payment metrics for the logged-in student
+  const totalPaid = stats?.total_paid || 0;
+  const totalPending = stats?.total_pending || 0;
+  const totalRequired = totalPaid + totalPending;
+  const paidPercentage = totalRequired > 0 ? (totalPaid / totalRequired) * 100 : 0;
+  const pendingPercentage = totalRequired > 0 ? (totalPending / totalRequired) * 100 : 0;
 
   return (
     <div className="space-y-4">
@@ -128,7 +153,46 @@ const StudentDashboard = () => {
               <CardDescription>Your grades and academic progress over time</CardDescription>
             </CardHeader>
             <CardContent>
-              <RoleBasedCharts filters={{}} type="student" />
+              {stats?.grades_over_time?.length ? (
+                <div
+                  className="min-h-[200px] max-h-[320px] w-full mb-4"
+                  data-chart-title="Grade Trend Overview"
+                  data-chart-container="true"
+                >
+                  <SciLineChart
+                    data={stats.grades_over_time}
+                    xDataKey="period"
+                    yDataKey="avg_grade"
+                    xAxisLabel="Time"
+                    yAxisLabel="Average grade (%)"
+                    strokeColor="#8B5CF6"
+                    strokeWidth={3}
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                </div>
+              ) : (
+                <div className="h-48 flex items-center justify-center text-muted-foreground">
+                  No grade trend data available yet.
+                </div>
+              )}
+
+              {Array.isArray(stats?.grade_distribution) && stats.grade_distribution.length > 0 && (
+                <div
+                  className="min-h-[200px] max-h-[320px] w-full mt-4"
+                  data-chart-title="Grade Distribution"
+                  data-chart-container="true"
+                >
+                  <SciDonutChart
+                    data={stats.grade_distribution.map((g) => ({
+                      name: g.letter_grade,
+                      value: g.count,
+                    }))}
+                    nameKey="name"
+                    valueKey="value"
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -140,7 +204,74 @@ const StudentDashboard = () => {
               <CardDescription>Track your class attendance and participation</CardDescription>
             </CardHeader>
             <CardContent>
-              <RoleBasedCharts filters={{}} type="student" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Average Attendance
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-primary">
+                      {stats?.avg_attendance_hours?.toFixed(1) || '0'} hours
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">Per course</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Days Present
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-green-600">
+                      {stats?.total_days_present || 0}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">Total days</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Attendance Rate
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-purple-600">
+                      {stats?.avg_attendance ? `${stats.avg_attendance.toFixed(1)}%` : 'N/A'}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">Overall rate</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {attendanceTrends.length ? (
+                <div
+                  className="min-h-[200px] max-h-[320px] w-full"
+                  data-chart-title="Attendance Trends"
+                  data-chart-container="true"
+                >
+                  <SciLineChart
+                    data={attendanceTrends}
+                    xDataKey="period"
+                    yDataKey="attendance"
+                    xAxisLabel="Time"
+                    yAxisLabel="Average attendance (hours)"
+                    strokeColor="#06B6D4"
+                    strokeWidth={3}
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                </div>
+              ) : (
+                <div className="h-48 flex items-center justify-center text-muted-foreground">
+                  No attendance trend data available yet.
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -152,7 +283,82 @@ const StudentDashboard = () => {
               <CardDescription>View your fee payments and outstanding balances</CardDescription>
             </CardHeader>
             <CardContent>
-              <RoleBasedCharts filters={{}} type="student" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <Card className="border-green-200 bg-green-50/50">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2 text-green-700">
+                      <DollarSign className="h-5 w-5" />
+                      Total Paid
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-green-600">
+                      UGX {(totalPaid / 1000000).toFixed(2)}M
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {paidPercentage.toFixed(1)}% of total fees
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="border-orange-200 bg-orange-50/50">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2 text-orange-700">
+                      <DollarSign className="h-5 w-5" />
+                      Outstanding Balance
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-orange-600">
+                      UGX {(totalPending / 1000000).toFixed(2)}M
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {pendingPercentage.toFixed(1)}% remaining
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {Array.isArray(stats?.payments_by_semester) && stats.payments_by_semester.length > 0 && (
+                <div
+                  className="min-h-[200px] max-h-[320px] w-full mb-4"
+                  data-chart-title="Tuition by Semester"
+                  data-chart-container="true"
+                >
+                  <SciBarChart
+                    data={stats.payments_by_semester}
+                    xDataKey="semester_name"
+                    yDataKey="total_paid"
+                    xAxisLabel="Semester"
+                    yAxisLabel="Total paid (UGX)"
+                    fillColor="#10B981"
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                </div>
+              )}
+
+              {Array.isArray(stats?.payment_timeline) && stats.payment_timeline.length > 0 && (
+                <div
+                  className="min-h-[200px] max-h-[320px] w-full"
+                  data-chart-title="Payment Timeline"
+                  data-chart-container="true"
+                >
+                  <SciLineChart
+                    data={stats.payment_timeline.map((p) => ({
+                      ...p,
+                      timestamp_label: p.payment_timestamp,
+                    }))}
+                    xDataKey="timestamp_label"
+                    yDataKey="amount"
+                    xAxisLabel="Payment time"
+                    yAxisLabel="Amount (UGX)"
+                    strokeColor="#3B82F6"
+                    strokeWidth={3}
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

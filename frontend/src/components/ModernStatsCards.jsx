@@ -83,6 +83,12 @@ const ModernStatsCards = ({ stats, type = 'general' }) => {
           icon={DollarSign}
           subtitle={stats.payment_amount ? `UGX ${(stats.payment_amount / 1000000).toFixed(1)}M` : 'No payment data'}
         />
+        <KPICard
+          title="Residence"
+          value={stats.residence_status || 'Unknown'}
+          icon={Users}
+          subtitle="Resident vs non-resident"
+        />
       </DashboardGrid>
     );
   }

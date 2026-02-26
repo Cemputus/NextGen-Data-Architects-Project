@@ -432,7 +432,11 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Grade Distribution</CardTitle>
-              <CardDescription className="text-xs">Proportion of letter grades across students</CardDescription>
+              <CardDescription className="text-xs">
+                {role === 'student'
+                  ? 'Proportion of your letter grades'
+                  : 'Proportion of letter grades across students'}
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-4 pt-0">
               <div className={chartContainerClass} data-chart-title="Grade Distribution" data-chart-container="true">

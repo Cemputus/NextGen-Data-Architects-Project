@@ -1019,8 +1019,8 @@ def get_status():
     }), 200
 
 def _dashboard_role_scope():
-    """Return (join_sql, where_sql) for dean/HOD/staff to scope queries.
-    Dean/HOD: by faculty/department. Staff: by assigned courses only (no department-wide data).
+    """Return (join_sql, where_sql) for student/dean/HOD/staff to scope queries.
+    Student: own records only. Dean/HOD: by faculty/department. Staff: by assigned courses only (no department-wide data).
     Use with dim_student ds: FROM dim_student ds {join} WHERE {where}.
     For fact tables: JOIN dim_student ds ON fact.student_id = ds.student_id {join} WHERE {where}.
     Returns ('', '') for sysadmin, analyst, senate, etc. (no scope)."""
@@ -1038,6 +1038,17 @@ def _dashboard_role_scope():
         JOIN dim_department ddept ON dp.department_id = ddept.department_id
         JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
+        # Students: scope strictly to their own records
+        if role == Role.STUDENT:
+            student_id = claims.get('student_id')
+            access_number = claims.get('access_number')
+            if student_id:
+                safe_id = str(student_id).replace("'", "''")
+                return '', f"ds.student_id = '{safe_id}'"
+            if access_number:
+                safe_acc = str(access_number).replace("'", "''")
+                return '', f"ds.access_number = '{safe_acc}'"
+            return '', '1=0'
         if role == Role.DEAN and claims.get('faculty_id') is not None:
             return join_sql, f"df.faculty_id = {int(claims['faculty_id'])}"
         if role == Role.HOD and claims.get('department_id') is not None:
@@ -1614,24 +1625,57 @@ def get_attendance_by_course():
 @app.route('/api/dashboard/grade-distribution', methods=['GET'])
 @jwt_required()
 def get_grade_distribution():
-    """Get grade distribution (scoped by faculty for dean, department for HOD)."""
+    """Get grade distribution.
+    - Students: only their own grades.
+    - Dean/HOD/Staff: scoped by faculty/department via _dashboard_role_scope and filters.
+    - Others: global or filter-scoped."""
     try:
+        from flask_jwt_extended import get_jwt
+        from rbac import Role
+
+        claims = get_jwt()
+        role_str = claims.get('role', 'student')
+        try:
+            role = Role(role_str.lower())
+        except Exception:
+            role = Role.STUDENT
+
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         filters = request.args.to_dict()
         role_join, role_where = _dashboard_role_scope()
 
         # Build WHERE clause: role scope first, then filters
         where_clauses = []
-        if role_where:
-            where_clauses.append(role_where)
-        if filters.get('faculty_id'):
-            where_clauses.append(f"ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id IN (SELECT department_id FROM dim_department WHERE faculty_id = {filters['faculty_id']}))")
-        if filters.get('department_id'):
-            where_clauses.append(f"ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id = {filters['department_id']})")
-        if filters.get('program_id'):
-            where_clauses.append(f"ds.program_id = {filters['program_id']}")
-        if filters.get('semester_id'):
-            where_clauses.append(f"fg.semester_id = {filters['semester_id']}")
+        if role == Role.STUDENT:
+            # For students, ignore faculty/department filters and scope strictly to their own grades
+            student_id = claims.get('student_id')
+            access_number = claims.get('access_number')
+            if student_id:
+                safe_id = str(student_id).replace("'", "''")
+                where_clauses.append(f"ds.student_id = '{safe_id}'")
+            elif access_number:
+                safe_acc = str(access_number).replace("'", "''")
+                where_clauses.append(f"ds.access_number = '{safe_acc}'")
+            else:
+                # No valid identifier; return empty distribution
+                engine.dispose()
+                return jsonify({'grades': [], 'counts': []})
+        else:
+            if role_where:
+                where_clauses.append(role_where)
+            if filters.get('faculty_id'):
+                where_clauses.append(
+                    "ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id IN "
+                    f"(SELECT department_id FROM dim_department WHERE faculty_id = {filters['faculty_id']}))"
+                )
+            if filters.get('department_id'):
+                where_clauses.append(
+                    f"ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id = {filters['department_id']})"
+                )
+            if filters.get('program_id'):
+                where_clauses.append(f"ds.program_id = {filters['program_id']}")
+            if filters.get('semester_id'):
+                where_clauses.append(f"fg.semester_id = {filters['semester_id']}")
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
