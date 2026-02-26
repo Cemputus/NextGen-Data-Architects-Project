@@ -1,6 +1,10 @@
 """
 ETL Pipeline with Medallion Architecture (Bronze, Silver, Gold)
 Uses MySQL
+
+Extended to also make the RBAC / app-user system reproducible across environments
+by seeding user-related tables (app_users, user_profiles, user_state) from a
+version-controlled snapshot (backend/etl_seeds/user_snapshot.json).
 """
 import pandas as pd
 import numpy as np
@@ -10,12 +14,15 @@ from sqlalchemy import create_engine, text
 import pymysql
 import random
 import logging
+import json
+import shutil
 from config import (
     DB1_CONN_STRING, DB2_CONN_STRING, CSV1_PATH, CSV2_PATH,
     BRONZE_PATH, SILVER_PATH, GOLD_PATH,
     DATA_WAREHOUSE_NAME, DATA_WAREHOUSE_CONN_STRING,
     MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD
 )
+from api.auth import RBAC_CONN_STRING, _ensure_ucu_rbac_database, _ensure_app_users_table, _ensure_user_profiles_table, _ensure_user_state_table
 
 class ETLPipeline:
     def __init__(self):
@@ -43,6 +50,81 @@ class ETLPipeline:
         )
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"ETL Pipeline initialized. Log file: {self.log_file}")
+
+        # Location for user snapshot seeds (for RBAC/app_users reproducibility)
+        self.user_snapshot_path = Path(__file__).parent / "etl_seeds" / "user_snapshot.json"
+
+    def seed_user_system_from_snapshot(self):
+        """
+        Seed ucu_rbac user-related tables (app_users, user_profiles, user_state)
+        from a version-controlled JSON snapshot.
+
+        This makes app users, profiles, and workspace state reproducible on new
+        machines when ETL is run against a clean environment.
+        """
+        if not self.user_snapshot_path.exists():
+            self.logger.info(f"No user snapshot found at {self.user_snapshot_path}; skipping RBAC/app_users seeding.")
+            return
+
+        try:
+            with self.user_snapshot_path.open("r", encoding="utf-8") as f:
+                snapshot = json.load(f) or {}
+        except Exception as e:
+            self.logger.error(f"Failed to read user snapshot {self.user_snapshot_path}: {e}", exc_info=True)
+            return
+
+        try:
+            # Ensure RBAC database and core tables exist
+            _ensure_ucu_rbac_database()
+            engine = create_engine(RBAC_CONN_STRING)
+            _ensure_app_users_table(engine)
+            _ensure_user_profiles_table(engine)
+            _ensure_user_state_table(engine)
+
+            with engine.connect() as conn:
+                conn = conn.execution_options(autocommit=False)
+
+                # Helper to delete + bulk insert
+                def upsert_table(table_name: str, rows):
+                    if not isinstance(rows, list):
+                        return
+                    self.logger.info(f"[RBAC seed] Seeding table {table_name} with {len(rows)} rows from snapshot")
+                    conn.execute(text(f"DELETE FROM {table_name}"))
+                    conn.commit()
+                    if not rows:
+                        return
+                    df = pd.DataFrame(rows)
+                    if df.empty:
+                        return
+                    # Use to_sql for bulk insert
+                    df.to_sql(table_name, engine, if_exists="append", index=False)
+
+                upsert_table("app_users", snapshot.get("app_users", []))
+                upsert_table("user_profiles", snapshot.get("user_profiles", []))
+                upsert_table("user_state", snapshot.get("user_state", []))
+
+                conn.commit()
+            engine.dispose()
+            self.logger.info("[RBAC seed] User system seeded successfully from snapshot.")
+
+            # Restore profile photos from snapshot if available
+            photos_src = self.user_snapshot_path.parent / "profile_photos"
+            photos_dst = Path(__file__).parent / "data" / "profile_photos"
+            try:
+                if photos_src.exists():
+                    photos_dst.mkdir(parents=True, exist_ok=True)
+                    # Copy tree but do not delete potential runtime-only files
+                    for src_file in photos_src.rglob("*"):
+                        if src_file.is_file():
+                            rel = src_file.relative_to(photos_src)
+                            dest_file = photos_dst / rel
+                            dest_file.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(src_file, dest_file)
+                    self.logger.info(f"[RBAC seed] Restored profile photos from {photos_src} to {photos_dst}")
+            except Exception as e:
+                self.logger.warning(f"[RBAC seed] Failed to restore profile photos from snapshot: {e}")
+        except Exception as e:
+            self.logger.error(f"Failed to seed user system from snapshot: {e}", exc_info=True)
         
     def create_data_warehouse(self):
         """Create data warehouse database if it doesn't exist"""
@@ -1320,6 +1402,10 @@ class ETLPipeline:
         print(f"Log file: {self.log_file}")
         
         try:
+            # First: seed RBAC / app-users system from snapshot so user-related
+            # data (app users, profiles, workspace state) is reproducible.
+            self.seed_user_system_from_snapshot()
+
             bronze_data = self.extract()
             silver_data = self.transform(bronze_data)
             self.load_to_warehouse(silver_data)

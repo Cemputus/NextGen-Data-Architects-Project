@@ -393,9 +393,21 @@ def system_status():
 
 
 def _run_etl_in_background():
-    """Run ETL pipeline in a subprocess with backend as cwd so it runs like CLI and logs correctly."""
+    """Run export_user_snapshot + ETL pipeline in a subprocess with backend as cwd so it runs like CLI and logs correctly."""
     import subprocess
     try:
+        # First export latest user/app-user snapshot so RBAC/user data is reproducible
+        try:
+            subprocess.run(
+                [sys.executable, '-m', 'export_user_snapshot'],
+                cwd=str(backend_dir),
+                capture_output=False,
+                timeout=60,
+            )
+        except subprocess.TimeoutExpired:
+            pass
+
+        # Then run the main ETL pipeline (which will also seed from snapshot on clean envs)
         subprocess.run(
             [sys.executable, '-m', 'etl_pipeline'],
             cwd=str(backend_dir),
