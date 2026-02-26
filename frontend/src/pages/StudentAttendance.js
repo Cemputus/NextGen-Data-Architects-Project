@@ -4,16 +4,17 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import RoleBasedCharts from '../components/RoleBasedCharts';
 import ExportButtons from '../components/ExportButtons';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
+import { SciLineChart } from '../components/charts/EChartsComponents';
 
 const StudentAttendance = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
+  const [attendanceTrends, setAttendanceTrends] = useState([]);
 
   useEffect(() => {
     loadAttendance();
@@ -22,11 +23,30 @@ const StudentAttendance = () => {
   const loadAttendance = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/analytics/student', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        params: { access_number: user?.access_number || user?.username }
-      });
-      setStats(response.data);
+      const token = localStorage.getItem('token');
+      const [statsRes, trendsRes] = await Promise.all([
+        axios.get('/api/analytics/student', {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { access_number: user?.access_number || user?.username },
+        }),
+        axios
+          .get('/api/dashboard/attendance-trends', {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          .catch(() => ({ data: null })),
+      ]);
+
+      setStats(statsRes.data);
+
+      if (trendsRes.data && Array.isArray(trendsRes.data.periods)) {
+        const trends = trendsRes.data.periods.map((period, idx) => ({
+          period,
+          attendance: trendsRes.data.attendance?.[idx] ?? 0,
+        }));
+        setAttendanceTrends(trends);
+      } else {
+        setAttendanceTrends([]);
+      }
     } catch (err) {
       console.error('Error loading attendance:', err);
     } finally {
@@ -103,7 +123,29 @@ const StudentAttendance = () => {
           <CardDescription>Your attendance over time</CardDescription>
         </CardHeader>
         <CardContent>
-          <RoleBasedCharts filters={{}} type="student" />
+          {attendanceTrends.length ? (
+            <div
+              className="min-h-[200px] max-h-[320px] w-full"
+              data-chart-title="Attendance Trends"
+              data-chart-container="true"
+            >
+              <SciLineChart
+                data={attendanceTrends}
+                xDataKey="period"
+                yDataKey="attendance"
+                xAxisLabel="Time"
+                yAxisLabel="Average attendance (hours)"
+                strokeColor="#06B6D4"
+                strokeWidth={3}
+                showLegend={false}
+                showGrid={true}
+              />
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-muted-foreground">
+              No attendance trend data available yet.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

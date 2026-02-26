@@ -4,11 +4,11 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, CheckCircle, AlertCircle, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import RoleBasedCharts from '../components/RoleBasedCharts';
 import ExportButtons from '../components/ExportButtons';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
+import { SciBarChart, SciLineChart } from '../components/charts/EChartsComponents';
 
 const StudentPayments = () => {
   const { user } = useAuth();
@@ -106,21 +106,89 @@ const StudentPayments = () => {
           <CardDescription>Detailed payment status and history</CardDescription>
         </CardHeader>
         <CardContent>
-          <RoleBasedCharts filters={{}} type="student" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Summary</p>
+              <ul className="text-sm space-y-1">
+                <li>Total paid: <span className="font-semibold">UGX {(totalPaid / 1000000).toFixed(2)}M</span></li>
+                <li>Outstanding: <span className="font-semibold">UGX {(totalPending / 1000000).toFixed(2)}M</span></li>
+                <li>Paid: <span className="font-semibold">{paidPercentage}%</span> of total fees</li>
+                <li>Pending: <span className="font-semibold">{pendingPercentage}%</span> remaining</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Breakdown by status</p>
+              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500"
+                  style={{ width: `${Math.min(Number(paidPercentage) || 0, 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Paid</span>
+                <span>Pending</span>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Payment History</CardTitle>
-          <CardDescription>Recent payment transactions</CardDescription>
+          <CardTitle>Tuition by Semester</CardTitle>
+          <CardDescription>Your tuition payments across semesters</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="text-center py-8 text-muted-foreground">
-              Payment history table will be displayed here
+          {stats?.payments_by_semester?.length ? (
+            <div className="min-h-[200px] max-h-[320px] w-full" data-chart-title="Tuition by Semester" data-chart-container="true">
+              <SciBarChart
+                data={stats.payments_by_semester}
+                xDataKey="semester_name"
+                yDataKey="total_paid"
+                xAxisLabel="Semester"
+                yAxisLabel="Total paid (UGX)"
+                fillColor="#10B981"
+                showLegend={false}
+                showGrid={true}
+              />
             </div>
-          </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-muted-foreground">
+              No semester payment data available yet.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment Timeline</CardTitle>
+          <CardDescription>Tuition payment trends with timestamps</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {stats?.payment_timeline?.length ? (
+            <div className="min-h-[200px] max-h-[320px] w-full" data-chart-title="Payment Timeline" data-chart-container="true">
+              <SciLineChart
+                data={stats.payment_timeline.map((p) => ({
+                  ...p,
+                  // Normalize timestamp to a readable label
+                  timestamp_label: p.payment_timestamp,
+                }))}
+                xDataKey="timestamp_label"
+                yDataKey="amount"
+                xAxisLabel="Payment time"
+                yAxisLabel="Amount (UGX)"
+                strokeColor="#3B82F6"
+                strokeWidth={3}
+                showLegend={false}
+                showGrid={true}
+              />
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-muted-foreground">
+              No payment timeline data available yet.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

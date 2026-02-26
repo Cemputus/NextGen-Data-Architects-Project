@@ -1,0 +1,35 @@
+{
+  "app_users": [
+    {
+      "id": 1,
+      "username": "lynn",
+      "password_hash": "pbkdf2:sha256:600000$sJqp6O2p1M1iGiRQ$b9d6833dc396fc747a245c8e4c44cfaff4d1fba689537052b1062e0e2317ff2c",
+      "role": "dean",
+      "full_name": "Lynn Amoit",
+      "faculty_id": 6,
+      "department_id": null,
+      "created_at": "2026-02-26 15:28:36"
+    },
+    {
+      "id": 2,
+      "username": "anita",
+      "password_hash": "pbkdf2:sha256:600000$KMCKZg32wI8rTYRo$9b51eda879834412ab562854de62ca362b9b8a481fcebe6a1c462604d98776b1",
+      "role": "dean",
+      "full_name": "Anita Namaganda",
+      "faculty_id": 11,
+      "department_id": null,
+      "created_at": "2026-02-26 15:29:44"
+    }
+  ],
+  "user_profiles": [],
+  "user_state": [
+    {
+      "id": 1,
+      "username": "analyst",
+      "role": "analyst",
+      "state_key": "nextgen_query",
+      "state_json": "{\"query\": \"-- Example: basic student performance slice\\nSELECT * FROM dim_student LIMIT 20;\", \"history\": [\"-- Example: basic student performance slice\\nSELECT * FROM dim_student LIMIT 20;\", \"-- Example: basic student performance slice\\nSHOW DATABASES;\", \"-- Example: basic student performance slice\\nSHOW DATABASE;\", \"-- Example: basic student performance slice\\nSELECT * FROM dim_student;\", \"-- Example: basic student performance slice\\nSELECT * FROM dim_student ds;\", \"-- Example: basic student performance slice\\nSELECT\\n  *\\nFROM dim_student ds;\", \"-- Example: basic student performance slice\\nSELECT\\n  ds.program_id,\\n  COUNT(DISTINCT ds.student_id) AS total_students,\\n  ROUND(AVG(fg.grade), 2) AS avg_grade\\nFROM dim_student ds\\nLEFT JOIN fact_grade fg ON ds.student_id = fg.student_id\\nWHERE fg.exam_status = 'Completed'\\nGROUP BY ds.program_id\\nORDER BY avg_grade DESC\\nLIMIT 100;\"], \"chartType\": \"bar\", \"xColumn\": \"\", \"yColumn\": \"\", \"result\": {\"columns\": [], \"elapsed_ms\": 9, \"message\": \"Statement executed successfully (rows affected: 20).\", \"row_count\": 0, \"rows\": []}}",
+      "updated_at": "2026-02-26 13:47:40"
+    }
+  ]
+}

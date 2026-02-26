@@ -13,7 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, SciDonutChart, UCU_COLORS } from './charts/EChartsComponents';
+import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, SciDonutChart } from './charts/EChartsComponents';
+import { UCU_COLORS } from '../lib/chartTheme';
 
 // Modern, visually appealing chart color palettes
 const DEPT_COLORS = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE']; // Vibrant indigo to light purple gradient

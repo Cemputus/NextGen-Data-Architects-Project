@@ -9,6 +9,8 @@ import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ModernStatsCards from '../components/ModernStatsCards';
 import RoleBasedCharts from '../components/RoleBasedCharts';
 import ExportButtons from '../components/ExportButtons';
+import { SciBarChart } from '../components/charts/EChartsComponents';
+import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +21,12 @@ const DeanDashboard = () => {
   const [stats, setStats] = useState(null);
   const [filters, setFilters] = useState({});
   const [showWelcome, setShowWelcome] = useState(true);
+  const [staffViewMode, setStaffViewMode] = useState('auto'); // 'auto' | 'custom'
+  const [staffSections, setStaffSections] = useState({
+    overview: true,
+    byDepartment: true,
+    list: true,
+  });
 
   useEffect(() => {
     loadFacultyData();
@@ -49,6 +57,21 @@ const DeanDashboard = () => {
       setLoading(false);
     }
   };
+
+  const staffHasData = stats && typeof stats.total_staff === 'number' && stats.total_staff > 0;
+  const staffByDept = Array.isArray(stats?.staff_by_department) ? stats.staff_by_department : [];
+  const staffList = Array.isArray(stats?.staff_list) ? stats.staff_list : [];
+  const staffHasByDept = staffByDept.length > 0;
+  const staffHasList = staffList.length > 0;
+
+  const autoStaffSections = {
+    overview: staffHasData,
+    byDepartment: staffHasByDept,
+    list: staffHasList,
+  };
+
+  const activeStaffSections =
+    staffViewMode === 'auto' ? autoStaffSections : staffSections;
 
   return (
     <div className="space-y-4">
@@ -82,7 +105,7 @@ const DeanDashboard = () => {
 
           {/* Main Analytics Tabs */}
           <Tabs defaultValue="overview" className="space-y-3">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-1 p-1">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Overview
@@ -98,6 +121,10 @@ const DeanDashboard = () => {
               <TabsTrigger value="finance" className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4" />
                 Finance
+              </TabsTrigger>
+              <TabsTrigger value="staff" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Staff & Lecturers
               </TabsTrigger>
             </TabsList>
 
@@ -149,6 +176,178 @@ const DeanDashboard = () => {
                   <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
                     Financial analytics charts
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="staff" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Staff & Lecturers</CardTitle>
+                      <CardDescription className="text-xs">
+                        Staff and lecturer distribution for your faculty only
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">View mode:</span>
+                      <div className="inline-flex rounded-md border border-border bg-muted/40 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setStaffViewMode('auto')}
+                          className={`px-2 py-1 text-xs ${
+                            staffViewMode === 'auto'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:bg-muted'
+                          }`}
+                        >
+                          Auto
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStaffViewMode('custom')}
+                          className={`px-2 py-1 text-xs ${
+                            staffViewMode === 'custom'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:bg-muted'
+                          }`}
+                        >
+                          Custom
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {staffViewMode === 'custom' && (
+                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      <label className="inline-flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          className="h-3 w-3"
+                          checked={activeStaffSections.overview}
+                          onChange={(e) =>
+                            setStaffSections((prev) => ({
+                              ...prev,
+                              overview: e.target.checked,
+                            }))
+                          }
+                        />
+                        Overview
+                      </label>
+                      <label className="inline-flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          className="h-3 w-3"
+                          checked={activeStaffSections.byDepartment}
+                          onChange={(e) =>
+                            setStaffSections((prev) => ({
+                              ...prev,
+                              byDepartment: e.target.checked,
+                            }))
+                          }
+                        />
+                        By department
+                      </label>
+                      <label className="inline-flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          className="h-3 w-3"
+                          checked={activeStaffSections.list}
+                          onChange={(e) =>
+                            setStaffSections((prev) => ({
+                              ...prev,
+                              list: e.target.checked,
+                            }))
+                          }
+                        />
+                        Staff list
+                      </label>
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="p-4 pt-0 space-y-4">
+                  {activeStaffSections.overview && staffHasData && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-lg border border-border bg-muted/40 p-3">
+                        <div className="text-xs text-muted-foreground">Total staff</div>
+                        <div className="mt-1 text-lg font-semibold text-foreground">
+                          {stats.total_staff}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-border bg-muted/40 p-3">
+                        <div className="text-xs text-muted-foreground">Departments with staff</div>
+                        <div className="mt-1 text-lg font-semibold text-foreground">
+                          {staffByDept.length}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-border bg-muted/40 p-3">
+                        <div className="text-xs text-muted-foreground">Sample listed staff</div>
+                        <div className="mt-1 text-lg font-semibold text-foreground">
+                          {Math.min(staffList.length, 200)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeStaffSections.byDepartment && staffHasByDept && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        Staff distribution by department
+                      </div>
+                      <div
+                        className="min-h-[200px] max-h-[320px]"
+                        data-chart-title="Staff by Department"
+                        data-chart-container="true"
+                      >
+                        <SciBarChart
+                          data={staffByDept}
+                          xDataKey="department"
+                          yDataKey="staff_count"
+                          xAxisLabel="Department"
+                          yAxisLabel="Number of staff"
+                          fillColor="#4F46E5"
+                          showLegend={false}
+                          showGrid={true}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {activeStaffSections.list && staffHasList && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        Staff and lecturers (sample, max 200)
+                      </div>
+                      <TableWrapper className="max-h-[320px] overflow-y-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Department</TableHead>
+                              <TableHead>Role</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {staffList.map((staff) => (
+                              <TableRow key={staff.employee_id}>
+                                <TableCell>{staff.full_name}</TableCell>
+                                <TableCell>{staff.department}</TableCell>
+                                <TableCell>{staff.contract_type}</TableCell>
+                                <TableCell>{staff.status}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableWrapper>
+                    </div>
+                  )}
+
+                  {!staffHasData && (
+                    <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border rounded-lg">
+                      No staff data available for your faculty. Try re-running ETL or check data sources.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

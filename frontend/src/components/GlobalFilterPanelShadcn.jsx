@@ -216,7 +216,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
                 value={filters.department_id || ''}
                 onChange={(e) => handleFilterChange('department_id', e.target.value || null)}
                 className="w-full"
-                disabled={!filters.faculty_id && filterOptions.departments?.length > 0}
+                disabled={!filterOptions.departments || filterOptions.departments.length === 0}
               >
                 <option value="">{filters.faculty_id ? 'All Departments' : 'Select Faculty First'}</option>
                 {filterOptions.departments?.map(d => (
@@ -238,7 +238,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
                 value={filters.program_id || ''}
                 onChange={(e) => handleFilterChange('program_id', e.target.value || null)}
                 className="w-full"
-                disabled={!filters.department_id && filterOptions.programs?.length > 0}
+                disabled={!filterOptions.programs || filterOptions.programs.length === 0}
               >
                 <option value="">{filters.department_id ? 'All Programs' : 'Select Department First'}</option>
                 {filterOptions.programs?.map(p => (

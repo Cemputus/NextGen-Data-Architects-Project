@@ -9,6 +9,7 @@ import { PageHeader } from '../components/ui/page-header';
 import ModernStatsCards from '../components/ModernStatsCards';
 import RoleBasedCharts from '../components/RoleBasedCharts';
 import ExportButtons from '../components/ExportButtons';
+import { SciBarChart } from '../components/charts/EChartsComponents';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
@@ -139,9 +140,7 @@ const StudentDashboard = () => {
               <CardDescription>Track your class attendance and participation</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                Attendance charts and data visualization
-              </div>
+              <RoleBasedCharts filters={{}} type="student" />
             </CardContent>
           </Card>
         </TabsContent>
@@ -153,9 +152,7 @@ const StudentDashboard = () => {
               <CardDescription>View your fee payments and outstanding balances</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                Payment history and status visualization
-              </div>
+              <RoleBasedCharts filters={{}} type="student" />
             </CardContent>
           </Card>
         </TabsContent>
@@ -167,9 +164,26 @@ const StudentDashboard = () => {
               <CardDescription>Monitor your enrollment and progress in each course</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                Course enrollment and progress visualization
-              </div>
+              {stats?.course_performance?.length ? (
+                <div className="space-y-4">
+                  <div className="min-h-[200px] max-h-[320px] w-full" data-chart-title="Course Performance" data-chart-container="true">
+                    <SciBarChart
+                      data={stats.course_performance}
+                      xDataKey="course_name"
+                      yDataKey="avg_grade"
+                      xAxisLabel="Course"
+                      yAxisLabel="Average grade (%)"
+                      fillColor="#4F46E5"
+                      showLegend={false}
+                      showGrid={true}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
+                  No course performance data available yet.
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

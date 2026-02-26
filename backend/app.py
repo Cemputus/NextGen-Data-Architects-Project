@@ -1979,6 +1979,99 @@ def get_payment_trends():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/dashboard/student-payment-breakdown', methods=['GET'])
+@jwt_required()
+def get_student_payment_breakdown():
+    """Per-student tuition breakdown (total paid vs pending) for the currently logged-in student only."""
+    try:
+        from flask_jwt_extended import get_jwt
+        from rbac import Role
+
+        claims = get_jwt()
+        role_str = claims.get('role', 'student')
+        try:
+            role = Role(role_str.lower())
+        except Exception:
+            role = Role.STUDENT
+
+        # Only meaningful for students; for other roles just return empty structure
+        if role != Role.STUDENT:
+            return jsonify({
+                'total_paid': 0,
+                'total_pending': 0,
+                'total_amount': 0,
+                'paid_percentage': 0.0,
+                'pending_percentage': 0.0,
+            })
+
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+
+        where_clauses = []
+        params = {}
+        if claims.get('student_id'):
+            where_clauses.append("fp.student_id = :student_id")
+            params['student_id'] = str(claims['student_id'])
+        elif claims.get('access_number'):
+            where_clauses.append("ds.access_number = :access_number")
+            params['access_number'] = str(claims['access_number'])
+        else:
+            engine.dispose()
+            return jsonify({
+                'total_paid': 0,
+                'total_pending': 0,
+                'total_amount': 0,
+                'paid_percentage': 0.0,
+                'pending_percentage': 0.0,
+            })
+
+        where_clause = "WHERE " + " AND ".join(where_clauses)
+
+        query = f"""
+        SELECT
+            COALESCE(SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END), 0) AS total_paid,
+            COALESCE(SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END), 0) AS total_pending,
+            COALESCE(SUM(fp.amount), 0) AS total_amount
+        FROM fact_payment fp
+        JOIN dim_student ds ON fp.student_id = ds.student_id
+        {where_clause}
+        """
+        df = pd.read_sql_query(text(query), engine, params=params)
+        engine.dispose()
+
+        if df.empty:
+            return jsonify({
+                'total_paid': 0,
+                'total_pending': 0,
+                'total_amount': 0,
+                'paid_percentage': 0.0,
+                'pending_percentage': 0.0,
+            })
+
+        row = df.iloc[0]
+        total_paid = float(row['total_paid']) if pd.notna(row['total_paid']) else 0.0
+        total_pending = float(row['total_pending']) if pd.notna(row['total_pending']) else 0.0
+        total_amount = float(row['total_amount']) if pd.notna(row['total_amount']) else 0.0
+        if total_amount <= 0:
+            paid_pct = 0.0
+            pending_pct = 0.0
+        else:
+            paid_pct = round((total_paid / total_amount) * 100.0, 2)
+            pending_pct = round((total_pending / total_amount) * 100.0, 2)
+
+        return jsonify({
+            'total_paid': total_paid,
+            'total_pending': total_pending,
+            'total_amount': total_amount,
+            'paid_percentage': paid_pct,
+            'pending_percentage': pending_pct,
+        })
+    except Exception as e:
+        import traceback
+        print(f"Error in get_student_payment_breakdown: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/dashboard/predict-performance', methods=['POST'])
 @jwt_required()
 def predict_performance():
