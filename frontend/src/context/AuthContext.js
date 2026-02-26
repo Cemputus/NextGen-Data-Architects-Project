@@ -117,10 +117,23 @@ export const AuthProvider = ({ children }) => {
       
       // Ensure user object has role (normalized to lowercase so role-based UI always works)
       const rawRole = (role || user?.role || 'student').toString().toLowerCase();
-      const userWithRole = {
+      let userWithRole = {
         ...user,
         role: rawRole
       };
+      
+      // Immediately hydrate profile from backend so names/avatar are correct
+      // without requiring a manual visit to the Profile page.
+      try {
+        const profileRes = await axios.get('/api/auth/profile', {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        if (profileRes.data && typeof profileRes.data === 'object') {
+          userWithRole = { ...userWithRole, ...profileRes.data };
+        }
+      } catch (_e) {
+        // If profile fetch fails, quietly fall back to login payload only
+      }
       
       setToken(access_token);
       setUserState(userWithRole);
