@@ -14,7 +14,7 @@ import axios from 'axios';
 import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from '../utils/statePersistence';
 import { logAuditEvent } from '../utils/audit';
 
-const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'global' }) => {
+const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'global', hideHighSchool = false }) => {
   // Load persisted filters and search term
   const savedFiltersState = loadFilters(pageName, savedFilters || {});
   const savedSearch = loadSearchTerm(pageName, '');
@@ -265,6 +265,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                 ))}
               </Select>
 
+              {!hideHighSchool && (
               <Select
                 value={filters.high_school || ''}
                 onChange={(e) => handleFilterChange('high_school', e.target.value || null)}
@@ -278,6 +279,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                   </option>
                 ))}
               </Select>
+              )}
 
               <Select
                 value={filters.intake_year || ''}

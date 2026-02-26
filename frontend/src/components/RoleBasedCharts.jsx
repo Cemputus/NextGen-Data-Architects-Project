@@ -98,9 +98,9 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         );
       }
       
-      // Grades Over Time (role-specific scope) - NOT for Finance pages
+      // Grades Over Time (role-specific scope) - NOT for Finance pages and NOT for HR
       // For Senate, ensure institution-wide data (no role-based filtering in params)
-      if (!isFinancePage && role !== 'finance') {
+      if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         const gradeParams = role === 'senate' ? filters : { ...filters, role };
         requests.push(
           axios.get('/api/dashboard/grades-over-time', {
@@ -120,8 +120,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         );
       }
       
-      // Grade Distribution (NOT for finance) - NOT for Finance pages
-      if (!isFinancePage && role !== 'finance') {
+      // Grade Distribution (NOT for finance) - NOT for Finance pages and NOT for HR
+      if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         requests.push(
           axios.get('/api/dashboard/grade-distribution', {
             headers: { Authorization: `Bearer ${token}` },
@@ -150,9 +150,9 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         );
       }
       
-      // Attendance Trends - For all roles except Finance, but Senate also gets attendance
+      // Attendance Trends - For all roles except Finance and HR, but Senate also gets attendance
       // Senate should see BOTH payment trends AND attendance trends
-      if (!isFinancePage && role !== 'finance') {
+      if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         // For Senate, ensure institution-wide data (no role-based filtering)
         const attendanceParams = role === 'senate' ? filters : { ...filters, role };
         requests.push(
@@ -186,8 +186,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         })) || [];
       }
       
-      // Process Grades Over Time (NOT for Finance pages) - Enhanced with comprehensive data
-      if (!isFinancePage && role !== 'finance') {
+      // Process Grades Over Time (NOT for Finance pages and NOT for HR) - Enhanced with comprehensive data
+      if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         const gradesRes = results[resultIndex++];
         data.gradesOverTime = gradesRes.data.periods?.map((period, idx) => ({
           period,
@@ -209,8 +209,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         })) || [];
       }
       
-      // Process Grade Distribution (NOT for Finance pages)
-      if (!isFinancePage && role !== 'finance') {
+      // Process Grade Distribution (NOT for Finance pages and NOT for HR)
+      if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         const gradeDistRes = results[resultIndex++];
         data.gradeDistribution = gradeDistRes.data.grades?.map((grade, idx) => ({
           name: grade,
@@ -238,8 +238,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         })) || [];
       }
       
-      // Process Attendance Trends - For all roles except Finance
-      if (!isFinancePage && role !== 'finance') {
+      // Process Attendance Trends - For all roles except Finance and HR
+      if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         const attendanceRes = results[resultIndex++];
         data.attendance = attendanceRes.data.periods?.map((period, idx) => ({
           period,
@@ -317,8 +317,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        {/* Trend Analysis of Grades Over Time - Role-specific (NOT for Finance) */}
-        {!isFinancePage && role !== 'finance' && (
+        {/* Trend Analysis of Grades Over Time - Role-specific (NOT for Finance or HR) */}
+        {!isFinancePage && role !== 'finance' && role !== 'hr' && (
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Trend Analysis of Grades Over Time</CardTitle>
@@ -427,8 +427,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        {/* Grade Distribution - NOT for Finance */}
-        {!isFinancePage && role !== 'finance' && (
+        {/* Grade Distribution - NOT for Finance or HR */}
+        {!isFinancePage && role !== 'finance' && role !== 'hr' && (
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Grade Distribution</CardTitle>
@@ -507,8 +507,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         )}
       </div>
 
-      {/* Attendance Trends - NOT for Finance, but Senate should see this */}
-      {!isFinancePage && role !== 'finance' && (
+      {/* Attendance Trends - NOT for Finance or HR, but Senate should see this */}
+      {!isFinancePage && role !== 'finance' && role !== 'hr' && (
         <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Attendance Trends</CardTitle>

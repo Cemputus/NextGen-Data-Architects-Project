@@ -89,7 +89,7 @@ const AnalyticsPage = ({ type = 'general' }) => {
         </div>
       </div>
 
-      <GlobalFilterPanel onFilterChange={setFilters} pageName={`${type}_analytics`} />
+      <GlobalFilterPanel onFilterChange={setFilters} pageName={`${type}_analytics`} hideHighSchool={type === 'hr'} />
 
       {loading ? (
         <div className="flex items-center justify-center py-8">

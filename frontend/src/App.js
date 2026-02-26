@@ -242,7 +242,6 @@ function App() {
                     <Route path="dashboard" element={<HRDashboard />} />
                     <Route path="analytics" element={<AnalyticsPage type="hr" />} />
                     <Route path="staff" element={<HRStaff />} />
-                    <Route path="predictions" element={<PredictionPage />} />
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="*" element={<Navigate to="/hr/dashboard" />} />
                   </Routes>

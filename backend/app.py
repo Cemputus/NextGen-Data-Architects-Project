@@ -889,6 +889,98 @@ def hod_staff_in_department():
         return jsonify({'error': str(e), 'staff': []}), 500
 
 
+@app.route('/api/hr/staff-list', methods=['GET'], strict_slashes=False)
+@jwt_required()
+def hr_staff_list():
+    """List all non-student staff members created in the system (app_users + demo accounts).
+    Visible to HR role only."""
+    from flask_jwt_extended import get_jwt
+    claims = get_jwt()
+    role = (claims.get('role') or '').strip().lower()
+    if role != 'hr':
+        return jsonify({'error': 'HR access required'}), 403
+    staff = []
+    try:
+        # Load app_users from RBAC database
+        rbac_engine = create_engine(RBAC_CONN_STRING)
+        _ensure_app_users_table(rbac_engine)
+        df = pd.read_sql_query(
+            text("""
+                SELECT id, username, full_name, role, faculty_id, department_id, created_at
+                FROM app_users
+                WHERE LOWER(role) <> 'student'
+                ORDER BY full_name, username
+            """),
+            rbac_engine,
+        )
+        rbac_engine.dispose()
+
+        # Map faculty/department names from data warehouse
+        try:
+            dw_engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+            fac_df = pd.read_sql_query(
+                "SELECT faculty_id, faculty_name FROM dim_faculty", dw_engine
+            )
+            dept_df = pd.read_sql_query(
+                "SELECT department_id, department_name FROM dim_department", dw_engine
+            )
+            dw_engine.dispose()
+            fac_map = {
+                int(r['faculty_id']): str(r['faculty_name'])
+                for _, r in fac_df.iterrows()
+                if pd.notna(r.get('faculty_id'))
+            }
+            dept_map = {
+                int(r['department_id']): str(r['department_name'])
+                for _, r in dept_df.iterrows()
+                if pd.notna(r.get('department_id'))
+            }
+        except Exception:
+            fac_map, dept_map = {}, {}
+
+        # App users
+        for _, r in df.iterrows():
+            fid = int(r['faculty_id']) if pd.notna(r.get('faculty_id')) else None
+            did = int(r['department_id']) if pd.notna(r.get('department_id')) else None
+            staff.append({
+                'id': int(r['id']) if pd.notna(r.get('id')) else None,
+                'username': str(r['username']) if pd.notna(r.get('username')) else '',
+                'full_name': str(r['full_name']) if pd.notna(r.get('full_name')) else str(r.get('username') or ''),
+                'role': str(r['role']) if pd.notna(r.get('role')) else '',
+                'faculty_id': fid,
+                'faculty_name': fac_map.get(fid),
+                'department_id': did,
+                'department_name': dept_map.get(did),
+                'source': 'app_user',
+                'created_at': r['created_at'].isoformat() if hasattr(r.get('created_at'), 'isoformat') else None,
+            })
+
+        # Include built-in demo accounts (admin, analyst, senate, staff, dean, hod, hr, finance)
+        demo_usernames = {s['username'].lower() for s in staff if s.get('username')}
+        for acc in DEMO_ACCOUNTS:
+            uname = (acc.get('username') or '').strip()
+            if not uname or uname.lower() in demo_usernames:
+                continue
+            if (acc.get('role') or '').lower() == 'student':
+                continue
+            staff.append({
+                'id': f"demo:{uname}",
+                'username': uname,
+                'full_name': acc.get('full_name') or uname,
+                'role': acc.get('role') or '',
+                'faculty_id': None,
+                'faculty_name': None,
+                'department_id': None,
+                'department_name': None,
+                'source': 'demo',
+                'created_at': None,
+            })
+
+        return jsonify({'staff': staff, 'total': len(staff)})
+    except Exception as e:
+        return jsonify({'error': str(e), 'staff': []}), 500
+
+
 @app.route('/api/hod/staff-assignments/<int:staff_id>', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def hod_get_staff_assignments(staff_id):
