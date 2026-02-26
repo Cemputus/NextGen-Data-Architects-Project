@@ -11,15 +11,29 @@ import RoleBasedCharts from '../components/RoleBasedCharts';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const FinanceDashboard = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [filters, setFilters] = useState({});
+  const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
     loadFinanceData();
   }, [filters]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowWelcome(false), 30000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const lastName =
+    (user?.last_name && user.last_name.toString().trim()) ||
+    (user?.full_name && user.full_name.toString().trim().split(' ').slice(-1)[0]) ||
+    user?.username ||
+    '';
 
   const loadFinanceData = async () => {
     try {
@@ -53,7 +67,11 @@ const FinanceDashboard = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Finance Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Financial analytics and payment insights</p>
+          <p className="text-sm text-muted-foreground">
+            {showWelcome && lastName
+              ? `Welcome back ${lastName} 🤗!`
+              : 'Financial analytics and payment insights'}
+          </p>
         </div>
         <ExportButtons stats={stats} filters={filters} filename="finance_dashboard" />
       </div>

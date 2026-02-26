@@ -14,14 +14,17 @@ import ExportButtons from '../components/ExportButtons';
 import FEXAnalytics from './FEXAnalytics';
 import HighSchoolAnalytics from './HighSchoolAnalytics';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
 const AnalystDashboard = () => {
+  const { user } = useAuth();
   const [filters, setFilters] = useState({});
   const [loadingStats, setLoadingStats] = useState(true);
   const [stats, setStats] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
 
   const loadStats = async () => {
     try {
@@ -48,11 +51,26 @@ const AnalystDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(filters)]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setShowWelcome(false), 30000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const lastName =
+    (user?.last_name && user.last_name.toString().trim()) ||
+    (user?.full_name && user.full_name.toString().trim().split(' ').slice(-1)[0]) ||
+    user?.username ||
+    '';
+
   return (
     <div className="space-y-4">
       <PageHeader
         title="Analytics Workspace"
-        subtitle="Live analytics workspace powered by the data warehouse"
+        subtitle={
+          showWelcome && lastName
+            ? `Welcome back ${lastName} 🤗!`
+            : 'Live analytics workspace powered by the data warehouse'
+        }
         actions={
           <>
             <Button

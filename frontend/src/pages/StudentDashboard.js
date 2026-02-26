@@ -18,9 +18,15 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
+  const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
     loadStudentData();
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowWelcome(false), 30000);
+    return () => clearTimeout(timer);
   }, []);
 
   const loadStudentData = async () => {
@@ -50,6 +56,12 @@ const StudentDashboard = () => {
     }
   };
 
+  const lastName =
+    (user?.last_name && user.last_name.toString().trim()) ||
+    (user?.full_name && user.full_name.toString().trim().split(' ').slice(-1)[0]) ||
+    user?.username ||
+    '';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -76,7 +88,11 @@ const StudentDashboard = () => {
     <div className="space-y-4">
       <PageHeader
         title="My Academic Dashboard"
-        subtitle="Your academic performance and progress"
+        subtitle={
+          showWelcome && lastName
+            ? `Welcome back ${lastName} 🤗!`
+            : 'Your academic performance and progress'
+        }
         actions={<ExportButtons stats={stats} filename="student_dashboard" />}
       />
 

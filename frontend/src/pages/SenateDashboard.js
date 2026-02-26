@@ -13,11 +13,13 @@ import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState } from '../utils/statePersistence';
+import { useAuth } from '../context/AuthContext';
 
 const SenateDashboard = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
-  
+  const [showWelcome, setShowWelcome] = useState(true);
   // Load persisted state on mount
   const savedState = loadPageState('senate_dashboard', { filters: {}, tab: 'overview' });
   const [filters, setFilters] = useState(savedState.filters || {});
@@ -31,6 +33,17 @@ const SenateDashboard = () => {
   useEffect(() => {
     loadDashboardData();
   }, [filters]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowWelcome(false), 30000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const lastName =
+    (user?.last_name && user.last_name.toString().trim()) ||
+    (user?.full_name && user.full_name.toString().trim().split(' ').slice(-1)[0]) ||
+    user?.username ||
+    '';
 
   const loadDashboardData = async () => {
     try {
@@ -72,7 +85,11 @@ const SenateDashboard = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Senate Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Institution-wide analytics and comprehensive reporting</p>
+          <p className="text-sm text-muted-foreground">
+            {showWelcome && lastName
+              ? `Welcome back ${lastName} 🤗!`
+              : 'Institution-wide analytics and comprehensive reporting'}
+          </p>
         </div>
         <ExportButtons 
           stats={stats} 

@@ -14,15 +14,18 @@ import AuditLogSection from '../components/admin/AuditLogSection';
 import axios from 'axios';
 import { Button } from '../components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const CONSOLE_KPI_POLL_INTERVAL_MS = 30000; // 30s - live KPIs refresh when new data or users are added
 
 const AdminDashboard = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [systemStats, setSystemStats] = useState(null);
   const [adminStatus, setAdminStatus] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showWelcome, setShowWelcome] = useState(true);
 
   const loadAdminStatus = async () => {
     try {
@@ -82,6 +85,11 @@ const AdminDashboard = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setShowWelcome(false), 30000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleRefreshAll = async () => {
     setRefreshing(true);
     try {
@@ -125,13 +133,23 @@ const AdminDashboard = () => {
     }
   };
 
+  const lastName =
+    (user?.last_name && user.last_name.toString().trim()) ||
+    (user?.full_name && user.full_name.toString().trim().split(' ').slice(-1)[0]) ||
+    user?.username ||
+    '';
+
   return (
     <div className="space-y-4">
       {/* Header with Export */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Admin Console</h1>
-          <p className="text-sm text-muted-foreground">System administration and management</p>
+          <p className="text-sm text-muted-foreground">
+            {showWelcome && lastName
+              ? `Welcome back ${lastName} 🤗!`
+              : 'System administration and management'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button

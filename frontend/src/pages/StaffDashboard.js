@@ -13,18 +13,32 @@ import RoleBasedCharts from '../components/RoleBasedCharts';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const StaffDashboard = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
   const [studentSearch, setStudentSearch] = useState('');
   const [filters, setFilters] = useState({});
   const [stats, setStats] = useState(null);
+  const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
     loadStaffData();
   }, [filters]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowWelcome(false), 30000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const lastName =
+    (user?.last_name && user.last_name.toString().trim()) ||
+    (user?.full_name && user.full_name.toString().trim().split(' ').slice(-1)[0]) ||
+    user?.username ||
+    '';
 
   const loadStaffData = async () => {
     try {
@@ -48,7 +62,11 @@ const StaffDashboard = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Staff Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Class management and teaching analytics</p>
+          <p className="text-sm text-muted-foreground">
+            {showWelcome && lastName
+              ? `Welcome back ${lastName} 🤗!`
+              : 'Class management and teaching analytics'}
+          </p>
         </div>
         <ExportButtons stats={stats} filters={filters} filename="staff_dashboard" />
       </div>

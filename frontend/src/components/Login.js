@@ -52,16 +52,6 @@ const Login = () => {
       const result = await login(username.trim(), password);
       if (result.success && result.user) {
         const role = result.user?.role;
-        const lastName =
-          (result.user.last_name && result.user.last_name.toString().trim()) ||
-          (result.user.full_name && result.user.full_name.toString().trim().split(' ').slice(-1)[0]) ||
-          result.user.username ||
-          '';
-        if (lastName) {
-          // Friendly welcome message for all users on successful login
-          // eslint-disable-next-line no-alert
-          alert(`Welcome back ${lastName} 🤗!`);
-        }
         const routes = {
           senate: '/senate/dashboard', sysadmin: '/admin/dashboard', analyst: '/analyst/dashboard',
           student: '/student/dashboard', staff: '/staff/dashboard', dean: '/dean/dashboard',
