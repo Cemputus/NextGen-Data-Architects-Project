@@ -60,10 +60,7 @@ const Login = () => {
         const roleKey = (role || '').toString().toLowerCase();
         navigate(routes[roleKey] || rbac.getDefaultRoute(roleKey) || '/student/dashboard');
       } else {
-        let errorMsg = result.error || 'Invalid credentials. Please check your username and password.';
-        if (errorMsg.toLowerCase().includes('invalid credentials')) {
-          errorMsg += ' App users: ask an admin to reset password in Admin → Users.';
-        }
+        const errorMsg = result.error || 'Invalid credentials. Please check your username or Access Number and password.';
         setError(errorMsg);
       }
     } catch (err) {

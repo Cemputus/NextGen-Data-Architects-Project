@@ -703,6 +703,24 @@ class ETLPipeline:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """))
 
+            # Dim_App_User - snapshot of RBAC app users into the warehouse for reproducibility and analytics
+            conn.execute(text("DROP TABLE IF EXISTS dim_app_user"))
+            conn.execute(text("""
+                CREATE TABLE dim_app_user (
+                    app_user_id INT PRIMARY KEY,
+                    username VARCHAR(100) NOT NULL UNIQUE,
+                    role VARCHAR(50) NOT NULL,
+                    full_name VARCHAR(200),
+                    faculty_id INT NULL,
+                    department_id INT NULL,
+                    created_at TIMESTAMP NULL,
+                    INDEX idx_username (username),
+                    INDEX idx_role (role),
+                    INDEX idx_faculty (faculty_id),
+                    INDEX idx_department (department_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """))
+
             # Re‑enable foreign key checks
             conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
             conn.commit()
@@ -763,6 +781,38 @@ class ETLPipeline:
         })
         semesters.to_sql('dim_semester', engine, if_exists='append', index=False)
         self.logger.info(f"  → Loaded {len(semesters)} semesters into dim_semester")
+        
+        # Dim_App_User - load from RBAC app_users so App User data is reproducible on any machine
+        try:
+            from api.auth import RBAC_CONN_STRING, _ensure_ucu_rbac_database, _ensure_app_users_table
+            _ensure_ucu_rbac_database()
+            rbac_engine = create_engine(RBAC_CONN_STRING)
+            _ensure_app_users_table(rbac_engine)
+            app_users_df = pd.read_sql_query(
+                text("""
+                    SELECT
+                        id AS app_user_id,
+                        username,
+                        role,
+                        full_name,
+                        faculty_id,
+                        department_id,
+                        created_at
+                    FROM app_users
+                """),
+                rbac_engine,
+            )
+            rbac_engine.dispose()
+            if not app_users_df.empty:
+                with engine.connect() as conn:
+                    conn.execute(text("DELETE FROM dim_app_user"))
+                    conn.commit()
+                app_users_df.to_sql('dim_app_user', engine, if_exists='append', index=False, method='multi', chunksize=100)
+                self.logger.info(f"  → Loaded {len(app_users_df)} app users into dim_app_user")
+            else:
+                self.logger.info("  → No rows in app_users; dim_app_user left empty")
+        except Exception as e:
+            self.logger.warning(f"Failed to load dim_app_user from ucu_rbac.app_users: {e}")
         
         # Dim_Faculty - from source database
         if 'faculties_db1' in silver_data and not silver_data['faculties_db1'].empty:

@@ -104,7 +104,7 @@ def _get_warehouse_counts(engine):
     counts = {}
     tables = [
         'dim_student', 'dim_course', 'dim_semester', 'dim_faculty', 'dim_department',
-        'dim_program', 'dim_time', 'dim_employee',
+        'dim_program', 'dim_time', 'dim_employee', 'dim_app_user',
         'fact_enrollment', 'fact_attendance', 'fact_payment', 'fact_grade',
     ]
     for table in tables:
@@ -387,6 +387,60 @@ def system_status():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+    finally:
+        if engine:
+            engine.dispose()
+
+
+@admin_bp.route('/dim-app-users', methods=['GET'])
+@jwt_required()
+def dim_app_users():
+    """
+    List App Users from the warehouse dimension dim_app_user.
+    Sysadmin only. Optional query params:
+      - limit (default 200, max 1000)
+      - offset (default 0)
+      - role (filter by LOWER(role))
+    """
+    err, code = _require_sysadmin()
+    if err is not None:
+        return err, code
+    try:
+        raw_limit = request.args.get('limit', type=int)
+        limit = 200 if raw_limit is None else max(1, min(int(raw_limit), 1000))
+    except (TypeError, ValueError):
+        limit = 200
+    try:
+        raw_offset = request.args.get('offset', type=int)
+        offset = 0 if raw_offset is None else max(0, int(raw_offset))
+    except (TypeError, ValueError):
+        offset = 0
+    role_filter = (request.args.get('role') or '').strip().lower()
+    engine = None
+    try:
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        base_sql = """
+            SELECT app_user_id, username, role, full_name,
+                   faculty_id, department_id, created_at
+            FROM dim_app_user
+        """
+        params = {}
+        if role_filter:
+            base_sql += " WHERE LOWER(role) = :role"
+            params['role'] = role_filter
+        base_sql += " ORDER BY username LIMIT :limit OFFSET :offset"
+        params['limit'] = limit
+        params['offset'] = offset
+        df = pd.read_sql_query(text(base_sql), engine, params=params)
+        records = df.to_dict('records') if not df.empty else []
+        return jsonify({
+            'app_users': records,
+            'limit': limit,
+            'offset': offset,
+            'returned': len(records),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'app_users': [], 'limit': limit, 'offset': offset}), 500
     finally:
         if engine:
             engine.dispose()

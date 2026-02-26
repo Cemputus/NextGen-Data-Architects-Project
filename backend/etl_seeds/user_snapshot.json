@@ -1,0 +1,100 @@
+{
+  "app_users": [
+    {
+      "id": 1,
+      "username": "Cemputus",
+      "password_hash": "pbkdf2:sha256:600000$yjweANtuhGhvv6aq$56219bfb1f26851bb97ca911a2befdf5ea6d9f5a0873cb542a5af46b90350c6b",
+      "role": "staff",
+      "full_name": "Emmanuel Nsubuga",
+      "faculty_id": 6.0,
+      "department_id": 8.0,
+      "created_at": "2026-02-20 18:34:15"
+    },
+    {
+      "id": 6,
+      "username": "ed",
+      "password_hash": "pbkdf2:sha256:600000$dQ1y2yBqWTbK7AUk$cb60e60a2dd816f9fb89a646625ff5eabc9e727a47d8f1487fdc87076cc105e7",
+      "role": "sysadmin",
+      "full_name": "Guloba Emmanuel Edube",
+      "faculty_id": NaN,
+      "department_id": NaN,
+      "created_at": "2026-02-22 12:23:16"
+    },
+    {
+      "id": 7,
+      "username": "edube",
+      "password_hash": "pbkdf2:sha256:600000$Rfwa5w7h4CkTePZd$0714c0e68b7c4f2b94f2920cd95c5f697d11b9094d434663963fb95bd709bae9",
+      "role": "analyst",
+      "full_name": "Guloba Emmanuel Edube",
+      "faculty_id": NaN,
+      "department_id": NaN,
+      "created_at": "2026-02-23 16:10:44"
+    },
+    {
+      "id": 8,
+      "username": "wanja",
+      "password_hash": "pbkdf2:sha256:600000$5w8oonXCNTn9jjeF$ab201fdb9dd067df8e936ceb6635803c50db06e839f328fdca4dac5dd7de3955",
+      "role": "hod",
+      "full_name": "Wanja Grace",
+      "faculty_id": NaN,
+      "department_id": 7.0,
+      "created_at": "2026-02-24 17:20:23"
+    },
+    {
+      "id": 9,
+      "username": "enoch",
+      "password_hash": "pbkdf2:sha256:600000$m9OmSFzhST4QAarE$efba6d6bb8e248f19cf931dd2ca53e608aaedb94073713c7c2535d6576baf6ad",
+      "role": "hod",
+      "full_name": "Enoch Asingwiire",
+      "faculty_id": NaN,
+      "department_id": 9.0,
+      "created_at": "2026-02-25 09:21:21"
+    },
+    {
+      "id": 10,
+      "username": "joy",
+      "password_hash": "pbkdf2:sha256:600000$OSwNRdg0FF3OSESF$f41e08abfb3458abd43d1ba37d54293ded51a31dd4dadb765767de70f9403bf0",
+      "role": "dean",
+      "full_name": "Joy Awor",
+      "faculty_id": 6.0,
+      "department_id": NaN,
+      "created_at": "2026-02-26 19:18:29"
+    }
+  ],
+  "user_profiles": [
+    {
+      "id": 1,
+      "username": "admin",
+      "role": "sysadmin",
+      "first_name": "EMMANUEL",
+      "last_name": "Edube",
+      "email": "gulobaemmanueledube@gmail.com",
+      "phone": "+256745597803",
+      "profile_picture_url": "/api/auth/profile/photo",
+      "preferences": null,
+      "updated_at": "2026-02-26 12:55:33"
+    },
+    {
+      "id": 2,
+      "username": "analyst",
+      "role": "analyst",
+      "first_name": "EMMANUEL",
+      "last_name": "NSUBUGA",
+      "email": "ensubuga019@gmail.com",
+      "phone": "+256775064042",
+      "profile_picture_url": "/api/auth/profile/photo",
+      "preferences": null,
+      "updated_at": "2026-02-26 14:44:02"
+    }
+  ],
+  "user_state": [
+    {
+      "id": 1,
+      "username": "analyst",
+      "role": "analyst",
+      "state_key": "nextgen_query",
+      "state_json": "{\"query\": \"SELECT \\n  fg.student_id,\\n  fg.course_code,\\n  fg.grade,\\n  fg.exam_status\\nFROM fact_grade fg\\nJOIN dim_student ds ON fg.student_id = ds.student_id\\nLIMIT 20;\\n\", \"history\": [\"SELECT \\n  fg.student_id,\\n  fg.course_code,\\n  fg.grade,\\n  fg.exam_status\\nFROM fact_grade fg\\nJOIN dim_student ds ON fg.student_id = ds.student_id\\nLIMIT 20;\", \"SELECT *\\nFROM dim_student\\nLIMIT 40;\", \"SELECT *\\nFROM dim_student\\nLIMIT 20;\"], \"chartType\": \"bar\", \"xColumn\": \"student_id\", \"yColumn\": \"program_id\", \"result\": {\"columns\": [{\"is_numeric\": false, \"name\": \"student_id\", \"type\": \"object\"}, {\"is_numeric\": false, \"name\": \"course_code\", \"type\": \"object\"}, {\"is_numeric\": true, \"name\": \"grade\", \"type\": \"float64\"}, {\"is_numeric\": false, \"name\": \"exam_status\", \"type\": \"object\"}], \"elapsed_ms\": 43, \"row_count\": 20, \"rows\": [{\"course_code\": \"GEN402\", \"exam_status\": \"Completed\", \"grade\": 68.64, \"student_id\": \"M24M01/001\"}, {\"course_code\": \"GEN204\", \"exam_status\": \"Completed\", \"grade\": 62.38, \"student_id\": \"J21M01/001\"}, {\"course_code\": \"EDU140\", \"exam_status\": \"Completed\", \"grade\": 54.83, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BUS157\", \"exam_status\": \"Completed\", \"grade\": 68.38, \"student_id\": \"S23B05/001\"}, {\"course_code\": \"GEN229\", \"exam_status\": \"Completed\", \"grade\": 63.16, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"CSC315\", \"exam_status\": \"Completed\", \"grade\": 66.73, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"EDU134\", \"exam_status\": \"Completed\", \"grade\": 56.86, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"EDU431\", \"exam_status\": \"Completed\", \"grade\": 76.55, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BIT244\", \"exam_status\": \"Completed\", \"grade\": 66.22, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BIT382\", \"exam_status\": \"Completed\", \"grade\": 59.65, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"BIT371\", \"exam_status\": \"Completed\", \"grade\": 72.72, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"GEN267\", \"exam_status\": \"Completed\", \"grade\": 89.42, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"GEN474\", \"exam_status\": \"Completed\", \"grade\": 80.94, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"BIT230\", \"exam_status\": \"FEX\", \"grade\": 40.98, \"student_id\": \"J21M01/001\"}, {\"course_code\": \"BUS221\", \"exam_status\": \"Completed\", \"grade\": 68.97, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"EDU456\", \"exam_status\": \"Completed\", \"grade\": 67.19, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"LAW146\", \"exam_status\": \"Completed\", \"grade\": 59.96, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"JRN174\", \"exam_status\": \"Completed\", \"grade\": 79.63, \"student_id\": \"S21M01/001\"}, {\"course_code\": \"GEN357\", \"exam_status\": \"Completed\", \"grade\": 52.31, \"student_id\": \"S21M01/001\"}, {\"course_code\": \"GEN437\", \"exam_status\": \"Completed\", \"grade\": 47.65, \"student_id\": \"S21M01/001\"}]}}",
+      "updated_at": "2026-02-26 14:53:16"
+    }
+  ]
+}
