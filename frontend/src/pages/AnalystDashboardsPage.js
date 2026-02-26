@@ -1,8 +1,11 @@
 /**
- * Analyst Dashboards Management
- * - Analysts can see ALL dashboards in the system (scope=all)
- * - Edit assignments (roles) and the dashboard content (KPIs & charts)
- * - Other roles will still use their own dashboards views (if wired later)
+ * Dashboard Manager (Analyst)
+ *
+ * - Current Dashboards: one small card per role (student, staff, dean, etc.), showing
+ *   which dashboard is currently deployed for that role.
+ * - Custom Dashboards: all other dashboards that can be edited / previewed / swapped in.
+ *
+ * Swaps are handled by /api/dashboard-manager/swap and immediately reflected in both sections.
  */
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -11,9 +14,8 @@ import { PageHeader } from '../components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { RefreshCw, Filter as FilterIcon, Loader2 } from 'lucide-react';
+import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2 } from 'lucide-react';
 
-// Base KPI keys used across dashboards; actual visibility is filtered per role.
 const KPI_OPTIONS = [
   'total_students',
   'avg_grade',
@@ -24,14 +26,6 @@ const KPI_OPTIONS = [
   'graduation_rate',
 ];
 
-// RBAC-aware chart identifiers, aligned with RoleBasedCharts:
-// - student_distribution: Student Distribution by Department
-// - grades_over_time: Trend Analysis of Grades Over Time
-// - payment_status: Payment Status / My Payment Status
-// - grade_distribution: Grade Distribution
-// - top_students: Top 10 Students
-// - payment_trends: Payment Trends Over Time
-// - attendance_trends: Attendance Trends
 const CHART_OPTIONS = [
   'student_distribution',
   'grades_over_time',
@@ -54,21 +48,36 @@ const ROLE_FILTER_OPTIONS = [
   'senate',
 ];
 
+const ALL_ROLES = [
+  'student',
+  'staff',
+  'hod',
+  'dean',
+  'senate',
+  'finance',
+  'hr',
+  'analyst',
+  'sysadmin',
+];
+
 const AnalystDashboardsPage = () => {
   const { user } = useAuth();
-  const [dashboards, setDashboards] = useState([]);
+  const [currentByRole, setCurrentByRole] = useState([]);
+  const [customDashboards, setCustomDashboards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterRole, setFilterRole] = useState('');
   const [search, setSearch] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [editRoles, setEditRoles] = useState([]);
-  const [savingId, setSavingId] = useState(null);
+  const [createdByFilter, setCreatedByFilter] = useState('all'); // all | me
+  const [viewMode, setViewMode] = useState('grid'); // grid | list (grid is primary)
+
   const [contentDashboard, setContentDashboard] = useState(null);
+  const [previewDashboard, setPreviewDashboard] = useState(null);
   const [contentForm, setContentForm] = useState({
     kpis: ['total_students', 'avg_grade', 'failed_exams'],
     charts: ['student_distribution', 'grades_over_time'],
   });
   const [savingContent, setSavingContent] = useState(false);
+
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: '',
@@ -82,14 +91,10 @@ const AnalystDashboardsPage = () => {
 
   const isKpiAllowedForRole = (kpiKey, targetRole) => {
     const r = normalizeRole(targetRole);
-    if (r === 'finance') {
-      // Finance focuses on payment charts; keep KPIs minimal for now
-      return false;
-    }
+    if (r === 'finance') return false;
     if (r === 'student') {
       return ['avg_grade', 'failed_exams', 'missed_exams', 'avg_attendance'].includes(kpiKey);
     }
-    // Dean / HOD / Senate / Staff / Analyst see full academic KPIs, scoped by their faculty/department/institution
     return KPI_OPTIONS.includes(kpiKey);
   };
 
@@ -161,43 +166,227 @@ const AnalystDashboardsPage = () => {
     }
   };
 
-  const loadAllDashboards = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const resp = await axios.get('/api/dashboards', {
-        params: { scope: 'all' },
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      const token = localStorage.getItem('token');
+
+      const params = {};
+      if (filterRole) params.role = filterRole;
+      if (createdByFilter === 'me') params.created_by = 'me';
+
+      const [currentResp, customResp] = await Promise.all([
+        axios.get('/api/dashboard-manager/current', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get('/api/dashboard-manager/custom', {
+          headers: { Authorization: `Bearer ${token}` },
+          params,
+        }),
+      ]);
+
+      // Ensure we always have the 9 roles, even if backend missed some
+      const current = currentResp.data?.roles || [];
+      const byRole = {};
+      current.forEach((item) => {
+        byRole[normalizeRole(item.role)] = item;
       });
-      setDashboards(resp.data?.dashboards || []);
+      const merged = ALL_ROLES.map((r) => byRole[r] || { role: r, dashboard: null });
+
+      setCurrentByRole(merged);
+      setCustomDashboards(customResp.data?.dashboards || []);
     } catch (err) {
-      console.error('Error loading dashboards (scope=all):', err);
+      console.error('Error loading dashboard manager data:', err);
+      setCurrentByRole([]);
+      setCustomDashboards([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadAllDashboards();
-  }, []);
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterRole, createdByFilter]);
 
-  const filtered = dashboards.filter((d) => {
-    const matchesRole =
-      !filterRole ||
-      (Array.isArray(d.roles) && d.roles.map((r) => (r || '').toLowerCase()).includes(filterRole));
+  // Filtering helpers
+  const matchesSearch = (text) => {
+    if (!search.trim()) return true;
     const s = search.trim().toLowerCase();
-    const matchesSearch =
-      !s ||
-      (d.name || '').toLowerCase().includes(s) ||
-      (d.description || '').toLowerCase().includes(s) ||
-      (d.created_by_username || '').toLowerCase().includes(s);
-    return matchesRole && matchesSearch;
+    return (text || '').toString().toLowerCase().includes(s);
+  };
+
+  const filteredCurrent = currentByRole.filter((entry) => {
+    if (filterRole && normalizeRole(entry.role) !== filterRole) return false;
+    const dash = entry.dashboard;
+    if (!dash) return matchesSearch(entry.role);
+    return (
+      matchesSearch(dash.name) ||
+      matchesSearch(dash.description) ||
+      matchesSearch(dash.created_by_username) ||
+      matchesSearch(entry.role)
+    );
   });
+
+  const filteredCustom = customDashboards.filter((dash) => {
+    if (filterRole) {
+      const roles = Array.isArray(dash.roles) ? dash.roles.map(normalizeRole) : [];
+      if (!roles.includes(filterRole)) return false;
+    }
+    return (
+      matchesSearch(dash.name) ||
+      matchesSearch(dash.description) ||
+      matchesSearch(dash.created_by_username)
+    );
+  });
+
+  const parseDefinition = (dash) => {
+    let def = dash.definition;
+    try {
+      if (typeof def === 'string') {
+        def = JSON.parse(def);
+      }
+    } catch {
+      def = {};
+    }
+    return def && typeof def === 'object' ? def : {};
+  };
+
+  const openContentEditor = (dash, previewOnly = false) => {
+    const def = parseDefinition(dash);
+    const kpis =
+      def && Array.isArray(def.kpis) && def.kpis.length > 0
+        ? def.kpis
+        : KPI_OPTIONS;
+    const charts =
+      def && Array.isArray(def.charts) && def.charts.length > 0
+        ? def.charts
+        : CHART_OPTIONS;
+    setContentDashboard({ ...dash, previewOnly });
+    setContentForm({ kpis, charts });
+  };
+
+  const handleSwapFromCustom = async (dash) => {
+    const roles = Array.isArray(dash.roles) ? dash.roles.map(normalizeRole) : [];
+    const targetRole = filterRole || roles[0] || 'analyst';
+    if (!targetRole) {
+      // eslint-disable-next-line no-alert
+      alert('Select a role filter or assign at least one role to this dashboard first.');
+      return;
+    }
+    // eslint-disable-next-line no-alert
+    const ok = window.confirm(
+      `Swap current dashboard for role ${targetRole} with "${dash.name}"?`
+    );
+    if (!ok) return;
+    try {
+      await axios.post(
+        '/api/dashboard-manager/swap',
+        {
+          role: targetRole,
+          dashboard_id: dash.id,
+        },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        }
+      );
+      await loadData();
+    } catch (err) {
+      console.error('Error swapping dashboard:', err);
+      const msg =
+        err?.response?.data?.error ||
+        err?.message ||
+        'Unknown error while swapping dashboard.';
+      // eslint-disable-next-line no-alert
+      alert(`Failed to swap dashboard: ${msg}`);
+    }
+  };
+
+  const handleSaveContent = async () => {
+    if (!contentDashboard) return;
+    try {
+      setSavingContent(true);
+      const roles = Array.isArray(contentDashboard.roles)
+        ? contentDashboard.roles
+        : [];
+      await axios.put(
+        `/api/dashboards/${contentDashboard.id}`,
+        {
+          name: contentDashboard.name,
+          description: contentDashboard.description,
+          roles,
+          definition: {
+            template: 'analytics_dashboard',
+            source: 'analyst_dashboard',
+            kpis: contentForm.kpis,
+            charts: contentForm.charts,
+          },
+        },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        }
+      );
+      setContentDashboard(null);
+      await loadData();
+    } catch (err) {
+      console.error('Error updating dashboard content:', err);
+      const msg =
+        err?.response?.data?.error ||
+        err?.message ||
+        'Unknown error while updating dashboard content.';
+      // eslint-disable-next-line no-alert
+      alert(`Failed to update content: ${msg}`);
+    } finally {
+      setSavingContent(false);
+    }
+  };
+
+  const handleCreateDashboard = async () => {
+    try {
+      const roles = createForm.roles;
+      const primaryRole = roles[0] || 'analyst';
+      const defaultKpis = KPI_OPTIONS.filter((k) =>
+        isKpiAllowedForRole(k, primaryRole)
+      );
+      const defaultCharts = CHART_OPTIONS.filter((c) =>
+        isChartAllowedForRole(c, primaryRole)
+      );
+
+      await axios.post(
+        '/api/dashboards',
+        {
+          name: createForm.name.trim(),
+          description: createForm.description.trim(),
+          roles,
+          definition: {
+            template: 'analytics_dashboard',
+            source: 'analyst_dashboard',
+            kpis: defaultKpis,
+            charts: defaultCharts,
+          },
+        },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        }
+      );
+      setShowCreate(false);
+      await loadData();
+    } catch (err) {
+      console.error('Error creating dashboard:', err);
+      const msg =
+        err?.response?.data?.error ||
+        err?.message ||
+        'Unknown error while creating dashboard.';
+      // eslint-disable-next-line no-alert
+      alert(`Failed to create dashboard: ${msg}`);
+    }
+  };
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Dashboards Manager"
-        subtitle="Review and manage all dashboards across roles. Analysts can adjust role access and content."
+        title="Dashboard Manager"
+        subtitle="Review and manage dashboards across roles. Analysts can preview, edit content, and swap current dashboards per role."
         actions={
           <div className="flex items-center gap-2">
             {canManage && (
@@ -219,7 +408,7 @@ const AnalystDashboardsPage = () => {
             <Button
               size="sm"
               className="gap-2"
-              onClick={loadAllDashboards}
+              onClick={loadData}
               disabled={loading}
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -229,12 +418,13 @@ const AnalystDashboardsPage = () => {
         }
       />
 
+      {/* Global filters + view toggle */}
       <Card className="border shadow-sm">
         <CardHeader className="p-4 pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="text-base font-semibold">All Dashboards</CardTitle>
+            <CardTitle className="text-sm font-semibold">Filters</CardTitle>
             <CardDescription className="text-xs">
-              Filter by role or search by name/creator to quickly find dashboards.
+              Filter by role, creator, or name to quickly find dashboards.
             </CardDescription>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -252,6 +442,14 @@ const AnalystDashboardsPage = () => {
                   </option>
                 ))}
               </select>
+              <select
+                className="border rounded-md px-2 py-1 text-xs bg-background"
+                value={createdByFilter}
+                onChange={(e) => setCreatedByFilter(e.target.value)}
+              >
+                <option value="all">Created by: All</option>
+                <option value="me">Created by: Me</option>
+              </select>
             </div>
             <Input
               placeholder="Search dashboards..."
@@ -259,162 +457,227 @@ const AnalystDashboardsPage = () => {
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 text-xs w-full sm:w-56"
             />
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="icon"
+                variant={viewMode === 'grid' ? 'default' : 'outline'}
+                className="h-8 w-8"
+                onClick={() => setViewMode('grid')}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                className="h-8 w-8"
+                onClick={() => setViewMode('list')}
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
+        </CardHeader>
+      </Card>
+
+      {/* Current Dashboards */}
+      <Card className="border shadow-sm">
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
+          <CardDescription className="text-xs">
+            One card per role showing the dashboard currently deployed. Use Custom Dashboards to swap.
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
           {loading ? (
-            <div className="flex items-center justify-center py-8 text-xs text-muted-foreground gap-2">
+            <div className="flex items-center justify-center py-6 text-xs text-muted-foreground gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading dashboards…
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
-              No dashboards found for the current filter.
+              Loading current dashboards…
             </div>
           ) : (
-            <div className="space-y-2">
-              {filtered.map((dash) => {
-                const isEditing = editingId === dash.id;
-                const roles = Array.isArray(dash.roles) ? dash.roles : [];
-                const editableRoles = isEditing ? editRoles : roles;
+            <div
+              className={
+                viewMode === 'grid'
+                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'
+                  : 'space-y-2'
+              }
+            >
+              {filteredCurrent.map((entry) => {
+                const rname = entry.role;
+                const dash = entry.dashboard;
+                return (
+                  <div
+                    key={rname}
+                    className="border rounded-md px-3 py-2 flex flex-col justify-between text-[11px] min-h-[110px]"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase font-semibold text-muted-foreground">
+                          {rname}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Current
+                        </span>
+                      </div>
+                      <div className="font-semibold text-xs">
+                        {dash ? dash.name : 'No current dashboard assigned'}
+                      </div>
+                      {dash && dash.description && (
+                        <div className="text-muted-foreground line-clamp-2">
+                          {dash.description}
+                        </div>
+                      )}
+                      {dash && (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          <span className="text-[10px] text-muted-foreground">
+                            Created by{' '}
+                            <span className="font-medium">{dash.created_by_username}</span>
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            Roles:{' '}
+                            {Array.isArray(dash.roles) && dash.roles.length > 0
+                              ? dash.roles.join(', ')
+                              : 'None'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1 mt-2">
+                      {dash ? (
+                        <>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={() =>
+                              setPreviewDashboard((prev) =>
+                                prev && prev.id === dash.id ? null : dash
+                              )
+                            }
+                          >
+                            {previewDashboard && previewDashboard.id === dash.id
+                              ? 'Hide'
+                              : 'Preview'}
+                          </Button>
+                          {canManage && (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() => openContentEditor(dash, false)}
+                            >
+                              Edit content
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        canManage && (
+                          <span className="text-[10px] text-muted-foreground">
+                            Use a Custom dashboard and &quot;Make current&quot; to assign one.
+                          </span>
+                        )
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
+      {/* Custom Dashboards */}
+      <Card className="border shadow-sm">
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-base font-semibold">Custom Dashboards</CardTitle>
+          <CardDescription className="text-xs">
+            Dashboards available for assignment or swap. Preview and tweak content before making them current.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-6 text-xs text-muted-foreground gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading custom dashboards…
+            </div>
+          ) : filteredCustom.length === 0 ? (
+            <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
+              No custom dashboards found for the current filters.
+            </div>
+          ) : (
+            <div
+              className={
+                viewMode === 'grid'
+                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'
+                  : 'space-y-2'
+              }
+            >
+              {filteredCustom.map((dash) => {
+                const roles = Array.isArray(dash.roles) ? dash.roles : [];
                 return (
                   <div
                     key={dash.id}
-                    className="border rounded-md px-3 py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-[11px]"
+                    className="border rounded-md px-3 py-2 flex flex-col justify-between text-[11px] min-h-[110px]"
                   >
                     <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase font-semibold text-muted-foreground">
+                          Custom
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200">
+                          Draft
+                        </span>
+                      </div>
                       <div className="font-semibold text-xs">{dash.name}</div>
                       {dash.description && (
-                        <div className="text-muted-foreground line-clamp-2">{dash.description}</div>
+                        <div className="text-muted-foreground line-clamp-2">
+                          {dash.description}
+                        </div>
                       )}
                       <div className="flex flex-wrap gap-2 mt-1">
                         <span className="text-[10px] text-muted-foreground">
-                          Created by <span className="font-medium">{dash.created_by_username}</span>
+                          Created by{' '}
+                          <span className="font-medium">{dash.created_by_username}</span>
                         </span>
                         <span className="text-[10px] text-muted-foreground">
-                          Roles:{' '}
-                          {editableRoles.length > 0 ? editableRoles.join(', ') : 'None'}
+                          Roles: {roles.length > 0 ? roles.join(', ') : 'None'}
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <div className="flex flex-wrap items-center gap-1 mt-2">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() =>
+                          setPreviewDashboard((prev) =>
+                            prev && prev.id === dash.id ? null : dash
+                          )
+                        }
+                      >
+                        {previewDashboard && previewDashboard.id === dash.id
+                          ? 'Hide'
+                          : 'Preview'}
+                      </Button>
                       {canManage && (
                         <>
-                          {isEditing ? (
-                            <>
-                              <select
-                                multiple
-                                className="border rounded-md px-1 py-1 text-[10px] bg-background min-w-[120px] max-h-20"
-                                value={editableRoles}
-                                onChange={(e) => {
-                                  const opts = Array.from(e.target.selectedOptions).map((o) =>
-                                    (o.value || '').toLowerCase()
-                                  );
-                                  setEditRoles(opts);
-                                }}
-                              >
-                                {ROLE_FILTER_OPTIONS.map((r) => (
-                                  <option key={r} value={r}>
-                                    {r}
-                                  </option>
-                                ))}
-                              </select>
-                              <Button
-                                size="xs"
-                                className="h-6 px-2 text-[10px]"
-                                disabled={savingId === dash.id}
-                                onClick={async () => {
-                                  try {
-                                    setSavingId(dash.id);
-                                    await axios.put(
-                                      `/api/dashboards/${dash.id}`,
-                                      {
-                                        name: dash.name,
-                                        description: dash.description,
-                                        definition: dash.definition || {},
-                                        roles: editableRoles,
-                                      },
-                                      {
-                                        headers: {
-                                          Authorization: `Bearer ${localStorage.getItem('token')}`,
-                                        },
-                                      }
-                                    );
-                                    setEditingId(null);
-                                    setEditRoles([]);
-                                    await loadAllDashboards();
-                                  } catch (err) {
-                                    console.error('Error updating dashboard roles:', err);
-                                    const msg =
-                                      err?.response?.data?.error ||
-                                      err?.message ||
-                                      'Unknown error while updating dashboard.';
-                                    // eslint-disable-next-line no-alert
-                                    alert(`Failed to update dashboard: ${msg}`);
-                                  } finally {
-                                    setSavingId(null);
-                                  }
-                                }}
-                              >
-                                {savingId === dash.id ? 'Saving…' : 'Save'}
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                className="h-6 px-2 text-[10px]"
-                                onClick={() => {
-                                  setEditingId(null);
-                                  setEditRoles([]);
-                                }}
-                              >
-                                Cancel
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                className="h-6 px-2 text-[10px]"
-                                onClick={() => {
-                                  setEditingId(dash.id);
-                                  setEditRoles(roles.map((r) => (r || '').toLowerCase()));
-                                }}
-                              >
-                                Edit roles
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                className="h-6 px-2 text-[10px]"
-                                onClick={() => {
-                                  let def = {};
-                                  try {
-                                    if (typeof dash.definition === 'string') {
-                                      def = JSON.parse(dash.definition);
-                                    } else if (dash.definition && typeof dash.definition === 'object') {
-                                      def = dash.definition;
-                                    }
-                                  } catch {
-                                    def = {};
-                                  }
-                                  const kpis =
-                                    Array.isArray(def.kpis) && def.kpis.length > 0
-                                      ? def.kpis
-                                      : ['total_students', 'avg_grade', 'failed_exams'];
-                                  const charts =
-                                    Array.isArray(def.charts) && def.charts.length > 0
-                                      ? def.charts
-                                      : ['fex'];
-                                  setContentDashboard(dash);
-                                  setContentForm({ kpis, charts });
-                                }}
-                              >
-                                Edit content
-                              </Button>
-                            </>
-                          )}
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={() => openContentEditor(dash, false)}
+                          >
+                            Edit content
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={() => handleSwapFromCustom(dash)}
+                          >
+                            Make current
+                          </Button>
                         </>
                       )}
                     </div>
@@ -425,11 +688,79 @@ const AnalystDashboardsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Full preview below Custom Dashboards – behaves like Open/Hide */}
+      {previewDashboard && (
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            {(() => {
+              const dash = previewDashboard;
+              const def = parseDefinition(dash);
+              const kpis =
+                Array.isArray(def.kpis) && def.kpis.length > 0
+                  ? def.kpis
+                  : KPI_OPTIONS;
+              const charts =
+                Array.isArray(def.charts) && def.charts.length > 0
+                  ? def.charts
+                  : CHART_OPTIONS;
+              return (
+                <>
+                  <CardTitle className="text-base font-semibold">
+                    {dash.name || 'Custom Dashboard'}
+                  </CardTitle>
+                  {dash.description && (
+                    <CardDescription className="text-xs">
+                      {dash.description}
+                    </CardDescription>
+                  )}
+                  <CardContent className="mt-3 px-0 pb-4 space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                        KPIs
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {kpis.map((k) => (
+                          <div
+                            key={k}
+                            className="rounded-md border px-2 py-2 text-[11px] bg-muted/40"
+                          >
+                            {labelForKpi(k)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                        Charts
+                      </p>
+                      <div className="space-y-2">
+                        {charts.map((c) => (
+                          <div
+                            key={c}
+                            className="rounded-md border px-3 py-3 text-[11px] bg-muted/20"
+                          >
+                            {labelForChart(c)} (chart area)
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </>
+              );
+            })()}
+          </CardHeader>
+        </Card>
+      )}
+
+      {/* Content editor / preview modal */}
       {contentDashboard && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
           <div className="bg-background rounded-lg shadow-xl w-full max-w-md border">
             <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Edit Dashboard Content</h2>
+              <h2 className="text-sm font-semibold">
+                {contentDashboard.previewOnly ? 'Preview Dashboard Content' : 'Edit Dashboard Content'}
+              </h2>
               <button
                 type="button"
                 className="text-xs text-muted-foreground hover:text-foreground"
@@ -450,13 +781,15 @@ const AnalystDashboardsPage = () => {
                 )}
               </div>
               {(() => {
-                const targetRole =
+                const firstRole =
                   filterRole ||
                   (Array.isArray(contentDashboard.roles) && contentDashboard.roles[0]) ||
                   'analyst';
-                const allowedKpis = KPI_OPTIONS.filter((k) => isKpiAllowedForRole(k, targetRole));
+                const allowedKpis = KPI_OPTIONS.filter((k) =>
+                  isKpiAllowedForRole(k, firstRole)
+                );
                 const allowedCharts = CHART_OPTIONS.filter((c) =>
-                  isChartAllowedForRole(c, targetRole)
+                  isChartAllowedForRole(c, firstRole)
                 );
                 return (
                   <>
@@ -464,7 +797,7 @@ const AnalystDashboardsPage = () => {
                       <p className="text-xs font-medium">
                         KPIs to show{' '}
                         <span className="text-[10px] text-muted-foreground">
-                          (filtered for role {targetRole})
+                          (filtered for role {firstRole})
                         </span>
                       </p>
                       <div className="grid grid-cols-2 gap-1">
@@ -476,8 +809,10 @@ const AnalystDashboardsPage = () => {
                             <input
                               type="checkbox"
                               className="h-3 w-3"
+                              disabled={contentDashboard.previewOnly}
                               checked={contentForm.kpis.includes(key)}
                               onChange={(e) => {
+                                if (contentDashboard.previewOnly) return;
                                 const checkedNow = e.target.checked;
                                 setContentForm((prev) => {
                                   const setVals = new Set(prev.kpis);
@@ -499,7 +834,7 @@ const AnalystDashboardsPage = () => {
                       <p className="text-xs font-medium">
                         Charts to show{' '}
                         <span className="text-[10px] text-muted-foreground">
-                          (RBAC charts for role {targetRole})
+                          (RBAC charts for role {firstRole})
                         </span>
                       </p>
                       <div className="grid grid-cols-2 gap-1">
@@ -511,8 +846,10 @@ const AnalystDashboardsPage = () => {
                             <input
                               type="checkbox"
                               className="h-3 w-3"
+                              disabled={contentDashboard.previewOnly}
                               checked={contentForm.charts.includes(key)}
                               onChange={(e) => {
+                                if (contentDashboard.previewOnly) return;
                                 const checkedNow = e.target.checked;
                                 setContentForm((prev) => {
                                   const setVals = new Set(prev.charts);
@@ -530,71 +867,77 @@ const AnalystDashboardsPage = () => {
                         ))}
                       </div>
                     </div>
+                    {/* Simple visual preview of layout */}
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium">Preview layout</p>
+                      <div className="space-y-1">
+                        <p className="text-[10px] uppercase text-muted-foreground font-semibold">
+                          KPIs
+                        </p>
+                        <div className="grid grid-cols-2 gap-1">
+                          {contentForm.kpis
+                            .filter((k) => allowedKpis.includes(k))
+                            .map((k) => (
+                              <div
+                                key={k}
+                                className="rounded-md border px-2 py-1.5 text-[11px] bg-muted/40"
+                              >
+                                {labelForKpi(k)}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] uppercase text-muted-foreground font-semibold">
+                          Charts
+                        </p>
+                        <div className="space-y-1">
+                          {contentForm.charts
+                            .filter((c) => allowedCharts.includes(c))
+                            .map((c) => (
+                              <div
+                                key={c}
+                                className="rounded-md border px-2 py-2 text-[11px] bg-muted/20"
+                              >
+                                {labelForChart(c)} (chart area)
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
                   </>
                 );
               })()}
             </div>
-            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setContentDashboard(null)}
-                disabled={savingContent}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="gap-2"
-                disabled={
-                  savingContent ||
-                  (contentForm.kpis.length === 0 && contentForm.charts.length === 0)
-                }
-                onClick={async () => {
-                  try {
-                    setSavingContent(true);
-                    const roles = Array.isArray(contentDashboard.roles)
-                      ? contentDashboard.roles
-                      : [];
-                    await axios.put(
-                      `/api/dashboards/${contentDashboard.id}`,
-                      {
-                        name: contentDashboard.name,
-                        description: contentDashboard.description,
-                        roles,
-                        definition: {
-                          template: 'analytics_dashboard',
-                          source: 'analyst_dashboard',
-                          kpis: contentForm.kpis,
-                          charts: contentForm.charts,
-                        },
-                      },
-                      {
-                        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-                      }
-                    );
-                    setContentDashboard(null);
-                    await loadAllDashboards();
-                  } catch (err) {
-                    console.error('Error updating dashboard content:', err);
-                    const msg =
-                      err?.response?.data?.error ||
-                      err?.message ||
-                      'Unknown error while updating dashboard content.';
-                    // eslint-disable-next-line no-alert
-                    alert(`Failed to update content: ${msg}`);
-                  } finally {
-                    setSavingContent(false);
+            {!contentDashboard.previewOnly && (
+              <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setContentDashboard(null)}
+                  disabled={savingContent}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="gap-2"
+                  disabled={
+                    savingContent ||
+                    (contentForm.kpis.length === 0 && contentForm.charts.length === 0)
                   }
-                }}
-              >
-                {savingContent && <Loader2 className="h-3 w-3 animate-spin" />}
-                Save content
-              </Button>
-            </div>
+                  onClick={handleSaveContent}
+                >
+                  {savingContent && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Save content
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      {/* Add dashboard modal */}
       {showCreate && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
           <div className="bg-background rounded-lg shadow-xl w-full max-w-md border">
@@ -620,7 +963,7 @@ const AnalystDashboardsPage = () => {
                     setCreateForm((prev) => ({ ...prev, name: e.target.value }))
                   }
                   className="h-8 text-xs"
-                  placeholder="e.g. Students distribution in the faculty"
+                  placeholder="e.g. Tuition, Students Distribution in the faculty"
                 />
               </div>
               <div className="space-y-1">
@@ -682,49 +1025,8 @@ const AnalystDashboardsPage = () => {
               <Button
                 size="sm"
                 className="gap-2"
-                disabled={
-                  !createForm.name.trim() || createForm.roles.length === 0
-                }
-                onClick={async () => {
-                  try {
-                    const primaryRole =
-                      (createForm.roles[0] && createForm.roles[0].toLowerCase()) ||
-                      'analyst';
-                    const defaultKpis = KPI_OPTIONS.filter((k) =>
-                      isKpiAllowedForRole(k, primaryRole)
-                    );
-                    const defaultCharts = CHART_OPTIONS.filter((c) =>
-                      isChartAllowedForRole(c, primaryRole)
-                    );
-                    await axios.post(
-                      '/api/dashboards',
-                      {
-                        name: createForm.name.trim(),
-                        description: createForm.description.trim(),
-                        roles: createForm.roles,
-                        definition: {
-                          template: 'analytics_dashboard',
-                          source: 'analyst_dashboard',
-                          kpis: defaultKpis,
-                          charts: defaultCharts,
-                        },
-                      },
-                      {
-                        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-                      }
-                    );
-                    setShowCreate(false);
-                    await loadAllDashboards();
-                  } catch (err) {
-                    console.error('Error creating dashboard:', err);
-                    const msg =
-                      err?.response?.data?.error ||
-                      err?.message ||
-                      'Unknown error while creating dashboard.';
-                    // eslint-disable-next-line no-alert
-                    alert(`Failed to create dashboard: ${msg}`);
-                  }
-                }}
+                disabled={!createForm.name.trim() || createForm.roles.length === 0}
+                onClick={handleCreateDashboard}
               >
                 Create dashboard
               </Button>

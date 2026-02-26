@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { PageHeader } from '../components/ui/page-header';
 import ModernStatsCards from '../components/ModernStatsCards';
 import RoleBasedCharts from '../components/RoleBasedCharts';
+import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
 import ExportButtons from '../components/ExportButtons';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -96,84 +97,11 @@ const StudentDashboard = () => {
         actions={<ExportButtons stats={stats} filename="student_dashboard" />}
       />
 
-      {/* KPI Cards - 1 col mobile, 2 tablet, 4 desktop */}
+      {/* Legacy static KPIs */}
       <ModernStatsCards stats={stats} type="student" />
 
-      {/* Main Content Tabs */}
-      <Tabs defaultValue="performance" className="space-y-3">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
-          <TabsTrigger value="performance" className="flex items-center gap-2">
-            <Award className="h-4 w-4" />
-            Performance
-          </TabsTrigger>
-          <TabsTrigger value="attendance" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Attendance
-          </TabsTrigger>
-          <TabsTrigger value="payments" className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4" />
-            Payments
-          </TabsTrigger>
-          <TabsTrigger value="courses" className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4" />
-            Courses
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="performance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Academic Performance</CardTitle>
-              <CardDescription>Your grades and academic progress over time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RoleBasedCharts filters={{}} type="student" />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="attendance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Attendance Overview</CardTitle>
-              <CardDescription>Track your class attendance and participation</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                Attendance charts and data visualization
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="payments" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment History</CardTitle>
-              <CardDescription>View your fee payments and outstanding balances</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                Payment history and status visualization
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="courses" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Course Progress</CardTitle>
-              <CardDescription>Monitor your enrollment and progress in each course</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                Course enrollment and progress visualization
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Dynamic current dashboard for Student role */}
+      <RoleDashboardRenderer stats={stats} type="student" />
     </div>
   );
 };

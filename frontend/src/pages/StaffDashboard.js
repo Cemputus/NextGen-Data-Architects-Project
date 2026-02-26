@@ -10,6 +10,7 @@ import { Button } from '../components/ui/button';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ModernStatsCards from '../components/ModernStatsCards';
 import RoleBasedCharts from '../components/RoleBasedCharts';
+import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
@@ -83,102 +84,11 @@ const StaffDashboard = () => {
         </div>
       ) : (
         <>
-          {/* KPI Cards */}
+          {/* Legacy static KPI summary */}
           {stats && <ModernStatsCards stats={stats} type="general" />}
 
-          {/* Main Content */}
-          <Tabs defaultValue="classes" className="space-y-3">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 gap-1 p-1">
-              <TabsTrigger value="classes" className="flex items-center gap-2">
-                <GraduationCap className="h-4 w-4" />
-                My Classes
-              </TabsTrigger>
-              <TabsTrigger value="students" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Students
-              </TabsTrigger>
-              <TabsTrigger value="analytics" className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4" />
-                Analytics
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="classes" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">My Classes</CardTitle>
-                  <CardDescription className="text-xs">Manage your assigned courses and classes</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="space-y-4">
-                    {classes.length > 0 ? (
-                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {classes.map((cls, idx) => (
-                          <Card key={idx} className="cursor-pointer hover:shadow-md transition-shadow">
-                            <CardHeader>
-                              <CardTitle className="text-lg">{cls.course_name || `Class ${idx + 1}`}</CardTitle>
-                              <CardDescription>{cls.course_code || 'N/A'}</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="text-sm text-muted-foreground">
-                                <p>Students: {cls.student_count || 0}</p>
-                                <p>Schedule: {cls.schedule || 'TBA'}</p>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="h-64 flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
-                        <div className="text-center">
-                          <GraduationCap className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                          <p>No classes assigned</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="students" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Student Management</CardTitle>
-                  <CardDescription className="text-xs">Search and manage students in your classes</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="flex flex-col sm:flex-row gap-2 mb-3">
-                    <Input
-                      placeholder="Search students..."
-                      value={studentSearch}
-                      onChange={(e) => setStudentSearch(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button>
-                      <Search className="h-4 w-4 mr-2" />
-                      Search
-                    </Button>
-                  </div>
-                  <div className="min-h-[160px] max-h-[280px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg">
-                    Student list and management tools
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="analytics" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Teaching Analytics</CardTitle>
-                  <CardDescription className="text-xs">Performance metrics and class statistics</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <RoleBasedCharts filters={filters} type="staff" />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          {/* Dynamic current dashboard for Staff role */}
+          <RoleDashboardRenderer stats={stats} type="staff" />
         </>
       )}
     </div>

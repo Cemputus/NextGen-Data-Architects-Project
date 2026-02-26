@@ -149,12 +149,13 @@ def _get_staff_assigned_course_codes(identity):
 from api.auth import auth_bp
 from api.analytics import analytics_bp
 try:
-    from api.dashboards import dashboards_bp
+    from api.dashboards import dashboards_bp, dashboard_manager_bp
 except Exception as e:
     import traceback
     print("Dashboards blueprint failed to load:", e)
     traceback.print_exc()
     dashboards_bp = None
+    dashboard_manager_bp = None
 
 # Import predictions blueprint
 try:
@@ -957,6 +958,8 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(analytics_bp)
 if dashboards_bp:
     app.register_blueprint(dashboards_bp)
+if dashboard_manager_bp:
+    app.register_blueprint(dashboard_manager_bp)
 if predictions_bp:
     app.register_blueprint(predictions_bp)
 if export_bp:

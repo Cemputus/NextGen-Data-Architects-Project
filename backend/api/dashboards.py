@@ -77,6 +77,21 @@ def _ensure_dashboard_tables(engine):
           """
         )
       )
+      conn.execute(
+        text(
+          """
+          CREATE TABLE IF NOT EXISTS role_current_dashboard (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            role_name VARCHAR(50) NOT NULL UNIQUE,
+            dashboard_id VARCHAR(64) NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_by_username VARCHAR(100),
+            FOREIGN KEY (dashboard_id) REFERENCES dashboards(id) ON DELETE CASCADE,
+            INDEX idx_role_name (role_name)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+          """
+        )
+      )
       conn.commit()
   except Exception:
     # Any failure will be surfaced by the calling handler
@@ -188,6 +203,223 @@ def list_dashboards():
       else:
         dashboards = _load_dashboards_for_user(engine, username, role)
     return jsonify({"dashboards": dashboards}), 200
+  except Exception as e:
+    if engine is not None:
+      engine.dispose()
+    return jsonify({"error": str(e)}), 500
+
+
+# --- Dashboard Manager (current vs custom, swap) ---
+dashboard_manager_bp = Blueprint("dashboard_manager", __name__, url_prefix="/api/dashboard-manager")
+
+
+@dashboard_manager_bp.route("/current", methods=["GET"])
+@jwt_required()
+def get_current_dashboards():
+  """
+  Return the current dashboard per role (pointer in role_current_dashboard).
+
+  Roles covered: student, staff, hod, dean, senate, finance, hr, analyst, sysadmin.
+  Only analyst/sysadmin can read this view.
+  """
+  username, role = _current_user()
+  if role not in ("analyst", "sysadmin"):
+    return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can view dashboard manager."}), 403
+
+  all_roles = ["student", "staff", "hod", "dean", "senate", "finance", "hr", "analyst", "sysadmin"]
+  engine = None
+  try:
+    engine = _get_engine()
+    result_payload = []
+    with engine.connect() as conn:
+      # Fetch role->dashboard mapping
+      rows = conn.execute(
+        text(
+          """
+          SELECT r.role_name, r.dashboard_id, r.updated_at, r.updated_by_username,
+                 d.id AS d_id, d.name, d.description, d.created_by_username, d.created_by_role, d.definition, d.updated_at AS d_updated_at
+          FROM role_current_dashboard r
+          LEFT JOIN dashboards d ON d.id = r.dashboard_id
+          WHERE d.is_active = 1 OR d.id IS NULL
+          """
+        )
+      ).mappings()
+      by_role = {row["role_name"].strip().lower(): row for row in rows}
+
+      for rname in all_roles:
+        row = by_role.get(rname)
+        if row and row["d_id"]:
+          dash_id = row["d_id"]
+          # Attach roles/users for card metadata
+          role_rows = conn.execute(
+            text("SELECT role_name FROM dashboard_role_access WHERE dashboard_id = :id"),
+            {"id": dash_id},
+          ).scalars()
+          user_rows = conn.execute(
+            text("SELECT username FROM dashboard_user_access WHERE dashboard_id = :id"),
+            {"id": dash_id},
+          ).scalars()
+          result_payload.append(
+            {
+              "role": rname,
+              "dashboard": {
+                "id": dash_id,
+                "name": row["name"],
+                "description": row["description"],
+                "created_by_username": row["created_by_username"],
+                "created_by_role": row["created_by_role"],
+                "definition": row["definition"],
+                "updated_at": row["d_updated_at"],
+                "roles": [rr for rr in role_rows],
+                "users": [uu for uu in user_rows],
+              },
+              "pointer_updated_at": row["updated_at"],
+              "pointer_updated_by_username": row["updated_by_username"],
+            }
+          )
+        else:
+          result_payload.append(
+            {
+              "role": rname,
+              "dashboard": None,
+              "pointer_updated_at": None,
+              "pointer_updated_by_username": None,
+            }
+          )
+
+    return jsonify({"roles": result_payload}), 200
+  except Exception as e:
+    if engine is not None:
+      engine.dispose()
+    return jsonify({"error": str(e)}), 500
+
+
+@dashboard_manager_bp.route("/custom", methods=["GET"])
+@jwt_required()
+def get_custom_dashboards():
+  """
+  Return dashboards available for assignment ("custom").
+  Includes all active dashboards; frontend can visually distinguish which ones
+  are already current for a role if needed.
+
+  Query params:
+  - role: optional role_name to bias/limit results by assigned role access
+  - created_by: 'me' to limit to dashboards created by current analyst
+  """
+  username, role = _current_user()
+  if role not in ("analyst", "sysadmin"):
+    return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can view dashboard manager."}), 403
+
+  filter_role = (request.args.get("role") or "").strip().lower()
+  created_by = (request.args.get("created_by") or "").strip().lower()
+
+  engine = None
+  try:
+    engine = _get_engine()
+    with engine.connect() as conn:
+      base_sql = """
+        SELECT d.*
+        FROM dashboards d
+        WHERE d.is_active = 1
+      """
+      params: Dict[str, Any] = {}
+
+      if created_by == "me":
+        base_sql += " AND LOWER(d.created_by_username) = :created_by"
+        params["created_by"] = username.lower()
+
+      if filter_role:
+        # Only dashboards that have this role in dashboard_role_access
+        base_sql += """
+          AND EXISTS (
+            SELECT 1 FROM dashboard_role_access dra
+            WHERE dra.dashboard_id = d.id AND LOWER(dra.role_name) = :f_role
+          )
+        """
+        params["f_role"] = filter_role
+
+      base_sql += " ORDER BY d.updated_at DESC"
+
+      result = conn.execute(text(base_sql), params).mappings()
+      dashboards: List[Dict[str, Any]] = []
+      for row in result:
+        did = row["id"]
+        dash = dict(row)
+        # Attach roles/users
+        role_rows = conn.execute(
+          text("SELECT role_name FROM dashboard_role_access WHERE dashboard_id = :id"),
+          {"id": did},
+        ).scalars()
+        user_rows = conn.execute(
+          text("SELECT username FROM dashboard_user_access WHERE dashboard_id = :id"),
+          {"id": did},
+        ).scalars()
+        dash["roles"] = [rr for rr in role_rows]
+        dash["users"] = [uu for uu in user_rows]
+        dashboards.append(dash)
+
+    return jsonify({"dashboards": dashboards}), 200
+  except Exception as e:
+    if engine is not None:
+      engine.dispose()
+    return jsonify({"error": str(e)}), 500
+
+
+@dashboard_manager_bp.route("/swap", methods=["POST"])
+@jwt_required()
+def swap_dashboard():
+  """
+  Swap the current dashboard for a role with a selected custom dashboard.
+
+  Body: { "role": "<role_name>", "dashboard_id": "<uuid>" }
+  - Only analyst/sysadmin allowed.
+  - Operation is atomic: updates role_current_dashboard.
+  """
+  username, role = _current_user()
+  if role not in ("analyst", "sysadmin"):
+    return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can swap dashboards."}), 403
+
+  data = request.get_json(silent=True) or {}
+  target_role = (data.get("role") or "").strip().lower()
+  dashboard_id = (data.get("dashboard_id") or "").strip()
+
+  if not target_role or not dashboard_id:
+    return jsonify({"error": "Both role and dashboard_id are required."}), 400
+
+  engine = None
+  try:
+    engine = _get_engine()
+    with engine.connect() as conn:
+      conn = conn.execution_options(autocommit=False)
+
+      # Ensure dashboard exists and is active
+      row = conn.execute(
+        text("SELECT id FROM dashboards WHERE id = :id AND is_active = 1"),
+        {"id": dashboard_id},
+      ).scalar()
+      if not row:
+        return jsonify({"error": "Dashboard not found or inactive."}), 404
+
+      # Upsert role_current_dashboard pointer
+      conn.execute(
+        text(
+          """
+          INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username)
+          VALUES (:role_name, :dashboard_id, :updated_by)
+          ON DUPLICATE KEY UPDATE
+            dashboard_id = VALUES(dashboard_id),
+            updated_by_username = VALUES(updated_by_username)
+          """
+        ),
+        {
+          "role_name": target_role,
+          "dashboard_id": dashboard_id,
+          "updated_by": username,
+        },
+      )
+      conn.commit()
+
+    return jsonify({"ok": True}), 200
   except Exception as e:
     if engine is not None:
       engine.dispose()
@@ -378,6 +610,64 @@ def get_dashboard(dash_id):
       if d["id"] == dash_id:
         return jsonify({"dashboard": d}), 200
     return jsonify({"error": "Dashboard not found or access denied."}), 403
+  except Exception as e:
+    if engine is not None:
+      engine.dispose()
+    return jsonify({"error": str(e)}), 500
+
+
+@dashboards_bp.route("/current", methods=["GET"])
+@jwt_required()
+def get_current_dashboard_for_role():
+  """
+  Return the current dashboard for the authenticated user's primary role, if any.
+
+  This is used by role-specific dashboards (student, staff, dean, etc.) to know
+  which dashboard layout/definition to render as their 'live' dashboard.
+  """
+  username, role = _current_user()
+  engine = None
+  try:
+    engine = _get_engine()
+    with engine.connect() as conn:
+      row = conn.execute(
+        text(
+          """
+          SELECT r.role_name, r.dashboard_id, r.updated_at, r.updated_by_username,
+                 d.*
+          FROM role_current_dashboard r
+          LEFT JOIN dashboards d ON d.id = r.dashboard_id
+          WHERE LOWER(r.role_name) = :rname AND d.is_active = 1
+          """
+        ),
+        {"rname": role},
+      ).mappings().first()
+      if not row or not row["id"]:
+        return jsonify({"dashboard": None}), 200
+
+      dash_id = row["id"]
+      # Attach roles/users
+      role_rows = conn.execute(
+        text("SELECT role_name FROM dashboard_role_access WHERE dashboard_id = :id"),
+        {"id": dash_id},
+      ).scalars()
+      user_rows = conn.execute(
+        text("SELECT username FROM dashboard_user_access WHERE dashboard_id = :id"),
+        {"id": dash_id},
+      ).scalars()
+
+      dash = {
+        "id": dash_id,
+        "name": row["name"],
+        "description": row["description"],
+        "created_by_username": row["created_by_username"],
+        "created_by_role": row["created_by_role"],
+        "definition": row["definition"],
+        "updated_at": row["updated_at"],
+        "roles": [rr for rr in role_rows],
+        "users": [uu for uu in user_rows],
+      }
+    return jsonify({"dashboard": dash}), 200
   except Exception as e:
     if engine is not None:
       engine.dispose()
