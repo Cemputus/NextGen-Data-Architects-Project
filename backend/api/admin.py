@@ -446,6 +446,37 @@ def dim_app_users():
             engine.dispose()
 
 
+@admin_bp.route('/app-users', methods=['GET'])
+@jwt_required()
+def list_app_users():
+    """
+    List live RBAC app users from ucu_rbac.app_users.
+    Sysadmin only. NOTE: Passwords are hashed and are NOT returned.
+    """
+    err, code = _require_sysadmin()
+    if err is not None:
+        return err, code
+    engine = None
+    try:
+        engine = create_engine(_get_rbac_conn_string())
+        _ensure_app_users_table(engine)
+        df = pd.read_sql_query(
+            text(
+                "SELECT id, username, role, full_name, faculty_id, department_id, created_at "
+                "FROM app_users ORDER BY username"
+            ),
+            engine,
+        )
+        records = df.to_dict('records') if not df.empty else []
+        # Never expose password hashes; only metadata needed for login testing
+        return jsonify({'app_users': records, 'count': len(records)})
+    except Exception as e:
+        return jsonify({'error': str(e), 'app_users': [], 'count': 0}), 500
+    finally:
+        if engine:
+            engine.dispose()
+
+
 def _run_etl_in_background():
     """Run export_user_snapshot + ETL pipeline in a subprocess with backend as cwd so it runs like CLI and logs correctly."""
     import subprocess

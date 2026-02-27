@@ -21,9 +21,9 @@ A comprehensive data analytics and machine learning platform for Uganda Christia
 
 ---
 
-## 📌 Recent changes (Admin, export, KPIs)
+## 📌 Recent changes (Admin, export, KPIs, App users, dashboards)
 
-The following updates were made to the Admin console, export behaviour, and KPI definitions:
+The following updates were made to the Admin console, export behaviour, KPI definitions, App user handling, and dashboard management:
 
 ### Admin console
 
@@ -48,6 +48,30 @@ The following updates were made to the Admin console, export behaviour, and KPI 
 
 - Admin KPIs use the same RBAC connection as the main app (`ucu_rbac`); if the SQLAlchemy path fails, a direct PyMySQL fallback to `ucu_rbac` is used for app user counts.
 - Demo user fallback ensures Employees and Staff KPIs are never zero when `ucu_rbac` is empty or unavailable.
+
+### App users, login, and dimensional model
+
+- **Central App users table**: All non-student users (Sysadmin, Analyst, Dean, HOD, Staff, HR, Finance, etc.) live in `ucu_rbac.app_users`. Users are created/edited from **Admin → Users** and their **role** is stored there.
+- **Login behaviour (App users)**:
+  - On login, App users are always resolved from `ucu_rbac.app_users` (not hard-coded roles).
+  - If an App user row exists but the `password_hash` is empty, legacy, or corrupted, the **first successful login** will hash the password they type and persist it so they can log in going forward.
+  - Existing users keep their assigned role; login only ever updates the password hash, never the role.
+- **Default demo App user (Cemputus)**: The project still seeds a default `Cemputus / cen123` staff user so the system is always accessible after a clean setup.
+- **Data warehouse dimension `dim_app_user`**:
+  - The ETL pipeline creates and reloads `dim_app_user` on every run from `ucu_rbac.app_users`, so App user metadata is reproducible on any machine.
+  - The Admin console **System status** section now includes a row count for `dim_app_user` in the **Data Warehouse (Gold)** table counts.
+  - A dedicated Admin endpoint `GET /api/admin/dim-app-users` returns dimensional App users for analytics, and `GET /api/admin/app-users` returns the live RBAC `app_users` list (without passwords) for inspection and troubleshooting.
+
+### Dashboard Manager and role-based dashboards
+
+- **Dashboard Manager (Analyst)**:
+  - New Analyst page `/analyst/dashboards` (Dashboard Manager) manages both **Current dashboards** (one per role) and **Custom dashboards** (drafts and alternates).
+  - Analysts can create dashboards, assign them to one or more roles, edit content (KPIs + charts), and **swap** which dashboard is “current” for each role.
+- **Role current dashboard pointer**:
+  - Backend table `role_current_dashboard` stores, for each role, which dashboard ID is currently active.
+  - Endpoint `GET /api/dashboards/current` returns the current dashboard definition for the authenticated user’s role.
+- **Dynamic role dashboards**:
+  - Role-specific pages (Student, Staff, Dean, etc.) now render using a shared `RoleDashboardRenderer` component that reads the current dashboard definition and shows the configured KPIs and RBAC charts, so changes and swaps made in Dashboard Manager are reflected live.
 
 ---
 

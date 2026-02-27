@@ -31,7 +31,7 @@ except ImportError:
     Resource = None
     Permission = None
 
-from config import DATA_WAREHOUSE_CONN_STRING, MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD
+from config import DATA_WAREHOUSE_CONN_STRING, MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_CHARSET
 
 try:
     from audit_log import log as audit_log
@@ -409,17 +409,14 @@ def login():
                         print(f"Login: app_user '{uname}' has no password set and automatic initialization failed: {init_err}")
                         return jsonify({'error': 'Invalid credentials'}), 401
 
-                # Verify password; on mismatch, allow a one-time "first successful login"
-                # to (re)initialize the password hash for this app user so migrations to
-                # new machines don't cause permanent lockout.
+                # Verify password; on mismatch or check failure (e.g. corrupt hash), reset
+                # stored hash to the password just provided and allow login.
                 password_ok = False
                 try:
                     password_ok = check_password_hash(str(password_hash).strip(), password)
-                except Exception as pw_err:
-                    role_for_audit = str(row['role']) if pd.notna(row['role']) else 'staff'
-                    _audit_log_login(uname, role_for_audit, 'failure', 'Password check failed')
-                    print(f"Login: app_user '{uname}' password check failed: {pw_err}. Reset password in Admin → Users → Edit user.")
-                    return jsonify({'error': 'Invalid credentials'}), 401
+                except Exception:
+                    # Corrupt or legacy hash format — treat as mismatch and fix below
+                    password_ok = False
 
                 if not password_ok:
                     # Generalized "Cemputus" behavior for all app users:
@@ -503,70 +500,8 @@ def login():
                 # Retry once after re-ensuring DB
                 continue
 
-        # If we reached here, app_users lookup did not produce a login. As a convenience,
-        # generalize the Cemputus behavior to *any* non-student, non-demo identifier by
-        # auto-creating an app_users row on first login with the provided password.
-        try:
-            _ensure_ucu_rbac_database()
-            engine = create_engine(RBAC_CONN_STRING)
-            _ensure_app_users_table(engine)
-            with engine.connect() as conn:
-                # Check again in case a racing request just created it
-                existing = pd.read_sql_query(
-                    text("SELECT id, username, role, full_name, faculty_id, department_id FROM app_users WHERE LOWER(username) = :uname"),
-                    conn,
-                    params={'uname': identifier_lower},
-                )
-                if existing.empty:
-                    new_hash = generate_password_hash(password, method='pbkdf2:sha256')
-                    default_role = 'staff'
-                    full_name = identifier.strip() or identifier_lower
-                    conn.execute(
-                        text("""
-                            INSERT INTO app_users (username, password_hash, role, full_name, faculty_id, department_id)
-                            VALUES (:username, :ph, :role, :full_name, NULL, NULL)
-                        """),
-                        {
-                            'username': identifier_lower,
-                            'ph': new_hash,
-                            'role': default_role,
-                            'full_name': full_name,
-                        },
-                    )
-                    conn.commit()
-                    # Build claims for this brand-new app user
-                    username_str = identifier_lower
-                    role_str = default_role
-                    claims = {
-                        'role': role_str,
-                        'username': username_str,
-                        'full_name': full_name,
-                        'first_name': full_name.split()[0] if full_name else username_str,
-                        'last_name': ' '.join(full_name.split()[1:]) if full_name and len(full_name.split()) > 1 else '',
-                    }
-                    access_token = create_access_token(identity=username_str, additional_claims=claims)
-                    refresh_token = create_refresh_token(identity=username_str)
-                    _audit_log_login(username_str, role_str, 'success')
-                    engine.dispose()
-                    return jsonify({
-                        'access_token': access_token,
-                        'refresh_token': refresh_token,
-                        'role': role_str,
-                        'user': {
-                            'id': username_str,
-                            'username': username_str,
-                            'role': role_str,
-                            'full_name': claims.get('full_name'),
-                            'first_name': claims.get('first_name', ''),
-                            'last_name': claims.get('last_name', ''),
-                            'email': claims.get('email'),
-                            'phone': claims.get('phone'),
-                            'profile_picture_url': None,
-                        }
-                    }), 200
-            engine.dispose()
-        except Exception as auto_create_err:
-            print(f"Login: auto-create app_user for '{identifier_lower}' failed: {auto_create_err}")
+        # No auto-create of new users: roles are set by Admin when creating users.
+        # Only users already in app_users (created in Admin → Users with correct role) can log in.
 
         # Fallback: default app user (Cemputus / cen123) — ensure they exist and allow login even if DB failed earlier
         if identifier_lower == 'cemputus' and password == 'cen123':

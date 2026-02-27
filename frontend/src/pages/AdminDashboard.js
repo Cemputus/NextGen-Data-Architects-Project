@@ -24,6 +24,7 @@ const AdminDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [systemStats, setSystemStats] = useState(null);
   const [adminStatus, setAdminStatus] = useState(null);
+  const [appUsers, setAppUsers] = useState([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showWelcome, setShowWelcome] = useState(true);
 
@@ -67,6 +68,14 @@ const AdminDashboard = () => {
       }
       setAdminStatus(null);
       setSystemStats(prev => prev ?? { total_users: 0, active_sessions: 0, etl_jobs: 0, system_health: 0, employees: 0, staff: 0 });
+    }
+    try {
+      const appUsersRes = await axios.get('/api/admin/app-users', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      setAppUsers(appUsersRes.data?.app_users ?? []);
+    } catch {
+      setAppUsers([]);
     }
   };
 
@@ -239,6 +248,40 @@ const AdminDashboard = () => {
             </TabsList>
 
             <TabsContent value="users" className="space-y-3">
+              <Card className="border shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-base font-semibold">App users who can log in</CardTitle>
+                  <CardDescription className="text-xs">
+                    {appUsers.length} user(s) in <code className="bg-muted px-1 rounded">ucu_rbac.app_users</code> (same as dim_app_user after ETL). Use these usernames on the login page; passwords are set in Add/Edit user below.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  {appUsers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No app users yet. Add users below.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b text-left text-muted-foreground">
+                            <th className="py-2 pr-4 font-medium">Username</th>
+                            <th className="py-2 pr-4 font-medium">Role</th>
+                            <th className="py-2 font-medium">Full name</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {appUsers.map((u) => (
+                            <tr key={u.id || u.username} className="border-b last:border-0">
+                              <td className="py-2 pr-4 font-medium">{u.username}</td>
+                              <td className="py-2 pr-4 capitalize">{u.role || '—'}</td>
+                              <td className="py-2 text-muted-foreground">{u.full_name || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
               <UserManagementSection
                 showHeader={true}
                 compact={false}

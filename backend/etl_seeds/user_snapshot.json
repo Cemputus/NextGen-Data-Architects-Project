@@ -23,9 +23,9 @@
     {
       "id": 7,
       "username": "edube",
-      "password_hash": "pbkdf2:sha256:600000$Rfwa5w7h4CkTePZd$0714c0e68b7c4f2b94f2920cd95c5f697d11b9094d434663963fb95bd709bae9",
-      "role": "analyst",
-      "full_name": "Guloba Emmanuel Edube",
+      "password_hash": "pbkdf2:sha256:600000$G5dOCsXtWHhLYJPa$dc7492ed36d07e9685b49cb12bdd5c73e2ad42e82e2fb1bba1987336f7608b73",
+      "role": "staff",
+      "full_name": "edube",
       "faculty_id": NaN,
       "department_id": NaN,
       "created_at": "2026-02-23 16:10:44"
@@ -53,12 +53,32 @@
     {
       "id": 10,
       "username": "joy",
-      "password_hash": "pbkdf2:sha256:600000$OSwNRdg0FF3OSESF$f41e08abfb3458abd43d1ba37d54293ded51a31dd4dadb765767de70f9403bf0",
-      "role": "dean",
-      "full_name": "Joy Awor",
+      "password_hash": "pbkdf2:sha256:600000$VLk4XNlbQBQTdGkN$16b86c13bda07e455f21d897e827a2507c3eaa864bd4cc84238f803926d7486a",
+      "role": "staff",
+      "full_name": "joy",
       "faculty_id": 6.0,
       "department_id": NaN,
       "created_at": "2026-02-26 19:18:29"
+    },
+    {
+      "id": 11,
+      "username": "hr",
+      "password_hash": "pbkdf2:sha256:600000$n8SMIy6sWqIFC6ro$3494daee6637a0e548a928d0b177f2750c319060f5ca3d4f23105d9e5757de8e",
+      "role": "staff",
+      "full_name": "hr",
+      "faculty_id": NaN,
+      "department_id": NaN,
+      "created_at": "2026-02-26 19:53:51"
+    },
+    {
+      "id": 12,
+      "username": "dean",
+      "password_hash": "pbkdf2:sha256:600000$bjT7nUcTBjq0trK9$1a482384074fa2fd62fc7e52ceb06a80e610d7560e523d1e629b672217b6be51",
+      "role": "staff",
+      "full_name": "dean",
+      "faculty_id": NaN,
+      "department_id": NaN,
+      "created_at": "2026-02-26 19:54:03"
     }
   ],
   "user_profiles": [
