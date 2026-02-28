@@ -14,6 +14,7 @@ import { PageHeader } from '../components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
 import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2 } from 'lucide-react';
 
 const KPI_OPTIONS = [
@@ -70,6 +71,8 @@ const AnalystDashboardsPage = () => {
   const [createdByFilter, setCreatedByFilter] = useState('all'); // all | me
   const [viewMode, setViewMode] = useState('grid'); // grid | list (grid is primary)
 
+  const [swapConfirm, setSwapConfirm] = useState({ open: false, dash: null, targetRole: '' });
+  const [messageModal, setMessageModal] = useState({ open: false, message: '' });
   const [contentDashboard, setContentDashboard] = useState(null);
   const [previewDashboard, setPreviewDashboard] = useState(null);
   const [contentForm, setContentForm] = useState({
@@ -266,39 +269,31 @@ const AnalystDashboardsPage = () => {
     setContentForm({ kpis, charts });
   };
 
-  const handleSwapFromCustom = async (dash) => {
+  const handleSwapFromCustom = (dash) => {
     const roles = Array.isArray(dash.roles) ? dash.roles.map(normalizeRole) : [];
     const targetRole = filterRole || roles[0] || 'analyst';
     if (!targetRole) {
-      // eslint-disable-next-line no-alert
-      alert('Select a role filter or assign at least one role to this dashboard first.');
+      setMessageModal({ open: true, message: 'Select a role filter or assign at least one role to this dashboard first.' });
       return;
     }
-    // eslint-disable-next-line no-alert
-    const ok = window.confirm(
-      `Swap current dashboard for role ${targetRole} with "${dash.name}"?`
-    );
-    if (!ok) return;
+    setSwapConfirm({ open: true, dash, targetRole });
+  };
+
+  const handleSwapConfirm = async () => {
+    const { dash, targetRole } = swapConfirm;
+    if (!dash) return;
+    setSwapConfirm((prev) => ({ ...prev, open: false }));
     try {
       await axios.post(
         '/api/dashboard-manager/swap',
-        {
-          role: targetRole,
-          dashboard_id: dash.id,
-        },
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        }
+        { role: targetRole, dashboard_id: dash.id },
+        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
       await loadData();
     } catch (err) {
       console.error('Error swapping dashboard:', err);
-      const msg =
-        err?.response?.data?.error ||
-        err?.message ||
-        'Unknown error while swapping dashboard.';
-      // eslint-disable-next-line no-alert
-      alert(`Failed to swap dashboard: ${msg}`);
+      const msg = err?.response?.data?.error || err?.message || 'Unknown error while swapping dashboard.';
+      setMessageModal({ open: true, message: `Failed to swap dashboard: ${msg}` });
     }
   };
 
@@ -334,8 +329,7 @@ const AnalystDashboardsPage = () => {
         err?.response?.data?.error ||
         err?.message ||
         'Unknown error while updating dashboard content.';
-      // eslint-disable-next-line no-alert
-      alert(`Failed to update content: ${msg}`);
+      setMessageModal({ open: true, message: `Failed to update content: ${msg}` });
     } finally {
       setSavingContent(false);
     }
