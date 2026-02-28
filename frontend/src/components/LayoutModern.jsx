@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Home, User, Settings, LogOut, 
   BarChart3, GraduationCap, Building2, Users, 
-  DollarSign, Shield, FileText, TrendingUp, Menu, X, Database
+  DollarSign, Shield, FileText, TrendingUp, Menu, X, Database, Bell
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -18,6 +18,7 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { useProfilePhoto } from '../hooks/useProfilePhoto';
+import axios from 'axios';
 
 const LayoutModern = ({ children }) => {
   const { user, logout } = useAuth();
@@ -27,6 +28,7 @@ const LayoutModern = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const lastPathRef = useRef(null);
+  const [etlRunCount, setEtlRunCount] = useState(null);
 
   const getNavItems = () => {
     if (!user) return [];
@@ -90,6 +92,7 @@ const LayoutModern = ({ children }) => {
         { path: '/admin/users', label: 'Users', icon: Users },
         { path: '/admin/settings', label: 'Settings', icon: Settings },
         { path: '/admin/etl', label: 'ETL Jobs', icon: BarChart3 },
+        { path: '/admin/etl-notifications', label: 'ETL Notifications', icon: Bell },
         { path: '/admin/audit', label: 'Audit Logs', icon: FileText },
         { path: '/admin/profile', label: 'Profile', icon: User },
       ],
@@ -121,6 +124,32 @@ const LayoutModern = ({ children }) => {
     const actionName = typeof pageName === 'string' ? pageName.charAt(0).toUpperCase() + pageName.slice(1) : pageName;
     logAuditEvent(actionName, 'navigation', path);
   }, [location.pathname, user]);
+
+  // ETL run count for sysadmin sidebar badge (ETL Notifications)
+  useEffect(() => {
+    const role = (user?.role || '').toString().toLowerCase();
+    if (role !== 'sysadmin') {
+      setEtlRunCount(null);
+      return;
+    }
+    let cancelled = false;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    axios
+      .get('/api/admin/system-status', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { etl_runs_limit: 100 },
+      })
+      .then((res) => {
+        if (!cancelled && res.data && Array.isArray(res.data.etl_runs)) {
+          setEtlRunCount(res.data.etl_runs.length);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setEtlRunCount(null);
+      });
+    return () => { cancelled = true; };
+  }, [user?.role]);
 
   const handleLogout = () => {
     logout();
@@ -196,6 +225,7 @@ const LayoutModern = ({ children }) => {
             {navItems.map((item, index) => {
               const Icon = item.icon;
               const isActive = currentPath === item.path;
+              const badgeCount = item.path === '/admin/etl-notifications' ? etlRunCount : null;
               return (
                 <motion.div
                   key={item.path}
@@ -215,8 +245,24 @@ const LayoutModern = ({ children }) => {
                     onClick={() => navigate(item.path)}
                     title={!sidebarOpen ? item.label : undefined}
                   >
-                    <Icon className="h-5 w-5 flex-shrink-0" />
-                    {sidebarOpen && <span className="truncate">{item.label}</span>}
+                    <span className="relative flex-shrink-0">
+                      <Icon className="h-5 w-5" />
+                      {sidebarOpen && badgeCount != null && badgeCount > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                          {badgeCount > 99 ? '99+' : badgeCount}
+                        </span>
+                      )}
+                    </span>
+                    {sidebarOpen && (
+                      <span className="flex items-center gap-2 truncate">
+                        <span className="truncate">{item.label}</span>
+                        {badgeCount != null && badgeCount > 0 && (
+                          <Badge variant="secondary" className="shrink-0 h-5 min-w-[1.25rem] px-1 text-[10px] font-semibold">
+                            {badgeCount > 99 ? '99+' : badgeCount}
+                          </Badge>
+                        )}
+                      </span>
+                    )}
                   </Button>
                 </motion.div>
               );
@@ -312,6 +358,7 @@ const LayoutModern = ({ children }) => {
                   {navItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = currentPath === item.path;
+                    const badgeCount = item.path === '/admin/etl-notifications' ? etlRunCount : null;
                     return (
                       <Button
                         key={item.path}
@@ -326,7 +373,14 @@ const LayoutModern = ({ children }) => {
                         }}
                       >
                         <Icon className="h-5 w-5" />
-                        <span>{item.label}</span>
+                        <span className="flex items-center gap-2">
+                          {item.label}
+                          {badgeCount != null && badgeCount > 0 && (
+                            <Badge variant="secondary" className="h-5 min-w-[1.25rem] px-1 text-[10px] font-semibold">
+                              {badgeCount > 99 ? '99+' : badgeCount}
+                            </Badge>
+                          )}
+                        </span>
                       </Button>
                     );
                   })}

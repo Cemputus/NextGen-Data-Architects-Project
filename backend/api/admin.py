@@ -364,7 +364,7 @@ def system_status():
     limit = request.args.get('etl_runs_limit', type=int)
     if limit is None or limit < 1:
         limit = 50  # Default 50 so "Recent ETL runs" KPI matches "Last 50 runs (log files)"
-    limit = min(max(limit, 1), 50)
+    limit = min(max(limit, 1), 5000)
     engine = None
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
@@ -390,6 +390,27 @@ def system_status():
     finally:
         if engine:
             engine.dispose()
+
+
+@admin_bp.route('/etl-log/<filename>', methods=['GET'])
+@jwt_required()
+def get_etl_log(filename):
+    """Return raw content of a single ETL log file. Sysadmin only. Filename must match etl_pipeline_YYYYMMDD_HHMMSS.log."""
+    err, code = _require_sysadmin()
+    if err is not None:
+        return err, code
+    if not re.match(r'^etl_pipeline_\d{8}_\d{6}\.log$', filename):
+        return jsonify({'error': 'Invalid log filename'}), 400
+    log_dir = Path(backend_dir) / 'logs'
+    log_path = log_dir / filename
+    if not log_path.exists() or not log_path.is_file():
+        return jsonify({'error': 'Log file not found'}), 404
+    try:
+        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        return jsonify({'log_file': filename, 'content': content}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @admin_bp.route('/dim-app-users', methods=['GET'])

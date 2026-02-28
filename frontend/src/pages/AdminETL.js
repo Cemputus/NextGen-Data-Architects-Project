@@ -2,7 +2,7 @@
  * Admin ETL Jobs Page - ETL and Data Warehouse tracking for system admin
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, RefreshCw, Database, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Play, RefreshCw, Database, CheckCircle, XCircle, Clock, FileText, Download, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader, PageContent } from '../components/ui/page-header';
@@ -10,8 +10,10 @@ import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, Table
 import { LoadingState, ErrorState } from '../components/ui/state-messages';
 import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
+import { exportETLRunToPDF } from '../utils/exportUtils';
 
 const REFRESH_INTERVAL_MS = 5000;
 const REFRESH_AFTER_RUN_COUNT = 12; // 12 * 5s = 60s of polling after Run ETL
@@ -37,9 +39,24 @@ const AdminETL = () => {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [countdownSec, setCountdownSec] = useState(null);
   const refreshIntervalRef = useRef(null);
+  const [viewLogRun, setViewLogRun] = useState(null);
+  const [logContent, setLogContent] = useState('');
+  const [logLoading, setLogLoading] = useState(false);
+  const [logError, setLogError] = useState(null);
+  const [pdfDownloading, setPdfDownloading] = useState(null);
 
-  const ETL_RUNS_LIMIT_OPTIONS = [5, 10, 20, 50];
-
+  const ETL_RUNS_LIMIT_OPTIONS = [
+    { value: 5, label: '5 runs' },
+    { value: 10, label: '10 runs' },
+    { value: 20, label: '20 runs' },
+    { value: 50, label: '50 runs' },
+    { value: 100, label: '100 runs' },
+    { value: 150, label: '150 runs' },
+    { value: 200, label: '200 runs' },
+    { value: 250, label: '250 runs' },
+    { value: 500, label: '500 runs' },
+    { value: 9999, label: 'All' },
+  ];
   useEffect(() => {
     return () => {
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
@@ -170,6 +187,51 @@ const AdminETL = () => {
       setEtlMessage(err.response?.data?.error || err.message || 'Failed to start ETL');
     } finally {
       setRunning(false);
+    }
+  };
+
+  const fetchLogContent = async (filename) => {
+    if (!filename) return null;
+    try {
+      const res = await axios.get(`/api/admin/etl-log/${encodeURIComponent(filename)}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      return res.data?.content ?? '';
+    } catch (err) {
+      throw new Error(err.response?.data?.error || err.message || 'Failed to load log');
+    }
+  };
+
+  const openViewLog = async (run) => {
+    setViewLogRun(run);
+    setLogContent('');
+    setLogError(null);
+    setLogLoading(true);
+    try {
+      const content = await fetchLogContent(run.log_file);
+      setLogContent(content);
+    } catch (err) {
+      setLogError(err.message || 'Failed to load log');
+    } finally {
+      setLogLoading(false);
+    }
+  };
+
+  const closeViewLog = () => {
+    setViewLogRun(null);
+    setLogContent('');
+    setLogError(null);
+  };
+
+  const downloadETLReportPDF = async (run) => {
+    setPdfDownloading(run?.log_file ?? true);
+    try {
+      const content = await fetchLogContent(run.log_file);
+      exportETLRunToPDF(run, content, status?.warehouse || {});
+    } catch (err) {
+      setEtlMessage(err.message || 'Failed to download PDF');
+    } finally {
+      setPdfDownloading(null);
     }
   };
 
@@ -336,8 +398,8 @@ const AdminETL = () => {
                 className="rounded border border-input bg-background px-2 py-1.5 text-sm h-9"
                 aria-label="Number of ETL runs to show"
               >
-                {ETL_RUNS_LIMIT_OPTIONS.map((n) => (
-                  <option key={n} value={n}>{n} runs</option>
+                {ETL_RUNS_LIMIT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </label>
@@ -355,6 +417,7 @@ const AdminETL = () => {
                     <TableHead>Start time</TableHead>
                     <TableHead>Duration</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -374,6 +437,18 @@ const AdminETL = () => {
                           </span>
                         )}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => openViewLog(run)} disabled={logLoading}>
+                            {logLoading && viewLogRun?.log_file === run.log_file ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                            View
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => downloadETLReportPDF(run)} disabled={!!pdfDownloading}>
+                            {pdfDownloading === run.log_file ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            Download PDF
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -382,6 +457,35 @@ const AdminETL = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* View ETL log modal */}
+      <Modal open={!!viewLogRun} onClose={closeViewLog}>
+        <ModalHeader onClose={closeViewLog}>
+          ETL log: {viewLogRun?.log_file || '—'}
+        </ModalHeader>
+        <ModalBody>
+          {logLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : logError ? (
+            <p className="text-destructive py-4">{logError}</p>
+          ) : (
+            <pre className="text-xs font-mono bg-muted p-4 rounded-md max-h-[70vh] overflow-auto whitespace-pre-wrap break-words">
+              {logContent || 'No content'}
+            </pre>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          {!logLoading && !logError && viewLogRun && (
+            <Button variant="outline" onClick={() => downloadETLReportPDF(viewLogRun)} disabled={!!pdfDownloading}>
+              {pdfDownloading === viewLogRun.log_file ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+              Download report (PDF)
+            </Button>
+          )}
+          <Button variant="secondary" onClick={closeViewLog}>Close</Button>
+        </ModalFooter>
+      </Modal>
     </PageContent>
   );
 };

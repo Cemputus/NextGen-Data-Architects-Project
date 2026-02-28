@@ -426,6 +426,38 @@ def swap_dashboard():
     return jsonify({"error": str(e)}), 500
 
 
+@dashboard_manager_bp.route("/remove-current", methods=["POST"])
+@jwt_required()
+def remove_current_dashboard():
+  """
+  Remove the current dashboard for a role (no dashboard assigned).
+  Body: { "role": "<role_name>" }. Only analyst/sysadmin.
+  """
+  username, role = _current_user()
+  if role not in ("analyst", "sysadmin"):
+    return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can remove current dashboard."}), 403
+
+  data = request.get_json(silent=True) or {}
+  target_role = (data.get("role") or "").strip().lower()
+  if not target_role:
+    return jsonify({"error": "role is required."}), 400
+
+  engine = None
+  try:
+    engine = _get_engine()
+    with engine.connect() as conn:
+      conn.execute(
+        text("DELETE FROM role_current_dashboard WHERE role_name = :role_name"),
+        {"role_name": target_role},
+      )
+      conn.commit()
+    return jsonify({"ok": True}), 200
+  except Exception as e:
+    if engine is not None:
+      engine.dispose()
+    return jsonify({"error": str(e)}), 500
+
+
 @dashboards_bp.route("", methods=["POST"])
 @jwt_required()
 def create_dashboard():
@@ -677,7 +709,7 @@ def get_current_dashboard_for_role():
 @dashboards_bp.route("/<dash_id>", methods=["DELETE"])
 @jwt_required()
 def delete_dashboard(dash_id):
-  """Soft delete a dashboard (is_active = 0). Analyst or Sysadmin only."""
+  """Soft delete a dashboard (is_active = 0). Analyst or Sysadmin only. Cannot delete if current for any role."""
   username, role = _current_user()
   err = _require_analyst_or_sysadmin(role)
   if err:
@@ -687,6 +719,20 @@ def delete_dashboard(dash_id):
   try:
     engine = _get_engine()
     with engine.connect() as conn:
+      rows = conn.execute(
+        text("SELECT role_name FROM role_current_dashboard WHERE dashboard_id = :id"),
+        {"id": dash_id},
+      ).mappings()
+      roles_using = [r["role_name"] for r in rows]
+      if roles_using:
+        return (
+          jsonify({
+            "error": "Cannot delete: this dashboard is the current dashboard for role(s): "
+            + ", ".join(roles_using)
+            + ". Remove it from current dashboard for those roles first.",
+          }),
+          400,
+        )
       conn.execute(
         text("UPDATE dashboards SET is_active = 0 WHERE id = :id"),
         {"id": dash_id},

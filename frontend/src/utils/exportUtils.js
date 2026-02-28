@@ -871,3 +871,95 @@ export const exportAdminToPDF = async (adminData, filename = 'admin_console', ch
     throw error;
   }
 };
+
+/**
+ * Generate a professional ETL run report PDF (metadata + warehouse counts + full log).
+ * run: { log_file, start_time, duration, success }
+ * logContent: raw log file text
+ * warehouse: { [tableName]: count }
+ */
+export const exportETLRunToPDF = (run, logContent, warehouse = {}) => {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let y = 20;
+
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ETL Pipeline Run Report', pageWidth / 2, y, { align: 'center' });
+  y += 8;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generated ${new Date().toLocaleString()}`, pageWidth / 2, y, { align: 'center' });
+  y += 18;
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Run details', 20, y);
+  y += 8;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(`Log file: ${run?.log_file || '—'}`, 20, y);
+  y += 6;
+  doc.text(`Start time: ${run?.start_time || '—'}`, 20, y);
+  y += 6;
+  doc.text(`Duration: ${run?.duration || '—'}`, 20, y);
+  y += 6;
+  doc.text(`Status: ${run?.success ? 'Success' : 'Failed'}`, 20, y);
+  y += 14;
+
+  if (warehouse && Object.keys(warehouse).length > 0) {
+    if (y > pageHeight - 60) { doc.addPage(); y = 20; }
+    doc.setFont('helvetica', 'bold');
+    doc.text('Data warehouse counts (at report time)', 20, y);
+    y += 8;
+    doc.setFont('helvetica', 'normal');
+    const whRows = [['Table', 'Count']].concat(
+      Object.entries(warehouse).map(([t, c]) => [t, c != null ? String(c) : '—'])
+    );
+    if (typeof doc.autoTable === 'function') {
+      doc.autoTable({
+        head: [whRows[0]],
+        body: whRows.slice(1),
+        startY: y,
+        theme: 'striped',
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [41, 98, 255], textColor: 255, fontStyle: 'bold' },
+        margin: { left: 20, right: 20 },
+      });
+      y = doc.lastAutoTable.finalY + 14;
+    } else {
+      whRows.slice(1).forEach(([t, c]) => {
+        doc.text(`${t}: ${c}`, 25, y);
+        y += 5;
+      });
+      y += 8;
+    }
+  }
+
+  if (y > pageHeight - 40) { doc.addPage(); y = 20; }
+  doc.setFont('helvetica', 'bold');
+  doc.text('Full log output', 20, y);
+  y += 8;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const lines = (logContent || '').split('\n');
+  const lineHeight = 4;
+  const left = 20;
+  const maxWidth = pageWidth - 40;
+  for (let i = 0; i < lines.length; i++) {
+    if (y > pageHeight - 15) {
+      doc.addPage();
+      y = 20;
+    }
+    const line = lines[i].replace(/\r/g, '');
+    const split = doc.splitTextToSize(line || ' ', maxWidth);
+    split.forEach((t) => {
+      doc.text(t, left, y);
+      y += lineHeight;
+    });
+  }
+
+  const safeName = (run?.log_file || 'etl_run').replace(/\.log$/, '');
+  doc.save(`${safeName}_report.pdf`);
+};

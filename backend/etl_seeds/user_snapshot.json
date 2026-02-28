@@ -16,8 +16,8 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "sysadmin",
       "full_name": "Guloba Emmanuel Edube",
-      "faculty_id": null,
-      "department_id": null,
+      "faculty_id": NaN,
+      "department_id": NaN,
       "created_at": "2026-02-22 12:23:16"
     },
     {
@@ -27,7 +27,7 @@
       "role": "dean",
       "full_name": "edube",
       "faculty_id": 2.0,
-      "department_id": null,
+      "department_id": NaN,
       "created_at": "2026-02-23 16:10:44"
     },
     {
@@ -36,7 +36,7 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "hod",
       "full_name": "Wanja Grace",
-      "faculty_id": null,
+      "faculty_id": NaN,
       "department_id": 7.0,
       "created_at": "2026-02-24 17:20:23"
     },
@@ -46,8 +46,8 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "analyst",
       "full_name": "Enoch Asingwiire",
-      "faculty_id": null,
-      "department_id": null,
+      "faculty_id": NaN,
+      "department_id": NaN,
       "created_at": "2026-02-25 09:21:21"
     },
     {
@@ -57,7 +57,7 @@
       "role": "dean",
       "full_name": "joy",
       "faculty_id": 6.0,
-      "department_id": null,
+      "department_id": NaN,
       "created_at": "2026-02-26 19:18:29"
     },
     {
@@ -66,8 +66,8 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "staff",
       "full_name": "hr",
-      "faculty_id": null,
-      "department_id": null,
+      "faculty_id": NaN,
+      "department_id": NaN,
       "created_at": "2026-02-26 19:53:51"
     },
     {
@@ -76,8 +76,8 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "staff",
       "full_name": "dean",
-      "faculty_id": null,
-      "department_id": null,
+      "faculty_id": NaN,
+      "department_id": NaN,
       "created_at": "2026-02-26 19:54:03"
     },
     {
@@ -87,7 +87,7 @@
       "role": "dean",
       "full_name": "Gift Ruth",
       "faculty_id": 10.0,
-      "department_id": null,
+      "department_id": NaN,
       "created_at": "2026-02-28 17:09:02"
     }
   ],
@@ -123,8 +123,8 @@
       "username": "analyst",
       "role": "analyst",
       "state_key": "nextgen_query",
-      "state_json": "{\"query\": \"SELECT \\n  fg.student_id,\\n  fg.course_code,\\n  fg.grade,\\n  fg.exam_status\\nFROM fact_grade fg\\nJOIN dim_student ds ON fg.student_id = ds.student_id\\nLIMIT 20;\\n\", \"history\": [\"SELECT \\n  fg.student_id,\\n  fg.course_code,\\n  fg.grade,\\n  fg.exam_status\\nFROM fact_grade fg\\nJOIN dim_student ds ON fg.student_id = ds.student_id\\nLIMIT 20;\", \"SELECT *\\nFROM dim_student\\nLIMIT 40;\", \"SELECT *\\nFROM dim_student\\nLIMIT 20;\"], \"chartType\": \"bar\", \"xColumn\": \"student_id\", \"yColumn\": \"program_id\", \"result\": {\"columns\": [{\"is_numeric\": false, \"name\": \"student_id\", \"type\": \"object\"}, {\"is_numeric\": false, \"name\": \"course_code\", \"type\": \"object\"}, {\"is_numeric\": true, \"name\": \"grade\", \"type\": \"float64\"}, {\"is_numeric\": false, \"name\": \"exam_status\", \"type\": \"object\"}], \"elapsed_ms\": 43, \"row_count\": 20, \"rows\": [{\"course_code\": \"GEN402\", \"exam_status\": \"Completed\", \"grade\": 68.64, \"student_id\": \"M24M01/001\"}, {\"course_code\": \"GEN204\", \"exam_status\": \"Completed\", \"grade\": 62.38, \"student_id\": \"J21M01/001\"}, {\"course_code\": \"EDU140\", \"exam_status\": \"Completed\", \"grade\": 54.83, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BUS157\", \"exam_status\": \"Completed\", \"grade\": 68.38, \"student_id\": \"S23B05/001\"}, {\"course_code\": \"GEN229\", \"exam_status\": \"Completed\", \"grade\": 63.16, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"CSC315\", \"exam_status\": \"Completed\", \"grade\": 66.73, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"EDU134\", \"exam_status\": \"Completed\", \"grade\": 56.86, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"EDU431\", \"exam_status\": \"Completed\", \"grade\": 76.55, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BIT244\", \"exam_status\": \"Completed\", \"grade\": 66.22, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BIT382\", \"exam_status\": \"Completed\", \"grade\": 59.65, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"BIT371\", \"exam_status\": \"Completed\", \"grade\": 72.72, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"GEN267\", \"exam_status\": \"Completed\", \"grade\": 89.42, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"GEN474\", \"exam_status\": \"Completed\", \"grade\": 80.94, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"BIT230\", \"exam_status\": \"FEX\", \"grade\": 40.98, \"student_id\": \"J21M01/001\"}, {\"course_code\": \"BUS221\", \"exam_status\": \"Completed\", \"grade\": 68.97, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"EDU456\", \"exam_status\": \"Completed\", \"grade\": 67.19, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"LAW146\", \"exam_status\": \"Completed\", \"grade\": 59.96, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"JRN174\", \"exam_status\": \"Completed\", \"grade\": 79.63, \"student_id\": \"S21M01/001\"}, {\"course_code\": \"GEN357\", \"exam_status\": \"Completed\", \"grade\": 52.31, \"student_id\": \"S21M01/001\"}, {\"course_code\": \"GEN437\", \"exam_status\": \"Completed\", \"grade\": 47.65, \"student_id\": \"S21M01/001\"}]}}",
-      "updated_at": "2026-02-26 14:53:16"
+      "state_json": "{\"query\": \"SELECT \\n  fg.student_id,\\n  fg.course_code,\\n  fg.grade,\\n  fg.exam_status\\nFROM fact_grade fg\\nJOIN dim_student ds ON fg.student_id = ds.student_id\\nLIMIT 20;\\n\", \"history\": [\"SELECT \\n  fg.student_id,\\n  fg.course_code,\\n  fg.grade,\\n  fg.exam_status\\nFROM fact_grade fg\\nJOIN dim_student ds ON fg.student_id = ds.student_id\\nLIMIT 20;\", \"SELECT *\\nFROM dim_student\\nLIMIT 40;\", \"SELECT *\\nFROM dim_student\\nLIMIT 20;\"], \"chartType\": \"bar\", \"xColumn\": \"student_id\", \"yColumn\": \"program_id\", \"result\": {\"columns\": [{\"is_numeric\": false, \"name\": \"student_id\", \"type\": \"object\"}, {\"is_numeric\": false, \"name\": \"course_code\", \"type\": \"object\"}, {\"is_numeric\": true, \"name\": \"grade\", \"type\": \"float64\"}, {\"is_numeric\": false, \"name\": \"exam_status\", \"type\": \"object\"}], \"elapsed_ms\": 101, \"row_count\": 20, \"rows\": [{\"course_code\": \"GEN402\", \"exam_status\": \"Completed\", \"grade\": 68.64, \"student_id\": \"M24M01/001\"}, {\"course_code\": \"GEN204\", \"exam_status\": \"Completed\", \"grade\": 62.38, \"student_id\": \"J21M01/001\"}, {\"course_code\": \"EDU140\", \"exam_status\": \"Completed\", \"grade\": 54.83, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BUS157\", \"exam_status\": \"Completed\", \"grade\": 68.38, \"student_id\": \"S23B05/001\"}, {\"course_code\": \"GEN229\", \"exam_status\": \"Completed\", \"grade\": 63.16, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"CSC315\", \"exam_status\": \"Completed\", \"grade\": 66.73, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"EDU134\", \"exam_status\": \"Completed\", \"grade\": 56.86, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"EDU431\", \"exam_status\": \"Completed\", \"grade\": 76.55, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BIT244\", \"exam_status\": \"Completed\", \"grade\": 66.22, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BIT382\", \"exam_status\": \"Completed\", \"grade\": 59.65, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"BIT371\", \"exam_status\": \"Completed\", \"grade\": 72.72, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"GEN267\", \"exam_status\": \"Completed\", \"grade\": 89.42, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"GEN474\", \"exam_status\": \"Completed\", \"grade\": 80.94, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"BIT230\", \"exam_status\": \"FEX\", \"grade\": 40.98, \"student_id\": \"J21M01/001\"}, {\"course_code\": \"BUS221\", \"exam_status\": \"Completed\", \"grade\": 68.97, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"EDU456\", \"exam_status\": \"Completed\", \"grade\": 67.19, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"LAW146\", \"exam_status\": \"Completed\", \"grade\": 59.96, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"JRN174\", \"exam_status\": \"Completed\", \"grade\": 79.63, \"student_id\": \"S21M01/001\"}, {\"course_code\": \"GEN357\", \"exam_status\": \"Completed\", \"grade\": 52.31, \"student_id\": \"S21M01/001\"}, {\"course_code\": \"GEN437\", \"exam_status\": \"Completed\", \"grade\": 47.65, \"student_id\": \"S21M01/001\"}]}}",
+      "updated_at": "2026-02-28 21:21:57"
     }
   ]
 }

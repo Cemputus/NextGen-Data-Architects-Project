@@ -50,6 +50,7 @@ import StaffAnalytics from './pages/StaffAnalytics';
 import AdminUsers from './pages/AdminUsers';
 import AdminSettings from './pages/AdminSettings';
 import AdminETL from './pages/AdminETL';
+import AdminETLNotifications from './pages/AdminETLNotifications';
 import AdminAudit from './pages/AdminAudit';
 
 // HR Pages
@@ -227,6 +228,7 @@ function App() {
                     <Route path="users" element={<AdminUsers />} />
                     <Route path="settings" element={<AdminSettings />} />
                     <Route path="etl" element={<AdminETL />} />
+                    <Route path="etl-notifications" element={<AdminETLNotifications />} />
                     <Route path="audit" element={<AdminAudit />} />
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="*" element={<Navigate to="/admin/dashboard" />} />

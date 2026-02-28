@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
-import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2 } from 'lucide-react';
+import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2, XCircle } from 'lucide-react';
 
 const KPI_OPTIONS = [
   'total_students',
@@ -72,7 +72,10 @@ const AnalystDashboardsPage = () => {
   const [viewMode, setViewMode] = useState('grid'); // grid | list (grid is primary)
 
   const [swapConfirm, setSwapConfirm] = useState({ open: false, dash: null, targetRole: '' });
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, dash: null });
   const [messageModal, setMessageModal] = useState({ open: false, message: '' });
+  const [removingRole, setRemovingRole] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [contentDashboard, setContentDashboard] = useState(null);
   const [previewDashboard, setPreviewDashboard] = useState(null);
   const [contentForm, setContentForm] = useState({
@@ -297,6 +300,60 @@ const AnalystDashboardsPage = () => {
     }
   };
 
+  const getRolesWhereCurrent = (dashboardId) => {
+    if (!dashboardId) return [];
+    return currentByRole
+      .filter((e) => e.dashboard && e.dashboard.id === dashboardId)
+      .map((e) => e.role);
+  };
+
+  const handleRemoveCurrent = async (role) => {
+    setRemovingRole(role);
+    try {
+      await axios.post(
+        '/api/dashboard-manager/remove-current',
+        { role },
+        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+      );
+      await loadData();
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to remove current dashboard.';
+      setMessageModal({ open: true, message: msg });
+    } finally {
+      setRemovingRole(null);
+    }
+  };
+
+  const handleDeleteCustom = (dash) => {
+    const rolesUsing = getRolesWhereCurrent(dash.id);
+    if (rolesUsing.length > 0) {
+      setMessageModal({
+        open: true,
+        message: `Cannot delete: this dashboard is the current dashboard for role(s): ${rolesUsing.join(', ')}. Remove it from current dashboard for those roles first.`,
+      });
+      return;
+    }
+    setDeleteConfirm({ open: true, dash });
+  };
+
+  const handleDeleteConfirm = async () => {
+    const { dash } = deleteConfirm;
+    if (!dash) return;
+    setDeleteConfirm((prev) => ({ ...prev, open: false }));
+    setDeletingId(dash.id);
+    try {
+      await axios.delete(`/api/dashboards/${dash.id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      await loadData();
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to delete dashboard.';
+      setMessageModal({ open: true, message: msg });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleSaveContent = async () => {
     if (!contentDashboard) return;
     try {
@@ -371,8 +428,7 @@ const AnalystDashboardsPage = () => {
         err?.response?.data?.error ||
         err?.message ||
         'Unknown error while creating dashboard.';
-      // eslint-disable-next-line no-alert
-      alert(`Failed to create dashboard: ${msg}`);
+      setMessageModal({ open: true, message: `Failed to create dashboard: ${msg}` });
     }
   };
 
@@ -555,14 +611,26 @@ const AnalystDashboardsPage = () => {
                               : 'Preview'}
                           </Button>
                           {canManage && (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              className="h-6 px-2 text-[10px]"
-                              onClick={() => openContentEditor(dash, false)}
-                            >
-                              Edit content
-                            </Button>
+                            <>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                className="h-6 px-2 text-[10px]"
+                                onClick={() => openContentEditor(dash, false)}
+                              >
+                                Edit content
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                onClick={() => handleRemoveCurrent(rname)}
+                                disabled={!!removingRole}
+                              >
+                                {removingRole === rname ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                                <span className="ml-0.5">Remove current</span>
+                              </Button>
+                            </>
                           )}
                         </>
                       ) : (
@@ -671,6 +739,16 @@ const AnalystDashboardsPage = () => {
                             onClick={() => handleSwapFromCustom(dash)}
                           >
                             Make current
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDeleteCustom(dash)}
+                            disabled={!!deletingId}
+                          >
+                            {deletingId === dash.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                            <span className="ml-0.5">Delete</span>
                           </Button>
                         </>
                       )}
@@ -1028,6 +1106,42 @@ const AnalystDashboardsPage = () => {
           </div>
         </div>
       )}
+
+      {/* Swap confirmation modal */}
+      <Modal open={swapConfirm.open} onClose={() => setSwapConfirm((p) => ({ ...p, open: false }))} maxWidth="max-w-md">
+        <ModalHeader
+          title="Confirm dashboard swap"
+          onClose={() => setSwapConfirm((p) => ({ ...p, open: false }))}
+        />
+        <ModalBody>
+          <p className="text-sm text-muted-foreground">
+            Swap current dashboard for role <strong className="text-foreground">{swapConfirm.targetRole}</strong> with
+            &quot;<strong className="text-foreground">{swapConfirm.dash?.name}</strong>&quot;?
+          </p>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="outline" onClick={() => setSwapConfirm((p) => ({ ...p, open: false }))}>
+            Cancel
+          </Button>
+          <Button onClick={handleSwapConfirm}>
+            Confirm swap
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* Message / error modal */}
+      <Modal open={messageModal.open} onClose={() => setMessageModal((p) => ({ ...p, open: false }))} maxWidth="max-w-md">
+        <ModalHeader
+          title="Notice"
+          onClose={() => setMessageModal((p) => ({ ...p, open: false }))}
+        />
+        <ModalBody>
+          <p className="text-sm text-muted-foreground">{messageModal.message}</p>
+        </ModalBody>
+        <ModalFooter>
+          <Button onClick={() => setMessageModal((p) => ({ ...p, open: false }))}>OK</Button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 };
