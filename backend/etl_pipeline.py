@@ -96,7 +96,7 @@ class ETLPipeline:
                     df = pd.DataFrame(rows)
                     if df.empty:
                         return
-                    # Use to_sql for bulk insert
+                    # Use snapshot data as-is so admin-set passwords (from last export) are preserved
                     df.to_sql(table_name, engine, if_exists="append", index=False)
 
                 upsert_table("app_users", snapshot.get("app_users", []))

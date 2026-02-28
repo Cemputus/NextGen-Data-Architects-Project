@@ -24,6 +24,61 @@ from ml_models import MultiModelPredictor
 
 # Admin user-management: always available on main app (no blueprint dependency)
 RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace('UCU_DataWarehouse', 'ucu_rbac')
+
+
+def _ensure_dim_app_user_table(engine):
+    """Create dim_app_user in the data warehouse if not present (so sync works before first ETL run)."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS dim_app_user (
+                    app_user_id INT PRIMARY KEY,
+                    username VARCHAR(100) NOT NULL UNIQUE,
+                    role VARCHAR(50) NOT NULL,
+                    full_name VARCHAR(200),
+                    faculty_id INT NULL,
+                    department_id INT NULL,
+                    created_at TIMESTAMP NULL,
+                    INDEX idx_username (username),
+                    INDEX idx_role (role),
+                    INDEX idx_faculty (faculty_id),
+                    INDEX idx_department (department_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """))
+            conn.commit()
+    except Exception:
+        pass
+
+
+def _sync_dim_app_user(action, app_user_id, data=None):
+    """Keep dim_app_user in sync with ucu_rbac.app_users. action: 'insert'|'update'|'delete'. data: dict for insert/update."""
+    try:
+        dw_engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        _ensure_dim_app_user_table(dw_engine)
+        with dw_engine.connect() as conn:
+            if action == 'delete':
+                conn.execute(text("DELETE FROM dim_app_user WHERE app_user_id = :aid"), {'aid': app_user_id})
+            elif action in ('insert', 'update') and data:
+                # Upsert: insert or update so dim_app_user always matches app_users
+                conn.execute(text("""
+                    INSERT INTO dim_app_user (app_user_id, username, role, full_name, faculty_id, department_id, created_at)
+                    VALUES (:aid, :username, :role, :full_name, :faculty_id, :department_id, :created_at)
+                    ON DUPLICATE KEY UPDATE
+                    username = VALUES(username), role = VALUES(role), full_name = VALUES(full_name),
+                    faculty_id = VALUES(faculty_id), department_id = VALUES(department_id)
+                """), {
+                    'aid': app_user_id,
+                    'username': data.get('username', ''),
+                    'role': data.get('role', 'staff'),
+                    'full_name': data.get('full_name') or data.get('username', ''),
+                    'faculty_id': data.get('faculty_id'),
+                    'department_id': data.get('department_id'),
+                    'created_at': data.get('created_at'),
+                })
+            conn.commit()
+        dw_engine.dispose()
+    except Exception:
+        pass  # Sync failure must not break create/update/delete; ETL will reconcile
 DEMO_ACCOUNTS_FOR_LIST = [
     {'username': 'admin', 'role': 'sysadmin', 'full_name': 'System Administrator'},
     {'username': 'analyst', 'role': 'analyst', 'full_name': 'Data Analyst'},
@@ -118,6 +173,13 @@ def _ensure_default_app_user(engine):
                     }
                 )
             conn.commit()
+            r = pd.read_sql_query(text("SELECT id FROM app_users WHERE LOWER(username) = :uname"), conn, params={'uname': DEFAULT_APP_USER['username'].lower()})
+            if not r.empty:
+                _sync_dim_app_user('insert', int(r.iloc[0]['id']), {
+                    'username': DEFAULT_APP_USER['username'], 'role': DEFAULT_APP_USER['role'],
+                    'full_name': DEFAULT_APP_USER['full_name'], 'faculty_id': DEFAULT_APP_USER['faculty_id'],
+                    'department_id': DEFAULT_APP_USER['department_id'], 'created_at': datetime.now(),
+                })
     except Exception:
         pass
 
@@ -617,6 +679,20 @@ def admin_update_user(user_id):
                     return jsonify({'error': 'This department already has an HOD assigned'}), 400
             conn.execute(text(f"UPDATE app_users SET {', '.join(updates)} WHERE id = :uid"), params)
             conn.commit()
+            # Sync to dim_app_user so warehouse stays in sync
+            updated = pd.read_sql_query(
+                text("SELECT id, username, role, full_name, faculty_id, department_id FROM app_users WHERE id = :uid"),
+                conn, params={'uid': user_id}
+            )
+            if not updated.empty:
+                r = updated.iloc[0]
+                _sync_dim_app_user('update', user_id, {
+                    'username': str(r.get('username', '')),
+                    'role': str(r.get('role', 'staff')),
+                    'full_name': str(r.get('full_name') or r.get('username', '')),
+                    'faculty_id': int(r['faculty_id']) if pd.notna(r.get('faculty_id')) else None,
+                    'department_id': int(r['department_id']) if pd.notna(r.get('department_id')) else None,
+                })
         rbac_engine.dispose()
         return jsonify({'message': 'User updated', 'id': user_id}), 200
     except Exception as e:
@@ -640,6 +716,7 @@ def admin_delete_user(user_id):
                 rbac_engine.dispose()
                 return jsonify({'error': 'User not found'}), 404
         rbac_engine.dispose()
+        _sync_dim_app_user('delete', user_id)
         return jsonify({'message': 'User deleted', 'id': user_id}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -719,6 +796,12 @@ def admin_create_user():
     if role == 'hod' and department_id is not None and department_id in _department_ids_with_hod():
         return jsonify({'error': 'This department already has an HOD assigned'}), 400
     try:
+        # Ensure ucu_rbac DB exists before connecting (avoids connection failure on first user)
+        try:
+            from api.auth import _ensure_ucu_rbac_database
+            _ensure_ucu_rbac_database()
+        except Exception:
+            pass
         rbac_engine = create_engine(RBAC_CONN_STRING)
         _ensure_app_users_table(rbac_engine)
         password_hash = generate_password_hash(password, method='pbkdf2:sha256')
@@ -738,7 +821,15 @@ def admin_create_user():
                 }
             )
             conn.commit()
+            r = conn.execute(text("SELECT LAST_INSERT_ID() AS id"))
+            row = r.fetchone()
+            new_id = int(row[0]) if row and row[0] else None
         rbac_engine.dispose()
+        if new_id:
+            _sync_dim_app_user('insert', new_id, {
+                'username': username, 'role': role, 'full_name': full_name,
+                'faculty_id': faculty_id, 'department_id': department_id, 'created_at': datetime.now(),
+            })
         return jsonify({'message': 'User created successfully', 'username': username}), 201
     except Exception as e:
         msg = str(e)

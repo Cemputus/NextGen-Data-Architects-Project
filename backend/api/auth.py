@@ -267,6 +267,73 @@ def login():
         
         identifier_lower = identifier.lower()
         
+        # Demo admin: always allow login (no DB required) so Admin Console is reachable even if DB fails
+        if identifier_lower == 'admin' and password == 'admin123':
+            claims = {
+                'role': 'sysadmin',
+                'username': 'admin',
+                'full_name': 'System Administrator',
+                'first_name': 'System',
+                'last_name': 'Administrator',
+            }
+            access_token = create_access_token(identity='admin', additional_claims=claims)
+            refresh_token = create_refresh_token(identity='admin')
+            _audit_log_login('admin', 'sysadmin', 'success')
+            return jsonify({
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+                'role': 'sysadmin',
+                'user': {
+                    'id': 'admin',
+                    'username': 'admin',
+                    'role': 'sysadmin',
+                    'full_name': 'System Administrator',
+                    'first_name': 'System',
+                    'last_name': 'Administrator',
+                }
+            }), 200
+
+        # Demo users (hr, dean, hod, analyst, etc.): only allow with their fixed demo password
+        if identifier_lower in DEMO_USERS:
+            demo = DEMO_USERS[identifier_lower]
+            if password == demo['password']:
+                role_str = demo['role']
+                full_name = demo.get('full_name', '')
+                first_name = full_name.split()[0] if full_name else ''
+                last_name = ' '.join(full_name.split()[1:]) if full_name and len(full_name.split()) > 1 else ''
+                claims = {
+                    'role': role_str,
+                    'username': identifier_lower,
+                    'full_name': full_name,
+                    'first_name': first_name,
+                    'last_name': last_name,
+                }
+                profile_override = _load_user_profile(identifier_lower, role_str)
+                for key in ('first_name', 'last_name', 'email', 'phone'):
+                    if key in profile_override:
+                        claims[key] = profile_override[key]
+                access_token = create_access_token(identity=identifier_lower, additional_claims=claims)
+                refresh_token = create_refresh_token(identity=identifier_lower)
+                _audit_log_login(identifier_lower, role_str, 'success')
+                return jsonify({
+                    'access_token': access_token,
+                    'refresh_token': refresh_token,
+                    'role': role_str,
+                    'user': {
+                        'id': identifier_lower,
+                        'username': identifier_lower,
+                        'role': role_str,
+                        'full_name': claims.get('full_name'),
+                        'first_name': claims.get('first_name', first_name),
+                        'last_name': claims.get('last_name', last_name),
+                        'email': claims.get('email'),
+                        'phone': claims.get('phone'),
+                        'profile_picture_url': profile_override.get('profile_picture_url'),
+                    }
+                }), 200
+            _audit_log_login(identifier_lower, demo['role'], 'failure', 'Invalid password')
+            return jsonify({'error': 'Invalid credentials. Demo user must use the correct password (e.g. hr123 for hr, dean123 for dean).'}), 401
+
         # Default app user: always allow login (no DB required) so app-user login works even if DB fails
         if identifier_lower == 'cemputus' and password == 'cen123':
             username_str = 'Cemputus'
@@ -303,7 +370,6 @@ def login():
         if validate_access_number(identifier):
             # Student login with Access Number - check against student table
             engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-            import pandas as pd
             result = pd.read_sql_query(
                 text("SELECT student_id, access_number, reg_no, first_name, last_name FROM dim_student WHERE access_number = :access_number"),
                 engine,
@@ -367,82 +433,59 @@ def login():
                 _ensure_ucu_rbac_database()
                 rbac_engine = create_engine(RBAC_CONN_STRING)
                 _ensure_app_users_table(rbac_engine)
+                # Match by lowercase trimmed username so stored "Wanja " or "wanja" both match
                 result = pd.read_sql_query(
-                    text("SELECT id, username, password_hash, role, full_name, faculty_id, department_id FROM app_users WHERE LOWER(username) = :uname"),
+                    text("""
+                        SELECT id, username, password_hash, role, full_name, faculty_id, department_id
+                        FROM app_users
+                        WHERE LOWER(TRIM(username)) = :uname
+                    """),
                     rbac_engine,
                     params={'uname': identifier_lower}
                 )
                 rbac_engine.dispose()
                 if result.empty:
-                    if attempt == 1:
-                        pass  # will fall through and maybe retry
-                    else:
-                        print(f"Login: no app_user found for identifier '{identifier_lower}'. Use Admin → Users to add the user or check the username.")
+                    if attempt == 2:
+                        try:
+                            _ensure_ucu_rbac_database()
+                            diag_engine = create_engine(RBAC_CONN_STRING)
+                            _ensure_app_users_table(diag_engine)
+                            count_df = pd.read_sql_query(text("SELECT COUNT(*) AS n FROM app_users"), diag_engine)
+                            n = int(count_df['n'].iloc[0]) if not count_df.empty else 0
+                            if n > 0:
+                                names_df = pd.read_sql_query(text("SELECT username FROM app_users ORDER BY username LIMIT 20"), diag_engine)
+                                names = list(names_df['username'].astype(str)) if not names_df.empty else []
+                                print(f"Login: no app_user matched '{identifier_lower}'. Table has {n} user(s). Sample usernames: {names}")
+                            else:
+                                print(f"Login: no app_user found for '{identifier_lower}'. Table app_users is empty. Add users in Admin → Users.")
+                            diag_engine.dispose()
+                        except Exception as diag_err:
+                            print(f"Login: no app_user for '{identifier_lower}'. Diagnostic failed: {diag_err}")
                     break
                 row = result.iloc[0]
                 password_hash = row['password_hash']
                 uname = str(row['username']).strip()
 
-                # If this app user has no real password hash yet (empty, NULL, or legacy placeholder),
-                # treat this as first-time setup: hash the provided password and persist it so they can
-                # log in going forward. This generalizes the "Cemputus" convenience to all app users.
+                # App users must have a valid stored password (set by Admin). No auto-set or accept-any-password.
                 ph_str = str(password_hash or '').strip()
                 has_valid_hash = ph_str.startswith('pbkdf2:sha256:')
                 if not has_valid_hash:
-                    try:
-                        _ensure_ucu_rbac_database()
-                        engine = create_engine(RBAC_CONN_STRING)
-                        _ensure_app_users_table(engine)
-                        new_hash = generate_password_hash(password, method='pbkdf2:sha256')
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text("UPDATE app_users SET password_hash = :ph WHERE id = :uid"),
-                                {'ph': new_hash, 'uid': int(row['id'])},
-                            )
-                            conn.commit()
-                        engine.dispose()
-                        password_hash = new_hash
-                        print(f"Login: app_user '{uname}' had no password; initialized password from first successful login attempt.")
-                    except Exception as init_err:
-                        role_for_audit = str(row['role']) if pd.notna(row['role']) else 'staff'
-                        _audit_log_login(uname, role_for_audit, 'failure', 'No password set')
-                        print(f"Login: app_user '{uname}' has no password set and automatic initialization failed: {init_err}")
-                        return jsonify({'error': 'Invalid credentials'}), 401
+                    role_for_audit = str(row['role']) if pd.notna(row['role']) else 'staff'
+                    _audit_log_login(uname, role_for_audit, 'failure', 'No password set')
+                    return jsonify({
+                        'error': 'Account not active. Contact your admin to set your password in Admin → Users.'
+                    }), 401
 
-                # Verify password; on mismatch or check failure (e.g. corrupt hash), reset
-                # stored hash to the password just provided and allow login.
-                password_ok = False
+                # Strict password check: only allow if stored hash matches. No reset on mismatch.
                 try:
                     password_ok = check_password_hash(str(password_hash).strip(), password)
                 except Exception:
-                    # Corrupt or legacy hash format — treat as mismatch and fix below
                     password_ok = False
-
                 if not password_ok:
-                    # Generalized "Cemputus" behavior for all app users:
-                    # on any password mismatch, reset the stored hash to the password
-                    # just provided and allow login, so Admin does NOT need to manually
-                    # reset passwords after migrations or on new machines.
-                    try:
-                        _ensure_ucu_rbac_database()
-                        engine = create_engine(RBAC_CONN_STRING)
-                        _ensure_app_users_table(engine)
-                        new_hash = generate_password_hash(password, method='pbkdf2:sha256')
-                        with engine.connect() as conn:
-                            conn.execute(
-                                text("UPDATE app_users SET password_hash = :ph WHERE id = :uid"),
-                                {'ph': new_hash, 'uid': int(row['id'])},
-                            )
-                            conn.commit()
-                        engine.dispose()
-                        password_hash = new_hash
-                        password_ok = True
-                        print(f"Login: app_user '{uname}' password mismatch; reset password to value from this login attempt.")
-                    except Exception as reset_err:
-                        role_for_audit = str(row['role']) if pd.notna(row['role']) else 'staff'
-                        _audit_log_login(uname, role_for_audit, 'failure', 'Password auto-reset on login failed')
-                        print(f"Login: app_user '{uname}' password auto-reset failed: {reset_err}. Reset password in Admin → Users → Edit user.")
-                        return jsonify({'error': 'Invalid credentials'}), 401
+                    role_for_audit = str(row['role']) if pd.notna(row['role']) else 'staff'
+                    _audit_log_login(uname, role_for_audit, 'failure', 'Invalid password')
+                    return jsonify({'error': 'Invalid credentials'}), 401
+
                 username_str = str(row['username']).strip()
                 role_str = (str(row['role']).strip() if pd.notna(row['role']) else 'staff').lower()
 
@@ -548,56 +591,6 @@ def login():
                 import traceback
                 print(f"Default app user (Cemputus) fallback failed: {fallback_err}")
                 traceback.print_exc()
-
-        # Check if it's a username (non-student login) — demo users
-        if identifier_lower in DEMO_USERS:
-            user_info = DEMO_USERS[identifier_lower]
-            if user_info['password'] == password:
-                # Base claims for demo user
-                role_str = user_info['role']
-                full_name = user_info['full_name']
-                first_name = full_name.split()[0] if full_name else ''
-                last_name = ' '.join(full_name.split()[1:]) if full_name and len(full_name.split()) > 1 else ''
-                claims = {
-                    'role': role_str,
-                    'username': identifier_lower,
-                    'full_name': full_name,
-                    'first_name': first_name,
-                    'last_name': last_name,
-                }
-
-                # Overlay any persisted profile fields
-                profile_override = _load_user_profile(identifier_lower, role_str)
-                for key in ('first_name', 'last_name', 'email', 'phone'):
-                    if key in profile_override:
-                        claims[key] = profile_override[key]
-
-                # Create token for non-student user
-                access_token = create_access_token(
-                    identity=identifier_lower,
-                    additional_claims=claims,
-                )
-                refresh_token = create_refresh_token(identity=identifier_lower)
-                _audit_log_login(identifier_lower, role_str, 'success')
-                return jsonify({
-                    'access_token': access_token,
-                    'refresh_token': refresh_token,
-                    'role': role_str,  # Add role at top level for frontend
-                    'user': {
-                        'id': identifier_lower,
-                        'username': identifier_lower,
-                        'role': role_str,
-                        'full_name': claims.get('full_name'),
-                        'first_name': claims.get('first_name', first_name),
-                        'last_name': claims.get('last_name', last_name),
-                        'email': claims.get('email'),
-                        'phone': claims.get('phone'),
-                        'profile_picture_url': profile_override.get('profile_picture_url'),
-                    }
-                }), 200
-            else:
-                _audit_log_login(identifier_lower, user_info['role'], 'failure', 'Invalid password')
-                return jsonify({'error': 'Invalid credentials'}), 401
 
         print(f"Login: invalid credentials for '{identifier_lower}' (not in app_users or demo).")
         _audit_log_login(identifier_lower or identifier, '', 'failure', 'Invalid credentials')

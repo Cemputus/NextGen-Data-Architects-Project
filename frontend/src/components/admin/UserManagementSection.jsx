@@ -390,7 +390,7 @@ export default function UserManagementSection({
                   id="add-username"
                   value={addForm.username}
                   onChange={(e) => setAddForm((f) => ({ ...f, username: e.target.value }))}
-                  placeholder="e.g. j.doe"
+                  placeholder="e.g. Awor Joy"
                   required
                   autoComplete="username"
                 />
@@ -414,7 +414,7 @@ export default function UserManagementSection({
                   id="add-fullname"
                   value={addForm.full_name}
                   onChange={(e) => setAddForm((f) => ({ ...f, full_name: e.target.value }))}
-                  placeholder="e.g. Jane Doe"
+                  placeholder="e.g. Awor Joy"
                 />
               </div>
               <div>

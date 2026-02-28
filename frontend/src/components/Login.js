@@ -60,7 +60,10 @@ const Login = () => {
         const roleKey = (role || '').toString().toLowerCase();
         navigate(routes[roleKey] || rbac.getDefaultRoute(roleKey) || '/student/dashboard');
       } else {
-        const errorMsg = result.error || 'Invalid credentials. Please check your username or Access Number and password.';
+        let errorMsg = result.error || 'Invalid credentials. Please check your username or Access Number and password.';
+        if (errorMsg.toLowerCase().includes('invalid credentials') && !errorMsg.includes('Admin')) {
+          errorMsg += ' Staff/Admin: use the exact username your admin created and the password they set (see Admin → Users).';
+        }
         setError(errorMsg);
       }
     } catch (err) {
@@ -214,7 +217,7 @@ const Login = () => {
                       <Input
                         id="username"
                         type="text"
-                        placeholder="e.g. j.doe or AccessNumber"
+                        placeholder="e.g. Awor Joy or AccessNumber"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         className="pl-10 h-10 rounded-xl border-input bg-background dark:bg-secondary text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all duration-200"
@@ -274,7 +277,10 @@ const Login = () => {
                     <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono">AccessNumber@ucu</code>
                   </p>
                   <p className="text-xs text-muted-foreground mt-1.5">
-                    <strong className="text-foreground/80">Staff/Admin:</strong> Use your username and password
+                    <strong className="text-foreground/80">Staff/Admin:</strong> Use your username and password (see Admin → Users).
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    <strong className="text-foreground/80">Demo admin:</strong> <code className="bg-muted px-1 rounded text-[11px]">admin</code> / <code className="bg-muted px-1 rounded text-[11px]">admin123</code>
                   </p>
                 </div>
               </CardContent>

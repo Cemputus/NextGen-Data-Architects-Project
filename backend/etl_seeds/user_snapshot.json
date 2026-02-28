@@ -24,9 +24,9 @@
       "id": 7,
       "username": "edube",
       "password_hash": "pbkdf2:sha256:600000$G5dOCsXtWHhLYJPa$dc7492ed36d07e9685b49cb12bdd5c73e2ad42e82e2fb1bba1987336f7608b73",
-      "role": "staff",
+      "role": "dean",
       "full_name": "edube",
-      "faculty_id": NaN,
+      "faculty_id": 2.0,
       "department_id": NaN,
       "created_at": "2026-02-23 16:10:44"
     },
@@ -54,7 +54,7 @@
       "id": 10,
       "username": "joy",
       "password_hash": "pbkdf2:sha256:600000$VLk4XNlbQBQTdGkN$16b86c13bda07e455f21d897e827a2507c3eaa864bd4cc84238f803926d7486a",
-      "role": "staff",
+      "role": "dean",
       "full_name": "joy",
       "faculty_id": 6.0,
       "department_id": NaN,
@@ -79,6 +79,16 @@
       "faculty_id": NaN,
       "department_id": NaN,
       "created_at": "2026-02-26 19:54:03"
+    },
+    {
+      "id": 13,
+      "username": "gift",
+      "password_hash": "pbkdf2:sha256:600000$0gQIuHnkMk2Bielz$50c4e689a98231b1ee1bac91be235ec6a7d3ab93098d66b4c2faae4745c8e2ed",
+      "role": "dean",
+      "full_name": "Gift Ruth",
+      "faculty_id": 10.0,
+      "department_id": NaN,
+      "created_at": "2026-02-28 17:09:02"
     }
   ],
   "user_profiles": [

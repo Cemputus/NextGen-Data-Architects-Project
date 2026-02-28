@@ -25,6 +25,8 @@ const AdminDashboard = () => {
   const [systemStats, setSystemStats] = useState(null);
   const [adminStatus, setAdminStatus] = useState(null);
   const [appUsers, setAppUsers] = useState([]);
+  const [appUsersLoading, setAppUsersLoading] = useState(true);
+  const [appUsersError, setAppUsersError] = useState(null); // 403 = need sysadmin, 401 = need login
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showWelcome, setShowWelcome] = useState(true);
 
@@ -69,13 +71,27 @@ const AdminDashboard = () => {
       setAdminStatus(null);
       setSystemStats(prev => prev ?? { total_users: 0, active_sessions: 0, etl_jobs: 0, system_health: 0, employees: 0, staff: 0 });
     }
+    setAppUsersLoading(true);
+    setAppUsersError(null);
     try {
       const appUsersRes = await axios.get('/api/admin/app-users', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      setAppUsers(appUsersRes.data?.app_users ?? []);
-    } catch {
+      const list = appUsersRes.data?.app_users ?? [];
+      setAppUsers(Array.isArray(list) ? list : []);
+      setAppUsersError(null);
+    } catch (err) {
       setAppUsers([]);
+      const status = err.response?.status;
+      if (status === 401) {
+        setAppUsersError('Session expired or invalid. Log in again.');
+      } else if (status === 403) {
+        setAppUsersError('Admin (sysadmin) access required. Log in with admin / admin123 to see app users.');
+      } else {
+        setAppUsersError(err.response?.data?.error || 'Could not load app users.');
+      }
+    } finally {
+      setAppUsersLoading(false);
     }
   };
 
@@ -252,11 +268,19 @@ const AdminDashboard = () => {
                 <CardHeader className="p-4 pb-2">
                   <CardTitle className="text-base font-semibold">App users who can log in</CardTitle>
                   <CardDescription className="text-xs">
-                    {appUsers.length} user(s) in <code className="bg-muted px-1 rounded">ucu_rbac.app_users</code> (same as dim_app_user after ETL). Use these usernames on the login page; passwords are set in Add/Edit user below.
+                    {appUsersLoading
+                      ? 'Loading app users from ucu_rbac.app_users…'
+                      : appUsersError
+                        ? 'App users from ucu_rbac.app_users (sysadmin only).'
+                        : <>{(appUsers?.length ?? 0)} user(s) in <code className="bg-muted px-1 rounded">ucu_rbac.app_users</code> (same as dim_app_user after ETL). Use these usernames on the login page; passwords are set in Add/Edit user below.</>}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
-                  {appUsers.length === 0 ? (
+                  {appUsersLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading…</p>
+                  ) : appUsersError ? (
+                    <p className="text-sm text-amber-600 dark:text-amber-400">{appUsersError}</p>
+                  ) : appUsers.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No app users yet. Add users below.</p>
                   ) : (
                     <div className="overflow-x-auto">
