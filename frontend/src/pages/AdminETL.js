@@ -2,17 +2,29 @@
  * Admin ETL Jobs Page - ETL and Data Warehouse tracking for system admin
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, RefreshCw, Database, CheckCircle, XCircle } from 'lucide-react';
+import { Play, RefreshCw, Database, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader, PageContent } from '../components/ui/page-header';
 import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
 import { LoadingState, ErrorState } from '../components/ui/state-messages';
+import { Label } from '../components/ui/label';
+import { Select } from '../components/ui/select';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 
 const REFRESH_INTERVAL_MS = 5000;
 const REFRESH_AFTER_RUN_COUNT = 12; // 12 * 5s = 60s of polling after Run ETL
+
+const ETL_AUTO_INTERVAL_OPTIONS = [
+  { value: 1, label: '1 min (test)' },
+  { value: 30, label: '30 minutes' },
+  { value: 60, label: '1 hour' },
+  { value: 120, label: '2 hours' },
+  { value: 300, label: '5 hours' },
+  { value: 600, label: '10 hours' },
+  { value: 1440, label: '24 hours' },
+];
 
 const AdminETL = () => {
   const [loading, setLoading] = useState(true);
@@ -21,6 +33,9 @@ const AdminETL = () => {
   const [error, setError] = useState(null);
   const [etlMessage, setEtlMessage] = useState(null);
   const [etlRunsLimit, setEtlRunsLimit] = useState(10);
+  const [adminSettings, setAdminSettings] = useState({});
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [countdownSec, setCountdownSec] = useState(null);
   const refreshIntervalRef = useRef(null);
 
   const ETL_RUNS_LIMIT_OPTIONS = [5, 10, 20, 50];
@@ -30,6 +45,64 @@ const AdminETL = () => {
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
     };
   }, []);
+
+  // Countdown to next automatic ETL run
+  useEffect(() => {
+    if (!adminSettings.etl_auto_enabled) {
+      setCountdownSec(null);
+      return;
+    }
+    const intervalMinutes = Number(adminSettings.etl_auto_interval_minutes) || 60;
+    const intervalSec = Math.max(60, Math.round(intervalMinutes * 60)); // min 1 min for test
+    const lastRun = adminSettings.last_etl_auto_run; // Unix seconds
+    const nowSec = Date.now() / 1000;
+    const nextRunSec = lastRun != null ? lastRun + intervalSec : nowSec + intervalSec;
+
+    const tick = () => {
+      const now = Date.now() / 1000;
+      const remaining = Math.max(0, Math.floor(nextRunSec - now));
+      setCountdownSec(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [adminSettings.etl_auto_enabled, adminSettings.etl_auto_interval_minutes, adminSettings.last_etl_auto_run]);
+
+  const loadSettings = async () => {
+    try {
+      const res = await axios.get('/api/admin/settings', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      setAdminSettings(res.data?.settings ?? {});
+    } catch {
+      setAdminSettings({});
+    }
+  };
+
+  const saveSettings = async (updates) => {
+    const next = { ...adminSettings, ...updates };
+    setSettingsSaving(true);
+    try {
+      await axios.put('/api/admin/settings', { settings: next }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      setAdminSettings(next);
+    } catch (err) {
+      setEtlMessage(err.response?.data?.error || 'Failed to save settings');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const formatCountdown = (sec) => {
+    if (sec == null) return '—';
+    if (sec <= 0) return 'Running soon…';
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
 
   const loadStatus = async (silent = false) => {
     try {
@@ -57,7 +130,22 @@ const AdminETL = () => {
 
   useEffect(() => {
     loadStatus();
+    loadSettings();
   }, [etlRunsLimit]);
+
+  // When auto ETL is on: poll settings every 15s so countdown resets as soon as a run finishes
+  useEffect(() => {
+    if (!adminSettings.etl_auto_enabled) return;
+    const id = setInterval(loadSettings, 15000);
+    return () => clearInterval(id);
+  }, [adminSettings.etl_auto_enabled]);
+
+  // When auto ETL is on: poll status every 10s so run history and warehouse table auto-refresh
+  useEffect(() => {
+    if (!adminSettings.etl_auto_enabled) return;
+    const id = setInterval(() => loadStatus(true), 10000);
+    return () => clearInterval(id);
+  }, [adminSettings.etl_auto_enabled]);
 
   const runETL = async () => {
     try {
@@ -131,6 +219,56 @@ const AdminETL = () => {
           {etlMessage}
         </div>
       )}
+
+      {/* Automatic ETL */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Automatic ETL
+          </CardTitle>
+          <CardDescription>
+            Run ETL on a schedule in addition to manual &quot;Run ETL&quot; above.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!adminSettings.etl_auto_enabled}
+                onChange={(e) => saveSettings({ etl_auto_enabled: e.target.checked })}
+                disabled={settingsSaving}
+                className="h-4 w-4 rounded border-input"
+                aria-label="Run ETL automatically"
+              />
+              <span className="text-sm font-medium">Run ETL automatically</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="etl-auto-interval" className="text-sm text-muted-foreground whitespace-nowrap">
+                Interval:
+              </Label>
+              <Select
+                id="etl-auto-interval"
+                value={adminSettings.etl_auto_interval_minutes ?? 60}
+                onChange={(e) => saveSettings({ etl_auto_interval_minutes: Number(e.target.value) })}
+                disabled={settingsSaving}
+                className="w-[160px]"
+              >
+                {ETL_AUTO_INTERVAL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </Select>
+            </div>
+            {adminSettings.etl_auto_enabled && (
+              <span className="text-sm font-mono tabular-nums text-muted-foreground border border-border rounded-md px-3 py-1.5 bg-muted/50" title="Time until next automatic ETL run">
+                Next run in {formatCountdown(countdownSec)}
+              </span>
+            )}
+            {settingsSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Source databases */}
       <Card>

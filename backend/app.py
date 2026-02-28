@@ -8,7 +8,13 @@ from flask_jwt_extended import JWTManager, jwt_required, get_jwt, verify_jwt_in_
 import pandas as pd
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text
+from pathlib import Path
 import re
+import threading
+import subprocess
+import sys
+import json
+import time
 from config import (
     DATA_WAREHOUSE_CONN_STRING,
     SECRET_KEY,
@@ -1059,6 +1065,84 @@ if admin_bp:
     app.register_blueprint(admin_bp)
 if nextgen_query_bp:
     app.register_blueprint(nextgen_query_bp)
+
+
+# --- Automatic ETL scheduler (reads admin_settings.json) ---
+_ADMIN_SETTINGS_FILE = Path(__file__).resolve().parent / 'data' / 'admin_settings.json'
+
+
+def _run_etl_subprocess():
+    """Run export_user_snapshot + ETL pipeline in subprocess (same as Admin Run ETL)."""
+    backend_dir = Path(__file__).resolve().parent
+    try:
+        try:
+            subprocess.run(
+                [sys.executable, '-m', 'export_user_snapshot'],
+                cwd=str(backend_dir),
+                capture_output=False,
+                timeout=60,
+            )
+        except subprocess.TimeoutExpired:
+            pass
+        subprocess.run(
+            [sys.executable, '-m', 'etl_pipeline'],
+            cwd=str(backend_dir),
+            capture_output=False,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        pass
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+
+
+def _etl_scheduler_loop():
+    """Background loop: check admin_settings every 10s; if auto ETL enabled and interval elapsed, run ETL."""
+    while True:
+        try:
+            time.sleep(10)  # Check every 10s so short intervals (e.g. 30 sec) trigger on time
+            if not _ADMIN_SETTINGS_FILE.exists():
+                continue
+            with open(_ADMIN_SETTINGS_FILE, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+            if not settings.get('etl_auto_enabled'):
+                continue
+            interval_min = float(settings.get('etl_auto_interval_minutes') or 60)
+            interval_sec = max(60, int(interval_min * 60))  # min 1 min for test option
+            last_run = settings.get('last_etl_auto_run')
+            now_sec = time.time()
+            # First time auto is enabled: set anchor so first run happens after one full interval
+            if last_run is None:
+                settings['last_etl_auto_run'] = now_sec
+                try:
+                    _ADMIN_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    with open(_ADMIN_SETTINGS_FILE, 'w', encoding='utf-8') as f:
+                        json.dump(settings, f, indent=2)
+                except Exception:
+                    pass
+                continue
+            try:
+                last_sec = float(last_run) if isinstance(last_run, (int, float)) else datetime.fromisoformat(str(last_run).replace('Z', '+00:00')).timestamp()
+            except Exception:
+                last_sec = 0
+            if (now_sec - last_sec) < interval_sec:
+                continue
+            settings['last_etl_auto_run'] = now_sec
+            try:
+                _ADMIN_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+                with open(_ADMIN_SETTINGS_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(settings, f, indent=2)
+            except Exception:
+                pass
+            threading.Thread(target=_run_etl_subprocess, daemon=True).start()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+
+
+_etl_scheduler_thread = threading.Thread(target=_etl_scheduler_loop, daemon=True)
+_etl_scheduler_thread.start()
 
 
 # Fallback: catch /api/admin/users, faculties, departments, ping when exact route didn't match (e.g. path quirk). Registered after blueprint so other /api/admin/* routes still work.
