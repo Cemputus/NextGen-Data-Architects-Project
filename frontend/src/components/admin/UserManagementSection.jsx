@@ -15,6 +15,7 @@ import { Label } from '../ui/label';
 import { LoadingState, EmptyState, ErrorState } from '../ui/state-messages';
 import axios from 'axios';
 import { cn } from '../../lib/utils';
+import adminUIState from '../../utils/adminUIState';
 
 const getToken = () => localStorage.getItem('token');
 
@@ -50,12 +51,13 @@ export default function UserManagementSection({
   refreshTrigger,
   onUsersChanged,
 }) {
+  const usersState = adminUIState.getSection('users');
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const [searchTerm, setSearchTermState] = useState(() => usersState.searchTerm || '');
+  const [roleFilter, setRoleFilterState] = useState(() => usersState.roleFilter || '');
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [faculties, setFaculties] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -70,7 +72,25 @@ export default function UserManagementSection({
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [addError, setAddError] = useState(null);
   const [listWarning, setListWarning] = useState(null);
-  const [usersLimit, setUsersLimit] = useState(5);
+  const [usersLimit, setUsersLimitState] = useState(() => {
+    const L = usersState.limit;
+    if (L === 'all') return 'all';
+    const n = Number(L);
+    return !isNaN(n) && n > 0 ? n : 50;
+  });
+
+  const setSearchTerm = (v) => {
+    setSearchTermState(v);
+    adminUIState.setSection('users', { searchTerm: v });
+  };
+  const setRoleFilter = (v) => {
+    setRoleFilterState(v);
+    adminUIState.setSection('users', { roleFilter: v });
+  };
+  const setUsersLimit = (v) => {
+    setUsersLimitState(v);
+    adminUIState.setSection('users', { limit: v });
+  };
   const [viewUser, setViewUser] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [editUser, setEditUser] = useState(null);

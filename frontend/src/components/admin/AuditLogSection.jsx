@@ -12,6 +12,7 @@ import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, Table
 import { LoadingState, EmptyState, ErrorState } from '../ui/state-messages';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
+import adminUIState from '../../utils/adminUIState';
 
 const AUDIT_LIMIT_OPTIONS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 500, 'all'];
 
@@ -22,38 +23,28 @@ export default function AuditLogSection({
   defaultLimit = 10,
   refreshTrigger,
 }) {
+  const auditState = adminUIState.getSection('audit');
+  const getInitialLimit = () => {
+    if (compact) return defaultLimit;
+    const lim = auditState.limit;
+    if (lim === 'all') return 'all';
+    const n = Number(lim);
+    if (!isNaN(n) && (AUDIT_LIMIT_OPTIONS.includes(n) || n === 500)) return n;
+    return defaultLimit;
+  };
+
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState([]);
   const [message, setMessage] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTermState] = useState(() => (compact ? '' : (auditState.searchTerm || '')));
   const [error, setError] = useState(null);
   const [settingUp, setSettingUp] = useState(false);
-  
-  // Use separate storage keys for console vs full page
-  const storageKey = compact ? 'auditLogsLimitConsole' : 'auditLogsLimit';
-  
-  // Initialize from localStorage or defaultLimit
-  // For console (compact=true), always use defaultLimit (5) on first load, then persist changes
-  const getInitialLimit = () => {
-    // Console always starts with defaultLimit (5), full page uses stored or defaultLimit (10)
-    if (compact) {
-      return defaultLimit; // Console always starts with 5
-    }
-    // Full page: check localStorage first
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored !== null && stored !== '') {
-        if (stored === 'all') return 'all';
-        const num = Number(stored);
-        if (!isNaN(num) && AUDIT_LIMIT_OPTIONS.includes(num)) return num;
-      }
-    } catch (e) {
-      console.error('[AuditLogSection] Error reading localStorage:', e);
-    }
-    return defaultLimit;
-  };
-  
   const [logsLimit, setLogsLimit] = useState(getInitialLimit);
+
+  const setSearchTerm = (v) => {
+    setSearchTermState(v);
+    if (!compact) adminUIState.setSection('audit', { searchTerm: v });
+  };
 
   const loadLogs = async (limitToUse) => {
     const limit = limitToUse !== undefined ? limitToUse : logsLimit;
@@ -109,16 +100,12 @@ export default function AuditLogSection({
     }
   }, [refreshTrigger]);
 
-  // Persist limit changes to localStorage
+  // Persist limit changes (full page only)
   useEffect(() => {
-    try {
-      if (logsLimit !== undefined && logsLimit !== null) {
-        localStorage.setItem(storageKey, String(logsLimit));
-      }
-    } catch (e) {
-      console.error('[AuditLogSection] Error saving to localStorage:', e);
+    if (!compact && logsLimit !== undefined && logsLimit !== null) {
+      adminUIState.setSection('audit', { limit: logsLimit });
     }
-  }, [logsLimit, storageKey]);
+  }, [logsLimit, compact]);
 
   const setupAuditDb = async () => {
     try {
@@ -161,6 +148,7 @@ export default function AuditLogSection({
       }
     }
     setLogsLimit(newLimit);
+    if (!compact) adminUIState.setSection('audit', { limit: newLimit });
     await loadLogs(newLimit);
   };
 

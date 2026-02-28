@@ -2,6 +2,7 @@
 Admin API - system status, ETL tracking, audit logs, run ETL, setup audit DB (sysadmin only).
 """
 from pathlib import Path
+import os
 import re
 import threading
 import sys
@@ -17,6 +18,20 @@ from sqlalchemy import create_engine, text
 backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
+
+def _get_etl_log_dir():
+    """
+    Single source of truth for ETL log directory so logs are always stored and retrievable.
+    Uses ETL_LOG_DIR env var if set (e.g. persistent volume); otherwise backend_dir/logs.
+    Same logic is used in etl_pipeline.py so both write and read from the same place.
+    """
+    raw = os.environ.get('ETL_LOG_DIR')
+    if raw and raw.strip():
+        log_dir = Path(raw.strip()).resolve()
+    else:
+        log_dir = (backend_dir / 'logs').resolve()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir
 
 from config import (
     DATA_WAREHOUSE_CONN_STRING,
@@ -41,15 +56,36 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 SETTINGS_FILE = Path(backend_dir) / 'data' / 'admin_settings.json'
 
 
+_ADMIN_SETTINGS_DEFAULTS = {
+    'systemName': 'NextGen Data Architects',
+    'apiUrl': '',
+    'supportEmail': '',
+    'enableNotifications': True,
+    'emailOnEtlFailure': True,
+    'dailyDigest': False,
+    'etl_auto_enabled': False,
+    'etl_auto_interval_minutes': 60,
+    'sessionTimeout': 24,
+    'sessionTimeoutUnit': 'hours',
+    'maxLoginAttempts': 5,
+    'theme': 'system',
+    'compactSidebar': False,
+}
+
+
 def _load_settings():
-    """Load admin settings from JSON file; return dict or empty dict."""
+    """Load admin settings from JSON file; merge with defaults so notification keys always exist."""
+    base = dict(_ADMIN_SETTINGS_DEFAULTS)
     if not SETTINGS_FILE.exists():
-        return {}
+        return base
     try:
         with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            loaded = json.load(f)
+        if isinstance(loaded, dict):
+            base.update(loaded)
+        return base
     except Exception:
-        return {}
+        return base
 
 
 def _save_settings(settings):
@@ -369,8 +405,7 @@ def system_status():
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         warehouse = _get_warehouse_counts(engine)
-        # ETL log dir: same as etl_pipeline.py (backend/logs) so KPI picks from actual ETL jobs
-        log_dir = Path(backend_dir) / 'logs'
+        log_dir = _get_etl_log_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
         etl_runs = _get_etl_run_history(log_dir, max_runs=limit)
         console_kpis = _get_console_kpis(engine, etl_runs, log_dir)
@@ -401,8 +436,13 @@ def get_etl_log(filename):
         return err, code
     if not re.match(r'^etl_pipeline_\d{8}_\d{6}\.log$', filename):
         return jsonify({'error': 'Invalid log filename'}), 400
-    log_dir = Path(backend_dir) / 'logs'
-    log_path = log_dir / filename
+    log_dir = _get_etl_log_dir()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = (log_dir / filename).resolve()
+    try:
+        log_path.relative_to(log_dir.resolve())
+    except ValueError:
+        return jsonify({'error': 'Invalid path'}), 400
     if not log_path.exists() or not log_path.is_file():
         return jsonify({'error': 'Log file not found'}), 404
     try:

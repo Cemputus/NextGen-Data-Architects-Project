@@ -14,6 +14,7 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/mod
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { exportETLRunToPDF } from '../utils/exportUtils';
+import adminUIState from '../utils/adminUIState';
 
 const REFRESH_INTERVAL_MS = 5000;
 const REFRESH_AFTER_RUN_COUNT = 12; // 12 * 5s = 60s of polling after Run ETL
@@ -34,7 +35,27 @@ const AdminETL = () => {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
   const [etlMessage, setEtlMessage] = useState(null);
-  const [etlRunsLimit, setEtlRunsLimit] = useState(10);
+  const etlState = adminUIState.getSection('etl');
+  const [etlRunsLimit, setEtlRunsLimitState] = useState(() => etlState.runsLimit ?? 10);
+  const [etlPerPage, setEtlPerPageState] = useState(() => etlState.perPage ?? 20);
+  const [etlPage, setEtlPageState] = useState(() => etlState.page ?? 1);
+
+  const setEtlRunsLimit = (v) => {
+    setEtlRunsLimitState(v);
+    adminUIState.setSection('etl', { runsLimit: v, page: 1 });
+  };
+  const setEtlPerPage = (v) => {
+    setEtlPerPageState(v);
+    adminUIState.setSection('etl', { perPage: v, page: 1 });
+  };
+  const setEtlPage = (v) => {
+    setEtlPageState((prev) => {
+      const next = typeof v === 'function' ? v(prev) : v;
+      adminUIState.setSection('etl', { page: next });
+      return next;
+    });
+  };
+
   const [adminSettings, setAdminSettings] = useState({});
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [countdownSec, setCountdownSec] = useState(null);
@@ -48,15 +69,15 @@ const AdminETL = () => {
   const ETL_RUNS_LIMIT_OPTIONS = [
     { value: 5, label: '5 runs' },
     { value: 10, label: '10 runs' },
+    { value: 15, label: '15 runs' },
     { value: 20, label: '20 runs' },
+    { value: 30, label: '30 runs' },
+    { value: 40, label: '40 runs' },
     { value: 50, label: '50 runs' },
     { value: 100, label: '100 runs' },
-    { value: 150, label: '150 runs' },
-    { value: 200, label: '200 runs' },
-    { value: 250, label: '250 runs' },
-    { value: 500, label: '500 runs' },
     { value: 9999, label: 'All' },
   ];
+  const ETL_PER_PAGE_OPTIONS = [10, 20, 30, 50, 100];
   useEffect(() => {
     return () => {
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
@@ -149,6 +170,12 @@ const AdminETL = () => {
     loadStatus();
     loadSettings();
   }, [etlRunsLimit]);
+
+  const warehouse = status?.warehouse || {};
+  const etlRuns = status?.etl_runs || [];
+  const sourceDbs = status?.source_databases || {};
+  const etlRunsPaginated = etlRuns.slice((etlPage - 1) * etlPerPage, etlPage * etlPerPage);
+  const etlTotalPages = Math.max(1, Math.ceil(etlRuns.length / etlPerPage));
 
   // When auto ETL is on: poll settings every 15s so countdown resets as soon as a run finishes
   useEffect(() => {
@@ -253,10 +280,6 @@ const AdminETL = () => {
     );
   }
 
-  const warehouse = status?.warehouse || {};
-  const etlRuns = status?.etl_runs || [];
-  const sourceDbs = status?.source_databases || {};
-
   return (
     <PageContent>
       <PageHeader
@@ -276,8 +299,8 @@ const AdminETL = () => {
         }
       />
 
-      {etlMessage && (
-        <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
+      {etlMessage && adminSettings.enableNotifications !== false && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200">
           {etlMessage}
         </div>
       )}
@@ -389,20 +412,36 @@ const AdminETL = () => {
               <CardTitle>ETL Run History</CardTitle>
               <CardDescription>One row per run (latest first). Use the filter to choose how many to show.</CardDescription>
             </div>
-            <label className="flex items-center gap-2 text-sm" htmlFor="etl-runs-limit">
-              <span className="text-muted-foreground">Show last</span>
-              <select
-                id="etl-runs-limit"
-                value={etlRunsLimit}
-                onChange={(e) => setEtlRunsLimit(Number(e.target.value))}
-                className="rounded border border-input bg-background px-2 py-1.5 text-sm h-9"
-                aria-label="Number of ETL runs to show"
-              >
-                {ETL_RUNS_LIMIT_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm" htmlFor="etl-runs-limit">
+                <span className="text-muted-foreground">Show last</span>
+                <select
+                  id="etl-runs-limit"
+                  value={etlRunsLimit}
+                  onChange={(e) => setEtlRunsLimit(Number(e.target.value))}
+                  className="rounded border border-input bg-background px-2 py-1.5 text-sm h-9"
+                  aria-label="Number of ETL runs to show"
+                >
+                  {ETL_RUNS_LIMIT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-sm" htmlFor="etl-per-page">
+                <span className="text-muted-foreground">Per page</span>
+                <select
+                  id="etl-per-page"
+                  value={etlPerPage}
+                  onChange={(e) => setEtlPerPage(Number(e.target.value))}
+                  className="rounded border border-input bg-background px-2 py-1.5 text-sm h-9"
+                  aria-label="Rows per page"
+                >
+                  {ETL_PER_PAGE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>{n}/page</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -421,7 +460,7 @@ const AdminETL = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {etlRuns.map((run) => (
+                  {etlRunsPaginated.map((run) => (
                     <TableRow key={run.log_file}>
                       <TableCell className="font-mono">{run.log_file}</TableCell>
                       <TableCell>{run.start_time || '—'}</TableCell>
@@ -454,6 +493,22 @@ const AdminETL = () => {
                 </TableBody>
               </Table>
             </TableWrapper>
+          )}
+          {etlRuns.length > etlPerPage && (
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t">
+              <span className="text-sm text-muted-foreground">
+                Showing {(etlPage - 1) * etlPerPage + 1}–{Math.min(etlPage * etlPerPage, etlRuns.length)} of {etlRuns.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setEtlPage((p) => Math.max(1, p - 1))} disabled={etlPage <= 1}>
+                  Previous
+                </Button>
+                <span className="text-sm tabular-nums">Page {etlPage} of {etlTotalPages}</span>
+                <Button variant="outline" size="sm" onClick={() => setEtlPage((p) => Math.min(etlTotalPages, p + 1))} disabled={etlPage >= etlTotalPages}>
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

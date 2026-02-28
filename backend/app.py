@@ -1163,9 +1163,32 @@ if nextgen_query_bp:
 _ADMIN_SETTINGS_FILE = Path(__file__).resolve().parent / 'data' / 'admin_settings.json'
 
 
+def _load_admin_settings():
+    """Load admin settings from JSON file."""
+    if not _ADMIN_SETTINGS_FILE.exists():
+        return {}
+    try:
+        with open(_ADMIN_SETTINGS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_admin_settings(settings):
+    """Persist admin settings."""
+    try:
+        _ADMIN_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_ADMIN_SETTINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, indent=2)
+    except Exception:
+        pass
+
+
 def _run_etl_subprocess():
-    """Run export_user_snapshot + ETL pipeline in subprocess (same as Admin Run ETL)."""
+    """Run export_user_snapshot + ETL pipeline in subprocess; on failure, send email if enabled."""
     backend_dir = Path(__file__).resolve().parent
+    etl_failed = False
+    log_tail = None
     try:
         try:
             subprocess.run(
@@ -1176,17 +1199,35 @@ def _run_etl_subprocess():
             )
         except subprocess.TimeoutExpired:
             pass
-        subprocess.run(
+        result = subprocess.run(
             [sys.executable, '-m', 'etl_pipeline'],
             cwd=str(backend_dir),
-            capture_output=False,
+            capture_output=True,
             timeout=300,
         )
+        if result.returncode != 0:
+            etl_failed = True
+            if result.stderr:
+                log_tail = (result.stderr.decode('utf-8', errors='replace') or '')[-1500:]
+            elif result.stdout:
+                log_tail = (result.stdout.decode('utf-8', errors='replace') or '')[-1500:]
     except subprocess.TimeoutExpired:
-        pass
+        etl_failed = True
+        log_tail = 'ETL subprocess timed out.'
     except Exception as e:
         import traceback
         traceback.print_exc()
+        etl_failed = True
+        log_tail = str(e)
+    if etl_failed:
+        settings = _load_admin_settings()
+        if settings.get('emailOnEtlFailure') and settings.get('supportEmail'):
+            try:
+                from email_notifications import send_etl_failure_email
+                send_etl_failure_email(settings.get('supportEmail'), log_tail)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 def _etl_scheduler_loop():
@@ -1235,6 +1276,49 @@ def _etl_scheduler_loop():
 
 _etl_scheduler_thread = threading.Thread(target=_etl_scheduler_loop, daemon=True)
 _etl_scheduler_thread.start()
+
+
+# --- Daily digest email (if enabled in settings) ---
+def _daily_digest_loop():
+    """Once per day, if dailyDigest and supportEmail are set, send a summary email."""
+    while True:
+        try:
+            time.sleep(3600)  # Check every hour
+            settings = _load_admin_settings()
+            if not settings.get('dailyDigest') or not (settings.get('supportEmail') or '').strip():
+                continue
+            today = datetime.now().date().isoformat()
+            if settings.get('last_digest_sent') == today:
+                continue
+            try:
+                from email_notifications import send_daily_digest_email, _smtp_configured
+                if not _smtp_configured():
+                    continue
+                summary_lines = [
+                    'NextGen MIS – Daily Digest',
+                    '================================',
+                    f'Date: {today}',
+                    '',
+                    'Summary:',
+                    '- Check the Admin Console for ETL run history and warehouse counts.',
+                    '- Check Audit Logs for user and system activity.',
+                    '',
+                    'This is an automated message. Configure "Daily digest email" in Admin Settings to turn it off.',
+                ]
+                if send_daily_digest_email(settings.get('supportEmail'), '\n'.join(summary_lines)):
+                    settings = _load_admin_settings()
+                    settings['last_digest_sent'] = today
+                    _save_admin_settings(settings)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+
+
+_daily_digest_thread = threading.Thread(target=_daily_digest_loop, daemon=True)
+_daily_digest_thread.start()
 
 
 # Fallback: catch /api/admin/users, faculties, departments, ping when exact route didn't match (e.g. path quirk). Registered after blueprint so other /api/admin/* routes still work.

@@ -12,6 +12,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text
 import pymysql
+import os
 import random
 import logging
 import json
@@ -31,8 +32,12 @@ class ETLPipeline:
         self.gold_path = GOLD_PATH
         self.dw_name = DATA_WAREHOUSE_NAME
         
-        # Setup logging
-        self.log_dir = Path(__file__).parent / "logs"
+        # Setup logging (same directory as admin API uses for retrieval - ETL_LOG_DIR or backend/logs)
+        raw = os.environ.get('ETL_LOG_DIR')
+        if raw and raw.strip():
+            self.log_dir = Path(raw.strip()).resolve()
+        else:
+            self.log_dir = (Path(__file__).parent / "logs").resolve()
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
         # Create log file with timestamp

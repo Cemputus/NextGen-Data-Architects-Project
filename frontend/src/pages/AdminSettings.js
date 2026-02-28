@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Select } from '../components/ui/select';
 import { PageHeader, PageContent } from '../components/ui/page-header';
 import { useTheme } from '../context/ThemeContext';
+import adminUIState from '../utils/adminUIState';
 
 const defaultSettings = {
   systemName: 'NextGen Data Architects',
@@ -275,6 +276,7 @@ const AdminSettings = () => {
                 />
                 <span className="text-sm font-medium">Enable in-app notifications</span>
               </label>
+              <p className="text-xs text-muted-foreground ml-7">Show ETL run status and other alerts in the admin UI (e.g. on ETL Jobs page).</p>
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -284,6 +286,7 @@ const AdminSettings = () => {
                 />
                 <span className="text-sm font-medium">Email on ETL failure</span>
               </label>
+              <p className="text-xs text-muted-foreground ml-7">Send an email to the Support email when automatic ETL fails. Set Support email in General and SMTP env vars on the server.</p>
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -293,6 +296,7 @@ const AdminSettings = () => {
                 />
                 <span className="text-sm font-medium">Daily digest email</span>
               </label>
+              <p className="text-xs text-muted-foreground ml-7">Send a daily summary to the Support email. Requires Support email and SMTP configuration (SMTP_HOST, SMTP_PORT, etc.).</p>
             </CardContent>
           </Card>
         </TabsContent>

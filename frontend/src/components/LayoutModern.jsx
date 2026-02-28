@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Home, User, Settings, LogOut, 
   BarChart3, GraduationCap, Building2, Users, 
-  DollarSign, Shield, FileText, TrendingUp, Menu, X, Database, Bell
+  DollarSign, Shield, FileText, TrendingUp, Menu, X, Database, Bell, Clock
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -29,6 +29,9 @@ const LayoutModern = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const lastPathRef = useRef(null);
   const [etlRunCount, setEtlRunCount] = useState(null);
+  const [etlRunsList, setEtlRunsList] = useState([]);
+  const [adminSettings, setAdminSettings] = useState({});
+  const [etlCountdownSec, setEtlCountdownSec] = useState(null);
 
   const getNavItems = () => {
     if (!user) return [];
@@ -125,31 +128,109 @@ const LayoutModern = ({ children }) => {
     logAuditEvent(actionName, 'navigation', path);
   }, [location.pathname, user]);
 
-  // ETL run count for sysadmin sidebar badge (ETL Notifications)
+  const ADMIN_ETL_READ_KEY = 'admin_etl_read_logs';
+
+  const getReadLogs = () => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(ADMIN_ETL_READ_KEY) || '[]'));
+    } catch {
+      return new Set();
+    }
+  };
+
+  const unreadCount = (list) => {
+    const read = getReadLogs();
+    return list.filter((r) => !read.has(r.log_file)).length;
+  };
+
+  // ETL run list + unread count for sysadmin sidebar badge; listen for read updates
   useEffect(() => {
     const role = (user?.role || '').toString().toLowerCase();
     if (role !== 'sysadmin') {
       setEtlRunCount(null);
+      setEtlRunsList([]);
+      return;
+    }
+    let cancelled = false;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const fetchList = () => {
+      axios
+        .get('/api/admin/system-status', {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { etl_runs_limit: 100 },
+        })
+        .then((res) => {
+          if (!cancelled && res.data && Array.isArray(res.data.etl_runs)) {
+            const list = res.data.etl_runs;
+            setEtlRunsList(list);
+            setEtlRunCount(unreadCount(list));
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setEtlRunCount(null);
+          setEtlRunsList([]);
+        });
+    };
+    fetchList();
+    const onReadUpdate = () => fetchList();
+    window.addEventListener('admin-etl-read-update', onReadUpdate);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('admin-etl-read-update', onReadUpdate);
+    };
+  }, [user?.role]);
+
+  // Admin settings for ETL countdown (every admin page)
+  useEffect(() => {
+    const role = (user?.role || '').toString().toLowerCase();
+    if (role !== 'sysadmin') {
+      setAdminSettings({});
+      setEtlCountdownSec(null);
       return;
     }
     let cancelled = false;
     const token = localStorage.getItem('token');
     if (!token) return;
     axios
-      .get('/api/admin/system-status', {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { etl_runs_limit: 100 },
-      })
+      .get('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
-        if (!cancelled && res.data && Array.isArray(res.data.etl_runs)) {
-          setEtlRunCount(res.data.etl_runs.length);
-        }
+        if (!cancelled) setAdminSettings(res.data?.settings ?? {});
       })
       .catch(() => {
-        if (!cancelled) setEtlRunCount(null);
+        if (!cancelled) setAdminSettings({});
       });
     return () => { cancelled = true; };
   }, [user?.role]);
+
+  useEffect(() => {
+    if (!adminSettings.etl_auto_enabled) {
+      setEtlCountdownSec(null);
+      return;
+    }
+    const intervalMinutes = Number(adminSettings.etl_auto_interval_minutes) || 60;
+    const intervalSec = Math.max(60, Math.round(intervalMinutes * 60));
+    const lastRun = adminSettings.last_etl_auto_run;
+    const nowSec = Date.now() / 1000;
+    const nextRunSec = lastRun != null ? lastRun + intervalSec : nowSec + intervalSec;
+    const tick = () => {
+      const now = Date.now() / 1000;
+      setEtlCountdownSec(Math.max(0, Math.floor(nextRunSec - now)));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [adminSettings.etl_auto_enabled, adminSettings.etl_auto_interval_minutes, adminSettings.last_etl_auto_run]);
+
+  const formatCountdown = (sec) => {
+    if (sec == null) return null;
+    if (sec <= 0) return 'Running soon…';
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
 
   const handleLogout = () => {
     logout();
@@ -268,6 +349,16 @@ const LayoutModern = ({ children }) => {
               );
             })}
           </nav>
+
+          {/* ETL countdown - admin only */}
+          {role === 'sysadmin' && adminSettings.etl_auto_enabled && etlCountdownSec != null && sidebarOpen && (
+            <div className="px-4 pb-2">
+              <div className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs">
+                <p className="font-medium text-muted-foreground">Next ETL run</p>
+                <p className="font-mono font-semibold text-foreground mt-0.5">{formatCountdown(etlCountdownSec)}</p>
+              </div>
+            </div>
+          )}
 
           {/* User Section */}
           <div className="p-4 border-t border-border bg-muted/30">
@@ -472,6 +563,12 @@ const LayoutModern = ({ children }) => {
 
         {/* Page Content - responsive padding, no overflow-x; compact density */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-muted/30">
+          {role === 'sysadmin' && adminSettings.etl_auto_enabled && etlCountdownSec != null && currentPath.startsWith('/admin') && (
+            <div className="w-full border-b border-border bg-card/80 px-3 py-1.5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span>Next ETL run in <strong className="font-mono text-foreground">{formatCountdown(etlCountdownSec)}</strong></span>
+            </div>
+          )}
           <div className="w-full max-w-7xl mx-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-5">
             {children}
           </div>
