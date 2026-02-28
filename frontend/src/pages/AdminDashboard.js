@@ -31,7 +31,7 @@ const AdminDashboard = () => {
     try {
       const response = await axios.get('/api/admin/system-status', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        params: { etl_runs_limit: 50 }, // So "Recent ETL runs" KPI uses last 50 log files
+        params: { etl_runs_limit: 50 }, // For "Last ETL run" display; KPI uses total count from backend
       });
       setAdminStatus(response.data);
       // Live KPIs from backend (registered users, active sessions, ETL jobs, system health)
@@ -191,10 +191,10 @@ const AdminDashboard = () => {
               subtitle="Current active sessions"
             />
             <KPICard
-              title="Recent ETL runs"
+              title="ETL runs"
               value={systemStats?.etl_jobs ?? 0}
               icon={Database}
-              subtitle="Last 50 runs (log files)"
+              subtitle="Total runs (log files)"
             />
             <KPICard
               title="System Health"

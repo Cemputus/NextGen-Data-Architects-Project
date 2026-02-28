@@ -55,8 +55,9 @@ const AdminETLNotifications = () => {
   const [logLoading, setLogLoading] = useState(false);
   const [logError, setLogError] = useState(null);
   const [pdfDownloading, setPdfDownloading] = useState(null);
+  const [downloadError, setDownloadError] = useState(null);
   const notifState = adminUIState.getSection('notifications');
-  const [etlLimit, setEtlLimitState] = useState(() => notifState.limit ?? 50);
+  const [etlLimit, setEtlLimitState] = useState(() => notifState.limit ?? 5);
   const [etlPage, setEtlPageState] = useState(() => notifState.page ?? 1);
   const [etlPerPage, setEtlPerPageState] = useState(() => notifState.perPage ?? 20);
 
@@ -77,6 +78,14 @@ const AdminETLNotifications = () => {
   };
 
   const [readLogs, setReadLogs] = useState(getReadLogs());
+
+  const refreshReadLogs = () => setReadLogs(new Set(JSON.parse(localStorage.getItem(ADMIN_ETL_READ_KEY) || '[]')));
+
+  useEffect(() => {
+    const onReadUpdate = () => refreshReadLogs();
+    window.addEventListener('admin-etl-read-update', onReadUpdate);
+    return () => window.removeEventListener('admin-etl-read-update', onReadUpdate);
+  }, []);
 
   const loadStatus = async (silent = false) => {
     try {
@@ -121,11 +130,11 @@ const AdminETLNotifications = () => {
     setLogContent('');
     setLogError(null);
     setLogLoading(true);
+    markAsRead(run.log_file);
+    refreshReadLogs();
     try {
       const content = await fetchLogContent(run.log_file);
       setLogContent(content);
-      markAsRead(run.log_file);
-      setReadLogs(getReadLogs());
     } catch (err) {
       const msg = err.response?.status === 404
         ? 'Log file not found. It may have been removed from the server.'
@@ -144,16 +153,17 @@ const AdminETLNotifications = () => {
 
   const downloadETLReportPDF = async (run) => {
     setPdfDownloading(run?.log_file ?? true);
+    setDownloadError(null);
+    markAsRead(run.log_file);
+    refreshReadLogs();
     try {
       const content = await fetchLogContent(run.log_file);
       exportETLRunToPDF(run, content, status?.warehouse || {});
-      markAsRead(run.log_file);
-      setReadLogs(getReadLogs());
     } catch (err) {
       const msg = err.response?.status === 404
         ? 'Log file not found. It may have been removed from the server.'
         : (err.response?.data?.error || err.message || 'Failed to download PDF');
-      setError(msg);
+      setDownloadError(msg);
     } finally {
       setPdfDownloading(null);
     }
@@ -214,6 +224,12 @@ const AdminETLNotifications = () => {
         </TabsList>
 
         <TabsContent value="etl" className="space-y-4">
+          {downloadError && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50 px-4 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
+              <span>{downloadError}</span>
+              <button type="button" onClick={() => setDownloadError(null)} className="shrink-0 underline">Dismiss</button>
+            </div>
+          )}
           <Card>
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -265,33 +281,33 @@ const AdminETLNotifications = () => {
                       return (
                         <li
                           key={run.log_file}
-                          className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 ${isRead ? 'border-border bg-muted/20' : 'border-primary/30 bg-primary/5'}`}
+                          className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border px-3 py-3 sm:px-4 ${isRead ? 'border-border bg-muted/20' : 'border-primary/30 bg-primary/5'}`}
                         >
-                          <div className="min-w-0 flex items-center gap-2">
-                            {!isRead && <span className="h-2 w-2 rounded-full bg-primary shrink-0" aria-hidden />}
-                            <div>
-                              <span className="font-mono text-sm font-medium block truncate">{run.log_file}</span>
-                              <span className="text-muted-foreground text-sm">
+                          <div className="min-w-0 flex items-center gap-2 flex-1">
+                            {!isRead && <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5 sm:mt-0" aria-hidden />}
+                            <div className="min-w-0 flex-1">
+                              <span className="font-mono text-sm font-medium block truncate" title={run.log_file}>{run.log_file}</span>
+                              <span className="text-muted-foreground text-xs sm:text-sm">
                                 {run.start_time || '—'} · {run.duration || '—'} ·{' '}
                                 {run.success ? (
                                   <span className="inline-flex items-center gap-1 text-green-600">
-                                    <CheckCircle className="h-4 w-4" /> Success
+                                    <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> Success
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 text-amber-600">
-                                    <XCircle className="h-4 w-4" /> Failed
+                                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> Failed
                                   </span>
                                 )}
                               </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Button variant="outline" size="sm" onClick={() => openViewLog(run)} disabled={logLoading}>
-                              {logLoading && viewLogRun?.log_file === run.log_file ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                            <Button variant="outline" size="sm" onClick={() => openViewLog(run)} disabled={logLoading} className="min-h-9 touch-manipulation">
+                              {logLoading && viewLogRun?.log_file === run.log_file ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <Eye className="h-4 w-4 shrink-0" />}
                               <span className="ml-1">View</span>
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => downloadETLReportPDF(run)} disabled={!!pdfDownloading}>
-                              {pdfDownloading === run.log_file ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            <Button variant="outline" size="sm" onClick={() => downloadETLReportPDF(run)} disabled={!!pdfDownloading} className="min-h-9 touch-manipulation">
+                              {pdfDownloading === run.log_file ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <Download className="h-4 w-4 shrink-0" />}
                               <span className="ml-1">Download PDF</span>
                             </Button>
                           </div>

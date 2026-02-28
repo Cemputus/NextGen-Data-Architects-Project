@@ -44,6 +44,12 @@ const AdminSettings = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null); // { type: 'success'|'error', text }
   const [dirty, setDirty] = useState(false);
+  const settingsUI = adminUIState.getSection('settings');
+  const [activeTab, setActiveTabState] = useState(() => settingsUI.activeTab || 'general');
+  const setActiveTab = (v) => {
+    setActiveTabState(v);
+    adminUIState.setSection('settings', { activeTab: v });
+  };
 
   useEffect(() => {
     // Optional: load saved settings from API
@@ -140,7 +146,7 @@ const AdminSettings = () => {
         }
       />
 
-      <Tabs defaultValue="general" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex flex-wrap gap-1 bg-muted/50 p-1 rounded-lg">
           <TabsTrigger value="general" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
@@ -344,9 +350,47 @@ const AdminSettings = () => {
           <Card>
             <CardHeader>
               <CardTitle>About & environment</CardTitle>
-              <CardDescription>Read-only system and environment information</CardDescription>
+              <CardDescription>System information, team, and environment</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-3 text-sm">
+                <div>
+                  <h4 className="font-medium text-foreground mb-1">About the system</h4>
+                  <p className="text-muted-foreground">
+                    This platform is a data analytics and ETL management system. It supports data pipelines, 
+                    warehouse integration, analyst dashboards, and administrative oversight—including ETL run 
+                    history, notifications, audit logs, and user management.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-foreground mb-1">Team</h4>
+                  <p className="text-muted-foreground mb-2">
+                    Developed by the <strong>NextGen Data Architects</strong> team as part of their studies in{' '}
+                    <strong>Bachelor of Science in Data Science and Analytics</strong> at{' '}
+                    <strong>Uganda Christian University</strong>.
+                  </p>
+                  <ul className="text-muted-foreground text-sm space-y-1 list-none">
+                    <li>
+                      <a href="https://github.com/Edube20Emmanuel" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        Guloba Emmanuel Edube
+                      </a>{' '}
+                      — @Edube20Emmanuel
+                    </li>
+                    <li>
+                      <a href="https://github.com/Cemputus" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        Emmanuel Nsubuga
+                      </a>{' '}
+                      — @Cemputus
+                    </li>
+                    <li>
+                      <a href="https://github.com/asingwiireenoch" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        Asingwiire Enoch
+                      </a>{' '}
+                      — @asingwiireenoch
+                    </li>
+                  </ul>
+                </div>
+              </div>
               <div className="rounded-lg bg-muted/50 p-4 space-y-2 text-sm">
                 <p>
                   <span className="font-medium text-muted-foreground">API base URL (current):</span>{' '}

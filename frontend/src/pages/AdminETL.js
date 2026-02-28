@@ -36,7 +36,7 @@ const AdminETL = () => {
   const [error, setError] = useState(null);
   const [etlMessage, setEtlMessage] = useState(null);
   const etlState = adminUIState.getSection('etl');
-  const [etlRunsLimit, setEtlRunsLimitState] = useState(() => etlState.runsLimit ?? 10);
+  const [etlRunsLimit, setEtlRunsLimitState] = useState(() => etlState.runsLimit ?? 5);
   const [etlPerPage, setEtlPerPageState] = useState(() => etlState.perPage ?? 20);
   const [etlPage, setEtlPageState] = useState(() => etlState.page ?? 1);
 

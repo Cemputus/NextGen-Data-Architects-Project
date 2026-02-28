@@ -89,6 +89,16 @@
       "faculty_id": 10.0,
       "department_id": NaN,
       "created_at": "2026-02-28 17:09:02"
+    },
+    {
+      "id": 14,
+      "username": "agaba",
+      "password_hash": "pbkdf2:sha256:600000$jRe1OSyhBjujBI5v$dc7fcb05c3e10c18c540cd35f31d726e3cb80205381c3b8437766ca508b83215",
+      "role": "dean",
+      "full_name": "Agaba Itungo",
+      "faculty_id": 5.0,
+      "department_id": NaN,
+      "created_at": "2026-02-28 22:40:48"
     }
   ],
   "user_profiles": [

@@ -6,12 +6,12 @@ const STORAGE_KEY = 'admin_ui_state';
 
 const DEFAULTS = {
   etl: {
-    runsLimit: 10,
+    runsLimit: 5,
     perPage: 20,
     page: 1,
   },
   notifications: {
-    limit: 50,
+    limit: 5,
     perPage: 20,
     page: 1,
   },

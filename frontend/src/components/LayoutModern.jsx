@@ -30,6 +30,7 @@ const LayoutModern = ({ children }) => {
   const lastPathRef = useRef(null);
   const [etlRunCount, setEtlRunCount] = useState(null);
   const [etlRunsList, setEtlRunsList] = useState([]);
+  const etlRunsListRef = useRef([]);
   const [adminSettings, setAdminSettings] = useState({});
   const [etlCountdownSec, setEtlCountdownSec] = useState(null);
 
@@ -163,17 +164,22 @@ const LayoutModern = ({ children }) => {
         .then((res) => {
           if (!cancelled && res.data && Array.isArray(res.data.etl_runs)) {
             const list = res.data.etl_runs;
+            etlRunsListRef.current = list;
             setEtlRunsList(list);
             setEtlRunCount(unreadCount(list));
           }
         })
         .catch(() => {
           if (!cancelled) setEtlRunCount(null);
+          etlRunsListRef.current = [];
           setEtlRunsList([]);
         });
     };
     fetchList();
-    const onReadUpdate = () => fetchList();
+    const onReadUpdate = () => {
+      const list = etlRunsListRef.current;
+      if (list && list.length > 0) setEtlRunCount(unreadCount(list));
+    };
     window.addEventListener('admin-etl-read-update', onReadUpdate);
     return () => {
       cancelled = true;

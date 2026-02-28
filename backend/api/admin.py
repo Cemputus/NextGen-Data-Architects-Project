@@ -165,11 +165,14 @@ def _get_demo_counts():
 
 
 def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
-    """Live KPIs: employees = ETL (dim_employee) + all app users; staff = dim_employee (staff/lecturers) + app users with role Staff only."""
+    """Live KPIs: employees = ETL (dim_employee) + all app users; staff = dim_employee (staff/lecturers) + app users with role Staff only.
+    etl_jobs = total count of ETL log files (keeps counting as new runs are added)."""
+    log_dir = Path(log_dir)
+    etl_jobs_total = len(list(log_dir.glob('etl_pipeline_*.log'))) if log_dir.exists() else 0
     kpis = {
         'registered_users': 0,
         'active_sessions': 0,
-        'etl_jobs': min(len(etl_runs) if etl_runs else 0, 50),
+        'etl_jobs': etl_jobs_total,
         'system_health': 100,
         'employees': 0,
         'staff': 0,
