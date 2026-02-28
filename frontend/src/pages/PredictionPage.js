@@ -42,12 +42,15 @@ const PredictionPage = () => {
   const [selectedScenario, setSelectedScenario] = useState(null);
   const [studentIdentifier, setStudentIdentifier] = useState('');
   const [modelType, setModelType] = useState('ensemble');
+   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     loadScenarios();
     // Pre-fill student identifier for students
     if (user?.role === 'student' && user?.access_number) {
       setStudentIdentifier(user.access_number);
+      // For students, default to tuition+attendance model
+      setModelType('tuition_attendance');
     }
   }, []);
 
@@ -64,9 +67,11 @@ const PredictionPage = () => {
 
   const handlePredict = async () => {
     if (!studentIdentifier) {
+      setErrorMessage('Please enter a student identifier first.');
       return;
     }
 
+    setErrorMessage('');
     setLoading(true);
     try {
       let endpoint = '/api/predictions/predict';
@@ -90,7 +95,16 @@ const PredictionPage = () => {
       });
     } catch (err) {
       console.error('Prediction error:', err);
-      alert(err.response?.data?.error || 'Failed to generate prediction');
+      let msg = 'Failed to generate prediction. Please try again.';
+      const raw = err.response?.data?.error || err.message || '';
+      if (raw.includes('Permission denied: Can only predict own performance')) {
+        msg = 'You can only generate predictions for your own record. Log in as the correct student and try again.';
+      } else if (raw.includes('Network Error')) {
+        msg = 'Cannot reach the prediction service. Ensure the backend is running and reachable.';
+      } else if (raw) {
+        msg = raw;
+      }
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -98,7 +112,7 @@ const PredictionPage = () => {
 
   const handleScenarioPredict = async (scenario) => {
     if (!studentIdentifier) {
-      alert('Please enter a student identifier first');
+      setErrorMessage('Please enter a student identifier first.');
       return;
     }
     
@@ -118,7 +132,14 @@ const PredictionPage = () => {
       });
     } catch (err) {
       console.error('Scenario prediction error:', err);
-      alert(err.response?.data?.error || 'Failed to generate scenario prediction');
+      let msg = 'Failed to generate scenario prediction. Please try again.';
+      const raw = err.response?.data?.error || err.message || '';
+      if (raw.includes('Network Error')) {
+        msg = 'Cannot reach the prediction service. Ensure the backend is running and reachable.';
+      } else if (raw) {
+        msg = raw;
+      }
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -148,12 +169,35 @@ const PredictionPage = () => {
   };
 
   const canUseScenarios = ['analyst', 'sysadmin', 'senate'].includes(user?.role);
+  const isStudent = user?.role === 'student';
+
+  // Restrict prediction models for students to high-level, student-friendly options only
+  const modelOptions = isStudent
+    ? [
+        { value: 'tuition_attendance', label: '💰 Tuition + Attendance → Performance' },
+      ]
+    : [
+        { value: 'ensemble', label: '🎯 Standard Performance (Ensemble)' },
+        { value: 'tuition_attendance', label: '💰 Tuition + Attendance → Performance' },
+        { value: 'random_forest', label: '🌲 Random Forest' },
+        { value: 'gradient_boosting', label: '📈 Gradient Boosting' },
+        { value: 'neural_network', label: '🧠 Neural Network' },
+      ];
+
+  // Ensure current modelType is always one of the allowed options
+  useEffect(() => {
+    const allowedValues = modelOptions.map((m) => m.value);
+    if (!allowedValues.includes(modelType)) {
+      setModelType(allowedValues[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
 
   if (loading && !predictions) {
     return (
       <PageContent>
         <PageHeader title="Performance Prediction" description="Predict student performance using multiple ML models" />
-        <LoadingState message="Analyzing student data..." />
+      <LoadingState message="Analyzing student data..." />
       </PageContent>
     );
   }
@@ -172,6 +216,11 @@ const PredictionPage = () => {
           <CardDescription>Configure your prediction parameters below</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {errorMessage && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {errorMessage}
+            </div>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -202,14 +251,16 @@ const PredictionPage = () => {
                 value={modelType} 
                 onChange={(e) => setModelType(e.target.value)}
               >
-                <option value="ensemble">🎯 Standard Performance (Ensemble)</option>
-                <option value="tuition_attendance">💰 Tuition + Attendance → Performance</option>
-                <option value="random_forest">🌲 Random Forest</option>
-                <option value="gradient_boosting">📈 Gradient Boosting</option>
-                <option value="neural_network">🧠 Neural Network</option>
+                {modelOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </Select>
               <p className="text-xs text-muted-foreground">
-                Select the ML model for prediction
+                {isStudent
+                  ? 'Choose how you want your own performance to be predicted.'
+                  : 'Select the ML model for prediction.'}
               </p>
             </div>
 

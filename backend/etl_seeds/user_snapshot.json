@@ -16,8 +16,8 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "sysadmin",
       "full_name": "Guloba Emmanuel Edube",
-      "faculty_id": NaN,
-      "department_id": NaN,
+      "faculty_id": null,
+      "department_id": null,
       "created_at": "2026-02-22 12:23:16"
     },
     {
@@ -27,7 +27,7 @@
       "role": "dean",
       "full_name": "edube",
       "faculty_id": 2.0,
-      "department_id": NaN,
+      "department_id": null,
       "created_at": "2026-02-23 16:10:44"
     },
     {
@@ -36,7 +36,7 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "hod",
       "full_name": "Wanja Grace",
-      "faculty_id": NaN,
+      "faculty_id": null,
       "department_id": 7.0,
       "created_at": "2026-02-24 17:20:23"
     },
@@ -46,8 +46,8 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "analyst",
       "full_name": "Enoch Asingwiire",
-      "faculty_id": NaN,
-      "department_id": NaN,
+      "faculty_id": null,
+      "department_id": null,
       "created_at": "2026-02-25 09:21:21"
     },
     {
@@ -57,7 +57,7 @@
       "role": "dean",
       "full_name": "joy",
       "faculty_id": 6.0,
-      "department_id": NaN,
+      "department_id": null,
       "created_at": "2026-02-26 19:18:29"
     },
     {
@@ -66,8 +66,8 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "staff",
       "full_name": "hr",
-      "faculty_id": NaN,
-      "department_id": NaN,
+      "faculty_id": null,
+      "department_id": null,
       "created_at": "2026-02-26 19:53:51"
     },
     {
@@ -76,8 +76,8 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "staff",
       "full_name": "dean",
-      "faculty_id": NaN,
-      "department_id": NaN,
+      "faculty_id": null,
+      "department_id": null,
       "created_at": "2026-02-26 19:54:03"
     },
     {
@@ -87,7 +87,7 @@
       "role": "dean",
       "full_name": "Gift Ruth",
       "faculty_id": 10.0,
-      "department_id": NaN,
+      "department_id": null,
       "created_at": "2026-02-28 17:09:02"
     }
   ],

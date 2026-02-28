@@ -97,7 +97,6 @@ const LayoutModern = ({ children }) => {
         { path: '/hr/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/hr/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/hr/staff', label: 'Staff', icon: Users },
-        { path: '/hr/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/hr/profile', label: 'Profile', icon: User },
       ],
       finance: [

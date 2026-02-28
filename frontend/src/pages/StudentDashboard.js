@@ -10,6 +10,7 @@ import ModernStatsCards from '../components/ModernStatsCards';
 import RoleBasedCharts from '../components/RoleBasedCharts';
 import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
 import ExportButtons from '../components/ExportButtons';
+import { SciBarChart, SciLineChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
@@ -20,6 +21,7 @@ const StudentDashboard = () => {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [attendanceTrends, setAttendanceTrends] = useState([]);
 
   useEffect(() => {
     loadStudentData();
@@ -48,6 +50,24 @@ const StudentDashboard = () => {
           params: { access_number: user?.access_number || user?.username }
         });
         setStats(response.data);
+      }
+
+      // Load attendance trends for this student only
+      try {
+        const trendsRes = await axios.get('/api/dashboard/attendance-trends', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        if (trendsRes.data && Array.isArray(trendsRes.data.periods)) {
+          const mapped = trendsRes.data.periods.map((period, idx) => ({
+            period,
+            attendance: trendsRes.data.attendance?.[idx] ?? 0,
+          }));
+          setAttendanceTrends(mapped);
+        } else {
+          setAttendanceTrends([]);
+        }
+      } catch (_err) {
+        setAttendanceTrends([]);
       }
     } catch (err) {
       console.error('Error loading student data:', err);
@@ -84,6 +104,13 @@ const StudentDashboard = () => {
       </Card>
     );
   }
+
+  // Derived payment metrics for the logged-in student
+  const totalPaid = stats?.total_paid || 0;
+  const totalPending = stats?.total_pending || 0;
+  const totalRequired = totalPaid + totalPending;
+  const paidPercentage = totalRequired > 0 ? (totalPaid / totalRequired) * 100 : 0;
+  const pendingPercentage = totalRequired > 0 ? (totalPending / totalRequired) * 100 : 0;
 
   return (
     <div className="space-y-4">

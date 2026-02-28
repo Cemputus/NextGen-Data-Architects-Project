@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { GraduationCap, Award, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import RoleBasedCharts from '../components/RoleBasedCharts';
+import { SciBarChart, SciLineChart } from '../components/charts/EChartsComponents';
 import ExportButtons from '../components/ExportButtons';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -56,7 +56,7 @@ const StudentGrades = () => {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-3">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 gap-1 p-1">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
           <TabsTrigger value="overview">
             <Award className="h-4 w-4 mr-2" />
             Overview
@@ -68,6 +68,10 @@ const StudentGrades = () => {
           <TabsTrigger value="trends">
             <TrendingUp className="h-4 w-4 mr-2" />
             Trends
+          </TabsTrigger>
+          <TabsTrigger value="by-semester">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            By Semester & Course
           </TabsTrigger>
         </TabsList>
 
@@ -107,10 +111,32 @@ const StudentGrades = () => {
           <Card>
             <CardHeader>
               <CardTitle>Grade Breakdown</CardTitle>
-              <CardDescription>Your performance across all courses</CardDescription>
+              <CardDescription>Your performance across all courses over time</CardDescription>
             </CardHeader>
             <CardContent>
-              <RoleBasedCharts filters={{}} type="student" />
+              {stats?.grades_over_time?.length ? (
+                <div
+                  className="min-h-[200px] max-h-[320px] w-full"
+                  data-chart-title="Grade Trend Overview"
+                  data-chart-container="true"
+                >
+                  <SciLineChart
+                    data={stats.grades_over_time}
+                    xDataKey="period"
+                    yDataKey="avg_grade"
+                    xAxisLabel="Time"
+                    yAxisLabel="Average grade (%)"
+                    strokeColor="#8B5CF6"
+                    strokeWidth={3}
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
+                  No grade trend data available yet.
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -147,7 +173,90 @@ const StudentGrades = () => {
               <CardDescription>Your academic performance over time</CardDescription>
             </CardHeader>
             <CardContent>
-              <RoleBasedCharts filters={{}} type="student" />
+              {stats?.grades_over_time?.length ? (
+                <div
+                  className="min-h-[200px] max-h-[320px] w-full"
+                  data-chart-title="Grade Trends"
+                  data-chart-container="true"
+                >
+                  <SciLineChart
+                    data={stats.grades_over_time}
+                    xDataKey="period"
+                    yDataKey="avg_grade"
+                    xAxisLabel="Time"
+                    yAxisLabel="Average grade (%)"
+                    strokeColor="#3B82F6"
+                    strokeWidth={3}
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
+                  No grade trend data available yet.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="by-semester" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Performance by Semester</CardTitle>
+              <CardDescription>Average grade from entry up to the current semester</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {stats?.payments_by_semester && stats.payments_by_semester.length > 0 ? (
+                <div className="min-h-[200px] max-h-[320px] w-full" data-chart-title="Performance by Semester" data-chart-container="true">
+                  <SciLineChart
+                    data={
+                      (stats.semester_performance || []).length
+                        ? stats.semester_performance
+                        : (stats.grades_over_time || [])
+                    }
+                    xDataKey={(stats.semester_performance || []).length ? 'semester_name' : 'period'}
+                    yDataKey="avg_grade"
+                    xAxisLabel="Semester / Period"
+                    yAxisLabel="Average grade (%)"
+                    strokeColor="#8B5CF6"
+                    strokeWidth={3}
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
+                  No semester performance data available yet.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Course Performance in Latest Semester</CardTitle>
+              <CardDescription>Your course-wise performance for the most recent semester</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {stats?.course_performance?.length ? (
+                <div className="min-h-[200px] max-h-[320px] w-full" data-chart-title="Course Performance" data-chart-container="true">
+                  <SciBarChart
+                    data={stats.course_performance}
+                    xDataKey="course_name"
+                    yDataKey="avg_grade"
+                    xAxisLabel="Course"
+                    yAxisLabel="Average grade (%)"
+                    fillColor="#4F46E5"
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
+                  No course-level performance data available yet.
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

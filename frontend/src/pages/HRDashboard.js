@@ -1,7 +1,7 @@
 /**
  * HR Dashboard - Smooth, Clean UI
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { TrendingUp, UserCheck, Calendar, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -12,6 +12,7 @@ import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { SciBarChart, SciLineChart } from '../components/charts/EChartsComponents';
 
 const HRDashboard = () => {
   const { user } = useAuth();
@@ -48,11 +49,25 @@ const HRDashboard = () => {
         });
       });
       
+      // Use backend HR analytics directly so filters reflect lecturers, assistant lecturers,
+      // other staff, attendance and payroll scoped by faculty/department.
       setStats({
-        total_employees: response.data.total_employees || 100,
-        total_departments: response.data.total_departments || 18,
-        attendance_rate: response.data.attendance_rate || 92.5,
-        total_payroll: response.data.total_payroll || 0
+        total_employees: response.data.total_employees || 0,
+        total_departments: response.data.total_departments || 0,
+        attendance_rate: response.data.attendance_rate || 0,
+        total_payroll: response.data.total_payroll || 0,
+        lecturers: response.data.lecturers || 0,
+        assistant_lecturers: response.data.assistant_lecturers || 0,
+        other_staff: response.data.other_staff || 0,
+        employees_by_department: response.data.employees_by_department || [],
+        employees_by_faculty: response.data.employees_by_faculty || [],
+        employees_list: response.data.employees_list || [],
+        lecturer_employment: response.data.lecturer_employment || [],
+        attendance_by_role: response.data.attendance_by_role || [],
+        employee_attendance_trend: response.data.employee_attendance_trend || [],
+        payroll_by_role: response.data.payroll_by_role || [],
+        retained_employees_total: response.data.retained_employees_total || 0,
+        retained_employees_by_department: response.data.retained_employees_by_department || [],
       });
     } catch (err) {
       console.error('Error loading HR data:', err);
@@ -60,6 +75,33 @@ const HRDashboard = () => {
       setLoading(false);
     }
   };
+
+  // Derived chart data for employees per faculty/department
+  const employeesBreakdown = useMemo(() => {
+    if (!stats) return { byFaculty: [], byDeptInFaculty: [] };
+
+    const byFaculty = (stats.employees_by_faculty || []).map((row) => ({
+      name: row.faculty_name || 'Unknown',
+      total: row.total_employees || 0,
+    }));
+
+    const byDeptInFaculty = (stats.employees_by_department || []).map((row) => ({
+      name: row.department_name || 'Unknown',
+      faculty_name: row.faculty_name || 'Unknown',
+      total: row.total_employees || 0,
+    }));
+
+    return { byFaculty, byDeptInFaculty };
+  }, [stats]);
+
+  const attendanceTrend = useMemo(
+    () =>
+      (stats?.employee_attendance_trend || []).map((row) => ({
+        period: row.date,
+        attendance: row.present_rate || 0,
+      })),
+    [stats]
+  );
 
   return (
     <div className="space-y-4">
@@ -77,7 +119,59 @@ const HRDashboard = () => {
       </div>
 
       {/* Filters */}
-      <GlobalFilterPanel onFilterChange={setFilters} />
+      <GlobalFilterPanel
+        onFilterChange={(next) => {
+          // When a faculty is chosen, clear senate/finance/HR role_group because they are not faculty-based
+          const cleaned = { ...next };
+          if (
+            cleaned.faculty_id &&
+            (cleaned.role_group === 'finance' ||
+              cleaned.role_group === 'hr' ||
+              cleaned.role_group === 'senate')
+          ) {
+            delete cleaned.role_group;
+          }
+          setFilters(cleaned);
+        }}
+        pageName="hr_dashboard"
+        hideHighSchool
+        hideAcademic
+      />
+
+      {/* Employee role filter (Senate, Deans, HODs, Lecturers, etc.) */}
+      <div className="flex flex-wrap items-center gap-2 mb-2 text-xs sm:text-sm">
+        <span className="text-muted-foreground font-medium">Employee role filter:</span>
+        <select
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+          value={filters.role_group || ''}
+          onChange={(e) => {
+            const value = e.target.value;
+            setFilters((prev) => {
+              const next = { ...prev };
+              if (!value) {
+                delete next.role_group;
+              } else {
+                next.role_group = value;
+              }
+              return next;
+            });
+          }}
+        >
+          <option value="">All roles</option>
+          <option value="dean">Deans / Faculty heads</option>
+          <option value="hod">HODs</option>
+          <option value="lecturer">Lecturers</option>
+          <option value="assistant_lecturer">Assistant Lecturers</option>
+          {!filters.faculty_id && (
+            <>
+              <option value="senate">Senate members</option>
+              <option value="finance">Finance staff</option>
+              <option value="hr">HR staff</option>
+            </>
+          )}
+          <option value="other">Other employees</option>
+        </select>
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
@@ -127,13 +221,55 @@ const HRDashboard = () => {
             <TabsContent value="employees" className="space-y-3">
               <Card className="border shadow-sm">
                 <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Employee Management</CardTitle>
-                  <CardDescription className="text-xs">Employee profiles, departments, and organizational structure</CardDescription>
+                  <CardTitle className="text-base font-semibold">Employees by Faculty / Department</CardTitle>
+                  <CardDescription className="text-xs">
+                    Use the faculty and department filters above. With{" "}
+                    <span className="font-semibold">All Faculties</span> selected you see staff counts per faculty.
+                    When you choose a specific faculty and department you see staff counts for that department only,
+                    including lecturers, assistant lecturers and other staff.
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
-                    Employee management charts
+                <CardContent className="p-4 pt-0 space-y-4">
+                  {filters.faculty_id ? (
+                    <SciBarChart
+                      data={employeesBreakdown.byDeptInFaculty}
+                      xDataKey="name"
+                      yDataKey="total"
+                      xAxisLabel="Department"
+                      yAxisLabel="Number of Employees"
+                    />
+                  ) : (
+                    <SciBarChart
+                      data={employeesBreakdown.byFaculty}
+                      xDataKey="name"
+                      yDataKey="total"
+                      xAxisLabel="Faculty"
+                      yAxisLabel="Number of Employees"
+                    />
+                  )}
+                  <div className="text-xs text-muted-foreground">
+                    Titles and roles included in these counts: <span className="font-semibold">Lecturers</span>,{" "}
+                    <span className="font-semibold">Assistant Lecturers</span>, and{" "}
+                    <span className="font-semibold">Other staff</span> (HR, Finance, and administrative roles).
                   </div>
+
+                  {stats?.lecturer_employment?.length ? (
+                    <div className="mt-4">
+                      <h3 className="text-xs font-semibold text-muted-foreground mb-2">
+                        Lecturer employment type (Full-time vs Part-time)
+                      </h3>
+                      <SciBarChart
+                        data={stats.lecturer_employment.map((row) => ({
+                          name: row.employment_type || 'Unknown',
+                          total: row.total || 0,
+                        }))}
+                        xDataKey="name"
+                        yDataKey="total"
+                        xAxisLabel="Employment Type"
+                        yAxisLabel="Number of Lecturers"
+                      />
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -141,13 +277,26 @@ const HRDashboard = () => {
             <TabsContent value="attendance" className="space-y-3">
               <Card className="border shadow-sm">
                 <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Attendance Analytics</CardTitle>
-                  <CardDescription className="text-xs">Employee attendance rates and patterns</CardDescription>
+                  <CardTitle className="text-base font-semibold">Employee Attendance Trend</CardTitle>
+                  <CardDescription className="text-xs">
+                    Attendance trend over time for employees matching the current faculty / department filters.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
-                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
-                    Attendance analytics visualization
-                  </div>
+                  {attendanceTrend.length ? (
+                    <SciLineChart
+                      data={attendanceTrend}
+                      xDataKey="period"
+                      yDataKey="attendance"
+                      xAxisLabel="Date"
+                      yAxisLabel="Attendance Rate (%)"
+                    />
+                  ) : (
+                    <div className="min-h-[200px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg">
+                      No employee attendance records for the selected filters. Try switching to All Faculties or
+                      another department.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

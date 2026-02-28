@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, text
 import pandas as pd
 from rbac import Role, Resource, Permission, has_permission
 from datetime import datetime, timedelta
-from config import DATA_WAREHOUSE_CONN_STRING
+from config import DATA_WAREHOUSE_CONN_STRING, DB1_NAME, DB2_NAME
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/api/analytics')
 
@@ -849,6 +849,365 @@ def get_filter_options():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@analytics_bp.route('/faculty', methods=['GET'])
+@jwt_required()
+def get_faculty_analytics():
+    """Faculty-level analytics for deans and similar roles.
+    Scopes data to the faculty in the JWT (for Role.DEAN) and applies optional filters.
+    Returns summary stats plus distributions that the frontend dean dashboard can visualize."""
+    engine = None
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+
+        # Require general analytics permission
+        if not has_permission(user_scope['role'], Resource.ANALYTICS, Permission.READ, user_scope):
+            return jsonify({'error': 'Permission denied'}), 403
+
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        filters = request.args.to_dict()
+
+        # Role / faculty scoping for student-based queries
+        where_clauses = []
+        params: dict = {}
+
+        # Role-based scope – dean limited to their faculty, HOD to their department
+        if user_scope['role'] == Role.DEAN and user_scope.get('faculty_id'):
+            where_clauses.append("df.faculty_id = :faculty_id")
+            params['faculty_id'] = int(user_scope['faculty_id'])
+        elif user_scope['role'] == Role.HOD and user_scope.get('department_id'):
+            where_clauses.append("ddept.department_id = :department_id")
+            params['department_id'] = int(user_scope['department_id'])
+
+        # Additional filters (cannot widen dean scope – they combine with above)
+        if filters.get('faculty_id'):
+            try:
+                params['filter_faculty_id'] = int(filters['faculty_id'])
+                where_clauses.append("df.faculty_id = :filter_faculty_id")
+            except (ValueError, TypeError):
+                pass
+        if filters.get('department_id'):
+            try:
+                params['filter_department_id'] = int(filters['department_id'])
+                where_clauses.append("ddept.department_id = :filter_department_id")
+            except (ValueError, TypeError):
+                pass
+        if filters.get('program_id'):
+            try:
+                params['filter_program_id'] = int(filters['program_id'])
+                where_clauses.append("dp.program_id = :filter_program_id")
+            except (ValueError, TypeError):
+                pass
+
+        student_where = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+        grade_where = "WHERE fg.exam_status = 'Completed'"
+        if where_clauses:
+            grade_where += " AND " + " AND ".join(where_clauses)
+
+        # 1) Total students in scope (faculty / department)
+        total_students_q = f"""
+        SELECT COUNT(DISTINCT ds.student_id) AS total_students
+        FROM dim_student ds
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {student_where}
+        """
+        ts_df = pd.read_sql_query(text(total_students_q), engine, params=params)
+        total_students = int(ts_df['total_students'][0]) if not ts_df.empty and pd.notna(ts_df['total_students'][0]) else 0
+
+        # 2) Average grade for students in scope
+        avg_grade_q = f"""
+        SELECT AVG(fg.grade) AS avg_grade
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {grade_where}
+        """
+        ag_df = pd.read_sql_query(text(avg_grade_q), engine, params=params)
+        avg_grade = float(ag_df['avg_grade'][0]) if not ag_df.empty and pd.notna(ag_df['avg_grade'][0]) else 0.0
+
+        # 3) Students by department
+        by_dept_q = f"""
+        SELECT 
+            COALESCE(ddept.department_name, 'Unknown') AS department,
+            COUNT(DISTINCT ds.student_id) AS student_count
+        FROM dim_student ds
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {student_where}
+        GROUP BY ddept.department_name
+        ORDER BY student_count DESC
+        """
+        by_dept_df = pd.read_sql_query(text(by_dept_q), engine, params=params)
+        students_by_department = by_dept_df.to_dict('records') if not by_dept_df.empty else []
+
+        # 4) Students by program
+        by_prog_q = f"""
+        SELECT 
+            COALESCE(dp.program_name, 'Unknown') AS program_name,
+            COALESCE(ddept.department_name, 'Unknown') AS department,
+            COUNT(DISTINCT ds.student_id) AS student_count
+        FROM dim_student ds
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {student_where}
+        GROUP BY dp.program_name, ddept.department_name
+        ORDER BY student_count DESC
+        """
+        by_prog_df = pd.read_sql_query(text(by_prog_q), engine, params=params)
+        students_by_program = by_prog_df.to_dict('records') if not by_prog_df.empty else []
+
+        # 5) Student demographics (gender + high school)
+        by_gender_q = f"""
+        SELECT 
+            COALESCE(ds.gender, 'U') AS gender,
+            COUNT(DISTINCT ds.student_id) AS student_count
+        FROM dim_student ds
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {student_where}
+        GROUP BY ds.gender
+        """
+        by_gender_df = pd.read_sql_query(text(by_gender_q), engine, params=params)
+        students_by_gender = by_gender_df.to_dict('records') if not by_gender_df.empty else []
+
+        by_hs_q = f"""
+        SELECT 
+            ds.high_school,
+            COUNT(DISTINCT ds.student_id) AS student_count
+        FROM dim_student ds
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {student_where}
+        AND ds.high_school IS NOT NULL AND ds.high_school != ''
+        GROUP BY ds.high_school
+        ORDER BY student_count DESC
+        LIMIT 20
+        """
+        by_hs_df = pd.read_sql_query(text(by_hs_q), engine, params=params)
+
+        # 6) Grade distribution within scope
+        grade_dist_q = f"""
+        SELECT 
+            fg.letter_grade,
+            COUNT(*) AS count
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {grade_where}
+        GROUP BY fg.letter_grade
+        ORDER BY count DESC
+        """
+        grade_dist_df = pd.read_sql_query(text(grade_dist_q), engine, params=params)
+        grade_distribution = grade_dist_df.to_dict('records') if not grade_dist_df.empty else []
+
+        # 7) Performance by department
+        perf_dept_q = f"""
+        SELECT 
+            COALESCE(ddept.department_name, 'Unknown') AS department,
+            AVG(fg.grade) AS avg_grade,
+            COUNT(DISTINCT ds.student_id) AS student_count
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {grade_where}
+        GROUP BY ddept.department_name
+        ORDER BY avg_grade DESC
+        """
+        perf_dept_df = pd.read_sql_query(text(perf_dept_q), engine, params=params)
+        performance_by_department = perf_dept_df.to_dict('records') if not perf_dept_df.empty else []
+
+        # 8) Performance by program
+        perf_prog_q = f"""
+        SELECT 
+            COALESCE(dp.program_name, 'Unknown') AS program_name,
+            COALESCE(ddept.department_name, 'Unknown') AS department,
+            AVG(fg.grade) AS avg_grade,
+            COUNT(DISTINCT ds.student_id) AS student_count
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {grade_where}
+        GROUP BY dp.program_name, ddept.department_name
+        ORDER BY avg_grade DESC
+        """
+        perf_prog_df = pd.read_sql_query(text(perf_prog_q), engine, params=params)
+        performance_by_program = perf_prog_df.to_dict('records') if not perf_prog_df.empty else []
+
+        # 9) Top 10 students in scope (by average grade)
+        top_students_q = f"""
+        SELECT 
+            ds.student_id,
+            ds.access_number,
+            ds.reg_no,
+            CONCAT(ds.first_name, ' ', ds.last_name) AS full_name,
+            COALESCE(dp.program_name, 'Unknown') AS program_name,
+            COALESCE(ddept.department_name, 'Unknown') AS department,
+            AVG(fg.grade) AS avg_grade
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {grade_where}
+        GROUP BY ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name,
+                 dp.program_name, ddept.department_name
+        ORDER BY avg_grade DESC
+        LIMIT 10
+        """
+        top_students_df = pd.read_sql_query(text(top_students_q), engine, params=params)
+        top_students = top_students_df.to_dict('records') if not top_students_df.empty else []
+
+        # 10) Tuition payment distribution & trends within faculty scope
+        payment_where = "WHERE 1=1"
+        if where_clauses:
+            payment_where += " AND " + " AND ".join(where_clauses)
+
+        payment_status_q = f"""
+        SELECT 
+            fp.status,
+            COUNT(*) AS payment_count,
+            COALESCE(SUM(fp.amount), 0) AS total_amount
+        FROM fact_payment fp
+        JOIN dim_student ds ON fp.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {payment_where}
+        GROUP BY fp.status
+        """
+        pay_status_df = pd.read_sql_query(text(payment_status_q), engine, params=params)
+        payment_status = pay_status_df.to_dict('records') if not pay_status_df.empty else []
+
+        payment_trend_q = f"""
+        SELECT 
+            fp.year,
+            fp.semester_id,
+            COALESCE(SUM(fp.amount), 0) AS total_amount
+        FROM fact_payment fp
+        JOIN dim_student ds ON fp.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {payment_where}
+        GROUP BY fp.year, fp.semester_id
+        ORDER BY fp.year, fp.semester_id
+        """
+        pay_trend_df = pd.read_sql_query(text(payment_trend_q), engine, params=params)
+        payment_trends = pay_trend_df.to_dict('records') if not pay_trend_df.empty else []
+
+        # 11) Staff summary for this faculty from dim_employee
+        staff_where_clauses = []
+        staff_params: dict = {}
+        if user_scope['role'] == Role.DEAN and user_scope.get('faculty_id'):
+            staff_where_clauses.append("df.faculty_id = :staff_faculty_id")
+            staff_params['staff_faculty_id'] = int(user_scope['faculty_id'])
+        elif user_scope['role'] == Role.HOD and user_scope.get('department_id'):
+            staff_where_clauses.append("ddept.department_id = :staff_department_id")
+            staff_params['staff_department_id'] = int(user_scope['department_id'])
+        staff_where = "WHERE " + " AND ".join(staff_where_clauses) if staff_where_clauses else ""
+
+        staff_summary_q = f"""
+        SELECT COUNT(*) AS total_staff
+        FROM dim_employee e
+        JOIN dim_department ddept ON e.department_id = ddept.department_id
+        JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {staff_where}
+        """
+        staff_summary_df = pd.read_sql_query(text(staff_summary_q), engine, params=staff_params)
+        total_staff = int(staff_summary_df['total_staff'][0]) if not staff_summary_df.empty and pd.notna(staff_summary_df['total_staff'][0]) else 0
+
+        staff_by_dept_q = f"""
+        SELECT 
+            COALESCE(ddept.department_name, 'Unknown') AS department,
+            COUNT(*) AS staff_count
+        FROM dim_employee e
+        JOIN dim_department ddept ON e.department_id = ddept.department_id
+        JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {staff_where}
+        GROUP BY ddept.department_name
+        ORDER BY staff_count DESC
+        """
+        staff_by_dept_df = pd.read_sql_query(text(staff_by_dept_q), engine, params=staff_params)
+        staff_by_department = staff_by_dept_df.to_dict('records') if not staff_by_dept_df.empty else []
+
+        staff_list_q = f"""
+        SELECT 
+            e.employee_id,
+            e.full_name,
+            COALESCE(ddept.department_name, 'Unknown') AS department,
+            COALESCE(e.contract_type, 'Unknown') AS contract_type,
+            COALESCE(e.status, 'Unknown') AS status
+        FROM dim_employee e
+        JOIN dim_department ddept ON e.department_id = ddept.department_id
+        JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        {staff_where}
+        ORDER BY ddept.department_name, e.full_name
+        LIMIT 200
+        """
+        staff_list_df = pd.read_sql_query(text(staff_list_q), engine, params=staff_params)
+        staff_list = staff_list_df.to_dict('records') if not staff_list_df.empty else []
+
+        if engine:
+            engine.dispose()
+
+        return jsonify({
+            'total_students': total_students,
+            'avg_grade': round(avg_grade, 2) if avg_grade else 0,
+            'students_by_department': students_by_department,
+            'students_by_program': students_by_program,
+            'students_by_gender': students_by_gender,
+            'students_by_high_school': by_hs_df.to_dict('records') if not by_hs_df.empty else [],
+            'grade_distribution': grade_distribution,
+            'performance_by_department': performance_by_department,
+            'performance_by_program': performance_by_program,
+            'top_students': top_students,
+            'payment_status': payment_status,
+            'payment_trends': payment_trends,
+            'total_staff': total_staff,
+            'staff_by_department': staff_by_department,
+            'staff_list': staff_list,
+        }), 200
+
+    except Exception as e:
+        import traceback
+        print(f"Error in get_faculty_analytics: {e}")
+        print(traceback.format_exc())
+        if engine:
+            engine.dispose()
+        return jsonify({
+            'error': str(e),
+            'total_students': 0,
+            'avg_grade': 0,
+            'students_by_department': [],
+            'students_by_program': [],
+            'students_by_gender': [],
+            'students_by_high_school': [],
+            'grade_distribution': [],
+            'performance_by_department': [],
+            'performance_by_program': [],
+            'top_students': [],
+            'payment_status': [],
+            'payment_trends': [],
+            'total_staff': 0,
+            'staff_by_department': [],
+            'staff_list': [],
+        }), 500
+
 @analytics_bp.route('/student', methods=['GET'])
 @jwt_required()
 def get_student_analytics():
@@ -921,7 +1280,6 @@ def get_student_analytics():
         """
         
         df = pd.read_sql_query(text(query), engine, params=params)
-        engine.dispose()
         
         if df.empty:
             return jsonify({'error': 'Student not found'}), 404
@@ -968,7 +1326,79 @@ def get_student_analytics():
         """
         
         time_df = pd.read_sql_query(text(time_query), engine, params=params)
-        
+
+        # Course-level performance (per course unit)
+        course_query = f"""
+        SELECT 
+            fg.course_code,
+            COALESCE(dc.course_name, '') AS course_name,
+            AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) AS avg_grade,
+            COUNT(*) AS total_attempts,
+            COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) AS completed_exams
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_course dc ON fg.course_code = dc.course_code
+        {where_clause}
+        GROUP BY fg.course_code, dc.course_name
+        ORDER BY dc.course_name, fg.course_code
+        """
+        course_df = pd.read_sql_query(text(course_query), engine, params=params)
+
+        # Tuition by semester (all semesters studied so far)
+        tuition_query = f"""
+        SELECT 
+            fp.year,
+            fp.semester_id,
+            ds_sem.semester_name,
+            COALESCE(SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END), 0) AS total_paid,
+            COALESCE(SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END), 0) AS total_pending,
+            COALESCE(SUM(fp.amount), 0) AS total_amount
+        FROM fact_payment fp
+        JOIN dim_student ds ON fp.student_id = ds.student_id
+        LEFT JOIN dim_semester ds_sem ON fp.semester_id = ds_sem.semester_id
+        {where_clause}
+        GROUP BY fp.year, fp.semester_id, ds_sem.semester_name
+        ORDER BY fp.year, fp.semester_id
+        """
+        tuition_df = pd.read_sql_query(text(tuition_query), engine, params=params)
+
+        # Tuition payment timeline with timestamps (most recent 200)
+        timeline_query = f"""
+        SELECT 
+            fp.payment_timestamp,
+            fp.amount,
+            fp.status,
+            fp.payment_method,
+            fp.year,
+            fp.semester_id
+        FROM fact_payment fp
+        JOIN dim_student ds ON fp.student_id = ds.student_id
+        {where_clause}
+        ORDER BY fp.payment_timestamp ASC
+        LIMIT 200
+        """
+        timeline_df = pd.read_sql_query(text(timeline_query), engine, params=params)
+
+        # Infer residence / student type from payments (national vs international mapped to resident vs non-resident)
+        residence_status = 'Unknown'
+        try:
+            residence_query = f"""
+            SELECT 
+                COALESCE(MAX(fp.student_type), 'national') AS student_type
+            FROM fact_payment fp
+            JOIN dim_student ds ON fp.student_id = ds.student_id
+            {where_clause}
+            """
+            res_df = pd.read_sql_query(text(residence_query), engine, params=params)
+            if not res_df.empty:
+                stype = str(res_df.iloc[0]['student_type'] or '').strip().lower()
+                if stype == 'international':
+                    residence_status = 'Non-resident'
+                elif stype == 'national':
+                    residence_status = 'Resident'
+        except Exception:
+            residence_status = 'Unknown'
+
         engine.dispose()
         
         return jsonify({
@@ -999,10 +1429,369 @@ def get_student_analytics():
             'avg_grade': round(float(student_data['avg_grade']), 2) if pd.notna(student_data['avg_grade']) else 0,
             'total_payments': round(float(student_data['total_paid']), 2) if pd.notna(student_data['total_paid']) else 0,
             'avg_attendance': round(float(student_data['avg_attendance_hours']), 2) if pd.notna(student_data['avg_attendance_hours']) else 0,
+            'residence_status': residence_status,
+            'course_performance': course_df.to_dict('records') if not course_df.empty else [],
+            'payments_by_semester': tuition_df.to_dict('records') if not tuition_df.empty else [],
+            'payment_timeline': [
+                {
+                    'payment_timestamp': str(row['payment_timestamp']) if pd.notna(row['payment_timestamp']) else None,
+                    'amount': float(row['amount']) if pd.notna(row['amount']) else 0.0,
+                    'status': row.get('status'),
+                    'payment_method': row.get('payment_method'),
+                    'year': int(row['year']) if pd.notna(row['year']) else None,
+                    'semester_id': int(row['semester_id']) if pd.notna(row['semester_id']) else None,
+                }
+                for _, row in timeline_df.iterrows()
+            ] if not timeline_df.empty else [],
         }), 200
         
     except Exception as e:
         import traceback
         print(f"Error in get_student_analytics: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+@analytics_bp.route('/hr', methods=['GET'])
+@jwt_required()
+def get_hr_analytics():
+    """HR analytics: employees by title and department/faculty, attendance, payroll, and retained students.
+    - Uses cross-database queries against UCU_SourceDB2 (employees, attendance, payroll) and
+      UCU_SourceDB1 / data warehouse dimensions for faculties/departments and retained students."""
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+
+        # HR analytics permission required
+        if not has_permission(user_scope['role'], Resource.HR_ANALYTICS, Permission.READ, user_scope):
+            return jsonify({'error': 'Permission denied'}), 403
+
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        filters = request.args.to_dict()
+
+        # Optional filters by faculty / department (from SourceDB1 faculties/departments)
+        where_clauses = []
+        faculty_id = filters.get('faculty_id')
+        department_id = filters.get('department_id')
+        if faculty_id:
+            where_clauses.append(f"f.FacultyID = {int(faculty_id)}")
+        if department_id:
+            where_clauses.append(f"d.DepartmentID = {int(department_id)}")
+
+        # Optional filter by employee role group (Senate, Dean, HOD, Lecturer, Assistant Lecturer, Finance, HR, Other)
+        role_group = (filters.get('role_group') or '').strip().lower()
+        role_group_clause = ''
+        if role_group == 'senate':
+            role_group_clause = "p.PositionTitle LIKE '%Senate%'"
+        elif role_group == 'dean':
+            role_group_clause = "p.PositionTitle LIKE '%Dean%'"
+        elif role_group == 'hod':
+            role_group_clause = "p.PositionTitle LIKE '%Head of Department%' OR p.PositionTitle LIKE '%HOD%'"
+        elif role_group == 'assistant_lecturer':
+            role_group_clause = "p.PositionTitle LIKE '%Assistant Lecturer%'"
+        elif role_group == 'lecturer':
+            role_group_clause = "p.PositionTitle LIKE '%Lecturer%' AND p.PositionTitle NOT LIKE '%Assistant%'"
+        elif role_group == 'finance':
+            role_group_clause = "p.PositionTitle LIKE '%Finance%' OR p.PositionTitle LIKE '%Accountant%'"
+        elif role_group == 'hr':
+            role_group_clause = "p.PositionTitle LIKE '%Human Resource%' OR p.PositionTitle LIKE 'HR %' OR p.PositionTitle LIKE '% HR%'"
+
+        if role_group_clause:
+            where_clauses.append(role_group_clause)
+
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        # 1) Employee counts by role category (lecturer, assistant lecturer, other)
+        summary_sql = f"""
+        SELECT
+            COUNT(*) AS total_employees,
+            COUNT(DISTINCT d.DepartmentID) AS total_departments,
+            SUM(CASE WHEN p.PositionTitle LIKE '%Assistant Lecturer%' THEN 1 ELSE 0 END) AS assistant_lecturers,
+            SUM(CASE WHEN p.PositionTitle LIKE '%Lecturer%' AND p.PositionTitle NOT LIKE '%Assistant%' THEN 1 ELSE 0 END) AS lecturers,
+            SUM(CASE WHEN p.PositionTitle NOT LIKE '%Lecturer%' THEN 1 ELSE 0 END) AS other_staff
+        FROM {DB2_NAME}.employees e
+        JOIN {DB2_NAME}.positions p ON e.PositionID = p.PositionID
+        JOIN {DB1_NAME}.departments d ON e.DepartmentID = d.DepartmentID
+        JOIN {DB1_NAME}.faculties f ON d.FacultyID = f.FacultyID
+        {where_sql}
+        """
+        summary_df = pd.read_sql_query(text(summary_sql), engine)
+        if summary_df.empty:
+            total_employees = 0
+            total_departments = 0
+            lecturers = 0
+            assistant_lecturers = 0
+            other_staff = 0
+        else:
+            row = summary_df.iloc[0]
+            total_employees = int(row['total_employees'] or 0)
+            total_departments = int(row['total_departments'] or 0)
+            lecturers = int(row['lecturers'] or 0)
+            assistant_lecturers = int(row['assistant_lecturers'] or 0)
+            other_staff = int(row['other_staff'] or 0)
+
+        # 2) Employees by department and faculty, with role categories
+        by_dept_sql = f"""
+        SELECT
+            f.FacultyName AS faculty_name,
+            d.DepartmentName AS department_name,
+            COUNT(*) AS total_employees,
+            SUM(CASE WHEN p.PositionTitle LIKE '%Assistant Lecturer%' THEN 1 ELSE 0 END) AS assistant_lecturers,
+            SUM(CASE WHEN p.PositionTitle LIKE '%Lecturer%' AND p.PositionTitle NOT LIKE '%Assistant%' THEN 1 ELSE 0 END) AS lecturers,
+            SUM(CASE WHEN p.PositionTitle NOT LIKE '%Lecturer%' THEN 1 ELSE 0 END) AS other_staff
+        FROM {DB2_NAME}.employees e
+        JOIN {DB2_NAME}.positions p ON e.PositionID = p.PositionID
+        JOIN {DB1_NAME}.departments d ON e.DepartmentID = d.DepartmentID
+        JOIN {DB1_NAME}.faculties f ON d.FacultyID = f.FacultyID
+        {where_sql}
+        GROUP BY f.FacultyName, d.DepartmentName
+        ORDER BY f.FacultyName, d.DepartmentName
+        """
+        by_dept_df = pd.read_sql_query(text(by_dept_sql), engine)
+        employees_by_department = by_dept_df.to_dict('records') if not by_dept_df.empty else []
+
+        # 2b) Employees by faculty only (for "All Faculties" overview)
+        by_faculty_sql = f"""
+        SELECT
+            f.FacultyName AS faculty_name,
+            COUNT(*) AS total_employees,
+            SUM(CASE WHEN p.PositionTitle LIKE '%Assistant Lecturer%' THEN 1 ELSE 0 END) AS assistant_lecturers,
+            SUM(CASE WHEN p.PositionTitle LIKE '%Lecturer%' AND p.PositionTitle NOT LIKE '%Assistant%' THEN 1 ELSE 0 END) AS lecturers,
+            SUM(CASE WHEN p.PositionTitle NOT LIKE '%Lecturer%' THEN 1 ELSE 0 END) AS other_staff
+        FROM {DB2_NAME}.employees e
+        JOIN {DB2_NAME}.positions p ON e.PositionID = p.PositionID
+        JOIN {DB1_NAME}.departments d ON e.DepartmentID = d.DepartmentID
+        JOIN {DB1_NAME}.faculties f ON d.FacultyID = f.FacultyID
+        {where_sql}
+        GROUP BY f.FacultyName
+        ORDER BY f.FacultyName
+        """
+        by_faculty_df = pd.read_sql_query(text(by_faculty_sql), engine)
+        employees_by_faculty = by_faculty_df.to_dict('records') if not by_faculty_df.empty else []
+
+        # 2c) Detailed employees list with titles and faculty/department for HR directory-style views
+        employees_sql = f"""
+        SELECT
+            e.EmployeeID AS employee_id,
+            e.FullName AS full_name,
+            p.PositionTitle AS position_title,
+            f.FacultyName AS faculty_name,
+            d.DepartmentName AS department_name
+        FROM {DB2_NAME}.employees e
+        JOIN {DB2_NAME}.positions p ON e.PositionID = p.PositionID
+        JOIN {DB1_NAME}.departments d ON e.DepartmentID = d.DepartmentID
+        JOIN {DB1_NAME}.faculties f ON d.FacultyID = f.FacultyID
+        {where_sql}
+        """
+        employees_df = pd.read_sql_query(text(employees_sql), engine)
+
+        def _classify_role_group(title: str) -> str:
+            """Map position title to HR-friendly role group."""
+            t = (title or "").strip().lower()
+            if "senate" in t:
+                return "senate"
+            if "dean" in t:
+                return "dean"
+            if "head of department" in t or "hod" in t:
+                return "hod"
+            if "assistant lecturer" in t:
+                return "assistant_lecturer"
+            if "lecturer" in t:
+                return "lecturer"
+            if "finance" in t or "accountant" in t:
+                return "finance"
+            if "human resource" in t or "hr " in t or t.startswith("hr"):
+                return "hr"
+            return "other"
+
+        employees_list = []
+        if not employees_df.empty:
+            for _, r in employees_df.iterrows():
+                title = str(r.get("position_title") or "")
+                role_group = _classify_role_group(title)
+                employees_list.append({
+                    "employee_id": int(r["employee_id"]) if pd.notna(r.get("employee_id")) else None,
+                    "full_name": str(r.get("full_name") or ""),
+                    "position_title": title,
+                    "role_group": role_group,
+                    "faculty_name": str(r.get("faculty_name") or ""),
+                    "department_name": str(r.get("department_name") or ""),
+                })
+
+        # 2d) Lecturer employment type breakdown (Full-time vs Part-time vs Other)
+        lecturer_employment_sql = f"""
+        SELECT
+            CASE
+                WHEN LOWER(COALESCE(e.ContractType, '')) LIKE '%part%' THEN 'Part-time'
+                WHEN LOWER(COALESCE(e.ContractType, '')) LIKE '%full%' THEN 'Full-time'
+                ELSE 'Other'
+            END AS employment_type,
+            COUNT(*) AS total
+        FROM {DB2_NAME}.employees e
+        JOIN {DB2_NAME}.positions p ON e.PositionID = p.PositionID
+        JOIN {DB1_NAME}.departments d ON e.DepartmentID = d.DepartmentID
+        JOIN {DB1_NAME}.faculties f ON d.FacultyID = f.FacultyID
+        WHERE
+            (p.PositionTitle LIKE '%Lecturer%' OR p.PositionTitle LIKE '%Assistant Lecturer%')
+            {(' AND ' + ' AND '.join(where_clauses)) if where_clauses else ''}
+        GROUP BY employment_type
+        """
+        lecturer_employment_df = pd.read_sql_query(text(lecturer_employment_sql), engine)
+        lecturer_employment = []
+        if not lecturer_employment_df.empty:
+            for _, r in lecturer_employment_df.iterrows():
+                lecturer_employment.append({
+                    "employment_type": str(r.get("employment_type") or ""),
+                    "total": int(r.get("total") or 0),
+                })
+
+        # 3) Attendance analytics by role category
+        attendance_sql = f"""
+        SELECT
+            CASE
+                WHEN p.PositionTitle LIKE '%Senate%' THEN 'Senate'
+                WHEN p.PositionTitle LIKE '%Dean%' THEN 'Dean'
+                WHEN p.PositionTitle LIKE '%Head of Department%' OR p.PositionTitle LIKE '%HOD%' THEN 'HOD'
+                WHEN p.PositionTitle LIKE '%Assistant Lecturer%' THEN 'Assistant Lecturer'
+                WHEN p.PositionTitle LIKE '%Lecturer%' AND p.PositionTitle NOT LIKE '%Assistant%' THEN 'Lecturer'
+                WHEN p.PositionTitle LIKE '%Finance%' OR p.PositionTitle LIKE '%Accountant%' THEN 'Finance'
+                WHEN p.PositionTitle LIKE '%Human Resource%' OR p.PositionTitle LIKE 'HR %' OR p.PositionTitle LIKE '% HR%' THEN 'HR'
+                ELSE 'Other Staff'
+            END AS role_category,
+            COUNT(*) AS attendance_records,
+            SUM(CASE WHEN ea.Status = 'Present' THEN 1 ELSE 0 END) AS present_days,
+            SUM(CASE WHEN ea.Status = 'Absent' THEN 1 ELSE 0 END) AS absent_days,
+            SUM(CASE WHEN ea.Status = 'Late' THEN 1 ELSE 0 END) AS late_days,
+            SUM(CASE WHEN ea.Status = 'On Leave' THEN 1 ELSE 0 END) AS leave_days
+        FROM {DB2_NAME}.employee_attendance ea
+        JOIN {DB2_NAME}.employees e ON ea.EmployeeID = e.EmployeeID
+        JOIN {DB2_NAME}.positions p ON e.PositionID = p.PositionID
+        JOIN {DB1_NAME}.departments d ON e.DepartmentID = d.DepartmentID
+        JOIN {DB1_NAME}.faculties f ON d.FacultyID = f.FacultyID
+        {where_sql}
+        GROUP BY role_category
+        """
+        attendance_df = pd.read_sql_query(text(attendance_sql), engine)
+        attendance_by_role = attendance_df.to_dict('records') if not attendance_df.empty else []
+
+        # Overall attendance rate: present_days / (present+absent) across all roles
+        if not attendance_df.empty:
+            total_present = int(attendance_df['present_days'].sum() or 0)
+            total_absent = int(attendance_df['absent_days'].sum() or 0)
+            denom = total_present + total_absent
+            attendance_rate = (total_present / denom * 100.0) if denom > 0 else 0.0
+        else:
+            attendance_rate = 0.0
+
+        # 4) Payroll analytics by role category
+        payroll_sql = f"""
+        SELECT
+            CASE
+                WHEN p.PositionTitle LIKE '%Senate%' THEN 'Senate'
+                WHEN p.PositionTitle LIKE '%Dean%' THEN 'Dean'
+                WHEN p.PositionTitle LIKE '%Head of Department%' OR p.PositionTitle LIKE '%HOD%' THEN 'HOD'
+                WHEN p.PositionTitle LIKE '%Assistant Lecturer%' THEN 'Assistant Lecturer'
+                WHEN p.PositionTitle LIKE '%Lecturer%' AND p.PositionTitle NOT LIKE '%Assistant%' THEN 'Lecturer'
+                WHEN p.PositionTitle LIKE '%Finance%' OR p.PositionTitle LIKE '%Accountant%' THEN 'Finance'
+                WHEN p.PositionTitle LIKE '%Human Resource%' OR p.PositionTitle LIKE 'HR %' OR p.PositionTitle LIKE '% HR%' THEN 'HR'
+                ELSE 'Other Staff'
+            END AS role_category,
+            COUNT(DISTINCT e.EmployeeID) AS employee_count,
+            COUNT(*) AS payroll_records,
+            SUM(pr.NetPay) AS total_net_pay,
+            AVG(pr.NetPay) AS avg_net_pay
+        FROM {DB2_NAME}.payroll pr
+        JOIN {DB2_NAME}.employees e ON pr.EmployeeID = e.EmployeeID
+        JOIN {DB2_NAME}.positions p ON e.PositionID = p.PositionID
+        JOIN {DB1_NAME}.departments d ON e.DepartmentID = d.DepartmentID
+        JOIN {DB1_NAME}.faculties f ON d.FacultyID = f.FacultyID
+        {where_sql}
+        GROUP BY role_category
+        """
+        payroll_df = pd.read_sql_query(text(payroll_sql), engine)
+        payroll_by_role = payroll_df.to_dict('records') if not payroll_df.empty else []
+        total_payroll = float(payroll_df['total_net_pay'].sum() or 0.0) if not payroll_df.empty else 0.0
+
+        # 5) Employee attendance trend over time (for HR attendance tab)
+        attendance_trend_sql = f"""
+        SELECT
+            ea.Date AS attendance_date,
+            COUNT(*) AS total_records,
+            SUM(CASE WHEN ea.Status = 'Present' THEN 1 ELSE 0 END) AS present_days,
+            SUM(CASE WHEN ea.Status = 'Absent' THEN 1 ELSE 0 END) AS absent_days,
+            SUM(CASE WHEN ea.Status = 'Late' THEN 1 ELSE 0 END) AS late_days,
+            SUM(CASE WHEN ea.Status = 'On Leave' THEN 1 ELSE 0 END) AS leave_days
+        FROM {DB2_NAME}.employee_attendance ea
+        JOIN {DB2_NAME}.employees e ON ea.EmployeeID = e.EmployeeID
+        JOIN {DB2_NAME}.positions p ON e.PositionID = p.PositionID
+        JOIN {DB1_NAME}.departments d ON e.DepartmentID = d.DepartmentID
+        JOIN {DB1_NAME}.faculties f ON d.FacultyID = f.FacultyID
+        {where_sql}
+        GROUP BY ea.Date
+        ORDER BY ea.Date
+        """
+        attendance_trend_df = pd.read_sql_query(text(attendance_trend_sql), engine)
+        employee_attendance_trend = []
+        if not attendance_trend_df.empty:
+            for _, row in attendance_trend_df.iterrows():
+                total_rec = int(row['total_records'] or 0)
+                present_days = int(row['present_days'] or 0)
+                absent_days = int(row['absent_days'] or 0)
+                late_days = int(row['late_days'] or 0)
+                leave_days = int(row['leave_days'] or 0)
+                denom = present_days + absent_days
+                present_rate = (present_days / denom * 100.0) if denom > 0 else 0.0
+                employee_attendance_trend.append({
+                    'date': str(row['attendance_date']),
+                    'total_records': total_rec,
+                    'present_days': present_days,
+                    'absent_days': absent_days,
+                    'late_days': late_days,
+                    'leave_days': leave_days,
+                    'present_rate': present_rate,
+                })
+
+        # 6) Students retained as employees (match by full name vs student first+last name)
+        retained_sql = f"""
+        SELECT
+            f.faculty_name,
+            d.department_name,
+            COUNT(*) AS retained_count
+        FROM {DB2_NAME}.employees e
+        JOIN dim_student ds ON CONCAT(ds.first_name, ' ', ds.last_name) = e.FullName
+        JOIN dim_program dp ON ds.program_id = dp.program_id
+        JOIN dim_department d ON dp.department_id = d.department_id
+        JOIN dim_faculty f ON d.faculty_id = f.faculty_id
+        GROUP BY f.faculty_name, d.department_name
+        ORDER BY retained_count DESC
+        """
+        retained_df = pd.read_sql_query(text(retained_sql), engine)
+        retained_by_department = retained_df.to_dict('records') if not retained_df.empty else []
+        retained_total = int(retained_df['retained_count'].sum() or 0) if not retained_df.empty else 0
+
+        engine.dispose()
+
+        return jsonify({
+            'total_employees': total_employees,
+            'total_departments': total_departments,
+            'lecturers': lecturers,
+            'assistant_lecturers': assistant_lecturers,
+            'other_staff': other_staff,
+            'employees_by_department': employees_by_department,
+            'employees_by_faculty': employees_by_faculty,
+            'employees_list': employees_list,
+            'lecturer_employment': lecturer_employment,
+            'attendance_by_role': attendance_by_role,
+            'attendance_rate': attendance_rate,
+            'employee_attendance_trend': employee_attendance_trend,
+            'payroll_by_role': payroll_by_role,
+            'total_payroll': total_payroll,
+            'retained_employees_total': retained_total,
+            'retained_employees_by_department': retained_by_department,
+        }), 200
+
+    except Exception as e:
+        import traceback
+        print(f"Error in get_hr_analytics: {e}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500

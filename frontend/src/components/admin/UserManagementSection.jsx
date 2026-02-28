@@ -81,6 +81,10 @@ export default function UserManagementSection({
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [viewError, setViewError] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
+  const [resetUser, setResetUser] = useState(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetError, setResetError] = useState(null);
 
   const loadUsers = useCallback(async () => {
     const token = getToken();
@@ -341,6 +345,53 @@ export default function UserManagementSection({
       setDeleteError(msg);
     } finally {
       setDeleteSubmitting(false);
+    }
+  };
+
+  const openResetPassword = (u) => {
+    if (u.type !== 'app_user') return;
+    setResetUser(u);
+    setResetPassword('');
+    setResetError(null);
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (!resetUser) return;
+    const username = (resetUser.username || '').trim();
+    if (!username) {
+      setResetError('Missing username for app user.');
+      return;
+    }
+    if (!resetPassword || resetPassword.length < 6) {
+      setResetError('New password must be at least 6 characters.');
+      return;
+    }
+    setResetSubmitting(true);
+    setResetError(null);
+    const token = getToken();
+    if (!token) {
+      setResetError('Please log in again.');
+      setResetSubmitting(false);
+      return;
+    }
+    try {
+      await axios.post(
+        '/api/user-mgmt/users/reset-password',
+        { username, new_password: resetPassword },
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      setResetUser(null);
+      setResetPassword('');
+    } catch (err) {
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        'Failed to reset password.';
+      setResetError(msg);
+    } finally {
+      setResetSubmitting(false);
     }
   };
 
@@ -777,6 +828,82 @@ export default function UserManagementSection({
         </ModalBody>
       </Modal>
 
+      {/* Reset password modal (app_user only) */}
+      <Modal
+        open={!!resetUser}
+        onClose={() => {
+          if (!resetSubmitting) {
+            setResetUser(null);
+            setResetPassword('');
+            setResetError(null);
+          }
+        }}
+        titleId="reset-password-title"
+        maxWidth="max-w-sm"
+      >
+        <ModalHeader
+          title="Reset password"
+          titleId="reset-password-title"
+          onClose={() => {
+            if (!resetSubmitting) {
+              setResetUser(null);
+              setResetPassword('');
+              setResetError(null);
+            }
+          }}
+        />
+        <ModalBody>
+            <p className="text-sm text-muted-foreground mb-4">
+              Reset password for{' '}
+              <strong>{resetUser?.full_name || resetUser?.username || '—'}</strong> (
+              {resetUser?.username || '—'}). This affects app-user login immediately.
+            </p>
+            {resetError && (
+              <div className="rounded-lg bg-destructive/10 text-destructive border border-destructive/20 px-3 py-2 text-sm mb-3">
+                {resetError}
+              </div>
+            )}
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <Label htmlFor="reset-password-input">New password *</Label>
+                <Input
+                  id="reset-password-input"
+                  type="password"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  placeholder="••••••••"
+                  minLength={6}
+                  autoComplete="new-password"
+                  required
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Minimum 6 characters. Share this with the user; they can change it later.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (!resetSubmitting) {
+                      setResetUser(null);
+                      setResetPassword('');
+                      setResetError(null);
+                    }
+                  }}
+                  disabled={resetSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="default" disabled={resetSubmitting} className="gap-2">
+                  {resetSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                  Reset password
+                </Button>
+              </div>
+            </form>
+        </ModalBody>
+      </Modal>
+
       <CardContent className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
@@ -933,6 +1060,16 @@ export default function UserManagementSection({
                                   aria-label="Edit user"
                                 >
                                   <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => openResetPassword(u)}
+                                  title="Reset password"
+                                  aria-label="Reset password"
+                                >
+                                  <RefreshCw className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   variant="ghost"

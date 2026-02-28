@@ -14,7 +14,7 @@ import axios from 'axios';
 import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from '../utils/statePersistence';
 import { logAuditEvent } from '../utils/audit';
 
-const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'global' }) => {
+const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'global', hideHighSchool = false, hideAcademic = false }) => {
   // Load persisted filters and search term
   const savedFiltersState = loadFilters(pageName, savedFilters || {});
   const savedSearch = loadSearchTerm(pageName, '');
@@ -219,6 +219,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                 ))}
               </Select>
 
+              {!hideAcademic && (
               <Select
                 value={filters.program_id || ''}
                 onChange={(e) => handleFilterChange('program_id', e.target.value || null)}
@@ -236,7 +237,9 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                   </option>
                 ))}
               </Select>
+              )}
 
+              {!hideAcademic && (
               <Select
                 value={filters.course_code || ''}
                 onChange={(e) => handleFilterChange('course_code', e.target.value || null)}
@@ -250,7 +253,9 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                   </option>
                 ))}
               </Select>
+              )}
 
+              {!hideAcademic && (
               <Select
                 value={filters.semester_id || ''}
                 onChange={(e) => handleFilterChange('semester_id', e.target.value || null)}
@@ -264,21 +269,25 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                   </option>
                 ))}
               </Select>
+              )}
 
-              <Select
-                value={filters.high_school || ''}
-                onChange={(e) => handleFilterChange('high_school', e.target.value || null)}
-                disabled={loading}
-                className="h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary"
-              >
-                <option value="">All High Schools</option>
-                {filterOptions.high_schools?.map((hs, idx) => (
-                  <option key={`hs-${idx}-${hs.high_school || idx}`} value={hs.high_school}>
-                    {hs.high_school}
-                  </option>
-                ))}
-              </Select>
+              {!hideHighSchool && (
+                <Select
+                  value={filters.high_school || ''}
+                  onChange={(e) => handleFilterChange('high_school', e.target.value || null)}
+                  disabled={loading}
+                  className="h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary"
+                >
+                  <option value="">All High Schools</option>
+                  {filterOptions.high_schools?.map((hs, idx) => (
+                    <option key={`hs-${idx}-${hs.high_school || idx}`} value={hs.high_school}>
+                      {hs.high_school}
+                    </option>
+                  ))}
+                </Select>
+              )}
 
+              {!hideAcademic && (
               <Select
                 value={filters.intake_year || ''}
                 onChange={(e) => handleFilterChange('intake_year', e.target.value || null)}
@@ -292,6 +301,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                   </option>
                 ))}
               </Select>
+              )}
             </div>
 
             {/* Active Filters & Clear */}

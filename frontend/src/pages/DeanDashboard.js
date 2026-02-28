@@ -10,6 +10,8 @@ import ModernStatsCards from '../components/ModernStatsCards';
 import RoleBasedCharts from '../components/RoleBasedCharts';
 import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
 import ExportButtons from '../components/ExportButtons';
+import { SciBarChart } from '../components/charts/EChartsComponents';
+import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +22,12 @@ const DeanDashboard = () => {
   const [stats, setStats] = useState(null);
   const [filters, setFilters] = useState({});
   const [showWelcome, setShowWelcome] = useState(true);
+  const [staffViewMode, setStaffViewMode] = useState('auto'); // 'auto' | 'custom'
+  const [staffSections, setStaffSections] = useState({
+    overview: true,
+    byDepartment: true,
+    list: true,
+  });
 
   useEffect(() => {
     loadFacultyData();
@@ -50,6 +58,21 @@ const DeanDashboard = () => {
       setLoading(false);
     }
   };
+
+  const staffHasData = stats && typeof stats.total_staff === 'number' && stats.total_staff > 0;
+  const staffByDept = Array.isArray(stats?.staff_by_department) ? stats.staff_by_department : [];
+  const staffList = Array.isArray(stats?.staff_list) ? stats.staff_list : [];
+  const staffHasByDept = staffByDept.length > 0;
+  const staffHasList = staffList.length > 0;
+
+  const autoStaffSections = {
+    overview: staffHasData,
+    byDepartment: staffHasByDept,
+    list: staffHasList,
+  };
+
+  const activeStaffSections =
+    staffViewMode === 'auto' ? autoStaffSections : staffSections;
 
   return (
     <div className="space-y-4">

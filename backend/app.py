@@ -994,6 +994,98 @@ def hod_staff_in_department():
         return jsonify({'error': str(e), 'staff': []}), 500
 
 
+@app.route('/api/hr/staff-list', methods=['GET'], strict_slashes=False)
+@jwt_required()
+def hr_staff_list():
+    """List all non-student staff members created in the system (app_users + demo accounts).
+    Visible to HR role only."""
+    from flask_jwt_extended import get_jwt
+    claims = get_jwt()
+    role = (claims.get('role') or '').strip().lower()
+    if role != 'hr':
+        return jsonify({'error': 'HR access required'}), 403
+    staff = []
+    try:
+        # Load app_users from RBAC database
+        rbac_engine = create_engine(RBAC_CONN_STRING)
+        _ensure_app_users_table(rbac_engine)
+        df = pd.read_sql_query(
+            text("""
+                SELECT id, username, full_name, role, faculty_id, department_id, created_at
+                FROM app_users
+                WHERE LOWER(role) <> 'student'
+                ORDER BY full_name, username
+            """),
+            rbac_engine,
+        )
+        rbac_engine.dispose()
+
+        # Map faculty/department names from data warehouse
+        try:
+            dw_engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+            fac_df = pd.read_sql_query(
+                "SELECT faculty_id, faculty_name FROM dim_faculty", dw_engine
+            )
+            dept_df = pd.read_sql_query(
+                "SELECT department_id, department_name FROM dim_department", dw_engine
+            )
+            dw_engine.dispose()
+            fac_map = {
+                int(r['faculty_id']): str(r['faculty_name'])
+                for _, r in fac_df.iterrows()
+                if pd.notna(r.get('faculty_id'))
+            }
+            dept_map = {
+                int(r['department_id']): str(r['department_name'])
+                for _, r in dept_df.iterrows()
+                if pd.notna(r.get('department_id'))
+            }
+        except Exception:
+            fac_map, dept_map = {}, {}
+
+        # App users
+        for _, r in df.iterrows():
+            fid = int(r['faculty_id']) if pd.notna(r.get('faculty_id')) else None
+            did = int(r['department_id']) if pd.notna(r.get('department_id')) else None
+            staff.append({
+                'id': int(r['id']) if pd.notna(r.get('id')) else None,
+                'username': str(r['username']) if pd.notna(r.get('username')) else '',
+                'full_name': str(r['full_name']) if pd.notna(r.get('full_name')) else str(r.get('username') or ''),
+                'role': str(r['role']) if pd.notna(r.get('role')) else '',
+                'faculty_id': fid,
+                'faculty_name': fac_map.get(fid),
+                'department_id': did,
+                'department_name': dept_map.get(did),
+                'source': 'app_user',
+                'created_at': r['created_at'].isoformat() if hasattr(r.get('created_at'), 'isoformat') else None,
+            })
+
+        # Include built-in demo accounts (admin, analyst, senate, staff, dean, hod, hr, finance)
+        demo_usernames = {s['username'].lower() for s in staff if s.get('username')}
+        for acc in DEMO_ACCOUNTS:
+            uname = (acc.get('username') or '').strip()
+            if not uname or uname.lower() in demo_usernames:
+                continue
+            if (acc.get('role') or '').lower() == 'student':
+                continue
+            staff.append({
+                'id': f"demo:{uname}",
+                'username': uname,
+                'full_name': acc.get('full_name') or uname,
+                'role': acc.get('role') or '',
+                'faculty_id': None,
+                'faculty_name': None,
+                'department_id': None,
+                'department_name': None,
+                'source': 'demo',
+                'created_at': None,
+            })
+
+        return jsonify({'staff': staff, 'total': len(staff)})
+    except Exception as e:
+        return jsonify({'error': str(e), 'staff': []}), 500
+
+
 @app.route('/api/hod/staff-assignments/<int:staff_id>', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def hod_get_staff_assignments(staff_id):
@@ -1206,8 +1298,8 @@ def get_status():
     }), 200
 
 def _dashboard_role_scope():
-    """Return (join_sql, where_sql) for dean/HOD/staff to scope queries.
-    Dean/HOD: by faculty/department. Staff: by assigned courses only (no department-wide data).
+    """Return (join_sql, where_sql) for student/dean/HOD/staff to scope queries.
+    Student: own records only. Dean/HOD: by faculty/department. Staff: by assigned courses only (no department-wide data).
     Use with dim_student ds: FROM dim_student ds {join} WHERE {where}.
     For fact tables: JOIN dim_student ds ON fact.student_id = ds.student_id {join} WHERE {where}.
     Returns ('', '') for sysadmin, analyst, senate, etc. (no scope)."""
@@ -1225,6 +1317,17 @@ def _dashboard_role_scope():
         JOIN dim_department ddept ON dp.department_id = ddept.department_id
         JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
+        # Students: scope strictly to their own records
+        if role == Role.STUDENT:
+            student_id = claims.get('student_id')
+            access_number = claims.get('access_number')
+            if student_id:
+                safe_id = str(student_id).replace("'", "''")
+                return '', f"ds.student_id = '{safe_id}'"
+            if access_number:
+                safe_acc = str(access_number).replace("'", "''")
+                return '', f"ds.access_number = '{safe_acc}'"
+            return '', '1=0'
         if role == Role.DEAN and claims.get('faculty_id') is not None:
             return join_sql, f"df.faculty_id = {int(claims['faculty_id'])}"
         if role == Role.HOD and claims.get('department_id') is not None:
@@ -1801,24 +1904,57 @@ def get_attendance_by_course():
 @app.route('/api/dashboard/grade-distribution', methods=['GET'])
 @jwt_required()
 def get_grade_distribution():
-    """Get grade distribution (scoped by faculty for dean, department for HOD)."""
+    """Get grade distribution.
+    - Students: only their own grades.
+    - Dean/HOD/Staff: scoped by faculty/department via _dashboard_role_scope and filters.
+    - Others: global or filter-scoped."""
     try:
+        from flask_jwt_extended import get_jwt
+        from rbac import Role
+
+        claims = get_jwt()
+        role_str = claims.get('role', 'student')
+        try:
+            role = Role(role_str.lower())
+        except Exception:
+            role = Role.STUDENT
+
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         filters = request.args.to_dict()
         role_join, role_where = _dashboard_role_scope()
 
         # Build WHERE clause: role scope first, then filters
         where_clauses = []
-        if role_where:
-            where_clauses.append(role_where)
-        if filters.get('faculty_id'):
-            where_clauses.append(f"ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id IN (SELECT department_id FROM dim_department WHERE faculty_id = {filters['faculty_id']}))")
-        if filters.get('department_id'):
-            where_clauses.append(f"ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id = {filters['department_id']})")
-        if filters.get('program_id'):
-            where_clauses.append(f"ds.program_id = {filters['program_id']}")
-        if filters.get('semester_id'):
-            where_clauses.append(f"fg.semester_id = {filters['semester_id']}")
+        if role == Role.STUDENT:
+            # For students, ignore faculty/department filters and scope strictly to their own grades
+            student_id = claims.get('student_id')
+            access_number = claims.get('access_number')
+            if student_id:
+                safe_id = str(student_id).replace("'", "''")
+                where_clauses.append(f"ds.student_id = '{safe_id}'")
+            elif access_number:
+                safe_acc = str(access_number).replace("'", "''")
+                where_clauses.append(f"ds.access_number = '{safe_acc}'")
+            else:
+                # No valid identifier; return empty distribution
+                engine.dispose()
+                return jsonify({'grades': [], 'counts': []})
+        else:
+            if role_where:
+                where_clauses.append(role_where)
+            if filters.get('faculty_id'):
+                where_clauses.append(
+                    "ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id IN "
+                    f"(SELECT department_id FROM dim_department WHERE faculty_id = {filters['faculty_id']}))"
+                )
+            if filters.get('department_id'):
+                where_clauses.append(
+                    f"ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id = {filters['department_id']})"
+                )
+            if filters.get('program_id'):
+                where_clauses.append(f"ds.program_id = {filters['program_id']}")
+            if filters.get('semester_id'):
+                where_clauses.append(f"fg.semester_id = {filters['semester_id']}")
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
@@ -2164,6 +2300,99 @@ def get_payment_trends():
         print(f"Error in get_payment_trends: {e}")
         import traceback
         traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/dashboard/student-payment-breakdown', methods=['GET'])
+@jwt_required()
+def get_student_payment_breakdown():
+    """Per-student tuition breakdown (total paid vs pending) for the currently logged-in student only."""
+    try:
+        from flask_jwt_extended import get_jwt
+        from rbac import Role
+
+        claims = get_jwt()
+        role_str = claims.get('role', 'student')
+        try:
+            role = Role(role_str.lower())
+        except Exception:
+            role = Role.STUDENT
+
+        # Only meaningful for students; for other roles just return empty structure
+        if role != Role.STUDENT:
+            return jsonify({
+                'total_paid': 0,
+                'total_pending': 0,
+                'total_amount': 0,
+                'paid_percentage': 0.0,
+                'pending_percentage': 0.0,
+            })
+
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+
+        where_clauses = []
+        params = {}
+        if claims.get('student_id'):
+            where_clauses.append("fp.student_id = :student_id")
+            params['student_id'] = str(claims['student_id'])
+        elif claims.get('access_number'):
+            where_clauses.append("ds.access_number = :access_number")
+            params['access_number'] = str(claims['access_number'])
+        else:
+            engine.dispose()
+            return jsonify({
+                'total_paid': 0,
+                'total_pending': 0,
+                'total_amount': 0,
+                'paid_percentage': 0.0,
+                'pending_percentage': 0.0,
+            })
+
+        where_clause = "WHERE " + " AND ".join(where_clauses)
+
+        query = f"""
+        SELECT
+            COALESCE(SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END), 0) AS total_paid,
+            COALESCE(SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END), 0) AS total_pending,
+            COALESCE(SUM(fp.amount), 0) AS total_amount
+        FROM fact_payment fp
+        JOIN dim_student ds ON fp.student_id = ds.student_id
+        {where_clause}
+        """
+        df = pd.read_sql_query(text(query), engine, params=params)
+        engine.dispose()
+
+        if df.empty:
+            return jsonify({
+                'total_paid': 0,
+                'total_pending': 0,
+                'total_amount': 0,
+                'paid_percentage': 0.0,
+                'pending_percentage': 0.0,
+            })
+
+        row = df.iloc[0]
+        total_paid = float(row['total_paid']) if pd.notna(row['total_paid']) else 0.0
+        total_pending = float(row['total_pending']) if pd.notna(row['total_pending']) else 0.0
+        total_amount = float(row['total_amount']) if pd.notna(row['total_amount']) else 0.0
+        if total_amount <= 0:
+            paid_pct = 0.0
+            pending_pct = 0.0
+        else:
+            paid_pct = round((total_paid / total_amount) * 100.0, 2)
+            pending_pct = round((total_pending / total_amount) * 100.0, 2)
+
+        return jsonify({
+            'total_paid': total_paid,
+            'total_pending': total_pending,
+            'total_amount': total_amount,
+            'paid_percentage': paid_pct,
+            'pending_percentage': pending_pct,
+        })
+    except Exception as e:
+        import traceback
+        print(f"Error in get_student_payment_breakdown: {e}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/dashboard/predict-performance', methods=['POST'])
