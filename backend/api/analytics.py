@@ -1471,10 +1471,34 @@ def get_hr_analytics():
 
         # Optional filters by faculty / department (from SourceDB1 faculties/departments)
         where_clauses = []
-        if filters.get('faculty_id'):
-            where_clauses.append(f"f.FacultyID = {int(filters['faculty_id'])}")
-        if filters.get('department_id'):
-            where_clauses.append(f"d.DepartmentID = {int(filters['department_id'])}")
+        faculty_id = filters.get('faculty_id')
+        department_id = filters.get('department_id')
+        if faculty_id:
+            where_clauses.append(f"f.FacultyID = {int(faculty_id)}")
+        if department_id:
+            where_clauses.append(f"d.DepartmentID = {int(department_id)}")
+
+        # Optional filter by employee role group (Senate, Dean, HOD, Lecturer, Assistant Lecturer, Finance, HR, Other)
+        role_group = (filters.get('role_group') or '').strip().lower()
+        role_group_clause = ''
+        if role_group == 'senate':
+            role_group_clause = "p.PositionTitle LIKE '%Senate%'"
+        elif role_group == 'dean':
+            role_group_clause = "p.PositionTitle LIKE '%Dean%'"
+        elif role_group == 'hod':
+            role_group_clause = "p.PositionTitle LIKE '%Head of Department%' OR p.PositionTitle LIKE '%HOD%'"
+        elif role_group == 'assistant_lecturer':
+            role_group_clause = "p.PositionTitle LIKE '%Assistant Lecturer%'"
+        elif role_group == 'lecturer':
+            role_group_clause = "p.PositionTitle LIKE '%Lecturer%' AND p.PositionTitle NOT LIKE '%Assistant%'"
+        elif role_group == 'finance':
+            role_group_clause = "p.PositionTitle LIKE '%Finance%' OR p.PositionTitle LIKE '%Accountant%'"
+        elif role_group == 'hr':
+            role_group_clause = "p.PositionTitle LIKE '%Human Resource%' OR p.PositionTitle LIKE 'HR %' OR p.PositionTitle LIKE '% HR%'"
+
+        if role_group_clause:
+            where_clauses.append(role_group_clause)
+
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
         # 1) Employee counts by role category (lecturer, assistant lecturer, other)
@@ -1545,12 +1569,93 @@ def get_hr_analytics():
         by_faculty_df = pd.read_sql_query(text(by_faculty_sql), engine)
         employees_by_faculty = by_faculty_df.to_dict('records') if not by_faculty_df.empty else []
 
+        # 2c) Detailed employees list with titles and faculty/department for HR directory-style views
+        employees_sql = f"""
+        SELECT
+            e.EmployeeID AS employee_id,
+            e.FullName AS full_name,
+            p.PositionTitle AS position_title,
+            f.FacultyName AS faculty_name,
+            d.DepartmentName AS department_name
+        FROM {DB2_NAME}.employees e
+        JOIN {DB2_NAME}.positions p ON e.PositionID = p.PositionID
+        JOIN {DB1_NAME}.departments d ON e.DepartmentID = d.DepartmentID
+        JOIN {DB1_NAME}.faculties f ON d.FacultyID = f.FacultyID
+        {where_sql}
+        """
+        employees_df = pd.read_sql_query(text(employees_sql), engine)
+
+        def _classify_role_group(title: str) -> str:
+            """Map position title to HR-friendly role group."""
+            t = (title or "").strip().lower()
+            if "senate" in t:
+                return "senate"
+            if "dean" in t:
+                return "dean"
+            if "head of department" in t or "hod" in t:
+                return "hod"
+            if "assistant lecturer" in t:
+                return "assistant_lecturer"
+            if "lecturer" in t:
+                return "lecturer"
+            if "finance" in t or "accountant" in t:
+                return "finance"
+            if "human resource" in t or "hr " in t or t.startswith("hr"):
+                return "hr"
+            return "other"
+
+        employees_list = []
+        if not employees_df.empty:
+            for _, r in employees_df.iterrows():
+                title = str(r.get("position_title") or "")
+                role_group = _classify_role_group(title)
+                employees_list.append({
+                    "employee_id": int(r["employee_id"]) if pd.notna(r.get("employee_id")) else None,
+                    "full_name": str(r.get("full_name") or ""),
+                    "position_title": title,
+                    "role_group": role_group,
+                    "faculty_name": str(r.get("faculty_name") or ""),
+                    "department_name": str(r.get("department_name") or ""),
+                })
+
+        # 2d) Lecturer employment type breakdown (Full-time vs Part-time vs Other)
+        lecturer_employment_sql = f"""
+        SELECT
+            CASE
+                WHEN LOWER(COALESCE(e.ContractType, '')) LIKE '%part%' THEN 'Part-time'
+                WHEN LOWER(COALESCE(e.ContractType, '')) LIKE '%full%' THEN 'Full-time'
+                ELSE 'Other'
+            END AS employment_type,
+            COUNT(*) AS total
+        FROM {DB2_NAME}.employees e
+        JOIN {DB2_NAME}.positions p ON e.PositionID = p.PositionID
+        JOIN {DB1_NAME}.departments d ON e.DepartmentID = d.DepartmentID
+        JOIN {DB1_NAME}.faculties f ON d.FacultyID = f.FacultyID
+        WHERE
+            (p.PositionTitle LIKE '%Lecturer%' OR p.PositionTitle LIKE '%Assistant Lecturer%')
+            {(' AND ' + ' AND '.join(where_clauses)) if where_clauses else ''}
+        GROUP BY employment_type
+        """
+        lecturer_employment_df = pd.read_sql_query(text(lecturer_employment_sql), engine)
+        lecturer_employment = []
+        if not lecturer_employment_df.empty:
+            for _, r in lecturer_employment_df.iterrows():
+                lecturer_employment.append({
+                    "employment_type": str(r.get("employment_type") or ""),
+                    "total": int(r.get("total") or 0),
+                })
+
         # 3) Attendance analytics by role category
         attendance_sql = f"""
         SELECT
             CASE
+                WHEN p.PositionTitle LIKE '%Senate%' THEN 'Senate'
+                WHEN p.PositionTitle LIKE '%Dean%' THEN 'Dean'
+                WHEN p.PositionTitle LIKE '%Head of Department%' OR p.PositionTitle LIKE '%HOD%' THEN 'HOD'
                 WHEN p.PositionTitle LIKE '%Assistant Lecturer%' THEN 'Assistant Lecturer'
                 WHEN p.PositionTitle LIKE '%Lecturer%' AND p.PositionTitle NOT LIKE '%Assistant%' THEN 'Lecturer'
+                WHEN p.PositionTitle LIKE '%Finance%' OR p.PositionTitle LIKE '%Accountant%' THEN 'Finance'
+                WHEN p.PositionTitle LIKE '%Human Resource%' OR p.PositionTitle LIKE 'HR %' OR p.PositionTitle LIKE '% HR%' THEN 'HR'
                 ELSE 'Other Staff'
             END AS role_category,
             COUNT(*) AS attendance_records,
@@ -1582,8 +1687,13 @@ def get_hr_analytics():
         payroll_sql = f"""
         SELECT
             CASE
+                WHEN p.PositionTitle LIKE '%Senate%' THEN 'Senate'
+                WHEN p.PositionTitle LIKE '%Dean%' THEN 'Dean'
+                WHEN p.PositionTitle LIKE '%Head of Department%' OR p.PositionTitle LIKE '%HOD%' THEN 'HOD'
                 WHEN p.PositionTitle LIKE '%Assistant Lecturer%' THEN 'Assistant Lecturer'
                 WHEN p.PositionTitle LIKE '%Lecturer%' AND p.PositionTitle NOT LIKE '%Assistant%' THEN 'Lecturer'
+                WHEN p.PositionTitle LIKE '%Finance%' OR p.PositionTitle LIKE '%Accountant%' THEN 'Finance'
+                WHEN p.PositionTitle LIKE '%Human Resource%' OR p.PositionTitle LIKE 'HR %' OR p.PositionTitle LIKE '% HR%' THEN 'HR'
                 ELSE 'Other Staff'
             END AS role_category,
             COUNT(DISTINCT e.EmployeeID) AS employee_count,
@@ -1669,6 +1779,8 @@ def get_hr_analytics():
             'other_staff': other_staff,
             'employees_by_department': employees_by_department,
             'employees_by_faculty': employees_by_faculty,
+            'employees_list': employees_list,
+            'lecturer_employment': lecturer_employment,
             'attendance_by_role': attendance_by_role,
             'attendance_rate': attendance_rate,
             'employee_attendance_trend': employee_attendance_trend,

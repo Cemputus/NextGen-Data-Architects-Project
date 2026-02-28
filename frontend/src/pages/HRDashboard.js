@@ -61,6 +61,8 @@ const HRDashboard = () => {
         other_staff: response.data.other_staff || 0,
         employees_by_department: response.data.employees_by_department || [],
         employees_by_faculty: response.data.employees_by_faculty || [],
+        employees_list: response.data.employees_list || [],
+        lecturer_employment: response.data.lecturer_employment || [],
         attendance_by_role: response.data.attendance_by_role || [],
         employee_attendance_trend: response.data.employee_attendance_trend || [],
         payroll_by_role: response.data.payroll_by_role || [],
@@ -117,7 +119,59 @@ const HRDashboard = () => {
       </div>
 
       {/* Filters */}
-      <GlobalFilterPanel onFilterChange={setFilters} pageName="hr_dashboard" hideHighSchool />
+      <GlobalFilterPanel
+        onFilterChange={(next) => {
+          // When a faculty is chosen, clear senate/finance/HR role_group because they are not faculty-based
+          const cleaned = { ...next };
+          if (
+            cleaned.faculty_id &&
+            (cleaned.role_group === 'finance' ||
+              cleaned.role_group === 'hr' ||
+              cleaned.role_group === 'senate')
+          ) {
+            delete cleaned.role_group;
+          }
+          setFilters(cleaned);
+        }}
+        pageName="hr_dashboard"
+        hideHighSchool
+        hideAcademic
+      />
+
+      {/* Employee role filter (Senate, Deans, HODs, Lecturers, etc.) */}
+      <div className="flex flex-wrap items-center gap-2 mb-2 text-xs sm:text-sm">
+        <span className="text-muted-foreground font-medium">Employee role filter:</span>
+        <select
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+          value={filters.role_group || ''}
+          onChange={(e) => {
+            const value = e.target.value;
+            setFilters((prev) => {
+              const next = { ...prev };
+              if (!value) {
+                delete next.role_group;
+              } else {
+                next.role_group = value;
+              }
+              return next;
+            });
+          }}
+        >
+          <option value="">All roles</option>
+          <option value="dean">Deans / Faculty heads</option>
+          <option value="hod">HODs</option>
+          <option value="lecturer">Lecturers</option>
+          <option value="assistant_lecturer">Assistant Lecturers</option>
+          {!filters.faculty_id && (
+            <>
+              <option value="senate">Senate members</option>
+              <option value="finance">Finance staff</option>
+              <option value="hr">HR staff</option>
+            </>
+          )}
+          <option value="other">Other employees</option>
+        </select>
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
@@ -198,6 +252,24 @@ const HRDashboard = () => {
                     <span className="font-semibold">Assistant Lecturers</span>, and{" "}
                     <span className="font-semibold">Other staff</span> (HR, Finance, and administrative roles).
                   </div>
+
+                  {stats?.lecturer_employment?.length ? (
+                    <div className="mt-4">
+                      <h3 className="text-xs font-semibold text-muted-foreground mb-2">
+                        Lecturer employment type (Full-time vs Part-time)
+                      </h3>
+                      <SciBarChart
+                        data={stats.lecturer_employment.map((row) => ({
+                          name: row.employment_type || 'Unknown',
+                          total: row.total || 0,
+                        }))}
+                        xDataKey="name"
+                        yDataKey="total"
+                        xAxisLabel="Employment Type"
+                        yAxisLabel="Number of Lecturers"
+                      />
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             </TabsContent>

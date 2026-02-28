@@ -67,29 +67,87 @@ const AnalyticsPage = ({ type = 'general' }) => {
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">{getTitle()}</h1>
           <p className="text-sm text-muted-foreground">Comprehensive analytics and insights</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setFilters({})}
-            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Reset filters
-          </button>
-          <ExportButtons 
-            stats={stats} 
-            filters={filters} 
-            filename={`${type}_analytics`}
-            chartSelectors={[
-              '.recharts-wrapper', // All recharts components
-              '[class*="chart"]',
-              '[data-chart]'
-            ]}
-          />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+          {(type === 'hr' || type === 'senate') && (
+            <div className="flex items-center gap-2 text-xs sm:text-sm">
+              <span className="text-muted-foreground font-medium">Employee role filter:</span>
+              <select
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                value={filters.role_group || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFilters((prev) => {
+                    const next = { ...prev };
+                    if (!value) {
+                      delete next.role_group;
+                    } else {
+                      next.role_group = value;
+                    }
+                    return next;
+                  });
+                }}
+              >
+                <option value="">All roles</option>
+                <option value="dean">Deans / Faculty heads</option>
+                <option value="hod">HODs</option>
+                <option value="lecturer">Lecturers</option>
+                <option value="assistant_lecturer">Assistant Lecturers</option>
+                {!filters.faculty_id && (
+                  <>
+                    <option value="senate">Senate members</option>
+                    <option value="finance">Finance staff</option>
+                    <option value="hr">HR staff</option>
+                  </>
+                )}
+                <option value="other">Other employees</option>
+              </select>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFilters({})}
+              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Reset filters
+            </button>
+            <ExportButtons 
+              stats={stats} 
+              filters={filters} 
+              filename={`${type}_analytics`}
+              chartSelectors={[
+                '.recharts-wrapper', // All recharts components
+                '[class*="chart"]',
+                '[data-chart]'
+              ]}
+            />
+          </div>
         </div>
       </div>
 
-      <GlobalFilterPanel onFilterChange={setFilters} pageName={`${type}_analytics`} hideHighSchool={type === 'hr'} />
+      <GlobalFilterPanel
+        onFilterChange={(next) => {
+          const isEmployeeRolePage = type === 'hr' || type === 'senate';
+          if (!isEmployeeRolePage) {
+            setFilters(next);
+            return;
+          }
+          const cleaned = { ...next };
+          if (
+            cleaned.faculty_id &&
+            (cleaned.role_group === 'finance' ||
+              cleaned.role_group === 'hr' ||
+              cleaned.role_group === 'senate')
+          ) {
+            delete cleaned.role_group;
+          }
+          setFilters(cleaned);
+        }}
+        pageName={`${type}_analytics`}
+        hideHighSchool={type === 'hr'}
+        hideAcademic={type === 'hr'}
+      />
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
