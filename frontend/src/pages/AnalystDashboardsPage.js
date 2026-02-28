@@ -1129,6 +1129,27 @@ const AnalystDashboardsPage = () => {
         </ModalFooter>
       </Modal>
 
+      {/* Delete dashboard confirmation modal */}
+      <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm((p) => ({ ...p, open: false }))} maxWidth="max-w-md">
+        <ModalHeader
+          title="Delete dashboard"
+          onClose={() => setDeleteConfirm((p) => ({ ...p, open: false }))}
+        />
+        <ModalBody>
+          <p className="text-sm text-muted-foreground">
+            Delete dashboard &quot;<strong className="text-foreground">{deleteConfirm.dash?.name}</strong>&quot;? This cannot be undone.
+          </p>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="outline" onClick={() => setDeleteConfirm((p) => ({ ...p, open: false }))}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={handleDeleteConfirm}>
+            Delete
+          </Button>
+        </ModalFooter>
+      </Modal>
+
       {/* Message / error modal */}
       <Modal open={messageModal.open} onClose={() => setMessageModal((p) => ({ ...p, open: false }))} maxWidth="max-w-md">
         <ModalHeader
