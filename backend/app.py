@@ -685,6 +685,11 @@ def admin_update_user(user_id):
                     return jsonify({'error': 'This department already has an HOD assigned'}), 400
             conn.execute(text(f"UPDATE app_users SET {', '.join(updates)} WHERE id = :uid"), params)
             conn.commit()
+            try:
+                from export_user_snapshot import run_export_user_snapshot_async
+                run_export_user_snapshot_async()
+            except Exception:
+                pass
             # Sync to dim_app_user so warehouse stays in sync
             updated = pd.read_sql_query(
                 text("SELECT id, username, role, full_name, faculty_id, department_id FROM app_users WHERE id = :uid"),
@@ -723,6 +728,11 @@ def admin_delete_user(user_id):
                 return jsonify({'error': 'User not found'}), 404
         rbac_engine.dispose()
         _sync_dim_app_user('delete', user_id)
+        try:
+            from export_user_snapshot import run_export_user_snapshot_async
+            run_export_user_snapshot_async()
+        except Exception:
+            pass
         return jsonify({'message': 'User deleted', 'id': user_id}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -760,6 +770,11 @@ def admin_reset_app_user_password():
             )
             conn.commit()
         rbac_engine.dispose()
+        try:
+            from export_user_snapshot import run_export_user_snapshot_async
+            run_export_user_snapshot_async()
+        except Exception:
+            pass
         return jsonify({'message': 'Password reset successfully', 'username': username}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -836,6 +851,11 @@ def admin_create_user():
                 'username': username, 'role': role, 'full_name': full_name,
                 'faculty_id': faculty_id, 'department_id': department_id, 'created_at': datetime.now(),
             })
+        try:
+            from export_user_snapshot import run_export_user_snapshot_async
+            run_export_user_snapshot_async()
+        except Exception:
+            pass
         return jsonify({'message': 'User created successfully', 'username': username}), 201
     except Exception as e:
         msg = str(e)

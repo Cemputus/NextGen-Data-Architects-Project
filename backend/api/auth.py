@@ -756,6 +756,11 @@ def update_profile():
                     )
                     conn.commit()
                 engine.dispose()
+                try:
+                    from export_user_snapshot import run_export_user_snapshot_async
+                    run_export_user_snapshot_async()
+                except Exception:
+                    pass
         except Exception:
             # If profile DB is unavailable, still return success with in-memory update
             pass

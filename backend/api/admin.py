@@ -154,6 +154,11 @@ def put_settings():
     if not isinstance(settings, dict):
         return jsonify({'error': 'settings must be an object'}), 400
     _save_settings(settings)
+    try:
+        from export_user_snapshot import run_export_user_snapshot_async
+        run_export_user_snapshot_async()
+    except Exception:
+        pass
     return jsonify({'settings': _load_settings()})
 
 

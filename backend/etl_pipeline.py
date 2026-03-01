@@ -108,6 +108,45 @@ class ETLPipeline:
                 upsert_table("user_profiles", snapshot.get("user_profiles", []))
                 upsert_table("user_state", snapshot.get("user_state", []))
 
+                # Seed audit_logs so branches get the same activity trail
+                audit_rows = snapshot.get("audit_logs") or []
+                if audit_rows:
+                    try:
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS audit_logs (
+                                log_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                user_id INT,
+                                username VARCHAR(100),
+                                role_name VARCHAR(50),
+                                action VARCHAR(100) NOT NULL,
+                                resource VARCHAR(100),
+                                resource_id VARCHAR(100),
+                                old_value TEXT,
+                                new_value TEXT,
+                                ip_address VARCHAR(45),
+                                user_agent VARCHAR(500),
+                                status VARCHAR(50),
+                                error_message TEXT,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                INDEX idx_user_id (user_id),
+                                INDEX idx_action (action),
+                                INDEX idx_resource (resource),
+                                INDEX idx_created_at (created_at),
+                                INDEX idx_role (role_name)
+                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                        """))
+                        conn.commit()
+                        conn.execute(text("DELETE FROM audit_logs"))
+                        conn.commit()
+                    except Exception as create_ex:
+                        self.logger.warning(f"[RBAC seed] Could not ensure audit_logs table: {create_ex}")
+                    try:
+                        df_audit = pd.DataFrame(audit_rows)
+                        df_audit.to_sql("audit_logs", engine, if_exists="append", index=False, method="multi", chunksize=500)
+                        self.logger.info(f"[RBAC seed] Seeded audit_logs with {len(audit_rows)} rows")
+                    except Exception as ins_ex:
+                        self.logger.warning(f"[RBAC seed] Failed to seed audit_logs: {ins_ex}")
+
                 conn.commit()
             engine.dispose()
             self.logger.info("[RBAC seed] User system seeded successfully from snapshot.")
@@ -128,6 +167,28 @@ class ETLPipeline:
                     self.logger.info(f"[RBAC seed] Restored profile photos from {photos_src} to {photos_dst}")
             except Exception as e:
                 self.logger.warning(f"[RBAC seed] Failed to restore profile photos from snapshot: {e}")
+
+            # Restore admin settings (notifications, ETL auto, etc.) so branches get same config
+            seeds_dir = self.user_snapshot_path.parent
+            settings_src = seeds_dir / "admin_settings.json"
+            settings_dst = Path(__file__).parent / "data" / "admin_settings.json"
+            if settings_src.exists():
+                try:
+                    settings_dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(settings_src, settings_dst)
+                    self.logger.info(f"[RBAC seed] Restored admin_settings.json to {settings_dst}")
+                except Exception as e:
+                    self.logger.warning(f"[RBAC seed] Failed to restore admin_settings: {e}")
+
+            # Restore ETL run history (log files) so admin UI shows same ETL jobs
+            etl_runs_src = seeds_dir / "etl_runs"
+            if etl_runs_src.exists():
+                try:
+                    for log_file in etl_runs_src.glob("etl_pipeline_*.log"):
+                        shutil.copy2(log_file, self.log_dir / log_file.name)
+                    self.logger.info(f"[RBAC seed] Restored ETL run logs from {etl_runs_src} to {self.log_dir}")
+                except Exception as e:
+                    self.logger.warning(f"[RBAC seed] Failed to restore ETL runs: {e}")
         except Exception as e:
             self.logger.error(f"Failed to seed user system from snapshot: {e}", exc_info=True)
         
