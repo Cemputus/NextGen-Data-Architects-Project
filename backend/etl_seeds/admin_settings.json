@@ -1,0 +1,34 @@
+{
+  "about": {
+    "developers": [
+      {
+        "githubHandle": "Edube20Emmanuel",
+        "name": "Guloba Emmanuel Edube"
+      },
+      {
+        "githubHandle": "Cemputus",
+        "name": "Emmanuel Nsubuga"
+      },
+      {
+        "githubHandle": "asingwiireenoch",
+        "name": "Asingwiire Enoch"
+      }
+    ],
+    "systemDescription": "This platform is a data analytics and ETL management system. It supports data pipelines, warehouse integration, analyst dashboards and administrative oversight\u2014including ETL run history, notifications, audit logs, and user management.",
+    "teamIntro": "Developed by the NextGen Data Architects team as part of their studies in Bachelor of Science in Data Science and Analytics at Uganda Christian University."
+  },
+  "apiUrl": "http://127.0.0.1:5000",
+  "compactSidebar": false,
+  "dailyDigest": false,
+  "emailOnEtlFailure": true,
+  "enableNotifications": true,
+  "etl_auto_enabled": true,
+  "etl_auto_interval_minutes": 30,
+  "last_etl_auto_run": 1772365836.2815814,
+  "maxLoginAttempts": 5,
+  "sessionTimeout": 24,
+  "sessionTimeoutUnit": "hours",
+  "supportEmail": "ensubuga019@gmail.com",
+  "systemName": "NextGen Data Architects",
+  "theme": "system"
+}

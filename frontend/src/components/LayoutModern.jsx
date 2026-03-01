@@ -18,6 +18,7 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { useProfilePhoto } from '../hooks/useProfilePhoto';
+import CountdownTimer from './admin/CountdownTimer';
 import axios from 'axios';
 
 const LayoutModern = ({ children }) => {
@@ -259,16 +260,6 @@ const LayoutModern = ({ children }) => {
     return () => clearInterval(id);
   }, [adminSettings.etl_auto_enabled, adminSettings.etl_auto_interval_minutes, adminSettings.last_etl_auto_run]);
 
-  const formatCountdown = (sec) => {
-    if (sec == null) return null;
-    if (sec <= 0) return 'Running soon…';
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    return `${m}:${String(s).padStart(2, '0')}`;
-  };
-
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -387,12 +378,12 @@ const LayoutModern = ({ children }) => {
             })}
           </nav>
 
-          {/* ETL countdown - admin only */}
+          {/* ETL countdown - admin only, in sidebar */}
           {role === 'sysadmin' && adminSettings.etl_auto_enabled && etlCountdownSec != null && sidebarOpen && (
-            <div className="px-4 pb-2">
-              <div className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs">
-                <p className="font-medium text-muted-foreground">Next ETL run</p>
-                <p className="font-mono font-semibold text-foreground mt-0.5">{formatCountdown(etlCountdownSec)}</p>
+            <div className="px-3 pb-2">
+              <div className="rounded-lg border border-border bg-muted/50 px-2 py-2">
+                <p className="text-center text-xs font-medium text-muted-foreground mb-1">Next ETL run</p>
+                <CountdownTimer seconds={etlCountdownSec} compact size="sm" />
               </div>
             </div>
           )}
@@ -600,12 +591,6 @@ const LayoutModern = ({ children }) => {
 
         {/* Page Content - responsive padding, no overflow-x; compact density */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-muted/30">
-          {role === 'sysadmin' && adminSettings.etl_auto_enabled && etlCountdownSec != null && currentPath.startsWith('/admin') && (
-            <div className="w-full border-b border-border bg-card/80 px-3 py-1.5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Clock className="h-3.5 w-3.5 shrink-0" />
-              <span>Next ETL run in <strong className="font-mono text-foreground">{formatCountdown(etlCountdownSec)}</strong></span>
-            </div>
-          )}
           <div className="w-full max-w-7xl mx-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-5">
             {children}
           </div>

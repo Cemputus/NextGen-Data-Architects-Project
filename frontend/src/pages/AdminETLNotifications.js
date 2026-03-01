@@ -374,11 +374,11 @@ const AdminETLNotifications = () => {
         </TabsContent>
       </Tabs>
 
-      <Modal open={!!viewLogRun} onClose={closeViewLog}>
-        <ModalHeader onClose={closeViewLog}>
+      <Modal open={!!viewLogRun} onClose={closeViewLog} className="flex flex-col overflow-hidden max-w-4xl min-w-0">
+        <ModalHeader onClose={closeViewLog} className="shrink-0">
           ETL log: {viewLogRun?.log_file || '—'}
         </ModalHeader>
-        <ModalBody>
+        <ModalBody className="flex-1 min-h-0 overflow-auto p-3 sm:p-4">
           {logLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -386,19 +386,19 @@ const AdminETLNotifications = () => {
           ) : logError ? (
             <p className="text-destructive py-4">{logError}</p>
           ) : (
-            <pre className="text-xs font-mono bg-muted p-4 rounded-md max-h-[70vh] overflow-auto whitespace-pre-wrap break-words">
+            <pre className="text-xs sm:text-sm font-mono bg-muted p-3 sm:p-4 rounded-md min-h-0 overflow-auto whitespace-pre-wrap break-words overflow-x-auto max-w-full">
               {logContent || 'No content'}
             </pre>
           )}
         </ModalBody>
-        <ModalFooter>
+        <ModalFooter className="shrink-0 flex-wrap gap-2">
           {!logLoading && !logError && viewLogRun && (
-            <Button variant="outline" onClick={() => downloadETLReportPDF(viewLogRun)} disabled={!!pdfDownloading}>
+            <Button variant="outline" onClick={() => downloadETLReportPDF(viewLogRun)} disabled={!!pdfDownloading} className="min-h-9 touch-manipulation">
               {pdfDownloading === viewLogRun.log_file ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
               Download report (PDF)
             </Button>
           )}
-          <Button variant="secondary" onClick={closeViewLog}>Close</Button>
+          <Button variant="secondary" onClick={closeViewLog} className="min-h-9 touch-manipulation">Close</Button>
         </ModalFooter>
       </Modal>
     </PageContent>

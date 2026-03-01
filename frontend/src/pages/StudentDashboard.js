@@ -12,6 +12,7 @@ import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
 import ExportButtons from '../components/ExportButtons';
 import { SciBarChart, SciLineChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import { useAuth } from '../context/AuthContext';
+import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 
@@ -28,7 +29,7 @@ const StudentDashboard = () => {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowWelcome(false), 30000);
+    const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
     return () => clearTimeout(timer);
   }, []);
 

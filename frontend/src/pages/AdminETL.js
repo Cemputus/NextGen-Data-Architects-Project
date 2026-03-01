@@ -17,6 +17,7 @@ import { Loader2 } from 'lucide-react';
 import { exportETLRunToPDF } from '../utils/exportUtils';
 import adminUIState from '../utils/adminUIState';
 import { SciBarChart } from '../components/charts/EChartsComponents';
+import CountdownTimer from '../components/admin/CountdownTimer';
 
 const REFRESH_INTERVAL_MS = 5000;
 const REFRESH_AFTER_RUN_COUNT = 12; // 12 * 5s = 60s of polling after Run ETL
@@ -368,13 +369,13 @@ const AdminETL = () => {
                 ))}
               </Select>
             </div>
-            {adminSettings.etl_auto_enabled && (
-              <span className="text-sm font-mono tabular-nums text-muted-foreground border border-border rounded-md px-3 py-1.5 bg-muted/50" title="Time until next automatic ETL run">
-                Next run in {formatCountdown(countdownSec)}
-              </span>
-            )}
             {settingsSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />}
           </div>
+          {adminSettings.etl_auto_enabled && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <CountdownTimer seconds={countdownSec} title="Next ETL run" size="md" />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -662,12 +663,12 @@ const AdminETL = () => {
         </CardContent>
       </Card>
 
-      {/* View ETL log modal */}
-      <Modal open={!!viewLogRun} onClose={closeViewLog}>
-        <ModalHeader onClose={closeViewLog}>
+      {/* View ETL log modal — fits viewport; header/footer fixed; only log area scrolls; responsive */}
+      <Modal open={!!viewLogRun} onClose={closeViewLog} className="flex flex-col overflow-hidden max-w-4xl min-w-0">
+        <ModalHeader onClose={closeViewLog} className="shrink-0">
           ETL log: {viewLogRun?.log_file || '—'}
         </ModalHeader>
-        <ModalBody>
+        <ModalBody className="flex-1 min-h-0 overflow-auto p-3 sm:p-4">
           {logLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -675,19 +676,19 @@ const AdminETL = () => {
           ) : logError ? (
             <p className="text-destructive py-4">{logError}</p>
           ) : (
-            <pre className="text-xs font-mono bg-muted p-4 rounded-md max-h-[70vh] overflow-auto whitespace-pre-wrap break-words">
+            <pre className="text-xs sm:text-sm font-mono bg-muted p-3 sm:p-4 rounded-md min-h-0 overflow-auto whitespace-pre-wrap break-words overflow-x-auto max-w-full">
               {logContent || 'No content'}
             </pre>
           )}
         </ModalBody>
-        <ModalFooter>
+        <ModalFooter className="shrink-0 flex-wrap gap-2 sm:gap-2">
           {!logLoading && !logError && viewLogRun && (
-            <Button variant="outline" onClick={() => downloadETLReportPDF(viewLogRun)} disabled={!!pdfDownloading}>
+            <Button variant="outline" onClick={() => downloadETLReportPDF(viewLogRun)} disabled={!!pdfDownloading} className="min-h-9 touch-manipulation">
               {pdfDownloading === viewLogRun.log_file ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
               Download report (PDF)
             </Button>
           )}
-          <Button variant="secondary" onClick={closeViewLog}>Close</Button>
+          <Button variant="secondary" onClick={closeViewLog} className="min-h-9 touch-manipulation">Close</Button>
         </ModalFooter>
       </Modal>
     </PageContent>

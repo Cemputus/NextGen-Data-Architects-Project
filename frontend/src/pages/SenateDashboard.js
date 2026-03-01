@@ -14,6 +14,7 @@ import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState } from '../utils/statePersistence';
 import { useAuth } from '../context/AuthContext';
+import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 
 const SenateDashboard = () => {
   const { user } = useAuth();
@@ -35,7 +36,7 @@ const SenateDashboard = () => {
   }, [filters]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowWelcome(false), 30000);
+    const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
     return () => clearTimeout(timer);
   }, []);
 

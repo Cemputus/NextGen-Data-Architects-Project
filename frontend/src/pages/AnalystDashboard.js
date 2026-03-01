@@ -34,6 +34,7 @@ import FEXAnalytics from './FEXAnalytics';
 import HighSchoolAnalytics from './HighSchoolAnalytics';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -71,7 +72,7 @@ const AnalystDashboard = () => {
   }, [JSON.stringify(filters)]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowWelcome(false), 30000);
+    const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
     return () => clearTimeout(timer);
   }, []);
 

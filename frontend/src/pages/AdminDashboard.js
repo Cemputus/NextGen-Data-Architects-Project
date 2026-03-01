@@ -15,6 +15,7 @@ import axios from 'axios';
 import { Button } from '../components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 
 const CONSOLE_KPI_POLL_INTERVAL_MS = 30000; // 30s - live KPIs refresh when new data or users are added
 
@@ -86,7 +87,7 @@ const AdminDashboard = () => {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowWelcome(false), 30000);
+    const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
     return () => clearTimeout(timer);
   }, []);
 

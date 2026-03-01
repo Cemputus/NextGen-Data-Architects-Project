@@ -26,14 +26,14 @@ const Modal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId || undefined}
     >
       <div
         className={cn(
-          'bg-card rounded-xl shadow-xl border border-border w-full max-h-[90vh] overflow-y-auto',
+          'bg-card rounded-xl shadow-xl border border-border w-full max-h-[90vh] my-auto overflow-y-auto',
           maxWidth,
           className
         )}
