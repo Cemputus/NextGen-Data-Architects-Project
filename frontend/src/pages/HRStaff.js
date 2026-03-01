@@ -2,6 +2,7 @@
  * HR Staff Page - Staff management
  */
 import React, { useState, useEffect, useMemo } from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { Users, Plus, Search } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -12,7 +13,7 @@ import axios from 'axios';
 const HRStaff = () => {
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = usePersistedState('hr_staff_searchTerm', '');
 
   useEffect(() => {
     loadStaff();

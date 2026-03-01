@@ -10,12 +10,13 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { rbac } from '../utils/rbac';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import axios from 'axios';
 
 const Login = () => {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = usePersistedState('login_username', '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);

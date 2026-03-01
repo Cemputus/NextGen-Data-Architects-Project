@@ -3,6 +3,7 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Users, Search, Loader2 } from 'lucide-react';
@@ -13,7 +14,7 @@ export default function HREmployeesPage() {
   const [employees, setEmployees] = useState([]);
   const [appUsers, setAppUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = usePersistedState('hr_employees_searchTerm', '');
 
   useEffect(() => {
     Promise.all([

@@ -6,6 +6,7 @@
  */
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { Loader2, Share2, Search, User, MessageSquare, Send, Share } from 'lucide-react';
 import { VizCard } from '../components/AssignedViewsSection';
@@ -33,6 +34,9 @@ export default function SharedViewsPage() {
   const [newFeedbackMsg, setNewFeedbackMsg] = usePersistedState('shared_views_newFeedbackMsg', {});
   const [newReplyMsg, setNewReplyMsg] = usePersistedState('shared_views_newReplyMsg', {});
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+
+  const { user } = useAuth();
+  const currentUsername = (user?.username || '').toString().toLowerCase();
 
   const token = () => localStorage.getItem('token');
   const auth = () => ({ headers: { Authorization: `Bearer ${token()}` } });
@@ -197,17 +201,22 @@ export default function SharedViewsPage() {
                   <span className="text-xs ml-1">({rep.createdAt})</span>
                 </div>
               ))}
-              <div className="flex gap-2 items-center">
-                <Input
-                  placeholder="Reply (creator/resharer only)"
-                  value={newReplyMsg[fb.id] || ''}
-                  onChange={(e) => setNewReplyMsg((prev) => ({ ...prev, [fb.id]: e.target.value }))}
-                  className="flex-1 h-8 text-sm"
-                />
-                <Button size="sm" className="h-8 gap-1" onClick={() => submitReply(viz.id, fb.id)} disabled={feedbackSubmitting}>
-                  <Send className="h-3 w-3" /> Reply
-                </Button>
-              </div>
+              {(currentUsername && (
+                (viz.createdByUsername || '').toString().toLowerCase() === currentUsername ||
+                (viz.resharedByUsername || '').toString().toLowerCase() === currentUsername
+              )) && (
+                <div className="flex gap-2 items-center">
+                  <Input
+                    placeholder="Reply (creator/resharer only)"
+                    value={newReplyMsg[fb.id] || ''}
+                    onChange={(e) => setNewReplyMsg((prev) => ({ ...prev, [fb.id]: e.target.value }))}
+                    className="flex-1 h-8 text-sm"
+                  />
+                  <Button size="sm" className="h-8 gap-1" onClick={() => submitReply(viz.id, fb.id)} disabled={feedbackSubmitting}>
+                    <Send className="h-3 w-3" /> Reply
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
           <div className="flex gap-2 items-center">

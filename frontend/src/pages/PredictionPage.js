@@ -33,6 +33,7 @@ import { PageHeader, PageContent } from '../components/ui/page-header';
 import { LoadingState } from '../components/ui/state-messages';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const PredictionPage = () => {
   const { user } = useAuth();
@@ -40,15 +41,15 @@ const PredictionPage = () => {
   const [predictions, setPredictions] = useState(null);
   const [scenarios, setScenarios] = useState([]);
   const [selectedScenario, setSelectedScenario] = useState(null);
-  const [studentIdentifier, setStudentIdentifier] = useState('');
+  const [studentIdentifier, setStudentIdentifier] = usePersistedState('prediction_studentIdentifier', '');
   const [modelType, setModelType] = useState('ensemble');
    const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     loadScenarios();
-    // Pre-fill student identifier for students
+    // Pre-fill student identifier for students only when no persisted draft
     if (user?.role === 'student' && user?.access_number) {
-      setStudentIdentifier(user.access_number);
+      setStudentIdentifier((current) => (current && String(current).trim() ? current : user.access_number));
       // For students, default to tuition+attendance model
       setModelType('tuition_attendance');
     }

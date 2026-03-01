@@ -1120,11 +1120,64 @@ def hr_my_employment():
         return jsonify({'status': 'Active', 'role': role})
 
 
+def _ensure_leave_requests_table(engine):
+    """Create leave_requests table in RBAC DB if not present."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS leave_requests (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(100) NOT NULL,
+                    start_date DATE NOT NULL,
+                    end_date DATE NOT NULL,
+                    reason TEXT NOT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    request_type VARCHAR(20) NOT NULL DEFAULT 'new',
+                    parent_leave_id INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    reviewed_at TIMESTAMP NULL,
+                    reviewed_by VARCHAR(100) NULL,
+                    INDEX idx_username (username),
+                    INDEX idx_status_dates (status, start_date, end_date)
+                )
+            """))
+            conn.commit()
+    except Exception:
+        pass
+
+
 @app.route('/api/hr/my-leave-requests', methods=['GET'])
 @jwt_required()
 def hr_my_leave_requests():
-    """Current user's leave requests. Placeholder: returns empty list until leave_requests table exists."""
-    return jsonify({'requests': []})
+    """Current user's leave requests."""
+    from flask_jwt_extended import get_jwt
+    username = (get_jwt().get('username') or '').strip()
+    if not username:
+        return jsonify({'requests': []})
+    try:
+        engine = create_engine(RBAC_CONN_STRING)
+        _ensure_leave_requests_table(engine)
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT id, start_date, end_date, reason, status, request_type, parent_leave_id, created_at
+                FROM leave_requests WHERE username = :u ORDER BY created_at DESC
+            """), {'u': username}).mappings().fetchall()
+        engine.dispose()
+        requests = []
+        for r in rows:
+            requests.append({
+                'id': r['id'],
+                'start_date': r['start_date'].isoformat() if hasattr(r['start_date'], 'isoformat') else str(r['start_date']),
+                'end_date': r['end_date'].isoformat() if hasattr(r['end_date'], 'isoformat') else str(r['end_date']),
+                'reason': r['reason'] or '',
+                'status': r['status'] or 'pending',
+                'request_type': r['request_type'] or 'new',
+                'parent_leave_id': r['parent_leave_id'],
+                'created_at': r['created_at'].isoformat() if hasattr(r['created_at'], 'isoformat') else str(r['created_at']),
+            })
+        return jsonify({'requests': requests})
+    except Exception as e:
+        return jsonify({'requests': []})
 
 
 @app.route('/api/hr/my-payroll', methods=['GET'])
@@ -1136,27 +1189,152 @@ def hr_my_payroll():
 
 @app.route('/api/hr/leave-request', methods=['POST', 'OPTIONS'])
 def hr_submit_leave_request():
-    """Submit a leave request. OPTIONS for CORS preflight; POST requires JWT."""
+    """Submit a leave request. OPTIONS for CORS preflight; POST requires JWT. Validates start <= end; blocks new request if user has active leave (use extension instead)."""
     if request.method == 'OPTIONS':
         return '', 204
     verify_jwt_in_request()
+    from flask_jwt_extended import get_jwt
+    username = (get_jwt().get('username') or '').strip()
+    if not username:
+        return jsonify({'error': 'Not authenticated'}), 401
     body = request.get_json(silent=True) or {}
-    start_date = body.get('start_date') or ''
-    end_date = body.get('end_date') or ''
+    start_date_s = body.get('start_date') or ''
+    end_date_s = body.get('end_date') or ''
     reason = (body.get('reason') or '').strip()
-    if not start_date or not end_date or not reason:
+    request_type = (body.get('request_type') or 'new').strip().lower() or 'new'
+    parent_leave_id = body.get('parent_leave_id')
+    if not start_date_s or not end_date_s or not reason:
         return jsonify({'error': 'start_date, end_date, and reason are required'}), 400
-    return jsonify({'message': 'Leave request submitted. HR will review.'}), 201
+    try:
+        from datetime import datetime
+        start_d = datetime.strptime(start_date_s, '%Y-%m-%d').date()
+        end_d = datetime.strptime(end_date_s, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return jsonify({'error': 'start_date and end_date must be in YYYY-MM-DD format'}), 400
+    if start_d > end_d:
+        return jsonify({'error': 'Start date must be earlier than or equal to end date'}), 400
+    try:
+        engine = create_engine(RBAC_CONN_STRING)
+        _ensure_leave_requests_table(engine)
+        with engine.connect() as conn:
+            if request_type != 'extension':
+                active = conn.execute(text("""
+                    SELECT id FROM leave_requests
+                    WHERE username = :u AND status = 'approved'
+                    AND CURDATE() <= end_date AND start_date <= CURDATE()
+                    LIMIT 1
+                """), {'u': username}).mappings().fetchone()
+                if active:
+                    engine.dispose()
+                    return jsonify({'error': 'You already have an active leave. To add more time, request a leave extension from HR or use the extension option.'}), 400
+            conn.execute(text("""
+                INSERT INTO leave_requests (username, start_date, end_date, reason, status, request_type, parent_leave_id)
+                VALUES (:u, :start, :end, :reason, 'pending', :req_type, :parent)
+            """), {'u': username, 'start': start_d, 'end': end_d, 'reason': reason, 'req_type': request_type, 'parent': parent_leave_id})
+            conn.commit()
+        engine.dispose()
+        return jsonify({'message': 'Leave request submitted. HR will review.'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/hr/leave-requests', methods=['GET'])
 @jwt_required()
 def hr_list_leave_requests():
-    """List all leave requests for HR review. Placeholder: returns empty until leave_requests table exists."""
+    """List all leave requests for HR review."""
     from flask_jwt_extended import get_jwt
     if (get_jwt().get('role') or '').strip().lower() != 'hr':
         return jsonify({'error': 'HR only'}), 403
-    return jsonify({'requests': []})
+    try:
+        engine = create_engine(RBAC_CONN_STRING)
+        _ensure_leave_requests_table(engine)
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT id, username, start_date, end_date, reason, status, request_type, parent_leave_id, created_at
+                FROM leave_requests ORDER BY created_at DESC
+            """)).mappings().fetchall()
+        engine.dispose()
+        requests = []
+        for r in rows:
+            requests.append({
+                'id': r['id'],
+                'username': r['username'] or '',
+                'start_date': r['start_date'].isoformat() if hasattr(r['start_date'], 'isoformat') else str(r['start_date']),
+                'end_date': r['end_date'].isoformat() if hasattr(r['end_date'], 'isoformat') else str(r['end_date']),
+                'reason': r['reason'] or '',
+                'status': r['status'] or 'pending',
+                'request_type': r['request_type'] or 'new',
+                'parent_leave_id': r['parent_leave_id'],
+                'created_at': r['created_at'].isoformat() if hasattr(r['created_at'], 'isoformat') else str(r['created_at']),
+            })
+        return jsonify({'requests': requests})
+    except Exception as e:
+        return jsonify({'requests': [], 'error': str(e)})
+
+
+@app.route('/api/hr/leave-requests/<int:leave_id>/review', methods=['POST'])
+@jwt_required()
+def hr_review_leave_request(leave_id):
+    """HR: approve or reject a leave request."""
+    from flask_jwt_extended import get_jwt
+    if (get_jwt().get('role') or '').strip().lower() != 'hr':
+        return jsonify({'error': 'HR only'}), 403
+    body = request.get_json(silent=True) or {}
+    action = (body.get('action') or '').strip().lower()
+    if action not in ('approve', 'reject'):
+        return jsonify({'error': 'action must be approve or reject'}), 400
+    reviewer = (get_jwt().get('username') or '').strip()
+    try:
+        engine = create_engine(RBAC_CONN_STRING)
+        _ensure_leave_requests_table(engine)
+        with engine.connect() as conn:
+            conn.execute(text("""
+                UPDATE leave_requests SET status = :status, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = :by
+                WHERE id = :id
+            """), {'status': 'approved' if action == 'approve' else 'rejected', 'by': reviewer, 'id': leave_id})
+            conn.commit()
+        engine.dispose()
+        return jsonify({'message': 'Leave request ' + ('approved' if action == 'approve' else 'rejected') + '.'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/hr/employees-on-leave', methods=['GET'])
+@jwt_required()
+def hr_employees_on_leave():
+    """HR: list employees currently on approved leave (today between start and end)."""
+    from flask_jwt_extended import get_jwt
+    if (get_jwt().get('role') or '').strip().lower() != 'hr':
+        return jsonify({'error': 'HR only'}), 403
+    try:
+        engine = create_engine(RBAC_CONN_STRING)
+        _ensure_leave_requests_table(engine)
+        _ensure_app_users_table(engine)
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT lr.id, lr.username, lr.start_date, lr.end_date, lr.reason, lr.request_type,
+                       au.full_name
+                FROM leave_requests lr
+                LEFT JOIN app_users au ON au.username = lr.username
+                WHERE lr.status = 'approved'
+                AND CURDATE() BETWEEN lr.start_date AND lr.end_date
+                ORDER BY lr.end_date
+            """)).mappings().fetchall()
+        engine.dispose()
+        on_leave = []
+        for r in rows:
+            on_leave.append({
+                'id': r['id'],
+                'username': r['username'] or '',
+                'full_name': r['full_name'] or r['username'] or '',
+                'start_date': r['start_date'].isoformat() if hasattr(r['start_date'], 'isoformat') else str(r['start_date']),
+                'end_date': r['end_date'].isoformat() if hasattr(r['end_date'], 'isoformat') else str(r['end_date']),
+                'reason': r['reason'] or '',
+                'request_type': r['request_type'] or 'new',
+            })
+        return jsonify({'on_leave': on_leave})
+    except Exception as e:
+        return jsonify({'on_leave': [], 'error': str(e)})
 
 
 @app.route('/api/hr/payroll-overview', methods=['GET'])
