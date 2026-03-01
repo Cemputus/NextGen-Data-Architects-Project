@@ -36,6 +36,7 @@ export default function AuditLogSection({
 
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState([]);
+  const [serverTime, setServerTime] = useState(null);
   const [message, setMessage] = useState(null);
   const [searchTerm, setSearchTermState] = useState(() => (compact ? '' : (auditState.searchTerm || '')));
   const [error, setError] = useState(null);
@@ -89,11 +90,13 @@ export default function AuditLogSection({
       }
       
       setLogs(receivedLogs);
+      setServerTime(response.data.server_time || null);
       setMessage(response.data.message || null);
     } catch (err) {
       console.error('[AuditLogSection] Error loading logs:', err);
       setError(err.response?.status === 403 ? 'Admin access required' : (err.response?.data?.error || err.message));
       setLogs([]);
+      setServerTime(null);
       setMessage(null);
     } finally {
       setLoading(false);
@@ -299,6 +302,11 @@ export default function AuditLogSection({
           </div>
         </CardHeader>
         <CardContent className={compact ? 'py-3' : ''}>
+          {serverTime && (
+            <p className="text-xs text-muted-foreground font-mono tabular-nums mb-3" title="Timestamps in the table use this server time">
+              Server time: {serverTime}
+            </p>
+          )}
           <div className="flex gap-2 mb-4">
             <Input
               type="search"

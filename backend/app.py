@@ -602,7 +602,7 @@ def admin_update_user(user_id):
     if err is not None:
         return err
     data = request.get_json() or {}
-    allowed_roles = {'dean', 'hod', 'staff', 'hr', 'finance', 'analyst', 'sysadmin'}
+    allowed_roles = {'dean', 'hod', 'staff', 'hr', 'finance', 'analyst', 'sysadmin', 'senate'}
     role = (data.get('role') or '').strip().lower()
     if role and role not in allowed_roles:
         return jsonify({'error': f'Role must be one of: {", ".join(sorted(allowed_roles))}'}), 400
@@ -785,7 +785,7 @@ def admin_create_user():
         return jsonify({'error': 'Username is required'}), 400
     if len(password) < 6:
         return jsonify({'error': 'Password must be at least 6 characters'}), 400
-    allowed_roles = {'dean', 'hod', 'staff', 'hr', 'finance', 'analyst', 'sysadmin'}
+    allowed_roles = {'dean', 'hod', 'staff', 'hr', 'finance', 'analyst', 'sysadmin', 'senate'}
     if role not in allowed_roles:
         return jsonify({'error': f'Role must be one of: {", ".join(sorted(allowed_roles))}'}), 400
     if role == 'dean' and faculty_id is None:

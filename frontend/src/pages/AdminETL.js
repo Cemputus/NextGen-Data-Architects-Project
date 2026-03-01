@@ -304,7 +304,12 @@ const AdminETL = () => {
         title="ETL & Data Warehouse"
         description="Track pipeline runs and data warehouse counts"
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            {status?.server_time && (
+              <span className="text-xs text-muted-foreground font-mono tabular-nums border border-border rounded px-2 py-1 bg-muted/50" title="All times on this page use server time">
+                Server time: {status.server_time}
+              </span>
+            )}
             <Button variant="outline" onClick={handleRefresh} disabled={loading}>
               <RefreshCw className="h-4 w-4 mr-2" aria-hidden />
               Refresh

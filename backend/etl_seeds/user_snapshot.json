@@ -143,8 +143,8 @@
       "username": "analyst",
       "role": "analyst",
       "state_key": "nextgen_query",
-      "state_json": "{\"query\": \"SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status;\", \"history\": [\"SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status;\", \"SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status\\nLIMIT 20;\", \"SELECT *\\nFROM dim_student\\nGROUP BY dim_student.status\\nLIMIT 20;\", \"SELECT *\\nFROM dim_student\\nLIMIT 20;\", \"SELECT \\n  fg.student_id,\\n  fg.course_code,\\n  fg.grade,\\n  fg.exam_status\\nFROM fact_grade fg\\nJOIN dim_student ds ON fg.student_id = ds.student_id\\nLIMIT 20;\", \"SELECT *\\nFROM dim_student\\nLIMIT 40;\"], \"chartType\": \"bar\", \"xColumn\": \"status\", \"yColumn\": \"total_students\", \"result\": {\"columns\": [{\"is_numeric\": false, \"name\": \"status\", \"type\": \"object\"}, {\"is_numeric\": true, \"name\": \"total_students\", \"type\": \"int64\"}], \"elapsed_ms\": 47, \"row_count\": 4, \"rows\": [{\"status\": \"Active\", \"total_students\": 849}, {\"status\": \"Graduated\", \"total_students\": 100}, {\"status\": \"Suspended\", \"total_students\": 32}, {\"status\": \"Withdrawn\", \"total_students\": 16}]}}",
-      "updated_at": "2026-03-01 09:27:34"
+      "state_json": "{\"query\": \"SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status;\", \"history\": [\"SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status;\"], \"chartType\": \"bar\", \"xColumn\": \"status\", \"yColumn\": \"total_students\", \"result\": {\"columns\": [{\"is_numeric\": false, \"name\": \"status\", \"type\": \"object\"}, {\"is_numeric\": true, \"name\": \"total_students\", \"type\": \"int64\"}], \"elapsed_ms\": 57, \"row_count\": 4, \"rows\": [{\"status\": \"Active\", \"total_students\": 849}, {\"status\": \"Graduated\", \"total_students\": 100}, {\"status\": \"Suspended\", \"total_students\": 32}, {\"status\": \"Withdrawn\", \"total_students\": 16}]}}",
+      "updated_at": "2026-03-01 12:54:43"
     }
   ]
 }

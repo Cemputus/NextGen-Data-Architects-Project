@@ -370,7 +370,7 @@ def _get_audit_logs(limit=200):
                 'resource_id': str(row['resource_id']) if pd.notna(row['resource_id']) else '',
                 'status': str(row['status']) if pd.notna(row['status']) else '',
                 'error_message': str(row['error_message']) if pd.notna(row['error_message']) else '',
-                'created_at': row['created_at'].isoformat() if hasattr(row['created_at'], 'isoformat') else str(row['created_at']),
+                'created_at': row['created_at'].strftime('%Y-%m-%d %H:%M:%S') if hasattr(row['created_at'], 'strftime') else (row['created_at'].isoformat()[:19].replace('T', ' ') if hasattr(row['created_at'], 'isoformat') else str(row['created_at'])),
             })
         return logs, None
     except Exception as e:
@@ -424,6 +424,24 @@ def _ensure_app_users_table(engine):
 # User management (users, faculties, departments) is served from main app (app.py) only — do not duplicate here.
 
 
+def _server_time_str():
+    """Single format for admin timestamps: YYYY-MM-DD HH:mm:ss (server local). Use for ETL, audit, and server_time in responses."""
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+@admin_bp.route('/server-time', methods=['GET'])
+@jwt_required()
+def server_time():
+    """Return current server time so admin UI can show one reference and keep all timestamps in sync. Sysadmin only."""
+    err, code = _require_sysadmin()
+    if err is not None:
+        return err, code
+    return jsonify({
+        'server_time': _server_time_str(),
+        'server_time_iso': datetime.now().isoformat(),
+    })
+
+
 @admin_bp.route('/system-status', methods=['GET'])
 @jwt_required()
 def system_status():
@@ -451,6 +469,7 @@ def system_status():
                 'UCU_SourceDB1': 'Academics',
                 'UCU_SourceDB2': 'Administration',
             },
+            'server_time': _server_time_str(),
         })
     except Exception as e:
         import traceback
@@ -713,6 +732,7 @@ def audit_logs():
             'logs': logs,
             'total': len(logs),
             'limit': limit,
+            'server_time': _server_time_str(),
             'message': None if not db_error else f'Audit DB not available: {db_error}. Use "Set up audit DB" below to create ucu_rbac and audit_logs.',
         })
     except Exception as e:
