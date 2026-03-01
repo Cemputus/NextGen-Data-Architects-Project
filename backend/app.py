@@ -1086,6 +1086,89 @@ def hr_staff_list():
         return jsonify({'error': str(e), 'staff': []}), 500
 
 
+@app.route('/api/hr/my-employment', methods=['GET'])
+@jwt_required()
+def hr_my_employment():
+    """Current user's employment status (for User Info page). Returns placeholder if no record."""
+    from flask_jwt_extended import get_jwt
+    claims = get_jwt()
+    username = (claims.get('username') or '').strip()
+    role = (claims.get('role') or '').strip().lower()
+    try:
+        rbac_engine = create_engine(RBAC_CONN_STRING)
+        _ensure_app_users_table(rbac_engine)
+        df = pd.read_sql_query(text("SELECT full_name, role, faculty_id, department_id FROM app_users WHERE username = :u"), rbac_engine, params={'u': username})
+        rbac_engine.dispose()
+        if not df.empty:
+            r = df.iloc[0]
+            fid, did = r.get('faculty_id'), r.get('department_id')
+            fac_name = dept_name = None
+            try:
+                dw = create_engine(DATA_WAREHOUSE_CONN_STRING)
+                if pd.notna(fid):
+                    fn = pd.read_sql_query(text("SELECT faculty_name FROM dim_faculty WHERE faculty_id = :fid"), dw, params={'fid': int(fid)})
+                    fac_name = fn.iloc[0]['faculty_name'] if not fn.empty else None
+                if pd.notna(did):
+                    dn = pd.read_sql_query(text("SELECT department_name FROM dim_department WHERE department_id = :did"), dw, params={'did': int(did)})
+                    dept_name = dn.iloc[0]['department_name'] if not dn.empty else None
+                dw.dispose()
+            except Exception:
+                pass
+            return jsonify({'status': 'Active', 'role': role, 'faculty_id': fid, 'faculty_name': fac_name, 'department_id': did, 'department_name': dept_name})
+        return jsonify({'status': 'Active', 'role': role})
+    except Exception as e:
+        return jsonify({'status': 'Active', 'role': role})
+
+
+@app.route('/api/hr/my-leave-requests', methods=['GET'])
+@jwt_required()
+def hr_my_leave_requests():
+    """Current user's leave requests. Placeholder: returns empty list until leave_requests table exists."""
+    return jsonify({'requests': []})
+
+
+@app.route('/api/hr/my-payroll', methods=['GET'])
+@jwt_required()
+def hr_my_payroll():
+    """Current user's payroll status. Placeholder until payroll integration."""
+    return jsonify({'status': None, 'last_payment_date': None, 'pending': None})
+
+
+@app.route('/api/hr/leave-request', methods=['POST', 'OPTIONS'])
+def hr_submit_leave_request():
+    """Submit a leave request. OPTIONS for CORS preflight; POST requires JWT."""
+    if request.method == 'OPTIONS':
+        return '', 204
+    verify_jwt_in_request()
+    body = request.get_json(silent=True) or {}
+    start_date = body.get('start_date') or ''
+    end_date = body.get('end_date') or ''
+    reason = (body.get('reason') or '').strip()
+    if not start_date or not end_date or not reason:
+        return jsonify({'error': 'start_date, end_date, and reason are required'}), 400
+    return jsonify({'message': 'Leave request submitted. HR will review.'}), 201
+
+
+@app.route('/api/hr/leave-requests', methods=['GET'])
+@jwt_required()
+def hr_list_leave_requests():
+    """List all leave requests for HR review. Placeholder: returns empty until leave_requests table exists."""
+    from flask_jwt_extended import get_jwt
+    if (get_jwt().get('role') or '').strip().lower() != 'hr':
+        return jsonify({'error': 'HR only'}), 403
+    return jsonify({'requests': []})
+
+
+@app.route('/api/hr/payroll-overview', methods=['GET'])
+@jwt_required()
+def hr_payroll_overview():
+    """HR: paid vs pending payroll overview. Stub until payroll status per employee is available."""
+    from flask_jwt_extended import get_jwt
+    if (get_jwt().get('role') or '').strip().lower() != 'hr':
+        return jsonify({'error': 'HR only'}), 403
+    return jsonify({'payroll_by_role': [], 'total_payroll': 0, 'paid': [], 'pending': []})
+
+
 @app.route('/api/hod/staff-assignments/<int:staff_id>', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def hod_get_staff_assignments(staff_id):

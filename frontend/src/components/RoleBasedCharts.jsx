@@ -78,10 +78,20 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
   const [paymentTrendsPeriod, setPaymentTrendsPeriod] = useState('quarterly');
   const [attendanceTrendsPeriod, setAttendanceTrendsPeriod] = useState('quarterly');
   const [gradesOverTimePeriod, setGradesOverTimePeriod] = useState('quarterly');
+  const [gradesOverTimeSemesterId, setGradesOverTimeSemesterId] = useState('');
+  const [semesterOptions, setSemesterOptions] = useState([]);
 
   useEffect(() => {
     loadChartData();
-  }, [JSON.stringify(filters), type, user?.role, paymentTrendsPeriod, attendanceTrendsPeriod, gradesOverTimePeriod]);
+  }, [JSON.stringify(filters), type, user?.role, paymentTrendsPeriod, attendanceTrendsPeriod, gradesOverTimePeriod, gradesOverTimeSemesterId]);
+
+  useEffect(() => {
+    if (!isFinancePage && role !== 'finance' && role !== 'hr') {
+      axios.get('/api/analytics/filter-options', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+        .then((r) => setSemesterOptions(r.data?.semesters || []))
+        .catch(() => setSemesterOptions([]));
+    }
+  }, [isFinancePage, role]);
 
   const loadChartData = async () => {
     try {
@@ -103,7 +113,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       
       // Grades Over Time (role-specific scope) - NOT for Finance pages and NOT for HR
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
-        const gradeParams = role === 'senate' ? filters : { ...filters, role };
+        const gradeParams = role === 'senate' ? { ...filters } : { ...filters, role };
+        if (gradesOverTimeSemesterId) gradeParams.semester_id = gradesOverTimeSemesterId;
         requests.push(
           axios.get('/api/dashboard/grades-over-time', {
             headers: { Authorization: `Bearer ${token}` },
@@ -332,7 +343,18 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                     {role === 'student' && 'Your academic performance over time'}
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Semester:</span>
+                  <select
+                    value={gradesOverTimeSemesterId}
+                    onChange={(e) => setGradesOverTimeSemesterId(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium min-w-[100px]"
+                  >
+                    <option value="">All</option>
+                    {semesterOptions.map((s) => (
+                      <option key={s.semester_id} value={s.semester_id}>{s.semester_name || s.semester_id}</option>
+                    ))}
+                  </select>
                   <span className="text-xs text-muted-foreground whitespace-nowrap">Group by:</span>
                   <select
                     value={gradesOverTimePeriod}

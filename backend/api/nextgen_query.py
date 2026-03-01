@@ -43,8 +43,66 @@ def _ensure_assigned_viz_table(engine):
                     x_column VARCHAR(100),
                     y_column VARCHAR(100),
                     result_snapshot JSON,
+                    parent_viz_id VARCHAR(64) NULL,
+                    reshared_by_username VARCHAR(100) NULL,
+                    reshare_description TEXT NULL,
+                    original_creator_username VARCHAR(100) NULL,
                     INDEX idx_target (target_type, target_value),
-                    INDEX idx_created_by (created_by_username)
+                    INDEX idx_created_by (created_by_username),
+                    INDEX idx_parent (parent_viz_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+        )
+        conn.commit()
+        try:
+            _add_assigned_viz_columns_if_missing(conn)
+        except Exception:
+            pass
+    _ensure_viz_feedback_tables(engine)
+
+
+def _add_assigned_viz_columns_if_missing(conn):
+    """Add reshare columns if table existed without them."""
+    for col, defn in [
+        ("parent_viz_id", "VARCHAR(64) NULL"),
+        ("reshared_by_username", "VARCHAR(100) NULL"),
+        ("reshare_description", "TEXT NULL"),
+        ("original_creator_username", "VARCHAR(100) NULL"),
+    ]:
+        try:
+            conn.execute(text(f"ALTER TABLE assigned_query_visualizations ADD COLUMN {col} {defn}"))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+
+
+def _ensure_viz_feedback_tables(engine):
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS viz_feedback (
+                    id VARCHAR(64) PRIMARY KEY,
+                    viz_id VARCHAR(64) NOT NULL,
+                    author_username VARCHAR(100) NOT NULL,
+                    message TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_viz (viz_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS viz_feedback_replies (
+                    id VARCHAR(64) PRIMARY KEY,
+                    feedback_id VARCHAR(64) NOT NULL,
+                    author_username VARCHAR(100) NOT NULL,
+                    message TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_feedback (feedback_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """
             )
@@ -256,8 +314,10 @@ def create_assigned_visualization():
                     text(
                         """
                         INSERT INTO assigned_query_visualizations
-                        (id, created_by_username, title, target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot)
-                        VALUES (:id, :created_by, :title, :target_type, :target_value, :query_text, :chart_type, :x_column, :y_column, :result_snapshot)
+                        (id, created_by_username, title, target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot,
+                         parent_viz_id, reshared_by_username, reshare_description, original_creator_username)
+                        VALUES (:id, :created_by, :title, :target_type, :target_value, :query_text, :chart_type, :x_column, :y_column, :result_snapshot,
+                                :parent_viz_id, :reshared_by_username, :reshare_description, :original_creator_username)
                         """
                     ),
                     {
@@ -271,6 +331,10 @@ def create_assigned_visualization():
                         "x_column": x_column,
                         "y_column": y_column,
                         "result_snapshot": snapshot_json,
+                        "parent_viz_id": None,
+                        "reshared_by_username": None,
+                        "reshare_description": None,
+                        "original_creator_username": None,
                     },
                 )
                 conn.commit()
@@ -288,6 +352,104 @@ def create_assigned_visualization():
         return jsonify({"error": str(e)}), 500
 
 
+@nextgen_query_bp.route("/assigned-visualizations/reshare", methods=["POST"])
+@jwt_required()
+def reshare_visualization():
+    """Reshare a visualization that was shared with the current user. Requires clear description. Any eligible user."""
+    try:
+        username, role = _current_user()
+        body = request.get_json(silent=True) or {}
+        viz_id = (body.get("vizId") or body.get("viz_id") or "").strip()
+        description = (body.get("description") or "").strip()
+        target_type = (body.get("targetType") or "").strip().lower()
+        target_value = (body.get("targetValue") or "").strip()
+        title_override = (body.get("title") or "").strip()
+
+        if not viz_id:
+            return jsonify({"error": "vizId is required."}), 400
+        if not description:
+            return jsonify({"error": "A clear description is required when resharing."}), 400
+        if target_type not in ("role", "user"):
+            return jsonify({"error": "Target must be 'role' or 'user'."}), 400
+        if not target_value:
+            return jsonify({"error": "Target value is required."}), 400
+
+        engine = _get_rbac_engine()
+        _ensure_assigned_viz_table(engine)
+        parent = None
+        with engine.connect() as conn:
+            result = conn.execute(
+                text(
+                    """
+                    SELECT id, created_by_username, title, target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot,
+                           parent_viz_id, reshared_by_username, original_creator_username
+                    FROM assigned_query_visualizations
+                    WHERE id = :vid
+                    """
+                ),
+                {"vid": viz_id},
+            )
+            row = result.mappings().fetchone()
+            if not row:
+                engine.dispose()
+                return jsonify({"error": "Visualization not found."}), 404
+            parent = dict(row)
+
+        # Check current user can see the parent viz (is a recipient)
+        pt = (parent.get("target_type") or "").strip().lower()
+        pv = (parent.get("target_value") or "").strip().lower()
+        role_ok = pt == "role" and pv == role
+        user_ok = pt == "user" and pv == username.lower()
+        if not (role_ok or user_ok):
+            engine.dispose()
+            return jsonify({"error": "You can only reshare visualizations that were shared with you."}), 403
+
+        snap = parent.get("result_snapshot")
+        if isinstance(snap, str):
+            try:
+                snap = json.loads(snap)
+            except Exception:
+                snap = None
+        snapshot_json = json.dumps(snap) if snap is not None else None
+        original_creator = parent.get("original_creator_username") or parent["created_by_username"]
+        title = title_override or parent["title"]
+        new_id = str(uuid.uuid4())[:24]
+
+        with engine.connect() as conn:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO assigned_query_visualizations
+                    (id, created_by_username, title, target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot,
+                     parent_viz_id, reshared_by_username, reshare_description, original_creator_username)
+                    VALUES (:id, :created_by, :title, :target_type, :target_value, :query_text, :chart_type, :x_column, :y_column, :result_snapshot,
+                            :parent_viz_id, :reshared_by, :reshare_desc, :original_creator)
+                    """
+                ),
+                {
+                    "id": new_id,
+                    "created_by": original_creator,
+                    "title": title,
+                    "target_type": target_type,
+                    "target_value": target_value,
+                    "query_text": parent.get("query_text") or "",
+                    "chart_type": parent.get("chart_type") or "bar",
+                    "x_column": parent.get("x_column") or "",
+                    "y_column": parent.get("y_column") or "",
+                    "result_snapshot": snapshot_json,
+                    "parent_viz_id": viz_id,
+                    "reshared_by": username,
+                    "reshare_desc": description,
+                    "original_creator": original_creator,
+                },
+            )
+            conn.commit()
+        engine.dispose()
+        return jsonify({"id": new_id, "message": "Visualization reshared successfully."}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @nextgen_query_bp.route("/assigned-visualizations/for-me", methods=["GET"])
 @jwt_required()
 def get_assigned_visualizations_for_me():
@@ -301,7 +463,8 @@ def get_assigned_visualizations_for_me():
                 text(
                     """
                     SELECT id, created_by_username, created_at, title, target_type, target_value,
-                           query_text, chart_type, x_column, y_column, result_snapshot
+                           query_text, chart_type, x_column, y_column, result_snapshot,
+                           parent_viz_id, reshared_by_username, reshare_description, original_creator_username
                     FROM assigned_query_visualizations
                     WHERE (target_type = 'role' AND LOWER(TRIM(target_value)) = :role)
                        OR (target_type = 'user' AND LOWER(TRIM(target_value)) = :username)
@@ -325,19 +488,29 @@ def get_assigned_visualizations_for_me():
                 snap = json.loads(snap)
             except Exception:
                 snap = None
-        out.append({
+        is_reshared = bool(r.get("parent_viz_id") or r.get("reshared_by_username"))
+        item = {
             "id": r["id"],
             "createdByUsername": r["created_by_username"],
             "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
             "title": r["title"],
             "targetType": r["target_type"],
             "targetValue": r["target_value"],
-            "queryText": r["query_text"],
+            "queryText": r.get("query_text"),
             "chartType": r["chart_type"] or "bar",
             "xColumn": r["x_column"],
             "yColumn": r["y_column"],
             "resultSnapshot": snap,
-        })
+        }
+        if is_reshared:
+            item["isReshared"] = True
+            item["resharedByUsername"] = r.get("reshared_by_username") or ""
+            item["reshareDescription"] = r.get("reshare_description") or ""
+            item["originalCreatorUsername"] = r.get("original_creator_username") or r["created_by_username"]
+        else:
+            item["isReshared"] = False
+            item["originalCreatorUsername"] = r["created_by_username"]
+        out.append(item)
     return jsonify({"visualizations": out}), 200
 
 
@@ -405,12 +578,8 @@ def list_assigned_visualizations():
 @nextgen_query_bp.route("/assigned-visualizations/<viz_id>", methods=["DELETE"])
 @jwt_required()
 def delete_assigned_visualization(viz_id):
-    """Delete an assigned visualization. Analyst/Sysadmin or creator only."""
+    """Delete an assigned visualization. Allowed: Analyst/Sysadmin, creator (created_by), or reshared_by."""
     username, role = _current_user()
-    err = _require_analyst_or_sysadmin(role)
-    if err is not None:
-        return err
-
     if not viz_id or len(viz_id) > 64:
         return jsonify({"error": "Invalid visualization id."}), 400
 
@@ -418,10 +587,26 @@ def delete_assigned_visualization(viz_id):
     _ensure_assigned_viz_table(engine)
     try:
         with engine.connect() as conn:
-            result = conn.execute(
-                text("DELETE FROM assigned_query_visualizations WHERE id = :id"),
+            row = conn.execute(
+                text(
+                    "SELECT created_by_username, reshared_by_username FROM assigned_query_visualizations WHERE id = :id"
+                ),
                 {"id": viz_id},
+            ).mappings().fetchone()
+            if not row:
+                engine.dispose()
+                return jsonify({"error": "Visualization not found."}), 404
+            creator = (row.get("created_by_username") or "").strip()
+            reshared_by = (row.get("reshared_by_username") or "").strip()
+            allowed = (
+                role in ("analyst", "sysadmin")
+                or creator == username
+                or reshared_by == username
             )
+            if not allowed:
+                engine.dispose()
+                return jsonify({"error": "You can only delete visualizations you created or reshared."}), 403
+            result = conn.execute(text("DELETE FROM assigned_query_visualizations WHERE id = :id"), {"id": viz_id})
             conn.commit()
             deleted = result.rowcount
         engine.dispose()
@@ -433,4 +618,204 @@ def delete_assigned_visualization(viz_id):
     if deleted == 0:
         return jsonify({"error": "Visualization not found."}), 404
     return jsonify({"message": "Visualization removed."}), 200
+
+
+def _can_reply_to_feedback(conn, viz_id: str, username: str) -> bool:
+    """True if user is creator or reshared_by for this viz (can reply to feedback)."""
+    row = conn.execute(
+        text("SELECT created_by_username, reshared_by_username FROM assigned_query_visualizations WHERE id = :id"),
+        {"id": viz_id},
+    ).mappings().fetchone()
+    if not row:
+        return False
+    creator = (row.get("created_by_username") or "").strip()
+    reshared = (row.get("reshared_by_username") or "").strip()
+    return creator == username or reshared == username
+
+
+@nextgen_query_bp.route("/assigned-visualizations/<viz_id>/feedback", methods=["POST"])
+@jwt_required()
+def post_viz_feedback(viz_id):
+    """Add feedback on a visualization. Caller must be a recipient (see for-me)."""
+    username, role = _current_user()
+    if not viz_id or len(viz_id) > 64:
+        return jsonify({"error": "Invalid viz id."}), 400
+    body = request.get_json(silent=True) or {}
+    message = (body.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "Message is required."}), 400
+    engine = _get_rbac_engine()
+    _ensure_assigned_viz_table(engine)
+    try:
+        with engine.connect() as conn:
+            viz = conn.execute(
+                text(
+                    "SELECT id, target_type, target_value FROM assigned_query_visualizations WHERE id = :id"
+                ),
+                {"id": viz_id},
+            ).mappings().fetchone()
+            if not viz:
+                engine.dispose()
+                return jsonify({"error": "Visualization not found."}), 404
+            pt, pv = (viz.get("target_type") or "").strip().lower(), (viz.get("target_value") or "").strip().lower()
+            if not ((pt == "role" and pv == role) or (pt == "user" and pv == username.lower())):
+                engine.dispose()
+                return jsonify({"error": "You can only submit feedback on visualizations shared with you."}), 403
+            fid = str(uuid.uuid4())[:24]
+            conn.execute(
+                text(
+                    "INSERT INTO viz_feedback (id, viz_id, author_username, message) VALUES (:id, :viz_id, :author, :msg)"
+                ),
+                {"id": fid, "viz_id": viz_id, "author": username, "msg": message},
+            )
+            conn.commit()
+        engine.dispose()
+        return jsonify({"id": fid, "message": "Feedback added."}), 201
+    except Exception as e:
+        if engine:
+            engine.dispose()
+        return jsonify({"error": str(e)}), 500
+
+
+@nextgen_query_bp.route("/assigned-visualizations/<viz_id>/feedback", methods=["GET"])
+@jwt_required()
+def get_viz_feedback(viz_id):
+    """List feedback and replies for a visualization. Caller must be able to see the viz (for-me) or be creator/resharer."""
+    username, role = _current_user()
+    if not viz_id or len(viz_id) > 64:
+        return jsonify({"error": "Invalid viz id."}), 400
+    engine = _get_rbac_engine()
+    _ensure_assigned_viz_table(engine)
+    try:
+        with engine.connect() as conn:
+            fb_rows = conn.execute(
+                text(
+                    "SELECT id, author_username, message, created_at FROM viz_feedback WHERE viz_id = :viz_id ORDER BY created_at ASC"
+                ),
+                {"viz_id": viz_id},
+            ).mappings().fetchall()
+            out = []
+            for f in fb_rows:
+                fid = f["id"]
+                replies = conn.execute(
+                    text(
+                        "SELECT id, author_username, message, created_at FROM viz_feedback_replies WHERE feedback_id = :fid ORDER BY created_at ASC"
+                    ),
+                    {"fid": fid},
+                ).mappings().fetchall()
+                out.append({
+                    "id": fid,
+                    "authorUsername": f["author_username"],
+                    "message": f["message"],
+                    "createdAt": f["created_at"].isoformat() if hasattr(f["created_at"], "isoformat") else str(f["created_at"]),
+                    "replies": [
+                        {
+                            "id": r["id"],
+                            "authorUsername": r["author_username"],
+                            "message": r["message"],
+                            "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+                        }
+                        for r in replies
+                    ],
+                })
+            return jsonify({"feedback": out}), 200
+    except Exception as e:
+        if engine:
+            engine.dispose()
+        return jsonify({"error": str(e)}), 500
+
+
+@nextgen_query_bp.route("/assigned-visualizations/feedback/<feedback_id>/reply", methods=["POST"])
+@jwt_required()
+def reply_to_feedback(feedback_id):
+    """Reply to a feedback. Only creator or reshared_by of the viz can reply."""
+    username, role = _current_user()
+    if not feedback_id or len(feedback_id) > 64:
+        return jsonify({"error": "Invalid feedback id."}), 400
+    body = request.get_json(silent=True) or {}
+    message = (body.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "Message is required."}), 400
+    engine = _get_rbac_engine()
+    _ensure_assigned_viz_table(engine)
+    try:
+        with engine.connect() as conn:
+            fb = conn.execute(
+                text("SELECT id, viz_id FROM viz_feedback WHERE id = :id"),
+                {"id": feedback_id},
+            ).mappings().fetchone()
+            if not fb:
+                engine.dispose()
+                return jsonify({"error": "Feedback not found."}), 404
+            viz_id = fb["viz_id"]
+            if not _can_reply_to_feedback(conn, viz_id, username):
+                engine.dispose()
+                return jsonify({"error": "Only the chart creator or person who shared it can reply."}), 403
+            rid = str(uuid.uuid4())[:24]
+            conn.execute(
+                text(
+                    "INSERT INTO viz_feedback_replies (id, feedback_id, author_username, message) VALUES (:id, :fid, :author, :msg)"
+                ),
+                {"id": rid, "fid": feedback_id, "author": username, "msg": message},
+            )
+            conn.commit()
+        engine.dispose()
+        return jsonify({"id": rid, "message": "Reply added."}), 201
+    except Exception as e:
+        if engine:
+            engine.dispose()
+        return jsonify({"error": str(e)}), 500
+
+
+@nextgen_query_bp.route("/assigned-visualizations/my-shared", methods=["GET"])
+@jwt_required()
+def get_my_shared_visualizations():
+    """List visualizations created by the current user (for Analyst Managed shared Charts). Full details including query_text and feedback."""
+    username, role = _current_user()
+    err = _require_analyst_or_sysadmin(role)
+    if err is not None:
+        return err
+    engine = _get_rbac_engine()
+    _ensure_assigned_viz_table(engine)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT id, created_by_username, created_at, title, target_type, target_value,
+                           query_text, chart_type, x_column, y_column, result_snapshot,
+                           parent_viz_id, reshared_by_username, reshare_description, original_creator_username
+                    FROM assigned_query_visualizations
+                    WHERE created_by_username = :username
+                    ORDER BY created_at DESC
+                    """
+                ),
+                {"username": username},
+            ).mappings().fetchall()
+            out = []
+            for r in rows:
+                snap = r.get("result_snapshot")
+                if isinstance(snap, str):
+                    try:
+                        snap = json.loads(snap)
+                    except Exception:
+                        snap = None
+                out.append({
+                    "id": r["id"],
+                    "createdByUsername": r["created_by_username"],
+                    "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+                    "title": r["title"],
+                    "targetType": r["target_type"],
+                    "targetValue": r["target_value"],
+                    "queryText": r.get("query_text"),
+                    "chartType": r.get("chart_type") or "bar",
+                    "xColumn": r.get("x_column"),
+                    "yColumn": r.get("y_column"),
+                    "resultSnapshot": snap,
+                })
+            return jsonify({"visualizations": out}), 200
+    except Exception as e:
+        if engine:
+            engine.dispose()
+        return jsonify({"error": str(e)}), 500
 

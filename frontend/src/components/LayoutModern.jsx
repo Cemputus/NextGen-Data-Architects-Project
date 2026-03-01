@@ -45,6 +45,7 @@ const LayoutModern = ({ children }) => {
         { path: '/student/attendance', label: 'Attendance', icon: FileText },
         { path: '/student/payments', label: 'Payments', icon: DollarSign },
         { path: '/student/predictions', label: 'Predictions', icon: TrendingUp },
+        { path: '/student/user-info', label: 'User Info', icon: FileText },
         { path: '/student/profile', label: 'Profile', icon: User },
       ],
       staff: [
@@ -53,6 +54,7 @@ const LayoutModern = ({ children }) => {
         { path: '/staff/classes', label: 'My Classes', icon: GraduationCap },
         { path: '/staff/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/staff/predictions', label: 'Predictions', icon: TrendingUp },
+        { path: '/staff/user-info', label: 'User Info', icon: FileText },
         { path: '/staff/profile', label: 'Profile', icon: User },
       ],
       hod: [
@@ -63,6 +65,7 @@ const LayoutModern = ({ children }) => {
         { path: '/hod/fex', label: 'FEX Analysis', icon: FileText },
         { path: '/hod/high-school', label: 'High School', icon: Building2 },
         { path: '/hod/predictions', label: 'Predictions', icon: TrendingUp },
+        { path: '/hod/user-info', label: 'User Info', icon: FileText },
         { path: '/hod/profile', label: 'Profile', icon: User },
       ],
       dean: [
@@ -72,6 +75,7 @@ const LayoutModern = ({ children }) => {
         { path: '/dean/fex', label: 'FEX Analysis', icon: FileText },
         { path: '/dean/high-school', label: 'High School', icon: Building2 },
         { path: '/dean/predictions', label: 'Predictions', icon: TrendingUp },
+        { path: '/dean/user-info', label: 'User Info', icon: FileText },
         { path: '/dean/profile', label: 'Profile', icon: User },
       ],
       senate: [
@@ -83,11 +87,13 @@ const LayoutModern = ({ children }) => {
         { path: '/senate/finance', label: 'Finance', icon: DollarSign },
         { path: '/senate/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/senate/reports', label: 'Reports', icon: FileText },
+        { path: '/senate/user-info', label: 'User Info', icon: FileText },
         { path: '/senate/profile', label: 'Profile', icon: User },
       ],
       analyst: [
         { path: '/analyst/dashboard', label: 'Workspace', icon: LayoutDashboard },
         { path: '/analyst/shared-views', label: 'Views shared with you', icon: Share2 },
+        { path: '/analyst/managed-shared-charts', label: 'Managed shared Charts', icon: BarChart3 },
         { path: '/analyst/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/analyst/dashboards', label: 'Dashboards', icon: LayoutDashboard },
         { path: '/analyst/query', label: 'NextGen Query', icon: Database },
@@ -95,6 +101,7 @@ const LayoutModern = ({ children }) => {
         { path: '/analyst/high-school', label: 'High School', icon: Building2 },
         { path: '/analyst/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/analyst/reports', label: 'Reports', icon: FileText },
+        { path: '/analyst/user-info', label: 'User Info', icon: FileText },
         { path: '/analyst/profile', label: 'Profile', icon: User },
       ],
       sysadmin: [
@@ -105,13 +112,19 @@ const LayoutModern = ({ children }) => {
         { path: '/admin/etl', label: 'ETL Jobs', icon: BarChart3 },
         { path: '/admin/etl-notifications', label: 'ETL Notifications', icon: Bell },
         { path: '/admin/audit', label: 'Audit Logs', icon: FileText },
+        { path: '/admin/user-info', label: 'User Info', icon: FileText },
         { path: '/admin/profile', label: 'Profile', icon: User },
       ],
       hr: [
         { path: '/hr/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/hr/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/hr/analytics', label: 'Analytics', icon: BarChart3 },
+        { path: '/hr/employees', label: 'Employees', icon: Users },
         { path: '/hr/staff', label: 'Staff', icon: Users },
+        { path: '/hr/leave-requests', label: 'Leave Requests', icon: Clock },
+        { path: '/hr/payroll', label: 'Payroll', icon: DollarSign },
+        { path: '/hr/evaluation', label: 'Evaluation', icon: FileText },
+        { path: '/hr/user-info', label: 'User Info', icon: FileText },
         { path: '/hr/profile', label: 'Profile', icon: User },
       ],
       finance: [
@@ -120,6 +133,7 @@ const LayoutModern = ({ children }) => {
         { path: '/finance/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/finance/payments', label: 'Payments', icon: DollarSign },
         { path: '/finance/predictions', label: 'Predictions', icon: TrendingUp },
+        { path: '/finance/user-info', label: 'User Info', icon: FileText },
         { path: '/finance/profile', label: 'Profile', icon: User },
       ],
     };

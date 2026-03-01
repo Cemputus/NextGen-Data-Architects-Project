@@ -3,6 +3,7 @@
  * Three-panel layout: SQL editor (top), table results (bottom-left), chart (bottom-right)
  */
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Editor } from '@monaco-editor/react';
 import { Database, Play, Trash2, History, Loader2, BarChart3, LineChart, PieChart, AreaChart, Download, AlertTriangle, RefreshCw, Share2, Settings2 } from 'lucide-react';
@@ -14,6 +15,8 @@ import { Input } from '../components/ui/input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
 import { SciBarChart, SciLineChart, SciAreaChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import { useTheme } from '../context/ThemeContext';
+import { usePersistentToast } from '../context/PersistentToastContext';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
 
@@ -35,6 +38,9 @@ const FALLBACK_ROLES = ['Student', 'Staff', 'HOD', 'Dean', 'Senate', 'Finance', 
 
 const NextGenQueryPage = () => {
   const { effectiveTheme } = useTheme();
+  const { addToast } = usePersistentToast();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [query, setQuery] = useState(DEFAULT_SQL);
   const [history, setHistory] = useState([]);
@@ -53,15 +59,15 @@ const NextGenQueryPage = () => {
   const [yColumn, setYColumn] = useState('');
 
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [assignTitle, setAssignTitle] = useState('');
-  const [assignTargetType, setAssignTargetType] = useState('role');
-  const [assignTargetValue, setAssignTargetValue] = useState('');
+  const [assignTitle, setAssignTitle] = usePersistedState('nextgen_assign_title', '');
+  const [assignTargetType, setAssignTargetType] = usePersistedState('nextgen_assign_targetType', 'role');
+  const [assignTargetValue, setAssignTargetValue] = usePersistedState('nextgen_assign_targetValue', '');
   const [assignSaving, setAssignSaving] = useState(false);
   const [assignError, setAssignError] = useState('');
   const [assignSuccessBanner, setAssignSuccessBanner] = useState('');
   const [targetOptions, setTargetOptions] = useState({ roles: [], users: [] });
   const [targetOptionsLoading, setTargetOptionsLoading] = useState(false);
-  const [assignUserSearch, setAssignUserSearch] = useState('');
+  const [assignUserSearch, setAssignUserSearch] = usePersistedState('nextgen_assign_userSearch', '');
   const hasRestoredRef = useRef(false);
   const [manageAssignedOpen, setManageAssignedOpen] = useState(false);
   const [myAssignedList, setMyAssignedList] = useState([]);
@@ -99,6 +105,18 @@ const NextGenQueryPage = () => {
     [columns]
   );
 
+  // When navigating from Managed shared Charts (Edit), prefill SQL and chart settings
+  useEffect(() => {
+    const editViz = location.state?.editViz;
+    if (editViz && typeof editViz.queryText === 'string' && editViz.queryText.trim()) {
+      setQuery(editViz.queryText.trim());
+      if (editViz.chartType) setChartType(editViz.chartType);
+      if (editViz.xColumn) setXColumn(editViz.xColumn);
+      if (editViz.yColumn) setYColumn(editViz.yColumn);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state?.editViz]);
+
   // Restore persisted NextGen Query workspace from backend (per-user, survives hard refresh / logout / devices)
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -112,7 +130,7 @@ const NextGenQueryPage = () => {
       })
       .then((res) => {
         const state = res.data?.state;
-        if (state) {
+        if (state && !location.state?.editViz) {
           if (typeof state.query === 'string' && state.query.trim().length > 0) {
             setQuery(state.query);
           }
@@ -174,15 +192,12 @@ const NextGenQueryPage = () => {
   const openAssignModal = () => {
     setAssignError('');
     setAssignSuccessBanner('');
-    setAssignTargetType('role');
-    setAssignTargetValue('');
-    setAssignUserSearch('');
     setAssignModalOpen(true);
     setTargetOptionsLoading(true);
     const suggestedTitle = [yColumn, xColumn].filter(Boolean).length === 2
       ? `${yColumn} by ${xColumn}`
       : '';
-    setAssignTitle(suggestedTitle);
+    if (!assignTitle.trim()) setAssignTitle(suggestedTitle);
     axios
       .get('/api/query/assigned-visualizations/target-options', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -191,8 +206,8 @@ const NextGenQueryPage = () => {
         const roles = Array.isArray(res.data?.roles) ? res.data.roles.map((r) => String(r).trim()).filter(Boolean) : [];
         const users = Array.isArray(res.data?.users) ? res.data.users : [];
         setTargetOptions({ roles, users });
-        if (roles.length > 0) setAssignTargetValue(roles[0]);
-        else if (users.length > 0) setAssignTargetValue(String(users[0]?.username ?? '').trim());
+        if (!assignTargetValue.trim() && roles.length > 0) setAssignTargetValue(roles[0]);
+        else if (!assignTargetValue.trim() && users.length > 0) setAssignTargetValue(String(users[0]?.username ?? '').trim());
       })
       .catch(() => setTargetOptions({ roles: [], users: [] }))
       .finally(() => setTargetOptionsLoading(false));
@@ -261,8 +276,14 @@ const NextGenQueryPage = () => {
         }
       );
       setAssignModalOpen(false);
+      setAssignTitle('');
+      setAssignTargetType('role');
+      setAssignTargetValue('');
+      setAssignUserSearch('');
       const targetLabel = assignTargetType === 'role' ? `Role "${targetValue}"` : `User "${targetValue}"`;
-      setAssignSuccessBanner(`Visualization assigned to ${targetLabel}. Recipients will see it under "Views shared with you" on their dashboard.`);
+      const msg = `Visualization assigned to ${targetLabel}. Recipients will see it under "Views shared with you" on their dashboard.`;
+      setAssignSuccessBanner(msg);
+      addToast(msg, 'success');
       setTimeout(() => setAssignSuccessBanner(''), 5000);
     } catch (err) {
       const msg = err.response?.data?.error

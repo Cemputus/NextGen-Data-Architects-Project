@@ -6,6 +6,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { PersistentToastProvider } from './context/PersistentToastContext';
 import { rbac } from './utils/rbac';
 import { Loader2 } from 'lucide-react';
 
@@ -36,6 +37,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import ReportsPage from './pages/ReportsPage';
 import NextGenQueryPage from './pages/NextGenQueryPage';
 import AnalystDashboardsPage from './pages/AnalystDashboardsPage';
+import ManagedSharedChartsPage from './pages/ManagedSharedChartsPage';
 
 // Student Pages
 import StudentGrades from './pages/StudentGrades';
@@ -60,6 +62,11 @@ import HRStaff from './pages/HRStaff';
 import FinancePayments from './pages/FinancePayments';
 import SenateFinance from './pages/SenateFinance';
 import SharedViewsPage from './pages/SharedViewsPage';
+import UserInfoPage from './pages/UserInfoPage';
+import HREmployeesPage from './pages/HREmployeesPage';
+import HRLeaveRequestsPage from './pages/HRLeaveRequestsPage';
+import HRPayrollPage from './pages/HRPayrollPage';
+import HREvaluationPage from './pages/HREvaluationPage';
 
 function PrivateRoute({ children, requiredRole = null }) {
   const { isAuthenticated, loading, user } = useAuth();
@@ -101,6 +108,7 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
+      <PersistentToastProvider>
       <Router>
           <Routes>
             {/* Public Routes */}
@@ -117,6 +125,7 @@ function App() {
                     <Route path="attendance" element={<StudentAttendance />} />
                     <Route path="payments" element={<StudentPayments />} />
                     <Route path="profile" element={<ProfilePage />} />
+                    <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="predictions" element={<PredictionPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
                     <Route path="*" element={<Navigate to="/student/dashboard" />} />
@@ -136,6 +145,7 @@ function App() {
                     <Route path="analytics" element={<StaffAnalytics />} />
                     <Route path="predictions" element={<PredictionPage />} />
                     <Route path="profile" element={<ProfilePage />} />
+                    <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
                     <Route path="*" element={<Navigate to="/staff/dashboard" />} />
                   </Routes>
@@ -156,6 +166,7 @@ function App() {
                     <Route path="high-school" element={<HighSchoolAnalytics />} />
                     <Route path="predictions" element={<PredictionPage />} />
                     <Route path="profile" element={<ProfilePage />} />
+                    <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
                     <Route path="*" element={<Navigate to="/hod/dashboard" />} />
                   </Routes>
@@ -175,6 +186,7 @@ function App() {
                     <Route path="high-school" element={<HighSchoolAnalytics />} />
                     <Route path="predictions" element={<PredictionPage />} />
                     <Route path="profile" element={<ProfilePage />} />
+                    <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
                     <Route path="*" element={<Navigate to="/dean/dashboard" />} />
                   </Routes>
@@ -196,6 +208,7 @@ function App() {
                     <Route path="reports" element={<ReportsPage />} />
                     <Route path="predictions" element={<PredictionPage />} />
                     <Route path="profile" element={<ProfilePage />} />
+                    <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
                     <Route path="*" element={<Navigate to="/senate/dashboard" />} />
                   </Routes>
@@ -217,7 +230,9 @@ function App() {
                     <Route path="predictions" element={<PredictionPage />} />
                     <Route path="reports" element={<ReportsPage />} />
                     <Route path="query" element={<NextGenQueryPage />} />
+                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
                     <Route path="profile" element={<ProfilePage />} />
+                    <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
                     <Route path="*" element={<Navigate to="/analyst/dashboard" />} />
                   </Routes>
@@ -239,6 +254,7 @@ function App() {
                     <Route path="audit" element={<AdminAudit />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
                     <Route path="profile" element={<ProfilePage />} />
+                    <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="*" element={<Navigate to="/admin/dashboard" />} />
                   </Routes>
                 </PrivateRoute>
@@ -253,8 +269,13 @@ function App() {
                   <Routes>
                     <Route path="dashboard" element={<HRDashboard />} />
                     <Route path="analytics" element={<AnalyticsPage type="hr" />} />
+                    <Route path="employees" element={<HREmployeesPage />} />
                     <Route path="staff" element={<HRStaff />} />
+                    <Route path="leave-requests" element={<HRLeaveRequestsPage />} />
+                    <Route path="payroll" element={<HRPayrollPage />} />
+                    <Route path="evaluation" element={<HREvaluationPage />} />
                     <Route path="profile" element={<ProfilePage />} />
+                    <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
                     <Route path="*" element={<Navigate to="/hr/dashboard" />} />
                   </Routes>
@@ -273,6 +294,7 @@ function App() {
                     <Route path="payments" element={<FinancePayments />} />
                     <Route path="predictions" element={<PredictionPage />} />
                     <Route path="profile" element={<ProfilePage />} />
+                    <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
                     <Route path="*" element={<Navigate to="/finance/dashboard" />} />
                   </Routes>
@@ -301,8 +323,9 @@ function App() {
             />
           </Routes>
         </Router>
+      </PersistentToastProvider>
       </ThemeProvider>
-      </AuthProvider>
+    </AuthProvider>
   );
 }
 
