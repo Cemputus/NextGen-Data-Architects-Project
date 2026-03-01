@@ -128,6 +128,7 @@ function App() {
                     <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="predictions" element={<PredictionPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
+                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
                     <Route path="*" element={<Navigate to="/student/dashboard" />} />
                   </Routes>
                 </PrivateRoute>
@@ -147,6 +148,7 @@ function App() {
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
+                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
                     <Route path="*" element={<Navigate to="/staff/dashboard" />} />
                   </Routes>
                 </PrivateRoute>
@@ -168,6 +170,7 @@ function App() {
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
+                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
                     <Route path="*" element={<Navigate to="/hod/dashboard" />} />
                   </Routes>
                 </PrivateRoute>
@@ -188,6 +191,7 @@ function App() {
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
+                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
                     <Route path="*" element={<Navigate to="/dean/dashboard" />} />
                   </Routes>
                 </PrivateRoute>
@@ -210,6 +214,7 @@ function App() {
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
+                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
                     <Route path="*" element={<Navigate to="/senate/dashboard" />} />
                   </Routes>
                 </PrivateRoute>
@@ -253,6 +258,7 @@ function App() {
                     <Route path="etl-notifications" element={<AdminETLNotifications />} />
                     <Route path="audit" element={<AdminAudit />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
+                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="*" element={<Navigate to="/admin/dashboard" />} />
@@ -277,6 +283,7 @@ function App() {
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
+                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
                     <Route path="*" element={<Navigate to="/hr/dashboard" />} />
                   </Routes>
                 </PrivateRoute>
@@ -296,6 +303,7 @@ function App() {
                     <Route path="profile" element={<ProfilePage />} />
                     <Route path="user-info" element={<UserInfoPage />} />
                     <Route path="shared-views" element={<SharedViewsPage />} />
+                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
                     <Route path="*" element={<Navigate to="/finance/dashboard" />} />
                   </Routes>
                 </PrivateRoute>

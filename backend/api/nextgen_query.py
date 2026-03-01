@@ -236,14 +236,9 @@ ROLES_FOR_ASSIGNMENT = [
 @nextgen_query_bp.route("/assigned-visualizations/target-options", methods=["GET"])
 @jwt_required()
 def get_assignment_target_options():
-    """Return roles and app users for the assign-visualization dropdown. Analyst/Sysadmin only."""
+    """Return roles and app users for assign/reshare dropdowns. Any authenticated user (for reshare); also used by Analyst/Sysadmin for assign."""
+    users = []
     try:
-        username, role = _current_user()
-        err = _require_analyst_or_sysadmin(role)
-        if err is not None:
-            return err
-
-        users = []
         engine = _get_rbac_engine()
         _ensure_app_users_table(engine)
         with engine.connect() as conn:
@@ -403,6 +398,26 @@ def reshare_visualization():
         if not (role_ok or user_ok):
             engine.dispose()
             return jsonify({"error": "You can only reshare visualizations that were shared with you."}), 403
+
+        # Prevent resharing the same viz twice to the same target (role or user)
+        target_val_lower = target_value.strip().lower()
+        with engine.connect() as conn:
+            # Already shared: either this viz is the one assigned to that target, or a reshare to that target exists
+            existing = conn.execute(
+                text(
+                    """
+                    SELECT id FROM assigned_query_visualizations
+                    WHERE (id = :vid OR parent_viz_id = :vid)
+                    AND LOWER(TRIM(target_type)) = :tt
+                    AND LOWER(TRIM(target_value)) = :tv
+                    LIMIT 1
+                    """
+                ),
+                {"vid": viz_id, "tt": target_type, "tv": target_val_lower},
+            ).mappings().fetchone()
+            if existing:
+                engine.dispose()
+                return jsonify({"error": "This chart is already shared with that " + ("role" if target_type == "role" else "user") + ". Choose a different recipient."}), 400
 
         snap = parent.get("result_snapshot")
         if isinstance(snap, str):
@@ -770,11 +785,8 @@ def reply_to_feedback(feedback_id):
 @nextgen_query_bp.route("/assigned-visualizations/my-shared", methods=["GET"])
 @jwt_required()
 def get_my_shared_visualizations():
-    """List visualizations created by the current user (for Analyst Managed shared Charts). Full details including query_text and feedback."""
+    """List visualizations created OR reshared by the current user. So the resharer sees charts they reshared and can view/reply to feedback."""
     username, role = _current_user()
-    err = _require_analyst_or_sysadmin(role)
-    if err is not None:
-        return err
     engine = _get_rbac_engine()
     _ensure_assigned_viz_table(engine)
     try:
@@ -786,7 +798,7 @@ def get_my_shared_visualizations():
                            query_text, chart_type, x_column, y_column, result_snapshot,
                            parent_viz_id, reshared_by_username, reshare_description, original_creator_username
                     FROM assigned_query_visualizations
-                    WHERE created_by_username = :username
+                    WHERE created_by_username = :username OR reshared_by_username = :username
                     ORDER BY created_at DESC
                     """
                 ),
@@ -800,6 +812,7 @@ def get_my_shared_visualizations():
                         snap = json.loads(snap)
                     except Exception:
                         snap = None
+                reshared_by_me = (r.get("reshared_by_username") or "").strip() == username
                 out.append({
                     "id": r["id"],
                     "createdByUsername": r["created_by_username"],
@@ -812,6 +825,7 @@ def get_my_shared_visualizations():
                     "xColumn": r.get("x_column"),
                     "yColumn": r.get("y_column"),
                     "resultSnapshot": snap,
+                    "resharedByMe": reshared_by_me,
                 })
             return jsonify({"visualizations": out}), 200
     except Exception as e:

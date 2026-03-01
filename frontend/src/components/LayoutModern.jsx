@@ -41,6 +41,7 @@ const LayoutModern = ({ children }) => {
       student: [
         { path: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/student/shared-views', label: 'Views shared with you', icon: Share2 },
+        { path: '/student/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/student/grades', label: 'My Grades', icon: GraduationCap },
         { path: '/student/attendance', label: 'Attendance', icon: FileText },
         { path: '/student/payments', label: 'Payments', icon: DollarSign },
@@ -51,6 +52,7 @@ const LayoutModern = ({ children }) => {
       staff: [
         { path: '/staff/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/staff/shared-views', label: 'Views shared with you', icon: Share2 },
+        { path: '/staff/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/staff/classes', label: 'My Classes', icon: GraduationCap },
         { path: '/staff/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/staff/predictions', label: 'Predictions', icon: TrendingUp },
@@ -60,6 +62,7 @@ const LayoutModern = ({ children }) => {
       hod: [
         { path: '/hod/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/hod/shared-views', label: 'Views shared with you', icon: Share2 },
+        { path: '/hod/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/hod/assign-classes', label: 'Assign classes', icon: GraduationCap },
         { path: '/hod/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/hod/fex', label: 'FEX Analysis', icon: FileText },
@@ -71,6 +74,7 @@ const LayoutModern = ({ children }) => {
       dean: [
         { path: '/dean/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/dean/shared-views', label: 'Views shared with you', icon: Share2 },
+        { path: '/dean/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/dean/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/dean/fex', label: 'FEX Analysis', icon: FileText },
         { path: '/dean/high-school', label: 'High School', icon: Building2 },
@@ -81,6 +85,7 @@ const LayoutModern = ({ children }) => {
       senate: [
         { path: '/senate/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/senate/shared-views', label: 'Views shared with you', icon: Share2 },
+        { path: '/senate/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/senate/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/senate/fex', label: 'FEX Analysis', icon: FileText },
         { path: '/senate/high-school', label: 'High School', icon: Building2 },
@@ -107,6 +112,7 @@ const LayoutModern = ({ children }) => {
       sysadmin: [
         { path: '/admin/dashboard', label: 'Console', icon: Shield },
         { path: '/admin/shared-views', label: 'Views shared with you', icon: Share2 },
+        { path: '/admin/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/admin/users', label: 'Users', icon: Users },
         { path: '/admin/settings', label: 'Settings', icon: Settings },
         { path: '/admin/etl', label: 'ETL Jobs', icon: BarChart3 },
@@ -118,6 +124,7 @@ const LayoutModern = ({ children }) => {
       hr: [
         { path: '/hr/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/hr/shared-views', label: 'Views shared with you', icon: Share2 },
+        { path: '/hr/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/hr/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/hr/employees', label: 'Employees', icon: Users },
         { path: '/hr/staff', label: 'Staff', icon: Users },
@@ -130,6 +137,7 @@ const LayoutModern = ({ children }) => {
       finance: [
         { path: '/finance/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/finance/shared-views', label: 'Views shared with you', icon: Share2 },
+        { path: '/finance/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/finance/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/finance/payments', label: 'Payments', icon: DollarSign },
         { path: '/finance/predictions', label: 'Predictions', icon: TrendingUp },

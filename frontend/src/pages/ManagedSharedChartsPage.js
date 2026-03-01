@@ -21,7 +21,7 @@ export default function ManagedSharedChartsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [feedbackByViz, setFeedbackByViz] = useState({});
-  const [expandedViz, setExpandedViz] = useState(null);
+  const [expandedViz, setExpandedViz] = usePersistedState('managed_shared_expandedViz', null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [newReplyMsg, setNewReplyMsg] = usePersistedState('managed_shared_newReplyMsg', {});
@@ -36,6 +36,10 @@ export default function ManagedSharedChartsPage() {
       .catch((e) => setError(e.response?.data?.error || 'Failed to load your shared charts.'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (expandedViz && list.some((v) => v.id === expandedViz)) loadFeedback(expandedViz);
+  }, [expandedViz, list]);
 
   const loadFeedback = (vizId) => {
     axios.get(`/api/query/assigned-visualizations/${vizId}/feedback`, auth())
@@ -100,21 +104,23 @@ export default function ManagedSharedChartsPage() {
         <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-8 text-center">
           <BarChart3 className="h-10 w-10 mx-auto text-muted-foreground/60 mb-3" />
           <p className="text-sm font-medium text-foreground">No shared charts yet</p>
-          <p className="text-xs text-muted-foreground mt-1">Assign a visualization from NextGen Query to see it here.</p>
+          <p className="text-xs text-muted-foreground mt-1">Charts you create (Analyst) or reshare from &quot;Views shared with you&quot; appear here. Feedback from recipients is shown below each chart.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {list.map((viz) => (
-            <div key={viz.id} className="border rounded-lg overflow-hidden bg-card">
+            <div key={viz.id} className="border rounded-lg overflow-hidden bg-card flex flex-col">
               <div className="p-3 border-b bg-muted/30 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium">{viz.title}</span>
                 <span className="text-xs text-muted-foreground">
-                  Shared with {viz.targetType}: {viz.targetValue} · {viz.createdAt}
+                  {viz.resharedByMe ? 'Reshared by you' : 'Created by you'} · Shared with {viz.targetType}: {viz.targetValue} · {viz.createdAt}
                 </span>
                 <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => handleEdit(viz)}>
-                    <Edit3 className="h-3 w-3" /> Edit
-                  </Button>
+                  {!viz.resharedByMe && (
+                    <Button type="button" variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => handleEdit(viz)}>
+                      <Edit3 className="h-3 w-3" /> Edit
+                    </Button>
+                  )}
                   <Button type="button" variant="outline" size="sm" className="gap-1 h-8 text-xs text-destructive" onClick={() => setDeleteConfirm(viz)}>
                     <Trash2 className="h-3 w-3" /> Delete
                   </Button>

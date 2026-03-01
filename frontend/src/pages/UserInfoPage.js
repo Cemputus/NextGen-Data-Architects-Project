@@ -20,7 +20,7 @@ export default function UserInfoPage() {
   const [leaveSubmitting, setLeaveSubmitting] = useState(false);
   const [leaveSuccess, setLeaveSuccess] = useState('');
   const [leaveError, setLeaveError] = useState('');
-  const [leaveForm, setLeaveForm] = usePersistedState('user_info_leaveForm', { start_date: '', end_date: '', reason: '' });
+  const [leaveForm, setLeaveForm] = usePersistedState('user_info_leaveForm', { start_date: '', end_date: '', reason: '', request_type: 'new', parent_leave_id: null });
 
   useEffect(() => {
     Promise.all([
@@ -40,16 +40,26 @@ export default function UserInfoPage() {
       setLeaveError('Please fill start date, end date, and reason.');
       return;
     }
+    if (new Date(leaveForm.start_date) > new Date(leaveForm.end_date)) {
+      setLeaveError('Start date must be earlier than or equal to end date.');
+      return;
+    }
     setLeaveSubmitting(true);
     setLeaveError('');
     setLeaveSuccess('');
+    const payload = {
+        start_date: leaveForm.start_date,
+        end_date: leaveForm.end_date,
+        reason: leaveForm.reason.trim(),
+        ...(leaveForm.request_type === 'extension' && leaveForm.parent_leave_id ? { request_type: 'extension', parent_leave_id: leaveForm.parent_leave_id } : {}),
+      };
     try {
-      await axios.post('/api/hr/leave-request', leaveForm, {
+      await axios.post('/api/hr/leave-request', payload, {
         ...auth(),
         headers: { ...auth().headers, 'Content-Type': 'application/json' },
       });
       setLeaveSuccess('Leave request submitted. HR will review.');
-      setLeaveForm({ start_date: '', end_date: '', reason: '' });
+      setLeaveForm({ start_date: '', end_date: '', reason: '', request_type: 'new', parent_leave_id: null });
       const r = await axios.get('/api/hr/my-leave-requests', auth());
       setLeaveRequests(r.data?.requests || []);
     } catch (err) {
@@ -123,56 +133,98 @@ export default function UserInfoPage() {
           <CardDescription className="text-xs">Apply for leave; HR will review</CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0 space-y-4">
-          <form onSubmit={handleSubmitLeave} className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="leave-start-date" className="text-xs font-medium">Start date</label>
-                <Input
-                  id="leave-start-date"
-                  type="date"
-                  value={leaveForm.start_date}
-                  onChange={(e) => setLeaveForm((f) => ({ ...f, start_date: e.target.value }))}
-                  className="mt-1 h-9"
-                />
-              </div>
-              <div>
-                <label htmlFor="leave-end-date" className="text-xs font-medium">End date</label>
-                <Input
-                  id="leave-end-date"
-                  type="date"
-                  value={leaveForm.end_date}
-                  onChange={(e) => setLeaveForm((f) => ({ ...f, end_date: e.target.value }))}
-                  className="mt-1 h-9"
-                />
-              </div>
-            </div>
-            <div>
-              <label htmlFor="leave-reason" className="text-xs font-medium">Reason</label>
-              <Input
-                id="leave-reason"
-                value={leaveForm.reason}
-                onChange={(e) => setLeaveForm((f) => ({ ...f, reason: e.target.value }))}
-                placeholder="Brief reason for leave"
-                className="mt-1 h-9"
-              />
-            </div>
-            {leaveError && <p className="text-sm text-destructive">{leaveError}</p>}
-            {leaveSuccess && <p className="text-sm text-green-600 dark:text-green-400">{leaveSuccess}</p>}
-            <Button type="submit" disabled={leaveSubmitting}>
-              {leaveSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Submit leave request
-            </Button>
-          </form>
           {leaveRequests.length > 0 && (
-            <div className="border-t pt-3 mt-3">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Your requests</p>
-              <ul className="space-y-1 text-sm">
-                {leaveRequests.map((req, i) => (
-                  <li key={i}>{req.start_date} – {req.end_date}: {req.reason || '—'} ({req.status || 'Pending'})</li>
-                ))}
+            <div className="space-y-2 mb-4">
+              <p className="text-xs font-medium text-muted-foreground">Your requests</p>
+              <ul className="space-y-2 text-sm">
+                {leaveRequests.map((req) => {
+                  const today = new Date().toISOString().slice(0, 10);
+                  const status = (req.status || 'pending').toLowerCase();
+                  const statusLabel = status === 'pending' ? 'Pending' : status === 'approved' ? 'Approved' : 'Rejected';
+                  const isActive = status === 'approved' && req.start_date <= today && req.end_date >= today;
+                  const isRejected = status === 'rejected';
+                  return (
+                    <li key={req.id} className="p-2 rounded-lg border bg-muted/20">
+                      <span className="font-medium">{req.start_date} – {req.end_date}</span>: {req.reason || '—'}{' '}
+                      <span className={status === 'approved' ? 'text-green-600 dark:text-green-400' : status === 'rejected' ? 'text-destructive' : 'text-amber-600 dark:text-amber-400'}>
+                        ({statusLabel})
+                      </span>
+                      {req.request_type === 'extension' && <span className="text-muted-foreground ml-1">(extension)</span>}
+                      {isActive && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto p-0 ml-2 text-xs"
+                          onClick={() => setLeaveForm((f) => ({ ...f, request_type: 'extension', parent_leave_id: req.id, reason: f.reason || 'Extension of current leave' }))}
+                        >
+                          Request extension
+                        </Button>
+                      )}
+                      {isRejected && (
+                        <p className="text-xs text-muted-foreground mt-1">You can apply again below.</p>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
+
+          {(() => {
+            const hasPending = leaveRequests.some((r) => (r.status || '').toLowerCase() === 'pending');
+            return (
+              <>
+                {hasPending && (
+                  <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+                    You have a request waiting for approval. The form below is inactive until HR approves or rejects it.
+                  </p>
+                )}
+                <form onSubmit={handleSubmitLeave} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="leave-start-date" className="text-xs font-medium">Start date</label>
+                      <Input
+                        id="leave-start-date"
+                        type="date"
+                        value={leaveForm.start_date}
+                        onChange={(e) => setLeaveForm((f) => ({ ...f, start_date: e.target.value }))}
+                        className="mt-1 h-9"
+                        disabled={hasPending}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="leave-end-date" className="text-xs font-medium">End date</label>
+                      <Input
+                        id="leave-end-date"
+                        type="date"
+                        value={leaveForm.end_date}
+                        onChange={(e) => setLeaveForm((f) => ({ ...f, end_date: e.target.value }))}
+                        className="mt-1 h-9"
+                        disabled={hasPending}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="leave-reason" className="text-xs font-medium">Reason</label>
+                    <Input
+                      id="leave-reason"
+                      value={leaveForm.reason}
+                      onChange={(e) => setLeaveForm((f) => ({ ...f, reason: e.target.value }))}
+                      placeholder="Brief reason for leave"
+                      className="mt-1 h-9"
+                      disabled={hasPending}
+                    />
+                  </div>
+                  {leaveError && <p className="text-sm text-destructive">{leaveError}</p>}
+                  {leaveSuccess && <p className="text-sm text-green-600 dark:text-green-400">{leaveSuccess}</p>}
+                  <Button type="submit" disabled={leaveSubmitting || hasPending}>
+                    {leaveSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {hasPending ? 'Submit leave request (inactive — pending approval)' : 'Submit leave request'}
+                  </Button>
+                </form>
+              </>
+            );
+          })()}
         </CardContent>
       </Card>
 

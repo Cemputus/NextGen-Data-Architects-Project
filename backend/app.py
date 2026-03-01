@@ -1272,10 +1272,12 @@ def hr_list_leave_requests():
         return jsonify({'requests': [], 'error': str(e)})
 
 
-@app.route('/api/hr/leave-requests/<int:leave_id>/review', methods=['POST'])
-@jwt_required()
+@app.route('/api/hr/leave-requests/<int:leave_id>/review', methods=['POST', 'OPTIONS'])
 def hr_review_leave_request(leave_id):
-    """HR: approve or reject a leave request."""
+    """HR: approve or reject a leave request. OPTIONS for CORS."""
+    if request.method == 'OPTIONS':
+        return '', 204
+    verify_jwt_in_request()
     from flask_jwt_extended import get_jwt
     if (get_jwt().get('role') or '').strip().lower() != 'hr':
         return jsonify({'error': 'HR only'}), 403

@@ -7,6 +7,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { usePersistentToast } from '../context/PersistentToastContext';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { Loader2, Share2, Search, User, MessageSquare, Send, Share } from 'lucide-react';
 import { VizCard } from '../components/AssignedViewsSection';
@@ -28,14 +29,16 @@ export default function SharedViewsPage() {
   const [reshareTargetValue, setReshareTargetValue] = usePersistedState('shared_views_reshareTargetValue', '');
   const [reshareSubmitting, setReshareSubmitting] = useState(false);
   const [reshareError, setReshareError] = useState('');
+  const [reshareSuccess, setReshareSuccess] = useState('');
   const [targetOptions, setTargetOptions] = useState({ roles: [], users: [] });
   const [feedbackByViz, setFeedbackByViz] = useState({});
-  const [feedbackOpenViz, setFeedbackOpenViz] = useState(null);
+  const [feedbackOpenViz, setFeedbackOpenViz] = usePersistedState('shared_views_feedbackOpenViz', null);
   const [newFeedbackMsg, setNewFeedbackMsg] = usePersistedState('shared_views_newFeedbackMsg', {});
   const [newReplyMsg, setNewReplyMsg] = usePersistedState('shared_views_newReplyMsg', {});
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
 
   const { user } = useAuth();
+  const { addToast } = usePersistentToast();
   const currentUsername = (user?.username || '').toString().toLowerCase();
 
   const token = () => localStorage.getItem('token');
@@ -48,6 +51,10 @@ export default function SharedViewsPage() {
       .catch(() => setList([]))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (feedbackOpenViz && list.some((v) => v.id === feedbackOpenViz)) loadFeedback(feedbackOpenViz);
+  }, [feedbackOpenViz, list]);
 
   useEffect(() => {
     if (!reshareModal) return;
@@ -91,6 +98,7 @@ export default function SharedViewsPage() {
     }
     setReshareSubmitting(true);
     setReshareError('');
+    setReshareSuccess('');
     try {
       await axios.post('/api/query/assigned-visualizations/reshare', {
         vizId: reshareModal.id,
@@ -104,6 +112,11 @@ export default function SharedViewsPage() {
       setReshareTargetValue('');
       const res = await axios.get('/api/query/assigned-visualizations/for-me', auth());
       setList(res.data?.visualizations || []);
+      const targetLabel = reshareTargetType === 'role' ? `role "${reshareTargetValue}"` : `user "${reshareTargetValue}"`;
+      const successMsg = `Chart shared successfully with ${targetLabel}. They will see it under "Views shared with you".`;
+      setReshareSuccess(successMsg);
+      addToast(successMsg, 'success');
+      setTimeout(() => setReshareSuccess(''), 6000);
     } catch (e) {
       setReshareError(e.response?.data?.error || 'Failed to reshare.');
     } finally {
@@ -247,6 +260,12 @@ export default function SharedViewsPage() {
         </p>
       </div>
 
+      {reshareSuccess && (
+        <div className="rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-400">
+          {reshareSuccess}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -345,27 +364,40 @@ export default function SharedViewsPage() {
                 </select>
               </div>
               {reshareTargetType === 'role' ? (
-                <select
-                  value={reshareTargetValue}
-                  onChange={(e) => setReshareTargetValue(e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="">Select role</option>
-                  {rolesForSelect.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
+                <div>
+                  <label htmlFor="reshare-role" className="text-xs font-medium text-muted-foreground block mb-1">Select role</label>
+                  <select
+                    id="reshare-role"
+                    value={reshareTargetValue}
+                    onChange={(e) => setReshareTargetValue(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Select role</option>
+                    {rolesForSelect.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
               ) : (
-                <select
-                  value={reshareTargetValue}
-                  onChange={(e) => setReshareTargetValue(e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="">Select user</option>
-                  {(targetOptions.users || []).map((u) => (
-                    <option key={u.username} value={u.username}>{u.full_name || u.username} ({u.role})</option>
-                  ))}
-                </select>
+                <div>
+                  <label htmlFor="reshare-user" className="text-xs font-medium text-muted-foreground block mb-1">Select user</label>
+                  <select
+                    id="reshare-user"
+                    value={reshareTargetValue}
+                    onChange={(e) => setReshareTargetValue(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Select user</option>
+                    {(targetOptions.users || []).map((u) => (
+                      <option key={u.username || u} value={u.username || u}>
+                        {typeof u === 'object' ? (u.full_name || u.username || '') + (u.role ? ` (${u.role})` : '') : u}
+                      </option>
+                    ))}
+                  </select>
+                  {(targetOptions.users || []).length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">No app users found. Ask an admin to add users.</p>
+                  )}
+                </div>
               )}
             </div>
             {reshareError && <p className="text-sm text-destructive mt-2">{reshareError}</p>}
