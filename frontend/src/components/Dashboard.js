@@ -107,7 +107,7 @@ const Dashboard = () => {
               <Icon as={FaGraduationCap} boxSize={8} color="blue.600" />
               <VStack align="flex-start" spacing={0}>
                 <Heading size="lg" color="blue.600">
-                  UCU Analytics Dashboard
+                  NextGen MIS
                 </Heading>
                 <Text fontSize="sm" color="gray.500">
                   Uganda Christian University

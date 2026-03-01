@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Search, RefreshCw } from 'lucide-react';
+import { FileText, Search, RefreshCw, BarChart3, Table2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -13,6 +13,7 @@ import { LoadingState, EmptyState, ErrorState } from '../ui/state-messages';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import adminUIState from '../../utils/adminUIState';
+import { SciBarChart } from '../charts/EChartsComponents';
 
 const AUDIT_LIMIT_OPTIONS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 500, 'all'];
 
@@ -40,6 +41,17 @@ export default function AuditLogSection({
   const [error, setError] = useState(null);
   const [settingUp, setSettingUp] = useState(false);
   const [logsLimit, setLogsLimit] = useState(getInitialLimit);
+  const [dataViewMode, setDataViewModeState] = useState(() => (compact ? 'raw' : (auditState.dataViewMode || 'raw')));
+  const [chartGroupBy, setChartGroupByState] = useState(() => (compact ? 'action' : (auditState.chartGroupBy || 'action')));
+
+  const setDataViewMode = (v) => {
+    setDataViewModeState(v);
+    if (!compact) adminUIState.setSection('audit', { dataViewMode: v });
+  };
+  const setChartGroupBy = (v) => {
+    setChartGroupByState(v);
+    if (!compact) adminUIState.setSection('audit', { chartGroupBy: v });
+  };
 
   const setSearchTerm = (v) => {
     setSearchTermState(v);
@@ -135,6 +147,26 @@ export default function AuditLogSection({
     );
   }, [logs, searchTerm]);
 
+  const chartData = useMemo(() => {
+    const keyMap = {
+      action: (l) => l.action || '—',
+      resource: (l) => l.resource || '—',
+      user: (l) => l.username || '—',
+      role: (l) => l.role_name || '—',
+      status: (l) => l.status || '—',
+    };
+    const getKey = keyMap[chartGroupBy] || keyMap.action;
+    const counts = {};
+    filteredLogs.forEach((l) => {
+      const k = String(getKey(l));
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 25);
+  }, [filteredLogs, chartGroupBy]);
+
   const handleLimitChange = async (e) => {
     const val = e.target.value;
     let newLimit;
@@ -189,6 +221,35 @@ export default function AuditLogSection({
         </Card>
       )}
 
+      {!compact && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">Data view</CardTitle>
+            <CardDescription>Choose how to view audit log data</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant={dataViewMode === 'visual' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDataViewMode('visual')}
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Visual (charts & filters)
+              </Button>
+              <Button
+                variant={dataViewMode === 'raw' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDataViewMode('raw')}
+              >
+                <Table2 className="h-4 w-4 mr-2" />
+                Raw (table)
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className={compact ? 'py-3' : ''}>
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -201,22 +262,40 @@ export default function AuditLogSection({
                 User actions, logins, and system events. Use the filter to choose how many entries to show.
               </CardDescription>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Show last</span>
-              <select
-                value={String(logsLimit)}
-                onChange={handleLimitChange}
-                disabled={loading}
-                className="rounded border border-input bg-background px-2 py-1.5 text-sm disabled:opacity-50"
-              >
-                {AUDIT_LIMIT_OPTIONS.map((n) => (
-                  <option key={n} value={String(n)}>
-                    {n === 'all' ? 'All entries' : `${n} entries`}
-                  </option>
-                ))}
-              </select>
-              {loading && <span className="text-xs text-muted-foreground">Loading...</span>}
-            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Show last</span>
+                <select
+                  value={String(logsLimit)}
+                  onChange={handleLimitChange}
+                  disabled={loading}
+                  className="rounded border border-input bg-background px-2 py-1.5 text-sm disabled:opacity-50"
+                >
+                  {AUDIT_LIMIT_OPTIONS.map((n) => (
+                    <option key={n} value={String(n)}>
+                      {n === 'all' ? 'All entries' : `${n} entries`}
+                    </option>
+                  ))}
+                </select>
+                {loading && <span className="text-xs text-muted-foreground">Loading...</span>}
+              </label>
+              {!compact && dataViewMode === 'visual' && (
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Group by</span>
+                  <select
+                    value={chartGroupBy}
+                    onChange={(e) => setChartGroupBy(e.target.value)}
+                    className="rounded border border-input bg-background px-2 py-1.5 text-sm"
+                  >
+                    <option value="action">Action</option>
+                    <option value="resource">Resource</option>
+                    <option value="user">User</option>
+                    <option value="role">Role</option>
+                    <option value="status">Status</option>
+                  </select>
+                </label>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className={compact ? 'py-3' : ''}>
@@ -243,6 +322,23 @@ export default function AuditLogSection({
               message="No audit log entries found."
               hint="Set up the ucu_rbac database and audit_logs table for a full trail."
             />
+          ) : !compact && dataViewMode === 'visual' ? (
+            <>
+              <div className="mb-2 text-xs text-muted-foreground">
+                Showing top 25 groups from {filteredLogs.length} entries (limit: {logsLimit === 'all' ? 'all' : logsLimit}). Switch to Raw for full table.
+              </div>
+              <div className="h-[320px] min-h-[200px] w-full">
+                <SciBarChart
+                  data={chartData}
+                  xDataKey="name"
+                  yDataKey="value"
+                  xAxisLabel={chartGroupBy === 'action' ? 'Action' : chartGroupBy === 'resource' ? 'Resource' : chartGroupBy === 'user' ? 'User' : chartGroupBy === 'role' ? 'Role' : 'Status'}
+                  yAxisLabel="Count"
+                  fillColor="#1e3a5f"
+                  showGrid
+                />
+              </div>
+            </>
           ) : (
             <>
               <div className="mb-2 text-xs text-muted-foreground">

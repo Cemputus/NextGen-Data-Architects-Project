@@ -2,7 +2,7 @@
  * Admin ETL Jobs Page - ETL and Data Warehouse tracking for system admin
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, RefreshCw, Database, CheckCircle, XCircle, Clock, FileText, Download, Eye } from 'lucide-react';
+import { Play, RefreshCw, Database, CheckCircle, XCircle, Clock, FileText, Download, Eye, BarChart3, Table2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader, PageContent } from '../components/ui/page-header';
@@ -10,11 +10,13 @@ import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, Table
 import { LoadingState, ErrorState } from '../components/ui/state-messages';
 import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
+import { Input } from '../components/ui/input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { exportETLRunToPDF } from '../utils/exportUtils';
 import adminUIState from '../utils/adminUIState';
+import { SciBarChart } from '../components/charts/EChartsComponents';
 
 const REFRESH_INTERVAL_MS = 5000;
 const REFRESH_AFTER_RUN_COUNT = 12; // 12 * 5s = 60s of polling after Run ETL
@@ -39,6 +41,22 @@ const AdminETL = () => {
   const [etlRunsLimit, setEtlRunsLimitState] = useState(() => etlState.runsLimit ?? 5);
   const [etlPerPage, setEtlPerPageState] = useState(() => etlState.perPage ?? 20);
   const [etlPage, setEtlPageState] = useState(() => etlState.page ?? 1);
+  const [dataViewMode, setDataViewModeState] = useState(() => etlState.dataViewMode ?? 'raw');
+  const [warehouseFilter, setWarehouseFilterState] = useState(() => etlState.warehouseFilter ?? '');
+  const [etlStatusFilter, setEtlStatusFilterState] = useState(() => etlState.etlStatusFilter ?? 'all');
+
+  const setDataViewMode = (v) => {
+    setDataViewModeState(v);
+    adminUIState.setSection('etl', { dataViewMode: v });
+  };
+  const setWarehouseFilter = (v) => {
+    setWarehouseFilterState(v);
+    adminUIState.setSection('etl', { warehouseFilter: v });
+  };
+  const setEtlStatusFilter = (v) => {
+    setEtlStatusFilterState(v);
+    adminUIState.setSection('etl', { etlStatusFilter: v });
+  };
 
   const setEtlRunsLimit = (v) => {
     setEtlRunsLimitState(v);
@@ -376,41 +394,104 @@ const AdminETL = () => {
         </CardContent>
       </Card>
 
-      {/* Data warehouse summary — same style as setup/ETL output */}
+      {/* Data view mode: Visual (charts + filters) or Raw (tables) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">Data view</CardTitle>
+          <CardDescription>Choose how to view warehouse and ETL run data</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant={dataViewMode === 'visual' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDataViewMode('visual')}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Visual (charts & filters)
+            </Button>
+            <Button
+              variant={dataViewMode === 'raw' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDataViewMode('raw')}
+            >
+              <Table2 className="h-4 w-4 mr-2" />
+              Raw (tables)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Data warehouse summary — Visual or Raw */}
       <Card>
         <CardHeader>
           <CardTitle>Data Warehouse (Gold Layer)</CardTitle>
           <CardDescription>UCU_DataWarehouse — dimension and fact table row counts</CardDescription>
         </CardHeader>
         <CardContent>
-          <TableWrapper>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Table</TableHead>
-                  <TableHead className="text-right">Count</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Object.entries(warehouse).map(([table, count]) => (
-                  <TableRow key={table}>
-                    <TableCell className="font-mono">{table}</TableCell>
-                    <TableCell className="text-right">{count != null ? count.toLocaleString() : '—'}</TableCell>
+          {dataViewMode === 'visual' ? (
+            <>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <Label htmlFor="wh-filter" className="text-sm text-muted-foreground">Filter tables</Label>
+                <Input
+                  id="wh-filter"
+                  placeholder="e.g. dim_ or fact_"
+                  value={warehouseFilter}
+                  onChange={(e) => setWarehouseFilter(e.target.value)}
+                  className="max-w-xs"
+                />
+              </div>
+              {(() => {
+                const entries = Object.entries(warehouse).filter(([t]) => !warehouseFilter || t.toLowerCase().includes(warehouseFilter.toLowerCase()));
+                const chartData = entries.map(([table, count]) => ({ name: table, value: count != null ? count : 0 }));
+                if (chartData.length === 0) {
+                  return <p className="text-muted-foreground text-sm py-4">No tables match the filter.</p>;
+                }
+                return (
+                  <div className="h-[320px] min-h-[200px] w-full">
+                    <SciBarChart
+                      data={chartData}
+                      xDataKey="name"
+                      yDataKey="value"
+                      xAxisLabel="Table"
+                      yAxisLabel="Row count"
+                      fillColor="#1e3a5f"
+                      showGrid
+                    />
+                  </div>
+                );
+              })()}
+            </>
+          ) : (
+            <TableWrapper>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Table</TableHead>
+                    <TableHead className="text-right">Count</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableWrapper>
+                </TableHeader>
+                <TableBody>
+                  {Object.entries(warehouse).map(([table, count]) => (
+                    <TableRow key={table}>
+                      <TableCell className="font-mono">{table}</TableCell>
+                      <TableCell className="text-right">{count != null ? count.toLocaleString() : '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableWrapper>
+          )}
         </CardContent>
       </Card>
 
-      {/* ETL run history */}
+      {/* ETL run history — Visual or Raw */}
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <CardTitle>ETL Run History</CardTitle>
-              <CardDescription>One row per run (latest first). Use the filter to choose how many to show.</CardDescription>
+              <CardDescription>One row per run (latest first). Use filters to choose how many to show.</CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-sm" htmlFor="etl-runs-limit">
@@ -427,88 +508,151 @@ const AdminETL = () => {
                   ))}
                 </select>
               </label>
-              <label className="flex items-center gap-2 text-sm" htmlFor="etl-per-page">
-                <span className="text-muted-foreground">Per page</span>
-                <select
-                  id="etl-per-page"
-                  value={etlPerPage}
-                  onChange={(e) => setEtlPerPage(Number(e.target.value))}
-                  className="rounded border border-input bg-background px-2 py-1.5 text-sm h-9"
-                  aria-label="Rows per page"
-                >
-                  {ETL_PER_PAGE_OPTIONS.map((n) => (
-                    <option key={n} value={n}>{n}/page</option>
-                  ))}
-                </select>
-              </label>
+              {dataViewMode === 'visual' && (
+                <label className="flex items-center gap-2 text-sm" htmlFor="etl-status-filter">
+                  <span className="text-muted-foreground">Status</span>
+                  <select
+                    id="etl-status-filter"
+                    value={etlStatusFilter}
+                    onChange={(e) => setEtlStatusFilter(e.target.value)}
+                    className="rounded border border-input bg-background px-2 py-1.5 text-sm h-9"
+                  >
+                    <option value="all">All</option>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
+                  </select>
+                </label>
+              )}
+              {dataViewMode === 'raw' && (
+                <label className="flex items-center gap-2 text-sm" htmlFor="etl-per-page">
+                  <span className="text-muted-foreground">Per page</span>
+                  <select
+                    id="etl-per-page"
+                    value={etlPerPage}
+                    onChange={(e) => setEtlPerPage(Number(e.target.value))}
+                    className="rounded border border-input bg-background px-2 py-1.5 text-sm h-9"
+                    aria-label="Rows per page"
+                  >
+                    {ETL_PER_PAGE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>{n}/page</option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {etlRuns.length === 0 ? (
             <p className="text-muted-foreground text-sm py-4">No ETL log files found. Click Run ETL to add one run.</p>
+          ) : dataViewMode === 'visual' ? (
+            (() => {
+              const filtered = etlStatusFilter === 'all'
+                ? etlRuns
+                : etlRuns.filter((r) => (etlStatusFilter === 'success' && r.success) || (etlStatusFilter === 'failed' && !r.success));
+              const parseDurationSec = (d) => {
+                if (!d || typeof d !== 'string') return 0;
+                const parts = d.trim().split(':').map((p) => parseFloat(p, 10) || 0);
+                if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+                if (parts.length === 1) return parts[0];
+                return 0;
+              };
+              const chartData = filtered.slice(0, 30).map((run, i) => {
+                const sec = parseDurationSec(run.duration);
+                const label = run.log_file ? run.log_file.replace(/^etl_pipeline_|\.log$/gi, '').slice(-12) : `Run ${i + 1}`;
+                return {
+                  name: label,
+                  success: run.success ? sec : 0,
+                  failed: !run.success ? Math.max(sec, 0.1) : 0,
+                };
+              });
+              if (chartData.length === 0) {
+                return <p className="text-muted-foreground text-sm py-4">No runs match the status filter.</p>;
+              }
+              return (
+                <>
+                  <div className="h-[320px] min-h-[200px] w-full mb-4">
+                    <SciBarChart
+                      data={chartData}
+                      xDataKey="name"
+                      yDataKey="value"
+                      yDataKeys={[
+                        { key: 'success', label: 'Success (duration sec)', color: '#16a34a' },
+                        { key: 'failed', label: 'Failed (duration sec)', color: '#ca8a04' },
+                      ]}
+                      xAxisLabel="Run"
+                      yAxisLabel="Duration (sec)"
+                      showGrid
+                    />
+                  </div>
+                  <p className="text-muted-foreground text-xs">Showing up to 30 runs. Use &quot;Raw (tables)&quot; for full list and actions (View, Download PDF).</p>
+                </>
+              );
+            })()
           ) : (
-            <TableWrapper>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Log file</TableHead>
-                    <TableHead>Start time</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {etlRunsPaginated.map((run) => (
-                    <TableRow key={run.log_file}>
-                      <TableCell className="font-mono">{run.log_file}</TableCell>
-                      <TableCell>{run.start_time || '—'}</TableCell>
-                      <TableCell>{run.duration || '—'}</TableCell>
-                      <TableCell>
-                        {run.success ? (
-                          <span className="inline-flex items-center gap-1 text-green-600">
-                            <CheckCircle className="h-4 w-4" aria-hidden /> Success
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-amber-600">
-                            <XCircle className="h-4 w-4" aria-hidden /> Failed
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => openViewLog(run)} disabled={logLoading}>
-                            {logLoading && viewLogRun?.log_file === run.log_file ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-                            View
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => downloadETLReportPDF(run)} disabled={!!pdfDownloading}>
-                            {pdfDownloading === run.log_file ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                            Download PDF
-                          </Button>
-                        </div>
-                      </TableCell>
+            <>
+              <TableWrapper>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Log file</TableHead>
+                      <TableHead>Start time</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableWrapper>
-          )}
-          {etlRuns.length > etlPerPage && (
-            <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t">
-              <span className="text-sm text-muted-foreground">
-                Showing {(etlPage - 1) * etlPerPage + 1}–{Math.min(etlPage * etlPerPage, etlRuns.length)} of {etlRuns.length}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setEtlPage((p) => Math.max(1, p - 1))} disabled={etlPage <= 1}>
-                  Previous
-                </Button>
-                <span className="text-sm tabular-nums">Page {etlPage} of {etlTotalPages}</span>
-                <Button variant="outline" size="sm" onClick={() => setEtlPage((p) => Math.min(etlTotalPages, p + 1))} disabled={etlPage >= etlTotalPages}>
-                  Next
-                </Button>
-              </div>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {etlRunsPaginated.map((run) => (
+                      <TableRow key={run.log_file}>
+                        <TableCell className="font-mono">{run.log_file}</TableCell>
+                        <TableCell>{run.start_time || '—'}</TableCell>
+                        <TableCell>{run.duration || '—'}</TableCell>
+                        <TableCell>
+                          {run.success ? (
+                            <span className="inline-flex items-center gap-1 text-green-600">
+                              <CheckCircle className="h-4 w-4" aria-hidden /> Success
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-amber-600">
+                              <XCircle className="h-4 w-4" aria-hidden /> Failed
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => openViewLog(run)} disabled={logLoading}>
+                              {logLoading && viewLogRun?.log_file === run.log_file ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                              View
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => downloadETLReportPDF(run)} disabled={!!pdfDownloading}>
+                              {pdfDownloading === run.log_file ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                              Download PDF
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableWrapper>
+              {etlRuns.length > etlPerPage && (
+                <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    Showing {(etlPage - 1) * etlPerPage + 1}–{Math.min(etlPage * etlPerPage, etlRuns.length)} of {etlRuns.length}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEtlPage((p) => Math.max(1, p - 1))} disabled={etlPage <= 1}>
+                      Previous
+                    </Button>
+                    <span className="text-sm tabular-nums">Page {etlPage} of {etlTotalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setEtlPage((p) => Math.min(etlTotalPages, p + 1))} disabled={etlPage >= etlTotalPages}>
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

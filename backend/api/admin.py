@@ -56,6 +56,23 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 SETTINGS_FILE = Path(backend_dir) / 'data' / 'admin_settings.json'
 
 
+_ABOUT_DEFAULTS = {
+    'systemDescription': (
+        'This platform is a data analytics and ETL management system. It supports data pipelines, '
+        'warehouse integration, analyst dashboards, and administrative oversight—including ETL run '
+        'history, notifications, audit logs, and user management.'
+    ),
+    'teamIntro': (
+        'Developed by the NextGen Data Architects team as part of their studies in '
+        'Bachelor of Science in Data Science and Analytics at Uganda Christian University.'
+    ),
+    'developers': [
+        {'name': 'Guloba Emmanuel Edube', 'githubHandle': 'Edube20Emmanuel'},
+        {'name': 'Emmanuel Nsubuga', 'githubHandle': 'Cemputus'},
+        {'name': 'Asingwiire Enoch', 'githubHandle': 'asingwiireenoch'},
+    ],
+}
+
 _ADMIN_SETTINGS_DEFAULTS = {
     'systemName': 'NextGen Data Architects',
     'apiUrl': '',
@@ -70,6 +87,7 @@ _ADMIN_SETTINGS_DEFAULTS = {
     'maxLoginAttempts': 5,
     'theme': 'system',
     'compactSidebar': False,
+    'about': _ABOUT_DEFAULTS,
 }
 
 
@@ -83,6 +101,19 @@ def _load_settings():
             loaded = json.load(f)
         if isinstance(loaded, dict):
             base.update(loaded)
+            # Deep-merge about so missing keys get defaults
+            if isinstance(base.get('about'), dict):
+                about = dict(_ABOUT_DEFAULTS)
+                about.update(base['about'])
+                if isinstance(about.get('developers'), list):
+                    devs = list(about['developers'])
+                    for i, d in enumerate(devs):
+                        if isinstance(d, dict):
+                            devs[i] = {'name': d.get('name', ''), 'githubHandle': d.get('githubHandle', '')}
+                    about['developers'] = devs
+                base['about'] = about
+            else:
+                base['about'] = dict(_ABOUT_DEFAULTS)
         return base
     except Exception:
         return base

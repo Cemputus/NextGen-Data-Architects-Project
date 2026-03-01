@@ -151,7 +151,7 @@ const Layout = ({ children }) => {
         <VStack align="stretch" p={4} spacing={4}>
           <Box>
             <Text fontSize="xl" fontWeight="bold" color="blue.600">
-              UCU Analytics
+              NextGen MIS
             </Text>
             <Badge colorScheme={getRoleColor(user?.role)}>{user?.role}</Badge>
           </Box>
@@ -229,7 +229,7 @@ const Layout = ({ children }) => {
         <DrawerOverlay />
         <DrawerContent>
           <DrawerCloseButton />
-          <DrawerHeader>UCU Analytics</DrawerHeader>
+          <DrawerHeader>NextGen MIS</DrawerHeader>
           <DrawerBody>
             <VStack align="stretch" spacing={2}>
               {getNavItems().map((item) => (

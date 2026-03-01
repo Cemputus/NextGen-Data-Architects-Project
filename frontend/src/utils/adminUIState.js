@@ -9,6 +9,9 @@ const DEFAULTS = {
     runsLimit: 5,
     perPage: 20,
     page: 1,
+    dataViewMode: 'raw', // 'raw' | 'visual'
+    warehouseFilter: '',
+    etlStatusFilter: 'all', // 'all' | 'success' | 'failed'
   },
   notifications: {
     limit: 5,
@@ -18,6 +21,8 @@ const DEFAULTS = {
   audit: {
     limit: 10,
     searchTerm: '',
+    dataViewMode: 'raw', // 'raw' | 'visual'
+    chartGroupBy: 'action', // 'action' | 'resource' | 'user' | 'role' | 'status'
   },
   users: {
     limit: 50,
