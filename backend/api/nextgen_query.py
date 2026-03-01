@@ -179,24 +179,22 @@ ROLES_FOR_ASSIGNMENT = [
 @jwt_required()
 def get_assignment_target_options():
     """Return roles and app users for the assign-visualization dropdown. Analyst/Sysadmin only."""
-    username, role = _current_user()
-    err = _require_analyst_or_sysadmin(role)
-    if err is not None:
-        return err
-
-    users = []
     try:
+        username, role = _current_user()
+        err = _require_analyst_or_sysadmin(role)
+        if err is not None:
+            return err
+
+        users = []
         engine = _get_rbac_engine()
         _ensure_app_users_table(engine)
         with engine.connect() as conn:
-            # Include full_name for display and search; order by role then username so frontend can group
-            result = conn.execute(
-                text("""
-                    SELECT username, role, COALESCE(full_name, '') AS full_name
-                    FROM app_users
-                    ORDER BY role, username
-                """),
-            )
+            try:
+                result = conn.execute(
+                    text("SELECT username, role, COALESCE(full_name, '') AS full_name FROM app_users ORDER BY role, username"),
+                )
+            except Exception:
+                result = conn.execute(text("SELECT username, role FROM app_users ORDER BY role, username"))
             for row in result.mappings().fetchall():
                 users.append({
                     "username": (row["username"] or "").strip(),
@@ -217,71 +215,77 @@ def get_assignment_target_options():
 @jwt_required()
 def create_assigned_visualization():
     """Create an assigned visualization (target = role or user). Analyst/Sysadmin only."""
-    username, role = _current_user()
-    err = _require_analyst_or_sysadmin(role)
-    if err is not None:
-        return err
-
-    body = request.get_json(silent=True) or {}
-    title = (body.get("title") or "").strip()
-    target_type = (body.get("targetType") or "").strip().lower()
-    target_value = (body.get("targetValue") or "").strip()
-    query_text = (body.get("query") or "").strip()
-    chart_type = (body.get("chartType") or "bar").strip()
-    x_column = (body.get("xColumn") or "").strip()
-    y_column = (body.get("yColumn") or "").strip()
-    result_snapshot = body.get("resultSnapshot")
-
-    if not title:
-        return jsonify({"error": "Title is required."}), 400
-    if target_type not in ("role", "user"):
-        return jsonify({"error": "Target must be 'role' or 'user'."}), 400
-    if not target_value:
-        return jsonify({"error": "Target value is required (role name or username)."}), 400
-    if not query_text:
-        return jsonify({"error": "Query text is required."}), 400
-
-    vid = str(uuid.uuid4())[:24]
-    snapshot_json = None
-    if result_snapshot is not None:
-        try:
-            snapshot_json = json.dumps(result_snapshot)
-        except Exception:
-            pass
-
-    engine = _get_rbac_engine()
-    _ensure_assigned_viz_table(engine)
     try:
-        with engine.connect() as conn:
-            conn.execute(
-                text(
-                    """
-                    INSERT INTO assigned_query_visualizations
-                    (id, created_by_username, title, target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot)
-                    VALUES (:id, :created_by, :title, :target_type, :target_value, :query_text, :chart_type, :x_column, :y_column, :result_snapshot)
-                    """
-                ),
-                {
-                    "id": vid,
-                    "created_by": username,
-                    "title": title,
-                    "target_type": target_type,
-                    "target_value": target_value,
-                    "query_text": query_text,
-                    "chart_type": chart_type,
-                    "x_column": x_column,
-                    "y_column": y_column,
-                    "result_snapshot": snapshot_json,
-                },
-            )
-            conn.commit()
-        engine.dispose()
-    except Exception as e:
-        if engine:
-            engine.dispose()
-        return jsonify({"error": str(e)}), 500
+        username, role = _current_user()
+        err = _require_analyst_or_sysadmin(role)
+        if err is not None:
+            return err
 
-    return jsonify({"id": vid, "message": "Visualization assigned successfully."}), 201
+        body = request.get_json(silent=True) or {}
+        title = (body.get("title") or "").strip()
+        target_type = (body.get("targetType") or "").strip().lower()
+        target_value = (body.get("targetValue") or "").strip()
+        query_text = (body.get("query") or "").strip()
+        chart_type = (body.get("chartType") or "bar").strip()
+        x_column = (body.get("xColumn") or "").strip()
+        y_column = (body.get("yColumn") or "").strip()
+        result_snapshot = body.get("resultSnapshot")
+
+        if not title:
+            return jsonify({"error": "Title is required."}), 400
+        if target_type not in ("role", "user"):
+            return jsonify({"error": "Target must be 'role' or 'user'."}), 400
+        if not target_value:
+            return jsonify({"error": "Target value is required (role name or username)."}), 400
+        if not query_text:
+            return jsonify({"error": "Query text is required."}), 400
+
+        vid = str(uuid.uuid4())[:24]
+        snapshot_json = None
+        if result_snapshot is not None:
+            try:
+                snapshot_json = json.dumps(result_snapshot)
+            except Exception:
+                pass
+
+        engine = _get_rbac_engine()
+        _ensure_assigned_viz_table(engine)
+        try:
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO assigned_query_visualizations
+                        (id, created_by_username, title, target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot)
+                        VALUES (:id, :created_by, :title, :target_type, :target_value, :query_text, :chart_type, :x_column, :y_column, :result_snapshot)
+                        """
+                    ),
+                    {
+                        "id": vid,
+                        "created_by": username,
+                        "title": title,
+                        "target_type": target_type,
+                        "target_value": target_value,
+                        "query_text": query_text,
+                        "chart_type": chart_type,
+                        "x_column": x_column,
+                        "y_column": y_column,
+                        "result_snapshot": snapshot_json,
+                    },
+                )
+                conn.commit()
+            engine.dispose()
+        except Exception as e:
+            if engine:
+                try:
+                    engine.dispose()
+                except Exception:
+                    pass
+            return jsonify({"error": str(e)}), 500
+
+        return jsonify({"id": vid, "message": "Visualization assigned successfully."}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @nextgen_query_bp.route("/assigned-visualizations/for-me", methods=["GET"])

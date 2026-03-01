@@ -31,6 +31,8 @@ LIMIT 100;`;
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
+const FALLBACK_ROLES = ['Student', 'Staff', 'HOD', 'Dean', 'Senate', 'Finance', 'HR', 'Analyst', 'Sysadmin'];
+
 const NextGenQueryPage = () => {
   const { effectiveTheme } = useTheme();
 
@@ -58,6 +60,8 @@ const NextGenQueryPage = () => {
   const [assignError, setAssignError] = useState('');
   const [assignSuccessBanner, setAssignSuccessBanner] = useState('');
   const [targetOptions, setTargetOptions] = useState({ roles: [], users: [] });
+  const [targetOptionsLoading, setTargetOptionsLoading] = useState(false);
+  const [assignUserSearch, setAssignUserSearch] = useState('');
   const hasRestoredRef = useRef(false);
   const [manageAssignedOpen, setManageAssignedOpen] = useState(false);
   const [myAssignedList, setMyAssignedList] = useState([]);
@@ -67,6 +71,28 @@ const NextGenQueryPage = () => {
 
   const columns = result?.columns || [];
   const rows = result?.rows || [];
+
+  const rolesForSelect = (targetOptions.roles && targetOptions.roles.length > 0) ? targetOptions.roles : FALLBACK_ROLES;
+
+  const filteredAndGroupedUsers = useMemo(() => {
+    const users = targetOptions.users || [];
+    const term = (assignUserSearch || '').trim().toLowerCase();
+    const filtered = term
+      ? users.filter(
+          (u) =>
+            (u.username || '').toLowerCase().includes(term) ||
+            (u.role || '').toLowerCase().includes(term) ||
+            (u.full_name || '').toLowerCase().includes(term)
+        )
+      : users;
+    const byRole = {};
+    filtered.forEach((u) => {
+      const role = (u.role || '—').trim();
+      if (!byRole[role]) byRole[role] = [];
+      byRole[role].push(u);
+    });
+    return Object.entries(byRole).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [targetOptions.users, assignUserSearch]);
 
   const numericColumns = useMemo(
     () => columns.filter((c) => c.is_numeric),
@@ -150,20 +176,26 @@ const NextGenQueryPage = () => {
     setAssignSuccessBanner('');
     setAssignTargetType('role');
     setAssignTargetValue('');
+    setAssignUserSearch('');
     setAssignModalOpen(true);
+    setTargetOptionsLoading(true);
     const suggestedTitle = [yColumn, xColumn].filter(Boolean).length === 2
       ? `${yColumn} by ${xColumn}`
       : '';
     setAssignTitle(suggestedTitle);
-    axios.get('/api/query/assigned-visualizations/target-options', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-    }).then((res) => {
-      const roles = Array.isArray(res.data?.roles) ? res.data.roles.map((r) => String(r).trim()).filter(Boolean) : [];
-      const users = Array.isArray(res.data?.users) ? res.data.users : [];
-      setTargetOptions({ roles, users });
-      if (roles.length > 0) setAssignTargetValue(roles[0]);
-      else if (users.length > 0) setAssignTargetValue(String(users[0]?.username ?? '').trim());
-    }).catch(() => setTargetOptions({ roles: [], users: [] }));
+    axios
+      .get('/api/query/assigned-visualizations/target-options', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      })
+      .then((res) => {
+        const roles = Array.isArray(res.data?.roles) ? res.data.roles.map((r) => String(r).trim()).filter(Boolean) : [];
+        const users = Array.isArray(res.data?.users) ? res.data.users : [];
+        setTargetOptions({ roles, users });
+        if (roles.length > 0) setAssignTargetValue(roles[0]);
+        else if (users.length > 0) setAssignTargetValue(String(users[0]?.username ?? '').trim());
+      })
+      .catch(() => setTargetOptions({ roles: [], users: [] }))
+      .finally(() => setTargetOptionsLoading(false));
   };
 
   const openManageAssigned = () => {
@@ -884,80 +916,113 @@ const NextGenQueryPage = () => {
             <div>
               <fieldset className="space-y-3">
                 <legend className="text-sm font-medium text-foreground mb-2">Assign to</legend>
-                <div className="flex flex-wrap gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="assignTargetType"
-                      value="role"
-                      checked={assignTargetType === 'role'}
-                      onChange={() => {
-                        const roles = targetOptions.roles || [];
-                        setAssignTargetType('role');
-                        setAssignTargetValue(roles[0] || '');
-                      }}
-                      className="rounded-full border-input"
-                    />
-                    <span className="text-sm">Entire role (all users with this role)</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="assignTargetType"
-                      value="user"
-                      checked={assignTargetType === 'user'}
-                      onChange={() => {
-                        const users = targetOptions.users || [];
-                        const firstUsername = users[0] && String(users[0].username ?? '').trim();
-                        setAssignTargetType('user');
-                        setAssignTargetValue(firstUsername || '');
-                      }}
-                      className="rounded-full border-input"
-                    />
-                    <span className="text-sm">Specific app user</span>
-                  </label>
-                </div>
-                <div className="pt-1">
-                  {assignTargetType === 'role' ? (
-                    <label htmlFor="assign-target-role" className="block">
-                      <span className="sr-only">Role</span>
-                      <select
-                        id="assign-target-role"
-                        value={assignTargetValue}
-                        onChange={(e) => setAssignTargetValue(e.target.value)}
-                        className="flex h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="Select role"
-                      >
-                        <option value="">Select role…</option>
-                        {(targetOptions.roles || []).map((r) => (
-                          <option key={r} value={r}>{r}</option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : (
-                    <label htmlFor="assign-target-user" className="block">
-                      <span className="sr-only">App user</span>
-                      <select
-                        id="assign-target-user"
-                        value={assignTargetValue}
-                        onChange={(e) => setAssignTargetValue(e.target.value)}
-                        className="flex h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="Select app user"
-                      >
-                        <option value="">Select user…</option>
-                        {(targetOptions.users || []).map((u) => {
-                          const username = String(u?.username ?? '').trim();
-                          if (!username) return null;
-                          return (
-                            <option key={username} value={username}>
-                              {username}{u.role ? ` · ${u.role}` : ''}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </label>
-                  )}
-                </div>
+                {targetOptionsLoading ? (
+                  <p className="text-sm text-muted-foreground py-2">Loading roles and users…</p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="assignTargetType"
+                          value="role"
+                          checked={assignTargetType === 'role'}
+                          onChange={() => {
+                            setAssignTargetType('role');
+                            setAssignTargetValue(rolesForSelect[0] || '');
+                          }}
+                          className="rounded-full border-input"
+                        />
+                        <span className="text-sm">Entire role (all users with this role)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="assignTargetType"
+                          value="user"
+                          checked={assignTargetType === 'user'}
+                          onChange={() => {
+                            const users = targetOptions.users || [];
+                            const first = users[0] && String(users[0].username ?? '').trim();
+                            setAssignTargetType('user');
+                            setAssignTargetValue(first || '');
+                          }}
+                          className="rounded-full border-input"
+                        />
+                        <span className="text-sm">Specific app user</span>
+                      </label>
+                    </div>
+                    <div className="pt-1">
+                      {assignTargetType === 'role' ? (
+                        <label htmlFor="assign-target-role" className="block">
+                          <span className="sr-only">Role</span>
+                          <select
+                            id="assign-target-role"
+                            value={assignTargetValue}
+                            onChange={(e) => setAssignTargetValue(e.target.value)}
+                            className="flex h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label="Select role"
+                          >
+                            <option value="">Select role…</option>
+                            {rolesForSelect.map((r) => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : (
+                        <div className="space-y-2">
+                          <label htmlFor="assign-user-search" className="block text-xs text-muted-foreground">
+                            Search by username, role, or full name
+                          </label>
+                          <Input
+                            id="assign-user-search"
+                            type="search"
+                            placeholder="Search users…"
+                            value={assignUserSearch}
+                            onChange={(e) => setAssignUserSearch(e.target.value)}
+                            className="w-full max-w-md"
+                            autoComplete="off"
+                          />
+                          <div className="border border-input rounded-md max-h-56 overflow-auto bg-background">
+                            {(targetOptions.users || []).length === 0 ? (
+                              <p className="text-sm text-muted-foreground p-3">No app users found. Add users in Admin → Users.</p>
+                            ) : filteredAndGroupedUsers.length === 0 ? (
+                              <p className="text-sm text-muted-foreground p-3">No users match your search.</p>
+                            ) : (
+                              filteredAndGroupedUsers.map(([roleName, roleUsers]) => (
+                                <div key={roleName}>
+                                  <div className="sticky top-0 bg-muted/80 px-3 py-1.5 text-xs font-semibold text-foreground border-b border-border">
+                                    {roleName}
+                                  </div>
+                                  {roleUsers.map((u) => {
+                                    const username = String(u.username ?? '').trim();
+                                    if (!username) return null;
+                                    const label = u.full_name ? `${u.full_name} (${username})` : username;
+                                    const isSelected = assignTargetValue === username;
+                                    return (
+                                      <button
+                                        key={username}
+                                        type="button"
+                                        onClick={() => setAssignTargetValue(username)}
+                                        className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/60 focus:bg-muted/60 focus:outline-none ${isSelected ? 'bg-primary/10 text-primary font-medium' : ''}`}
+                                      >
+                                        {label}
+                                        {u.role ? <span className="text-muted-foreground ml-1">· {u.role}</span> : ''}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                          {assignTargetValue && assignTargetType === 'user' && (
+                            <p className="text-xs text-muted-foreground">Selected: <span className="font-medium text-foreground">{assignTargetValue}</span></p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </fieldset>
             </div>
             {assignError && (
