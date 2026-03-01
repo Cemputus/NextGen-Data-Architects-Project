@@ -14,7 +14,7 @@ import axios from 'axios';
 import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from '../utils/statePersistence';
 import { logAuditEvent } from '../utils/audit';
 
-const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'global', hideHighSchool = false, hideAcademic = false }) => {
+const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'global', hideHighSchool = false, hideAcademic = false, hideFaculty = false, hideDepartment = false }) => {
   // Load persisted filters and search term
   const savedFiltersState = loadFilters(pageName, savedFilters || {});
   const savedSearch = loadSearchTerm(pageName, '');
@@ -187,6 +187,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
 
             {/* Filter Grid - Synced Filters */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+              {!hideFaculty && (
               <Select
                 value={filters.faculty_id || ''}
                 onChange={(e) => handleFilterChange('faculty_id', e.target.value || null)}
@@ -200,17 +201,19 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                   </option>
                 ))}
               </Select>
+              )}
 
+              {!hideDepartment && (
               <Select
                 value={filters.department_id || ''}
                 onChange={(e) => handleFilterChange('department_id', e.target.value || null)}
-                disabled={loading || !filters.faculty_id}
+                disabled={loading || (!hideFaculty && !filters.faculty_id)}
                 className={`h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary ${
-                  !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
+                  !hideFaculty && !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 <option value="">
-                  {filters.faculty_id ? 'All Departments' : 'Select Faculty First'}
+                  {filters.faculty_id || hideFaculty ? 'All Departments' : 'Select Faculty First'}
                 </option>
                 {filterOptions.departments?.map((d, idx) => (
                   <option key={`dept-${d.department_id || idx}`} value={d.department_id}>
@@ -218,6 +221,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
                   </option>
                 ))}
               </Select>
+              )}
 
               {!hideAcademic && (
               <Select

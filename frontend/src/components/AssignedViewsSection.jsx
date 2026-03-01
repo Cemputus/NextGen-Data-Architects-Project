@@ -20,13 +20,15 @@ function buildChartData(snapshot, xColumn, yColumn) {
   }).slice(0, 500);
 }
 
-function VizCard({ viz }) {
+export function VizCard({ viz, chartHeight = 220 }) {
   const snapshot = viz.resultSnapshot || {};
   const chartData = useMemo(
     () => buildChartData(snapshot, viz.xColumn, viz.yColumn),
     [snapshot, viz.xColumn, viz.yColumn]
   );
   const chartType = (viz.chartType || 'bar').toLowerCase();
+  const chartContainerStyle = typeof chartHeight === 'number' ? { height: chartHeight } : undefined;
+  const chartContainerClass = typeof chartHeight === 'number' ? 'w-full' : 'h-[220px] w-full';
 
   if (!chartData.length) {
     return (
@@ -53,7 +55,7 @@ function VizCard({ viz }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="p-3 pt-0">
-        <div className="h-[220px] w-full">
+        <div className={chartContainerClass} style={chartContainerStyle}>
           {chartType === 'bar' && (
             <SciBarChart
               data={chartData}

@@ -1158,6 +1158,12 @@ if admin_bp:
 if nextgen_query_bp:
     app.register_blueprint(nextgen_query_bp)
 
+# CORS preflight for NextGen Query assigned-visualizations (browser sends OPTIONS before POST/GET)
+@app.route('/api/query/assigned-visualizations', methods=['OPTIONS'], strict_slashes=False)
+@app.route('/api/query/assigned-visualizations/<path:subpath>', methods=['OPTIONS'], strict_slashes=False)
+def nextgen_query_assigned_viz_options(subpath=None):
+    return '', 200
+
 
 # --- Automatic ETL scheduler (reads admin_settings.json) ---
 _ADMIN_SETTINGS_FILE = Path(__file__).resolve().parent / 'data' / 'admin_settings.json'
@@ -1786,15 +1792,16 @@ def get_grades_over_time():
             where_clauses.append(f"ds.program_id = {filters['program_id']}")
         if filters.get('semester_id') and str(filters['semester_id']).strip() and str(filters['semester_id']).lower() != 'all':
             where_clauses.append(f"fg.semester_id = {filters['semester_id']}")
-        # Limit to quarters from 2023 to now for trend line (multiple data points)
-        where_clauses.append("dt.year >= 2023")
-        
+        period = (filters.get('period') or 'quarterly').strip().lower()
+        if period not in ('monthly', 'quarterly', 'yearly'):
+            period = 'quarterly'
+        min_year = 2020 if period == 'yearly' else 2023
+        where_clauses.append(f"dt.year >= {min_year}")
+
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-        
-        # Join with department and faculty for role-based filtering or when filters are applied
-        # For SENATE role, we don't need joins unless filters are applied
+
         join_clause = ""
-        needs_join = (role in [Role.HOD, Role.DEAN, Role.STAFF] or 
+        needs_join = (role in [Role.HOD, Role.DEAN, Role.STAFF] or
                      (filters.get('faculty_id') and str(filters['faculty_id']).strip() and str(filters['faculty_id']).lower() != 'all') or
                      (filters.get('department_id') and str(filters['department_id']).strip() and str(filters['department_id']).lower() != 'all'))
         if needs_join:
@@ -1803,12 +1810,22 @@ def get_grades_over_time():
             LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
             """
-        
+        if period == 'monthly':
+            period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS CHAR))"
+            group_by = "dt.year, dt.month, dt.month_name"
+            order_by = "dt.year ASC, dt.month ASC"
+        elif period == 'yearly':
+            period_select = "CAST(dt.year AS CHAR)"
+            group_by = "dt.year"
+            order_by = "dt.year ASC"
+        else:
+            period_select = "CONCAT('Q', CAST(dt.quarter AS CHAR), ' ', CAST(dt.year AS CHAR))"
+            group_by = "dt.year, dt.quarter"
+            order_by = "dt.year ASC, dt.quarter ASC"
+
         query = f"""
-        SELECT 
-            CONCAT('Q', CAST(dt.quarter AS CHAR), ' ', CAST(dt.year AS CHAR)) as period,
-            dt.year,
-            dt.quarter,
+        SELECT
+            {period_select} as period,
             AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) as avg_grade,
             COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) as completed_exams,
             COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) as missed_exams,
@@ -1820,9 +1837,9 @@ def get_grades_over_time():
         INNER JOIN dim_student ds ON fg.student_id = ds.student_id
         {join_clause}
         {where_clause}
-        GROUP BY dt.year, dt.quarter
+        GROUP BY {group_by}
         HAVING COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) > 0
-        ORDER BY dt.year ASC, dt.quarter ASC
+        ORDER BY {order_by}
         """
         
         print(f"DEBUG: Executing grades-over-time query for role: {role}")
@@ -2197,15 +2214,18 @@ def get_attendance_trends():
             where_clauses.append(f"ddept.department_id = {filters['department_id']}")
         if filters.get('program_id') and str(filters['program_id']).strip() and str(filters['program_id']).lower() != 'all':
             where_clauses.append(f"ds.program_id = {filters['program_id']}")
-        # Limit to quarters from 2023 to now for trend charts
-        where_clauses.append("dt.year >= 2023")
-        
+        period = (filters.get('period') or 'quarterly').strip().lower()
+        if period not in ('monthly', 'quarterly', 'yearly'):
+            period = 'quarterly'
+        # Date range: yearly needs more history for a visible line; monthly/quarterly from 2023
+        min_year = 2020 if period == 'yearly' else 2023
+        where_clauses.append(f"dt.year >= {min_year}")
+
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-        
+
         # Join with student, program, department, faculty for role-based filtering or when filters are used
-        # For SENATE role without filters, we only need the student join
         join_clause = ""
-        needs_join = (role in [Role.DEAN, Role.HOD, Role.STAFF, Role.STUDENT] or 
+        needs_join = (role in [Role.DEAN, Role.HOD, Role.STAFF, Role.STUDENT] or
                      (filters.get('faculty_id') and str(filters['faculty_id']).strip() and str(filters['faculty_id']).lower() != 'all') or
                      (filters.get('department_id') and str(filters['department_id']).strip() and str(filters['department_id']).lower() != 'all'))
         if needs_join:
@@ -2216,16 +2236,25 @@ def get_attendance_trends():
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
             """
         else:
-            # For SENATE role, we still need student join for basic query
             join_clause = """
             INNER JOIN dim_student ds ON fa.student_id = ds.student_id
             """
-        
+        if period == 'monthly':
+            period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS CHAR))"
+            group_by = "dt.year, dt.month, dt.month_name"
+            order_by = "dt.year ASC, dt.month ASC"
+        elif period == 'yearly':
+            period_select = "CAST(dt.year AS CHAR)"
+            group_by = "dt.year"
+            order_by = "dt.year ASC"
+        else:
+            period_select = "CONCAT('Q', CAST(dt.quarter AS CHAR), ' ', CAST(dt.year AS CHAR))"
+            group_by = "dt.year, dt.quarter"
+            order_by = "dt.year ASC, dt.quarter ASC"
+
         query = f"""
-        SELECT 
-            CONCAT('Q', CAST(dt.quarter AS CHAR), ' ', CAST(dt.year AS CHAR)) as period,
-            dt.year,
-            dt.quarter,
+        SELECT
+            {period_select} as period,
             AVG(fa.total_hours) as avg_attendance,
             AVG(fa.days_present) as avg_days_present,
             SUM(fa.total_hours) as total_hours,
@@ -2236,9 +2265,9 @@ def get_attendance_trends():
         INNER JOIN dim_time dt ON fa.date_key = dt.date_key
         {join_clause}
         {where_clause}
-        GROUP BY dt.year, dt.quarter
+        GROUP BY {group_by}
         HAVING COUNT(DISTINCT fa.student_id) > 0
-        ORDER BY dt.year ASC, dt.quarter ASC
+        ORDER BY {order_by}
         """
         
         print(f"DEBUG: Executing attendance-trends query for role: {role}")
@@ -2328,12 +2357,17 @@ def get_payment_trends():
             where_clauses.append(f"ds.program_id = {filters['program_id']}")
         if filters.get('semester_id') and str(filters['semester_id']).strip() and str(filters['semester_id']).lower() != 'all':
             where_clauses.append(f"fp.semester_id = {filters['semester_id']}")
-        
+
+        period = (filters.get('period') or 'quarterly').strip().lower()
+        if period not in ('monthly', 'quarterly', 'yearly'):
+            period = 'quarterly'
+        min_year = 2020 if period == 'yearly' else 2023
+        where_clauses.append(f"dt.year >= {min_year}")
+
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-        
-        # Join with student, program, department, faculty for role-based filtering or when filters are used
+
         join_clause = ""
-        needs_join = (role in [Role.DEAN, Role.HOD, Role.STAFF, Role.STUDENT] or 
+        needs_join = (role in [Role.DEAN, Role.HOD, Role.STAFF, Role.STUDENT] or
                      (filters.get('faculty_id') and str(filters['faculty_id']).strip() and str(filters['faculty_id']).lower() != 'all') or
                      (filters.get('department_id') and str(filters['department_id']).strip() and str(filters['department_id']).lower() != 'all'))
         if needs_join:
@@ -2344,14 +2378,25 @@ def get_payment_trends():
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
             """
         else:
-            # Still need to join with student for basic query
             join_clause = """
             JOIN dim_student ds ON fp.student_id = ds.student_id
             """
+        if period == 'monthly':
+            period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS CHAR))"
+            group_by = "dt.year, dt.month, dt.month_name"
+            order_by = "dt.year, dt.month"
+        elif period == 'yearly':
+            period_select = "CAST(dt.year AS CHAR)"
+            group_by = "dt.year"
+            order_by = "dt.year"
+        else:
+            period_select = "CONCAT('Q', CAST(dt.quarter AS CHAR), ' ', CAST(dt.year AS CHAR))"
+            group_by = "dt.year, dt.quarter"
+            order_by = "dt.year, dt.quarter"
 
         query = f"""
-        SELECT 
-            CONCAT('Q', CAST(dt.quarter AS CHAR), ' ', CAST(dt.year AS CHAR)) as period,
+        SELECT
+            {period_select} as period,
             SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) as total_amount,
             COUNT(CASE WHEN fp.status = 'Completed' THEN 1 END) as completed_count,
             COUNT(CASE WHEN fp.status = 'Pending' THEN 1 END) as pending_count
@@ -2359,8 +2404,8 @@ def get_payment_trends():
         JOIN dim_time dt ON fp.date_key = dt.date_key
         {join_clause}
         {where_clause}
-        GROUP BY dt.year, dt.quarter
-        ORDER BY dt.year, dt.quarter
+        GROUP BY {group_by}
+        ORDER BY {order_by}
         """
         
         df = pd.read_sql_query(text(query), engine)

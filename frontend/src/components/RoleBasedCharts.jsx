@@ -75,10 +75,13 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
     studentPaymentBreakdown: null,
   });
   const [loading, setLoading] = useState(true);
+  const [paymentTrendsPeriod, setPaymentTrendsPeriod] = useState('quarterly');
+  const [attendanceTrendsPeriod, setAttendanceTrendsPeriod] = useState('quarterly');
+  const [gradesOverTimePeriod, setGradesOverTimePeriod] = useState('quarterly');
 
   useEffect(() => {
     loadChartData();
-  }, [JSON.stringify(filters), type, user?.role]);
+  }, [JSON.stringify(filters), type, user?.role, paymentTrendsPeriod, attendanceTrendsPeriod, gradesOverTimePeriod]);
 
   const loadChartData = async () => {
     try {
@@ -99,13 +102,12 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       }
       
       // Grades Over Time (role-specific scope) - NOT for Finance pages and NOT for HR
-      // For Senate, ensure institution-wide data (no role-based filtering in params)
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         const gradeParams = role === 'senate' ? filters : { ...filters, role };
         requests.push(
           axios.get('/api/dashboard/grades-over-time', {
             headers: { Authorization: `Bearer ${token}` },
-            params: gradeParams
+            params: { ...gradeParams, period: gradesOverTimePeriod }
           }).catch(() => ({ data: { periods: [], grades: [] } }))
         );
       }
@@ -145,20 +147,18 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         requests.push(
           axios.get('/api/dashboard/payment-trends', {
             headers: { Authorization: `Bearer ${token}` },
-            params: filters
+            params: { ...filters, period: paymentTrendsPeriod }
           }).catch(() => ({ data: { periods: [], amounts: [] } }))
         );
       }
-      
+
       // Attendance Trends - For all roles except Finance and HR, but Senate also gets attendance
-      // Senate should see BOTH payment trends AND attendance trends
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
-        // For Senate, ensure institution-wide data (no role-based filtering)
         const attendanceParams = role === 'senate' ? filters : { ...filters, role };
         requests.push(
           axios.get('/api/dashboard/attendance-trends', {
             headers: { Authorization: `Bearer ${token}` },
-            params: attendanceParams
+            params: { ...attendanceParams, period: attendanceTrendsPeriod }
           }).catch(() => ({ data: { periods: [], attendance: [] } }))
         );
       }
@@ -321,28 +321,50 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         {!isFinancePage && role !== 'finance' && role !== 'hr' && (
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Trend Analysis of Grades Over Time</CardTitle>
-              <CardDescription className="text-xs">
-                {role === 'staff' && 'Your courses performance by quarter (2023–present)'}
-                {role === 'hod' && 'Your department performance by quarter (2023–present)'}
-                {role === 'dean' && 'Your faculty/school performance by quarter (2023–present)'}
-                {role === 'senate' && 'Institution-wide performance by quarter (2023–present)'}
-                {role === 'student' && 'Your academic performance by quarter (2023–present)'}
-              </CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Trend Analysis of Grades Over Time</CardTitle>
+                  <CardDescription className="text-xs">
+                    {role === 'staff' && 'Your courses performance over time'}
+                    {role === 'hod' && 'Your department performance over time'}
+                    {role === 'dean' && 'Your faculty/school performance over time'}
+                    {role === 'senate' && 'Institution-wide performance over time'}
+                    {role === 'student' && 'Your academic performance over time'}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Group by:</span>
+                  <select
+                    value={gradesOverTimePeriod}
+                    onChange={(e) => setGradesOverTimePeriod(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-4 pt-0">
               <div className={chartContainerClass} data-chart-title="Trend Analysis of Grades Over Time" data-chart-container="true">
-                <SciLineChart
-                  data={safeChartData.gradesOverTime}
-                  xDataKey="period"
-                  yDataKey="grade"
-                  xAxisLabel="Quarter (2023–present)"
-                  yAxisLabel="Average grade (%)"
-                  strokeColor="#8B5CF6"
-                  strokeWidth={3}
-                  showLegend={false}
-                  showGrid={true}
-                />
+                {safeChartData.gradesOverTime.length > 0 ? (
+                  <SciLineChart
+                    data={safeChartData.gradesOverTime}
+                    xDataKey="period"
+                    yDataKey="grade"
+                    xAxisLabel={gradesOverTimePeriod === 'monthly' ? 'Month' : gradesOverTimePeriod === 'yearly' ? 'Year' : 'Quarter'}
+                    yAxisLabel="Average grade (%)"
+                    strokeColor="#8B5CF6"
+                    strokeWidth={3}
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                ) : (
+                  <div className="h-full min-h-[200px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg text-sm">
+                    No grade trend data for the selected period.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -424,6 +446,54 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
             </CardContent>
           </Card>
         )}
+
+        {/* Payment Trends - Finance and Senate (same row as Payment Status when both show) */}
+        {!isAcademicPage && (isFinancePage || role === 'finance' || role === 'senate') && (
+          <Card className="border shadow-sm" style={{ borderLeftColor: '#10b981', borderLeftWidth: '4px' }}>
+            <CardHeader className="p-4 pb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base font-semibold" style={{ color: '#10b981' }}>Payment Trends Over Time</CardTitle>
+                  <CardDescription className="text-xs">Payment collection trends and revenue flow</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Group by:</span>
+                  <select
+                    value={paymentTrendsPeriod}
+                    onChange={(e) => setPaymentTrendsPeriod(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className={chartContainerClass} data-chart-title="Payment Trends Over Time" data-chart-container="true">
+                {safeChartData.paymentTrends.length > 0 ? (
+                  <SciAreaChart
+                    data={safeChartData.paymentTrends}
+                    xDataKey="period"
+                    yDataKey="amount"
+                    xAxisLabel={paymentTrendsPeriod === 'monthly' ? 'Month' : paymentTrendsPeriod === 'yearly' ? 'Year' : 'Quarter'}
+                    yAxisLabel="Amount (UGX)"
+                    fillColor="#10B981"
+                    strokeColor="#10B981"
+                    strokeWidth={3}
+                    showLegend={true}
+                    showGrid={true}
+                  />
+                ) : (
+                  <div className="h-full min-h-[200px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg text-sm">
+                    No payment trend data for the selected period.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
@@ -480,59 +550,56 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
           </Card>
         )}
 
-        {/* Payment Trends - Finance and Senate (ALWAYS for Finance pages) */}
-        {!isAcademicPage && (isFinancePage || role === 'finance' || role === 'senate') && (
-          <Card className="border shadow-sm" style={{ borderLeftColor: '#10b981', borderLeftWidth: '4px' }}>
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-base font-semibold" style={{ color: '#10b981' }}>Payment Trends Over Time</CardTitle>
-              <CardDescription className="text-xs">Payment collection trends and revenue flow over quarters</CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className={chartContainerClass} data-chart-title="Payment Trends Over Time" data-chart-container="true">
-                <SciAreaChart
-                  data={safeChartData.paymentTrends}
-                  xDataKey="period"
-                  yDataKey="amount"
-                  xAxisLabel="Time Period (Quarter)"
-                  yAxisLabel="Amount (UGX)"
-                  fillColor="#10B981"
-                  strokeColor="#10B981"
-                  strokeWidth={3}
-                  showLegend={true}
-                  showGrid={true}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* Attendance Trends - NOT for Finance or HR, but Senate should see this */}
       {!isFinancePage && role !== 'finance' && role !== 'hr' && (
         <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Attendance Trends</CardTitle>
-            <CardDescription className="text-xs">
-              {role === 'staff' && 'Attendance in your courses by quarter (2023–present)'}
-              {role === 'hod' && 'Attendance in your department by quarter (2023–present)'}
-              {role === 'dean' && 'Attendance in your faculty/school by quarter (2023–present)'}
-              {role === 'senate' && 'Institution-wide attendance by quarter (2023–present)'}
-              {role === 'student' && 'Your attendance by quarter (2023–present)'}
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Attendance Trends</CardTitle>
+                <CardDescription className="text-xs">
+                  {role === 'staff' && 'Attendance in your courses over time'}
+                  {role === 'hod' && 'Attendance in your department over time'}
+                  {role === 'dean' && 'Attendance in your faculty/school over time'}
+                  {role === 'senate' && 'Institution-wide attendance over time'}
+                  {role === 'student' && 'Your attendance over time'}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Group by:</span>
+                <select
+                  value={attendanceTrendsPeriod}
+                  onChange={(e) => setAttendanceTrendsPeriod(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium"
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className={chartContainerClass} data-chart-title="Attendance Trends" data-chart-container="true">
-              <SciLineChart
-                data={safeChartData.attendance}
-                xDataKey="period"
-                yDataKey="attendance"
-                xAxisLabel="Quarter (2023–present)"
-                yAxisLabel="Avg attendance (hours)"
-                strokeColor={UCU_COLORS.cyan}
-                strokeWidth={3}
-                showLegend={false}
-                showGrid={true}
-              />
+              {safeChartData.attendance.length > 0 ? (
+                <SciLineChart
+                  data={safeChartData.attendance}
+                  xDataKey="period"
+                  yDataKey="attendance"
+                  xAxisLabel={attendanceTrendsPeriod === 'monthly' ? 'Month' : attendanceTrendsPeriod === 'yearly' ? 'Year' : 'Quarter'}
+                  yAxisLabel="Avg attendance (hours)"
+                  strokeColor={UCU_COLORS.cyan}
+                  strokeWidth={3}
+                  showLegend={false}
+                  showGrid={true}
+                />
+              ) : (
+                <div className="h-full min-h-[200px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg text-sm">
+                  No attendance trend data for the selected period.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

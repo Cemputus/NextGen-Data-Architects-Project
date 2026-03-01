@@ -66,7 +66,7 @@ const HODDashboard = () => {
       </div>
 
       {/* Filters */}
-      <GlobalFilterPanel onFilterChange={setFilters} />
+      <GlobalFilterPanel onFilterChange={setFilters} pageName="hod_dashboard" hideFaculty hideDepartment />
 
       {loading ? (
         <div className="flex items-center justify-center py-8">

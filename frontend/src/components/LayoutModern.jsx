@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Home, User, Settings, LogOut, 
   BarChart3, GraduationCap, Building2, Users, 
-  DollarSign, Shield, FileText, TrendingUp, Menu, X, Database, Bell, Clock
+  DollarSign, Shield, FileText, TrendingUp, Menu, X, Database, Bell, Clock, Share2
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -40,6 +40,7 @@ const LayoutModern = ({ children }) => {
     const navItems = {
       student: [
         { path: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/student/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/student/grades', label: 'My Grades', icon: GraduationCap },
         { path: '/student/attendance', label: 'Attendance', icon: FileText },
         { path: '/student/payments', label: 'Payments', icon: DollarSign },
@@ -48,6 +49,7 @@ const LayoutModern = ({ children }) => {
       ],
       staff: [
         { path: '/staff/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/staff/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/staff/classes', label: 'My Classes', icon: GraduationCap },
         { path: '/staff/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/staff/predictions', label: 'Predictions', icon: TrendingUp },
@@ -55,6 +57,7 @@ const LayoutModern = ({ children }) => {
       ],
       hod: [
         { path: '/hod/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/hod/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/hod/assign-classes', label: 'Assign classes', icon: GraduationCap },
         { path: '/hod/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/hod/fex', label: 'FEX Analysis', icon: FileText },
@@ -64,6 +67,7 @@ const LayoutModern = ({ children }) => {
       ],
       dean: [
         { path: '/dean/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/dean/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/dean/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/dean/fex', label: 'FEX Analysis', icon: FileText },
         { path: '/dean/high-school', label: 'High School', icon: Building2 },
@@ -72,6 +76,7 @@ const LayoutModern = ({ children }) => {
       ],
       senate: [
         { path: '/senate/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/senate/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/senate/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/senate/fex', label: 'FEX Analysis', icon: FileText },
         { path: '/senate/high-school', label: 'High School', icon: Building2 },
@@ -82,6 +87,7 @@ const LayoutModern = ({ children }) => {
       ],
       analyst: [
         { path: '/analyst/dashboard', label: 'Workspace', icon: LayoutDashboard },
+        { path: '/analyst/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/analyst/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/analyst/dashboards', label: 'Dashboards', icon: LayoutDashboard },
         { path: '/analyst/query', label: 'NextGen Query', icon: Database },
@@ -93,6 +99,7 @@ const LayoutModern = ({ children }) => {
       ],
       sysadmin: [
         { path: '/admin/dashboard', label: 'Console', icon: Shield },
+        { path: '/admin/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/admin/users', label: 'Users', icon: Users },
         { path: '/admin/settings', label: 'Settings', icon: Settings },
         { path: '/admin/etl', label: 'ETL Jobs', icon: BarChart3 },
@@ -102,12 +109,14 @@ const LayoutModern = ({ children }) => {
       ],
       hr: [
         { path: '/hr/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/hr/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/hr/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/hr/staff', label: 'Staff', icon: Users },
         { path: '/hr/profile', label: 'Profile', icon: User },
       ],
       finance: [
         { path: '/finance/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/finance/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/finance/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/finance/payments', label: 'Payments', icon: DollarSign },
         { path: '/finance/predictions', label: 'Predictions', icon: TrendingUp },

@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { DashboardGrid } from './ui/dashboard-grid';
 import { KPICard } from './ui/kpi-card';
 import RoleBasedCharts from './RoleBasedCharts';
-import AssignedViewsSection from './AssignedViewsSection';
 import { Loader2 } from 'lucide-react';
 
 const KPI_DEFINITIONS = [
@@ -74,7 +73,6 @@ const RoleDashboardRenderer = ({ stats, type }) => {
   if (!definition) {
     return (
       <div className="space-y-4">
-        <AssignedViewsSection />
         <Card className="border-dashed border-2 border-muted">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-semibold">No dynamic dashboard configured</CardTitle>
@@ -114,9 +112,6 @@ const RoleDashboardRenderer = ({ stats, type }) => {
           })}
         </DashboardGrid>
       )}
-
-      {/* Views assigned to this role or user by analysts (NextGen Query) */}
-      <AssignedViewsSection />
 
       {/* RBAC-aware charts, using existing RoleBasedCharts component */}
       {showCharts && (

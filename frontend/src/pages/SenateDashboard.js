@@ -91,9 +91,9 @@ const SenateDashboard = () => {
               : 'Institution-wide analytics and comprehensive reporting'}
           </p>
         </div>
-        <ExportButtons 
-          stats={stats} 
-          filters={filters} 
+        <ExportButtons
+          stats={stats}
+          filters={filters}
           filename="senate_dashboard"
           chartSelectors={[
             '.recharts-wrapper', // All recharts components

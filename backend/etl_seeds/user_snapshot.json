@@ -99,6 +99,16 @@
       "faculty_id": 5.0,
       "department_id": NaN,
       "created_at": "2026-02-28 22:40:48"
+    },
+    {
+      "id": 15,
+      "username": "mwine",
+      "password_hash": "pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a",
+      "role": "analyst",
+      "full_name": "Mwine Irwin",
+      "faculty_id": NaN,
+      "department_id": NaN,
+      "created_at": "2026-03-01 09:42:42"
     }
   ],
   "user_profiles": [
@@ -133,8 +143,8 @@
       "username": "analyst",
       "role": "analyst",
       "state_key": "nextgen_query",
-      "state_json": "{\"query\": \"SELECT \\n  fg.student_id,\\n  fg.course_code,\\n  fg.grade,\\n  fg.exam_status\\nFROM fact_grade fg\\nJOIN dim_student ds ON fg.student_id = ds.student_id\\nLIMIT 20;\\n\", \"history\": [\"SELECT \\n  fg.student_id,\\n  fg.course_code,\\n  fg.grade,\\n  fg.exam_status\\nFROM fact_grade fg\\nJOIN dim_student ds ON fg.student_id = ds.student_id\\nLIMIT 20;\", \"SELECT *\\nFROM dim_student\\nLIMIT 40;\", \"SELECT *\\nFROM dim_student\\nLIMIT 20;\"], \"chartType\": \"bar\", \"xColumn\": \"student_id\", \"yColumn\": \"program_id\", \"result\": {\"columns\": [{\"is_numeric\": false, \"name\": \"student_id\", \"type\": \"object\"}, {\"is_numeric\": false, \"name\": \"course_code\", \"type\": \"object\"}, {\"is_numeric\": true, \"name\": \"grade\", \"type\": \"float64\"}, {\"is_numeric\": false, \"name\": \"exam_status\", \"type\": \"object\"}], \"elapsed_ms\": 101, \"row_count\": 20, \"rows\": [{\"course_code\": \"GEN402\", \"exam_status\": \"Completed\", \"grade\": 68.64, \"student_id\": \"M24M01/001\"}, {\"course_code\": \"GEN204\", \"exam_status\": \"Completed\", \"grade\": 62.38, \"student_id\": \"J21M01/001\"}, {\"course_code\": \"EDU140\", \"exam_status\": \"Completed\", \"grade\": 54.83, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BUS157\", \"exam_status\": \"Completed\", \"grade\": 68.38, \"student_id\": \"S23B05/001\"}, {\"course_code\": \"GEN229\", \"exam_status\": \"Completed\", \"grade\": 63.16, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"CSC315\", \"exam_status\": \"Completed\", \"grade\": 66.73, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"EDU134\", \"exam_status\": \"Completed\", \"grade\": 56.86, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"EDU431\", \"exam_status\": \"Completed\", \"grade\": 76.55, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BIT244\", \"exam_status\": \"Completed\", \"grade\": 66.22, \"student_id\": \"S22M01/002\"}, {\"course_code\": \"BIT382\", \"exam_status\": \"Completed\", \"grade\": 59.65, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"BIT371\", \"exam_status\": \"Completed\", \"grade\": 72.72, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"GEN267\", \"exam_status\": \"Completed\", \"grade\": 89.42, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"GEN474\", \"exam_status\": \"Completed\", \"grade\": 80.94, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"BIT230\", \"exam_status\": \"FEX\", \"grade\": 40.98, \"student_id\": \"J21M01/001\"}, {\"course_code\": \"BUS221\", \"exam_status\": \"Completed\", \"grade\": 68.97, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"EDU456\", \"exam_status\": \"Completed\", \"grade\": 67.19, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"LAW146\", \"exam_status\": \"Completed\", \"grade\": 59.96, \"student_id\": \"S24M01/003\"}, {\"course_code\": \"JRN174\", \"exam_status\": \"Completed\", \"grade\": 79.63, \"student_id\": \"S21M01/001\"}, {\"course_code\": \"GEN357\", \"exam_status\": \"Completed\", \"grade\": 52.31, \"student_id\": \"S21M01/001\"}, {\"course_code\": \"GEN437\", \"exam_status\": \"Completed\", \"grade\": 47.65, \"student_id\": \"S21M01/001\"}]}}",
-      "updated_at": "2026-02-28 21:21:57"
+      "state_json": "{\"query\": \"SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status;\", \"history\": [\"SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status;\", \"SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status\\nLIMIT 20;\", \"SELECT *\\nFROM dim_student\\nGROUP BY dim_student.status\\nLIMIT 20;\", \"SELECT *\\nFROM dim_student\\nLIMIT 20;\", \"SELECT \\n  fg.student_id,\\n  fg.course_code,\\n  fg.grade,\\n  fg.exam_status\\nFROM fact_grade fg\\nJOIN dim_student ds ON fg.student_id = ds.student_id\\nLIMIT 20;\", \"SELECT *\\nFROM dim_student\\nLIMIT 40;\"], \"chartType\": \"bar\", \"xColumn\": \"status\", \"yColumn\": \"total_students\", \"result\": {\"columns\": [{\"is_numeric\": false, \"name\": \"status\", \"type\": \"object\"}, {\"is_numeric\": true, \"name\": \"total_students\", \"type\": \"int64\"}], \"elapsed_ms\": 47, \"row_count\": 4, \"rows\": [{\"status\": \"Active\", \"total_students\": 849}, {\"status\": \"Graduated\", \"total_students\": 100}, {\"status\": \"Suspended\", \"total_students\": 32}, {\"status\": \"Withdrawn\", \"total_students\": 16}]}}",
+      "updated_at": "2026-03-01 09:27:34"
     }
   ]
 }

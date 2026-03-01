@@ -90,7 +90,7 @@ const DeanDashboard = () => {
       </div>
 
       {/* Filters */}
-      <GlobalFilterPanel onFilterChange={setFilters} />
+      <GlobalFilterPanel onFilterChange={setFilters} pageName="dean_dashboard" hideFaculty />
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
