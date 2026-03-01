@@ -2,10 +2,10 @@
  * NextGen Query - Advanced SQL Analytics Workspace (Analyst only)
  * Three-panel layout: SQL editor (top), table results (bottom-left), chart (bottom-right)
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Editor } from '@monaco-editor/react';
-import { Database, Play, Trash2, History, Loader2, BarChart3, LineChart, PieChart, AreaChart, Download, AlertTriangle, RefreshCw, Share2 } from 'lucide-react';
+import { Database, Play, Trash2, History, Loader2, BarChart3, LineChart, PieChart, AreaChart, Download, AlertTriangle, RefreshCw, Share2, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader, PageContent } from '../components/ui/page-header';
@@ -56,7 +56,14 @@ const NextGenQueryPage = () => {
   const [assignTargetValue, setAssignTargetValue] = useState('');
   const [assignSaving, setAssignSaving] = useState(false);
   const [assignError, setAssignError] = useState('');
+  const [assignSuccessBanner, setAssignSuccessBanner] = useState('');
   const [targetOptions, setTargetOptions] = useState({ roles: [], users: [] });
+  const hasRestoredRef = useRef(false);
+  const [manageAssignedOpen, setManageAssignedOpen] = useState(false);
+  const [myAssignedList, setMyAssignedList] = useState([]);
+  const [manageAssignedLoading, setManageAssignedLoading] = useState(false);
+  const [manageAssignedError, setManageAssignedError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
   const columns = result?.columns || [];
   const rows = result?.rows || [];
@@ -66,29 +73,38 @@ const NextGenQueryPage = () => {
     [columns]
   );
 
-  // Restore persisted NextGen Query workspace from backend (per-user, survives logout/login)
+  // Restore persisted NextGen Query workspace from backend (per-user, survives hard refresh / logout / devices)
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token) {
+      hasRestoredRef.current = true;
+      return;
+    }
     axios
       .get('/api/auth/state/nextgen_query', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
         const state = res.data?.state;
-        if (!state) return;
-        if (typeof state.query === 'string' && state.query.trim().length > 0) {
-          setQuery(state.query);
+        if (state) {
+          if (typeof state.query === 'string' && state.query.trim().length > 0) {
+            setQuery(state.query);
+          }
+          if (Array.isArray(state.history)) {
+            setHistory(state.history);
+          }
+          if (state.chartType) setChartType(state.chartType);
+          if (state.xColumn) setXColumn(state.xColumn);
+          if (state.yColumn) setYColumn(state.yColumn);
+          if (state.result && state.result.columns) {
+            setResult(state.result);
+          }
         }
-        if (Array.isArray(state.history)) {
-          setHistory(state.history);
-        }
-        if (state.chartType) setChartType(state.chartType);
-        if (state.xColumn) setXColumn(state.xColumn);
-        if (state.yColumn) setYColumn(state.yColumn);
-        if (state.result) setResult(state.result);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        hasRestoredRef.current = true;
+      });
   }, []);
 
   useEffect(() => {
@@ -106,33 +122,87 @@ const NextGenQueryPage = () => {
     }
   }, [columns, numericColumns]);
 
+  // Persist visualization (chart type + axes) and full workspace when they change so it survives hard refresh
+  useEffect(() => {
+    if (!hasRestoredRef.current) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const t = setTimeout(() => {
+      const stateToSave = {
+        query,
+        history,
+        chartType,
+        xColumn,
+        yColumn,
+        result: result
+          ? { ...result, rows: Array.isArray(result.rows) ? result.rows.slice(0, 200) : [] }
+          : null,
+      };
+      axios
+        .put('/api/auth/state/nextgen_query', { state: stateToSave }, { headers: { Authorization: `Bearer ${token}` } })
+        .catch(() => {});
+    }, 500);
+    return () => clearTimeout(t);
+  }, [chartType, xColumn, yColumn, query, history, result]);
+
   const openAssignModal = () => {
-    setAssignTitle('');
+    setAssignError('');
+    setAssignSuccessBanner('');
     setAssignTargetType('role');
     setAssignTargetValue('');
-    setAssignError('');
     setAssignModalOpen(true);
+    const suggestedTitle = [yColumn, xColumn].filter(Boolean).length === 2
+      ? `${yColumn} by ${xColumn}`
+      : '';
+    setAssignTitle(suggestedTitle);
     axios.get('/api/query/assigned-visualizations/target-options', {
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
     }).then((res) => {
-      setTargetOptions({
-        roles: res.data?.roles || [],
-        users: res.data?.users || [],
-      });
-      if ((res.data?.roles || []).length > 0) setAssignTargetValue(res.data.roles[0]);
-      else if ((res.data?.users || []).length > 0) setAssignTargetValue(res.data.users[0]?.username || '');
+      const roles = Array.isArray(res.data?.roles) ? res.data.roles.map((r) => String(r).trim()).filter(Boolean) : [];
+      const users = Array.isArray(res.data?.users) ? res.data.users : [];
+      setTargetOptions({ roles, users });
+      if (roles.length > 0) setAssignTargetValue(roles[0]);
+      else if (users.length > 0) setAssignTargetValue(String(users[0]?.username ?? '').trim());
     }).catch(() => setTargetOptions({ roles: [], users: [] }));
+  };
+
+  const openManageAssigned = () => {
+    setManageAssignedOpen(true);
+    setMyAssignedList([]);
+    setManageAssignedError('');
+    setManageAssignedLoading(true);
+    axios
+      .get('/api/query/assigned-visualizations?created_by=me', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      })
+      .then((res) => setMyAssignedList(res.data?.visualizations || []))
+      .catch(() => setMyAssignedList([]))
+      .finally(() => setManageAssignedLoading(false));
+  };
+
+  const deleteAssigned = async (vizId) => {
+    setDeletingId(vizId);
+    try {
+      await axios.delete(`/api/query/assigned-visualizations/${vizId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      setMyAssignedList((prev) => prev.filter((v) => v.id !== vizId));
+    } catch (err) {
+      setManageAssignedError(err.response?.data?.error || err.message || 'Failed to remove.');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleAssignSubmit = async () => {
     const title = assignTitle.trim();
     const targetValue = assignTargetValue.trim();
     if (!title) {
-      setAssignError('Please enter a title for this visualization.');
+      setAssignError('Enter a title for this visualization.');
       return;
     }
     if (!targetValue) {
-      setAssignError('Please select a role or user.');
+      setAssignError('Select a role or an app user.');
       return;
     }
     setAssignSaving(true);
@@ -156,6 +226,9 @@ const NextGenQueryPage = () => {
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
       setAssignModalOpen(false);
+      const targetLabel = assignTargetType === 'role' ? `Role "${targetValue}"` : `User "${targetValue}"`;
+      setAssignSuccessBanner(`Visualization assigned to ${targetLabel}. Recipients will see it under "Views shared with you" on their dashboard.`);
+      setTimeout(() => setAssignSuccessBanner(''), 5000);
     } catch (err) {
       setAssignError(err.response?.data?.error || err.message || 'Failed to assign visualization.');
     } finally {
@@ -398,7 +471,12 @@ const NextGenQueryPage = () => {
           </div>
         }
       />
-
+      {assignSuccessBanner && (
+        <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/40 px-4 py-3 text-sm text-green-800 dark:text-green-200 flex items-center justify-between gap-4 mb-4">
+          <span>{assignSuccessBanner}</span>
+          <button type="button" onClick={() => setAssignSuccessBanner('')} className="shrink-0 text-green-600 dark:text-green-400 hover:underline">Dismiss</button>
+        </div>
+      )}
       {/* Top: SQL editor */}
       <Card className="border border-input shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-4">
@@ -714,6 +792,17 @@ const NextGenQueryPage = () => {
                 <Share2 className="h-3.5 w-3.5" />
                 Assign to role or user
               </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-xs text-muted-foreground"
+                onClick={openManageAssigned}
+                title="View and manage visualizations you have assigned"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                Manage assigned
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
@@ -770,67 +859,112 @@ const NextGenQueryPage = () => {
           Assign visualization to role or user
         </ModalHeader>
         <ModalBody>
-          <p className="text-sm text-muted-foreground mb-4">
-            Share this chart with a specific role (all users with that role) or with a single app user. They will see it in &quot;Views shared with you&quot; on their dashboard.
+          <p className="text-sm text-muted-foreground mb-3">
+            Assign this visualization so a <strong>role</strong> (all users with that role) or a specific <strong>app user</strong> can see it under &quot;Views shared with you&quot; on their dashboard.
           </p>
+          {result && xColumn && yColumn && (
+            <div className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground mb-4 border border-border">
+              <span className="font-medium text-foreground">This visualization:</span>{' '}
+              {chartType === 'pie' ? 'Pie' : chartType === 'line' ? 'Line' : chartType === 'area' ? 'Area' : 'Bar'} chart — <span className="font-mono">{yColumn}</span> by <span className="font-mono">{xColumn}</span>
+            </div>
+          )}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Title</label>
+              <label htmlFor="assign-viz-title" className="block text-sm font-medium text-foreground mb-1.5">Title</label>
               <Input
+                id="assign-viz-title"
                 value={assignTitle}
                 onChange={(e) => setAssignTitle(e.target.value)}
                 placeholder="e.g. Program performance summary"
                 className="w-full"
+                aria-describedby="assign-viz-title-hint"
               />
+              <p id="assign-viz-title-hint" className="text-xs text-muted-foreground mt-1">Shown to recipients on their dashboard.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Assign to</label>
-              <div className="flex flex-wrap gap-4 mb-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="assignTargetType"
-                    checked={assignTargetType === 'role'}
-                    onChange={() => { setAssignTargetType('role'); setAssignTargetValue(targetOptions.roles[0] || ''); }}
-                  />
-                  <span className="text-sm">Role</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="assignTargetType"
-                    checked={assignTargetType === 'user'}
-                    onChange={() => { setAssignTargetType('user'); setAssignTargetValue(targetOptions.users[0]?.username || ''); }}
-                  />
-                  <span className="text-sm">User</span>
-                </label>
-              </div>
-              {assignTargetType === 'role' ? (
-                <select
-                  value={assignTargetValue}
-                  onChange={(e) => setAssignTargetValue(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  {targetOptions.roles.map((r) => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              ) : (
-                <select
-                  value={assignTargetValue}
-                  onChange={(e) => setAssignTargetValue(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  {targetOptions.users.map((u) => (
-                    <option key={u.username} value={u.username}>
-                      {u.username} {u.role ? `(${u.role})` : ''}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-medium text-foreground mb-2">Assign to</legend>
+                <div className="flex flex-wrap gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="assignTargetType"
+                      value="role"
+                      checked={assignTargetType === 'role'}
+                      onChange={() => {
+                        const roles = targetOptions.roles || [];
+                        setAssignTargetType('role');
+                        setAssignTargetValue(roles[0] || '');
+                      }}
+                      className="rounded-full border-input"
+                    />
+                    <span className="text-sm">Entire role (all users with this role)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="assignTargetType"
+                      value="user"
+                      checked={assignTargetType === 'user'}
+                      onChange={() => {
+                        const users = targetOptions.users || [];
+                        const firstUsername = users[0] && String(users[0].username ?? '').trim();
+                        setAssignTargetType('user');
+                        setAssignTargetValue(firstUsername || '');
+                      }}
+                      className="rounded-full border-input"
+                    />
+                    <span className="text-sm">Specific app user</span>
+                  </label>
+                </div>
+                <div className="pt-1">
+                  {assignTargetType === 'role' ? (
+                    <label htmlFor="assign-target-role" className="block">
+                      <span className="sr-only">Role</span>
+                      <select
+                        id="assign-target-role"
+                        value={assignTargetValue}
+                        onChange={(e) => setAssignTargetValue(e.target.value)}
+                        className="flex h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Select role"
+                      >
+                        <option value="">Select role…</option>
+                        {(targetOptions.roles || []).map((r) => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <label htmlFor="assign-target-user" className="block">
+                      <span className="sr-only">App user</span>
+                      <select
+                        id="assign-target-user"
+                        value={assignTargetValue}
+                        onChange={(e) => setAssignTargetValue(e.target.value)}
+                        className="flex h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Select app user"
+                      >
+                        <option value="">Select user…</option>
+                        {(targetOptions.users || []).map((u) => {
+                          const username = String(u?.username ?? '').trim();
+                          if (!username) return null;
+                          return (
+                            <option key={username} value={username}>
+                              {username}{u.role ? ` · ${u.role}` : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              </fieldset>
             </div>
             {assignError && (
-              <p className="text-sm text-destructive">{assignError}</p>
+              <p className="text-sm text-destructive flex items-center gap-1.5" role="alert">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {assignError}
+              </p>
             )}
           </div>
         </ModalBody>
@@ -838,10 +972,63 @@ const NextGenQueryPage = () => {
           <Button variant="secondary" onClick={() => !assignSaving && setAssignModalOpen(false)} disabled={assignSaving}>
             Cancel
           </Button>
-          <Button onClick={handleAssignSubmit} disabled={assignSaving}>
+          <Button onClick={handleAssignSubmit} disabled={assignSaving || !assignTitle.trim() || !assignTargetValue.trim()}>
             {assignSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Share2 className="h-4 w-4 mr-2" />}
-            Assign
+            Assign visualization
           </Button>
+        </ModalFooter>
+      </Modal>
+
+      <Modal open={manageAssignedOpen} onClose={() => setManageAssignedOpen(false)}>
+        <ModalHeader onClose={() => setManageAssignedOpen(false)}>
+          Manage assigned visualizations
+        </ModalHeader>
+        <ModalBody>
+          <p className="text-sm text-muted-foreground mb-4">
+            Visualizations you have assigned to a role or user. Recipients see them under &quot;Views shared with you&quot; on their dashboard.
+          </p>
+          {manageAssignedLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : myAssignedList.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">You have not assigned any visualizations yet.</p>
+          ) : (
+            <>
+              {manageAssignedError && (
+                <p className="text-sm text-destructive flex items-center gap-1.5 mb-3" role="alert">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  {manageAssignedError}
+                </p>
+              )}
+              <ul className="space-y-3 max-h-[60vh] overflow-auto">
+              {myAssignedList.map((viz) => (
+                <li key={viz.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{viz.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {viz.targetType === 'role' ? 'Role' : 'User'}: {viz.targetValue} · {viz.chartType || 'bar'} · {viz.xColumn && viz.yColumn ? `${viz.yColumn} by ${viz.xColumn}` : '—'}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 text-destructive hover:bg-destructive/10"
+                    disabled={deletingId === viz.id}
+                    onClick={() => deleteAssigned(viz.id)}
+                  >
+                    {deletingId === viz.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    <span className="ml-1">Remove</span>
+                  </Button>
+                </li>
+              ))}
+              </ul>
+            </>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setManageAssignedOpen(false)}>Close</Button>
         </ModalFooter>
       </Modal>
     </PageContent>

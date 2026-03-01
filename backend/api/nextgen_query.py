@@ -189,17 +189,26 @@ def get_assignment_target_options():
         engine = _get_rbac_engine()
         _ensure_app_users_table(engine)
         with engine.connect() as conn:
+            # Include full_name for display and search; order by role then username so frontend can group
             result = conn.execute(
-                text("SELECT username, role FROM app_users ORDER BY username"),
+                text("""
+                    SELECT username, role, COALESCE(full_name, '') AS full_name
+                    FROM app_users
+                    ORDER BY role, username
+                """),
             )
             for row in result.mappings().fetchall():
-                users.append({"username": row["username"], "role": row.get("role") or ""})
+                users.append({
+                    "username": (row["username"] or "").strip(),
+                    "role": (row.get("role") or "").strip(),
+                    "full_name": (row.get("full_name") or "").strip(),
+                })
         engine.dispose()
     except Exception:
         pass
 
     return jsonify({
-        "roles": ROLES_FOR_ASSIGNMENT,
+        "roles": list(ROLES_FOR_ASSIGNMENT),
         "users": users,
     }), 200
 
