@@ -5,11 +5,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import { Editor } from '@monaco-editor/react';
-import { Database, Play, Trash2, History, Loader2, BarChart3, LineChart, PieChart, AreaChart, Download, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Database, Play, Trash2, History, Loader2, BarChart3, LineChart, PieChart, AreaChart, Download, AlertTriangle, RefreshCw, Share2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader, PageContent } from '../components/ui/page-header';
 import { Select } from '../components/ui/select';
+import { Input } from '../components/ui/input';
+import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
 import { SciBarChart, SciLineChart, SciAreaChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import { useTheme } from '../context/ThemeContext';
 import { cn } from '../lib/utils';
@@ -47,6 +49,14 @@ const NextGenQueryPage = () => {
   const [chartType, setChartType] = useState('bar');
   const [xColumn, setXColumn] = useState('');
   const [yColumn, setYColumn] = useState('');
+
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignTitle, setAssignTitle] = useState('');
+  const [assignTargetType, setAssignTargetType] = useState('role');
+  const [assignTargetValue, setAssignTargetValue] = useState('');
+  const [assignSaving, setAssignSaving] = useState(false);
+  const [assignError, setAssignError] = useState('');
+  const [targetOptions, setTargetOptions] = useState({ roles: [], users: [] });
 
   const columns = result?.columns || [];
   const rows = result?.rows || [];
@@ -95,6 +105,63 @@ const NextGenQueryPage = () => {
       setYColumn((prev) => prev || firstNumeric);
     }
   }, [columns, numericColumns]);
+
+  const openAssignModal = () => {
+    setAssignTitle('');
+    setAssignTargetType('role');
+    setAssignTargetValue('');
+    setAssignError('');
+    setAssignModalOpen(true);
+    axios.get('/api/query/assigned-visualizations/target-options', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    }).then((res) => {
+      setTargetOptions({
+        roles: res.data?.roles || [],
+        users: res.data?.users || [],
+      });
+      if ((res.data?.roles || []).length > 0) setAssignTargetValue(res.data.roles[0]);
+      else if ((res.data?.users || []).length > 0) setAssignTargetValue(res.data.users[0]?.username || '');
+    }).catch(() => setTargetOptions({ roles: [], users: [] }));
+  };
+
+  const handleAssignSubmit = async () => {
+    const title = assignTitle.trim();
+    const targetValue = assignTargetValue.trim();
+    if (!title) {
+      setAssignError('Please enter a title for this visualization.');
+      return;
+    }
+    if (!targetValue) {
+      setAssignError('Please select a role or user.');
+      return;
+    }
+    setAssignSaving(true);
+    setAssignError('');
+    try {
+      const resultSnapshot = result
+        ? { columns: result.columns, rows: (result.rows || []).slice(0, 500), row_count: result.row_count }
+        : null;
+      await axios.post(
+        '/api/query/assigned-visualizations',
+        {
+          title,
+          targetType: assignTargetType,
+          targetValue,
+          query,
+          chartType,
+          xColumn,
+          yColumn,
+          resultSnapshot,
+        },
+        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+      );
+      setAssignModalOpen(false);
+    } catch (err) {
+      setAssignError(err.response?.data?.error || err.message || 'Failed to assign visualization.');
+    } finally {
+      setAssignSaving(false);
+    }
+  };
 
   const handleRun = async () => {
     setError('');
@@ -635,6 +702,18 @@ const NextGenQueryPage = () => {
                   </option>
                 ))}
               </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1 text-xs"
+                disabled={!result || !rows.length || !xColumn || !yColumn}
+                onClick={openAssignModal}
+                title="Assign this visualization to a role or user"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                Assign to role or user
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
@@ -685,6 +764,86 @@ const NextGenQueryPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Modal open={assignModalOpen} onClose={() => !assignSaving && setAssignModalOpen(false)}>
+        <ModalHeader onClose={() => !assignSaving && setAssignModalOpen(false)}>
+          Assign visualization to role or user
+        </ModalHeader>
+        <ModalBody>
+          <p className="text-sm text-muted-foreground mb-4">
+            Share this chart with a specific role (all users with that role) or with a single app user. They will see it in &quot;Views shared with you&quot; on their dashboard.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Title</label>
+              <Input
+                value={assignTitle}
+                onChange={(e) => setAssignTitle(e.target.value)}
+                placeholder="e.g. Program performance summary"
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Assign to</label>
+              <div className="flex flex-wrap gap-4 mb-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="assignTargetType"
+                    checked={assignTargetType === 'role'}
+                    onChange={() => { setAssignTargetType('role'); setAssignTargetValue(targetOptions.roles[0] || ''); }}
+                  />
+                  <span className="text-sm">Role</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="assignTargetType"
+                    checked={assignTargetType === 'user'}
+                    onChange={() => { setAssignTargetType('user'); setAssignTargetValue(targetOptions.users[0]?.username || ''); }}
+                  />
+                  <span className="text-sm">User</span>
+                </label>
+              </div>
+              {assignTargetType === 'role' ? (
+                <select
+                  value={assignTargetValue}
+                  onChange={(e) => setAssignTargetValue(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {targetOptions.roles.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  value={assignTargetValue}
+                  onChange={(e) => setAssignTargetValue(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {targetOptions.users.map((u) => (
+                    <option key={u.username} value={u.username}>
+                      {u.username} {u.role ? `(${u.role})` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {assignError && (
+              <p className="text-sm text-destructive">{assignError}</p>
+            )}
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => !assignSaving && setAssignModalOpen(false)} disabled={assignSaving}>
+            Cancel
+          </Button>
+          <Button onClick={handleAssignSubmit} disabled={assignSaving}>
+            {assignSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Share2 className="h-4 w-4 mr-2" />}
+            Assign
+          </Button>
+        </ModalFooter>
+      </Modal>
     </PageContent>
   );
 };
