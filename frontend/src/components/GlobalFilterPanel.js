@@ -227,13 +227,13 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
               <Select
                 value={filters.program_id || ''}
                 onChange={(e) => handleFilterChange('program_id', e.target.value || null)}
-                disabled={loading || !filters.faculty_id}
+                disabled={loading || (!hideFaculty && !filters.faculty_id)}
                 className={`h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary ${
-                  !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
+                  !hideFaculty && !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 <option value="">
-                  {filters.faculty_id ? 'All Programs' : 'Select Faculty First'}
+                  {filters.faculty_id || hideFaculty ? 'All Programs' : 'Select Faculty First'}
                 </option>
                 {filterOptions.programs?.map((p, idx) => (
                   <option key={`prog-${p.program_id || idx}`} value={p.program_id}>

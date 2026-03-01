@@ -32,9 +32,13 @@ const ROLES = [
   { value: 'finance', label: 'Finance' },
 ];
 
+// Roles that are not assigned to any department or faculty
+const ROLES_NO_FACULTY_DEPARTMENT = ['finance', 'hr', 'senate', 'sysadmin', 'analyst'];
+
 const ADD_USER_ROLES = [
   { value: 'sysadmin', label: 'Admin (Sysadmin)' },
   { value: 'analyst', label: 'Analyst' },
+  { value: 'senate', label: 'Senate' },
   { value: 'dean', label: 'Dean (assign to a faculty)' },
   { value: 'hod', label: 'HOD (assign to a department)' },
   { value: 'staff', label: 'Staff' },
@@ -232,15 +236,13 @@ export default function UserManagementSection({
       full_name: addForm.full_name.trim() || addForm.username.trim(),
       role: addForm.role,
     };
-    if (addForm.role === 'dean' && addForm.faculty_id) payload.faculty_id = parseInt(addForm.faculty_id, 10);
-    if (addForm.role === 'hod' && addForm.department_id) payload.department_id = parseInt(addForm.department_id, 10);
-    if (addForm.role === 'staff' && addForm.faculty_id && addForm.department_id) {
-      payload.faculty_id = parseInt(addForm.faculty_id, 10);
-      payload.department_id = parseInt(addForm.department_id, 10);
-    }
-    if (['hr', 'finance'].includes(addForm.role)) {
-      if (addForm.faculty_id) payload.faculty_id = parseInt(addForm.faculty_id, 10);
-      if (addForm.department_id) payload.department_id = parseInt(addForm.department_id, 10);
+    if (!ROLES_NO_FACULTY_DEPARTMENT.includes(addForm.role)) {
+      if (addForm.role === 'dean' && addForm.faculty_id) payload.faculty_id = parseInt(addForm.faculty_id, 10);
+      if (addForm.role === 'hod' && addForm.department_id) payload.department_id = parseInt(addForm.department_id, 10);
+      if (addForm.role === 'staff' && addForm.faculty_id && addForm.department_id) {
+        payload.faculty_id = parseInt(addForm.faculty_id, 10);
+        payload.department_id = parseInt(addForm.department_id, 10);
+      }
     }
     try {
       await axios.post('/api/user-mgmt/users', payload, { headers: { Authorization: `Bearer ${token}` } });
@@ -306,19 +308,16 @@ export default function UserManagementSection({
       full_name: editForm.full_name.trim(),
       role: editForm.role,
     };
-    if (editForm.role === 'dean') {
-      payload.faculty_id = editForm.faculty_id ? parseInt(editForm.faculty_id, 10) : null;
-    } else if (editForm.role === 'staff') {
-      payload.faculty_id = editForm.faculty_id ? parseInt(editForm.faculty_id, 10) : null;
-    } else {
+    if (ROLES_NO_FACULTY_DEPARTMENT.includes(editForm.role)) {
       payload.faculty_id = null;
-    }
-    if (editForm.role === 'hod') {
-      payload.department_id = editForm.department_id ? parseInt(editForm.department_id, 10) : null;
-    } else if (['staff', 'hr', 'finance'].includes(editForm.role)) {
-      payload.department_id = editForm.department_id ? parseInt(editForm.department_id, 10) : null;
-    } else {
       payload.department_id = null;
+    } else {
+      if (editForm.role === 'dean') payload.faculty_id = editForm.faculty_id ? parseInt(editForm.faculty_id, 10) : null;
+      else if (editForm.role === 'staff') payload.faculty_id = editForm.faculty_id ? parseInt(editForm.faculty_id, 10) : null;
+      else payload.faculty_id = null;
+      if (editForm.role === 'hod') payload.department_id = editForm.department_id ? parseInt(editForm.department_id, 10) : null;
+      else if (editForm.role === 'staff') payload.department_id = editForm.department_id ? parseInt(editForm.department_id, 10) : null;
+      else payload.department_id = null;
     }
     if (editForm.password) payload.password = editForm.password;
     try {
@@ -545,50 +544,20 @@ export default function UserManagementSection({
                   </Select>
                 </div>
               )}
-              {(addForm.role === 'hod' || addForm.role === 'hr' || addForm.role === 'finance') && (
+              {addForm.role === 'hod' && (
                 <div>
-                  <Label htmlFor="add-dept">
-                    {addForm.role === 'hod' ? 'Department *' : 'Department (optional)'}
-                  </Label>
-                  {(addForm.role === 'hr' || addForm.role === 'finance') && (
-                    <p className="text-xs text-muted-foreground mb-1">Filter by faculty first to narrow departments</p>
-                  )}
-                  {addForm.role === 'hr' || addForm.role === 'finance' ? (
-                    <>
-                      <Select
-                        value={addForm.faculty_id}
-                        onChange={(e) => setAddForm((f) => ({ ...f, faculty_id: e.target.value, department_id: '' }))}
-                        className="mb-2"
-                      >
-                        <option value="">All faculties</option>
-                        {faculties.map((f) => (
-                          <option key={f.faculty_id} value={f.faculty_id}>{f.faculty_name}</option>
-                        ))}
-                      </Select>
-                      <Select
-                        id="add-dept"
-                        value={addForm.department_id}
-                        onChange={(e) => setAddForm((f) => ({ ...f, department_id: e.target.value }))}
-                      >
-                        <option value="">Select department (optional)</option>
-                        {departments.map((d) => (
-                          <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
-                        ))}
-                      </Select>
-                    </>
-                  ) : (
-                    <Select
-                      id="add-dept"
-                      value={addForm.department_id}
-                      onChange={(e) => setAddForm((f) => ({ ...f, department_id: e.target.value }))}
-                      required
-                    >
-                      <option value="">Select department</option>
-                      {departments.map((d) => (
-                        <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
-                      ))}
-                    </Select>
-                  )}
+                  <Label htmlFor="add-dept">Department *</Label>
+                  <Select
+                    id="add-dept"
+                    value={addForm.department_id}
+                    onChange={(e) => setAddForm((f) => ({ ...f, department_id: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select department</option>
+                    {departments.map((d) => (
+                      <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
+                    ))}
+                  </Select>
                 </div>
               )}
               <div className="flex gap-2 pt-2">
@@ -771,28 +740,13 @@ export default function UserManagementSection({
                   </Select>
                 </div>
               )}
-              {(editForm.role === 'hod' || editForm.role === 'hr' || editForm.role === 'finance') && (
+              {editForm.role === 'hod' && (
                 <div>
-                  <Label htmlFor="edit-dept">
-                    {editForm.role === 'hod' ? 'Department' : 'Department (optional)'}
-                  </Label>
-                  {(editForm.role === 'hr' || editForm.role === 'finance') && (
-                    <Select
-                      value={editForm.faculty_id}
-                      onChange={(e) => setEditForm((f) => ({ ...f, faculty_id: e.target.value, department_id: '' }))}
-                      className="mb-2"
-                    >
-                      <option value="">All faculties</option>
-                      {faculties.map((f) => (
-                        <option key={f.faculty_id} value={f.faculty_id}>{f.faculty_name}</option>
-                      ))}
-                    </Select>
-                  )}
+                  <Label htmlFor="edit-dept">Department</Label>
                   <Select
                     id="edit-dept"
                     value={editForm.department_id}
                     onChange={(e) => setEditForm((f) => ({ ...f, department_id: e.target.value }))}
-                    required={editForm.role === 'hod'}
                   >
                     <option value="">Select department</option>
                     {departments.map((d) => (
