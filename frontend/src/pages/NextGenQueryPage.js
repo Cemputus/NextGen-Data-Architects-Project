@@ -241,7 +241,7 @@ const NextGenQueryPage = () => {
     setAssignError('');
     try {
       const resultSnapshot = result
-        ? { columns: result.columns, rows: (result.rows || []).slice(0, 500), row_count: result.row_count }
+        ? { columns: result.columns, rows: (result.rows || []).slice(0, 200), row_count: result.row_count }
         : null;
       await axios.post(
         '/api/query/assigned-visualizations',
@@ -255,14 +255,24 @@ const NextGenQueryPage = () => {
           yColumn,
           resultSnapshot,
         },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          timeout: 30000,
+        }
       );
       setAssignModalOpen(false);
       const targetLabel = assignTargetType === 'role' ? `Role "${targetValue}"` : `User "${targetValue}"`;
       setAssignSuccessBanner(`Visualization assigned to ${targetLabel}. Recipients will see it under "Views shared with you" on their dashboard.`);
       setTimeout(() => setAssignSuccessBanner(''), 5000);
     } catch (err) {
-      setAssignError(err.response?.data?.error || err.message || 'Failed to assign visualization.');
+      const msg = err.response?.data?.error
+        ? err.response.data.error
+        : err.code === 'ECONNABORTED'
+          ? 'Request timed out. Try again.'
+          : err.message === 'Network Error' || !err.response
+            ? 'Cannot reach server. Ensure the backend is running and try again.'
+            : err.message || 'Failed to assign visualization.';
+      setAssignError(msg);
     } finally {
       setAssignSaving(false);
     }

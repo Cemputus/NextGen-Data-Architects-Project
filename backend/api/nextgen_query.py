@@ -203,7 +203,7 @@ def get_assignment_target_options():
                 })
         engine.dispose()
     except Exception:
-        pass
+        users = []
 
     return jsonify({
         "roles": list(ROLES_FOR_ASSIGNMENT),
