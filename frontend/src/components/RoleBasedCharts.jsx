@@ -327,7 +327,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Trend Analysis of Grades Over Time - Role-specific (NOT for Finance or HR) */}
         {!isFinancePage && role !== 'finance' && role !== 'hr' && (
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
@@ -392,6 +392,30 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
           </Card>
         )}
 
+        {/* Grade Distribution - same row as Trend Analysis (NOT for Finance or HR) */}
+        {!isFinancePage && role !== 'finance' && role !== 'hr' && (
+          <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Grade Distribution</CardTitle>
+              <CardDescription className="text-xs">
+                {role === 'student'
+                  ? 'Proportion of your letter grades'
+                  : 'Proportion of letter grades across students'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className={chartContainerClass} data-chart-title="Grade Distribution" data-chart-container="true">
+                <SciDonutChart
+                  data={safeChartData.gradeDistribution}
+                  nameKey="name"
+                  valueKey="value"
+                  colors={getGradeDistributionColors(safeChartData.gradeDistribution)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Payment Status Distribution - Role-specific (ALWAYS for Finance pages) */}
         {!isAcademicPage && (isFinancePage || ['dean', 'hod', 'student', 'finance', 'senate'].includes(role)) && (
           <Card className="border shadow-sm" style={{ borderLeftColor: '#10b981', borderLeftWidth: '4px' }}>
@@ -413,7 +437,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                   role === 'student' && safeChartData.studentPaymentBreakdown ? (
                     // Student-specific payment breakdown with amounts
                     <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="p-3 bg-blue-50 rounded-lg border" style={{ borderColor: UCU_COLORS.blue }}>
                           <div className="text-xs font-medium text-gray-600">Total Paid</div>
                           <div className="text-lg font-bold" style={{ color: UCU_COLORS.blue }}>
@@ -518,31 +542,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        {/* Grade Distribution - NOT for Finance or HR */}
-        {!isFinancePage && role !== 'finance' && role !== 'hr' && (
-          <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Grade Distribution</CardTitle>
-              <CardDescription className="text-xs">
-                {role === 'student'
-                  ? 'Proportion of your letter grades'
-                  : 'Proportion of letter grades across students'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className={chartContainerClass} data-chart-title="Grade Distribution" data-chart-container="true">
-                <SciDonutChart
-                  data={safeChartData.gradeDistribution}
-                  nameKey="name"
-                  valueKey="value"
-                  colors={getGradeDistributionColors(safeChartData.gradeDistribution)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Top 10 Students - Role-specific scope (NOT for Finance) */}
         {!isFinancePage && ['senate', 'dean', 'hod', 'staff'].includes(role) && (
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>

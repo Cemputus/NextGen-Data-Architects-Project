@@ -219,7 +219,16 @@ const LayoutModern = ({ children }) => {
     };
   }, [user?.role]);
 
-  // Admin settings for ETL countdown (every admin page)
+  // Admin settings for ETL countdown — fetch on mount and poll so timer resets after ETL runs
+  const fetchAdminSettings = React.useCallback(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return Promise.resolve();
+    return axios
+      .get('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setAdminSettings(res.data?.settings ?? {}))
+      .catch(() => setAdminSettings({}));
+  }, []);
+
   useEffect(() => {
     const role = (user?.role || '').toString().toLowerCase();
     if (role !== 'sysadmin') {
@@ -228,18 +237,19 @@ const LayoutModern = ({ children }) => {
       return;
     }
     let cancelled = false;
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    axios
-      .get('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => {
-        if (!cancelled) setAdminSettings(res.data?.settings ?? {});
-      })
-      .catch(() => {
-        if (!cancelled) setAdminSettings({});
-      });
+    fetchAdminSettings().then(() => {
+      if (cancelled) return;
+    });
     return () => { cancelled = true; };
-  }, [user?.role]);
+  }, [user?.role, fetchAdminSettings]);
+
+  // Poll admin settings when auto ETL is on so sidebar countdown resets after each run (no page refresh)
+  useEffect(() => {
+    const role = (user?.role || '').toString().toLowerCase();
+    if (role !== 'sysadmin' || !adminSettings.etl_auto_enabled) return;
+    const interval = setInterval(fetchAdminSettings, 15000);
+    return () => clearInterval(interval);
+  }, [user?.role, adminSettings.etl_auto_enabled, fetchAdminSettings]);
 
   useEffect(() => {
     if (!adminSettings.etl_auto_enabled) {
@@ -378,11 +388,20 @@ const LayoutModern = ({ children }) => {
             })}
           </nav>
 
-          {/* ETL countdown - admin only, in sidebar */}
+          {/* ETL countdown - admin only, in sidebar; updates every second, no refresh needed */}
           {role === 'sysadmin' && adminSettings.etl_auto_enabled && etlCountdownSec != null && sidebarOpen && (
             <div className="px-3 pb-2">
               <div className="rounded-lg border border-border bg-muted/50 px-2 py-2">
-                <p className="text-center text-xs font-medium text-muted-foreground mb-1">Next ETL run</p>
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <span className="text-xs font-medium text-muted-foreground">Next ETL run</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400" title="Updates in real time">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    </span>
+                    Live
+                  </span>
+                </div>
                 <CountdownTimer seconds={etlCountdownSec} compact size="sm" />
               </div>
             </div>

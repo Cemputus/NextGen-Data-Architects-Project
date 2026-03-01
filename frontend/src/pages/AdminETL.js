@@ -374,6 +374,9 @@ const AdminETL = () => {
           {adminSettings.etl_auto_enabled && (
             <div className="mt-4 pt-4 border-t border-border">
               <CountdownTimer seconds={countdownSec} title="Next ETL run" size="md" />
+              <p className="text-center text-xs text-muted-foreground mt-2" title="Timer updates every second; resets after each run">
+                Updates in real time · no refresh needed
+              </p>
             </div>
           )}
         </CardContent>

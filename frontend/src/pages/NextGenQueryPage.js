@@ -917,11 +917,11 @@ const NextGenQueryPage = () => {
         </Card>
       </div>
 
-      <Modal open={assignModalOpen} onClose={() => !assignSaving && setAssignModalOpen(false)}>
-        <ModalHeader onClose={() => !assignSaving && setAssignModalOpen(false)}>
+      <Modal open={assignModalOpen} onClose={() => !assignSaving && setAssignModalOpen(false)} className="flex flex-col overflow-hidden max-w-2xl min-w-0">
+        <ModalHeader onClose={() => !assignSaving && setAssignModalOpen(false)} className="shrink-0">
           Assign visualization to role or user
         </ModalHeader>
-        <ModalBody>
+        <ModalBody className="flex-1 min-h-0 overflow-auto p-3 sm:p-4">
           <p className="text-sm text-muted-foreground mb-3">
             Assign this visualization so a <strong>role</strong> (all users with that role) or a specific <strong>app user</strong> can see it under &quot;Views shared with you&quot; on their dashboard.
           </p>
@@ -1014,7 +1014,7 @@ const NextGenQueryPage = () => {
                             className="w-full max-w-md"
                             autoComplete="off"
                           />
-                          <div className="border border-input rounded-md max-h-56 overflow-auto bg-background">
+                          <div className="border border-input rounded-md max-h-[min(14rem,35vh)] overflow-auto bg-background overscroll-contain">
                             {(targetOptions.users || []).length === 0 ? (
                               <p className="text-sm text-muted-foreground p-3">No app users found. Add users in Admin → Users.</p>
                             ) : filteredAndGroupedUsers.length === 0 ? (
@@ -1064,7 +1064,7 @@ const NextGenQueryPage = () => {
             )}
           </div>
         </ModalBody>
-        <ModalFooter>
+        <ModalFooter className="shrink-0 flex-wrap gap-2">
           <Button variant="secondary" onClick={() => !assignSaving && setAssignModalOpen(false)} disabled={assignSaving}>
             Cancel
           </Button>
