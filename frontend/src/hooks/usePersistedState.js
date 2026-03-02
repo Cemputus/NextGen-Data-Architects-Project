@@ -9,11 +9,39 @@ import React from 'react';
 
 const PREFIX = 'nextgen_draft_';
 
+function getCurrentUserKey() {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return 'guest';
+    const parsed = JSON.parse(raw);
+    const username =
+      (parsed?.username ||
+        parsed?.access_number ||
+        parsed?.id ||
+        '').toString().trim().toLowerCase();
+    return username || 'guest';
+  } catch (_) {
+    return 'guest';
+  }
+}
+
+function storageKey(key) {
+  const userKey = getCurrentUserKey();
+  return `${PREFIX}${userKey}_${key}`;
+}
+
+function legacyStorageKey(key) {
+  return PREFIX + key;
+}
+
 function read(key) {
   try {
-    const raw = localStorage.getItem(PREFIX + key);
-    if (raw == null) return undefined;
-    return JSON.parse(raw);
+    const raw = localStorage.getItem(storageKey(key));
+    if (raw != null) return JSON.parse(raw);
+    // Fallback to legacy key (without user scoping) for older drafts
+    const legacyRaw = localStorage.getItem(legacyStorageKey(key));
+    if (legacyRaw == null) return undefined;
+    return JSON.parse(legacyRaw);
   } catch (_) {
     return undefined;
   }
@@ -21,7 +49,7 @@ function read(key) {
 
 function write(key, value) {
   try {
-    localStorage.setItem(PREFIX + key, JSON.stringify(value));
+    localStorage.setItem(storageKey(key), JSON.stringify(value));
   } catch (_) { /* ignore */ }
 }
 

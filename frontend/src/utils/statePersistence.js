@@ -5,10 +5,35 @@
 
 const STORAGE_PREFIX = 'ucu_analytics_';
 
+// Derive a per-user key segment from localStorage user info
+const getCurrentUserKey = () => {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return 'guest';
+    const parsed = JSON.parse(raw);
+    const username =
+      (parsed?.username ||
+        parsed?.access_number ||
+        parsed?.id ||
+        '').toString().trim().toLowerCase();
+    return username || 'guest';
+  } catch (error) {
+    console.warn('Failed to read current user for state persistence:', error);
+    return 'guest';
+  }
+};
+
 /**
- * Get storage key for a specific page/component
+ * Get storage key for a specific page/component (per-user aware).
+ * New keys are namespaced by username so each user gets isolated state.
  */
 const getStorageKey = (pageName, key) => {
+  const userKey = getCurrentUserKey();
+  return `${STORAGE_PREFIX}${userKey}_${pageName}_${key}`;
+};
+
+// Legacy key format (without per-user namespace) for backward compatibility when loading.
+const getLegacyStorageKey = (pageName, key) => {
   return `${STORAGE_PREFIX}${pageName}_${key}`;
 };
 
@@ -36,6 +61,12 @@ export const loadState = (pageName, defaultState = {}) => {
     if (saved) {
       return JSON.parse(saved);
     }
+    // Fallback to legacy (pre user-scoped) key if present
+    const legacyKey = getLegacyStorageKey(pageName, 'state');
+    const legacySaved = localStorage.getItem(legacyKey);
+    if (legacySaved) {
+      return JSON.parse(legacySaved);
+    }
   } catch (error) {
     console.warn('Failed to load state from localStorage:', error);
   }
@@ -49,6 +80,9 @@ export const clearState = (pageName) => {
   try {
     const key = getStorageKey(pageName, 'state');
     localStorage.removeItem(key);
+    // Also clear legacy key if present
+    const legacyKey = getLegacyStorageKey(pageName, 'state');
+    localStorage.removeItem(legacyKey);
     return true;
   } catch (error) {
     console.warn('Failed to clear state from localStorage:', error);
@@ -80,6 +114,12 @@ export const loadFilters = (pageName, defaultFilters = {}) => {
     if (saved) {
       return JSON.parse(saved);
     }
+    // Fallback to legacy key
+    const legacyKey = getLegacyStorageKey(pageName, 'filters');
+    const legacySaved = localStorage.getItem(legacyKey);
+    if (legacySaved) {
+      return JSON.parse(legacySaved);
+    }
   } catch (error) {
     console.warn('Failed to load filters from localStorage:', error);
   }
@@ -106,7 +146,11 @@ export const saveTab = (pageName, tabValue) => {
 export const loadTab = (pageName, defaultTab = null) => {
   try {
     const key = getStorageKey(pageName, 'tab');
-    return localStorage.getItem(key) || defaultTab;
+    const value = localStorage.getItem(key);
+    if (value != null) return value;
+    // Legacy
+    const legacyKey = getLegacyStorageKey(pageName, 'tab');
+    return localStorage.getItem(legacyKey) || defaultTab;
   } catch (error) {
     console.warn('Failed to load tab from localStorage:', error);
     return defaultTab;
@@ -133,7 +177,11 @@ export const saveDrilldown = (pageName, drilldown) => {
 export const loadDrilldown = (pageName, defaultDrilldown = 'overall') => {
   try {
     const key = getStorageKey(pageName, 'drilldown');
-    return localStorage.getItem(key) || defaultDrilldown;
+    const value = localStorage.getItem(key);
+    if (value != null) return value;
+    // Legacy
+    const legacyKey = getLegacyStorageKey(pageName, 'drilldown');
+    return localStorage.getItem(legacyKey) || defaultDrilldown;
   } catch (error) {
     console.warn('Failed to load drilldown from localStorage:', error);
     return defaultDrilldown;
@@ -160,7 +208,11 @@ export const saveSearchTerm = (pageName, searchTerm) => {
 export const loadSearchTerm = (pageName, defaultSearch = '') => {
   try {
     const key = getStorageKey(pageName, 'search');
-    return localStorage.getItem(key) || defaultSearch;
+    const value = localStorage.getItem(key);
+    if (value != null) return value;
+    // Legacy
+    const legacyKey = getLegacyStorageKey(pageName, 'search');
+    return localStorage.getItem(legacyKey) || defaultSearch;
   } catch (error) {
     console.warn('Failed to load search term from localStorage:', error);
     return defaultSearch;

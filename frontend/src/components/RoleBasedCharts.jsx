@@ -15,6 +15,7 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, SciDonutChart } from './charts/EChartsComponents';
 import { UCU_COLORS } from '../lib/chartTheme';
+import usePersistedState from '../hooks/usePersistedState';
 
 // Modern, visually appealing chart color palettes
 const DEPT_COLORS = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE']; // Vibrant indigo to light purple gradient
@@ -80,8 +81,14 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
   const [gradesOverTimePeriod, setGradesOverTimePeriod] = useState('quarterly');
   const [gradesOverTimeSemesterId, setGradesOverTimeSemesterId] = useState('');
   const [semesterOptions, setSemesterOptions] = useState([]);
-  const [studentDistGroupBy, setStudentDistGroupBy] = useState('department'); // department | faculty | program
-  const [studentDistSemesterId, setStudentDistSemesterId] = useState('');
+  const [studentDistGroupBy, setStudentDistGroupBy] = usePersistedState(
+    `studentDist_groupBy_${type}_${role}`,
+    'department'
+  ); // department | faculty | program
+  const [studentDistSemesterId, setStudentDistSemesterId] = usePersistedState(
+    `studentDist_semester_${type}_${role}`,
+    ''
+  );
 
   useEffect(() => {
     loadChartData();
