@@ -1963,24 +1963,33 @@ def get_dashboard_stats():
 @app.route('/api/dashboard/students-by-department', methods=['GET'])
 @jwt_required()
 def get_students_by_department():
-    """Get student count by department with role-based filtering"""
+    """Get student count grouped by department, faculty, or program with role-based filtering.
+
+    Default grouping is by department to preserve existing behavior.
+    New query parameter: group_by = 'department' | 'faculty' | 'program'
+    """
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
-        
+
         claims = get_jwt()
         role_str = claims.get('role', 'student')
         try:
             role = Role(role_str.lower())
-        except:
+        except Exception:
             role = Role.STUDENT
-        
+
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         filters = request.args.to_dict()
-        
+
+        # Grouping dimension (validated)
+        group_by = (filters.get('group_by') or 'department').strip().lower()
+        if group_by not in ('department', 'faculty', 'program'):
+            group_by = 'department'
+
         # Build WHERE clause based on role and filters
         where_clauses = []
-        
+
         # Role-based scoping
         if role == Role.DEAN and claims.get('faculty_id'):
             where_clauses.append(f"df.faculty_id = {claims['faculty_id']}")
@@ -1988,42 +1997,97 @@ def get_students_by_department():
             where_clauses.append(f"ddept.department_id = {claims['department_id']}")
         elif role == Role.STAFF and claims.get('department_id'):
             where_clauses.append(f"ddept.department_id = {claims['department_id']}")
-        
-        # Apply user filters
-        if filters.get('faculty_id'):
-            where_clauses.append(f"df.faculty_id = {filters['faculty_id']}")
-        if filters.get('department_id'):
-            where_clauses.append(f"ddept.department_id = {filters['department_id']}")
-        if filters.get('program_id'):
-            where_clauses.append(f"ds.program_id = {filters['program_id']}")
-        if filters.get('semester_id'):
-            where_clauses.append(f"fe.semester_id = {filters['semester_id']}")
-        
+
+        # Apply user filters (faculty/department/program/semester)
+        faculty_id = filters.get('faculty_id')
+        department_id = filters.get('department_id')
+        program_id = filters.get('program_id')
+        semester_id = filters.get('semester_id')
+
+        if faculty_id:
+            where_clauses.append(f"df.faculty_id = {int(faculty_id)}")
+        if department_id:
+            where_clauses.append(f"ddept.department_id = {int(department_id)}")
+        if program_id:
+            where_clauses.append(f"ds.program_id = {int(program_id)}")
+        if semester_id:
+            where_clauses.append(f"fe.semester_id = {int(semester_id)}")
+
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-        
-        query = f"""
-        SELECT 
-            ddept.department_name as department,
-            df.faculty_name as faculty,
-            COUNT(DISTINCT ds.student_id) as student_count
-        FROM dim_student ds
-        JOIN dim_program dp ON ds.program_id = dp.program_id
-        JOIN dim_department ddept ON dp.department_id = ddept.department_id
-        JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
-        LEFT JOIN fact_enrollment fe ON ds.student_id = fe.student_id
-        {where_clause}
-        GROUP BY ddept.department_name, df.faculty_name
-        ORDER BY student_count DESC
-        """
-        
-        df = pd.read_sql_query(text(query), engine)
+
+        # Build query based on grouping dimension
+        if group_by == 'faculty':
+            query = f"""
+            SELECT 
+                df.faculty_name AS faculty,
+                COUNT(DISTINCT ds.student_id) AS student_count
+            FROM dim_student ds
+            JOIN dim_program dp ON ds.program_id = dp.program_id
+            JOIN dim_department ddept ON dp.department_id = ddept.department_id
+            JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            LEFT JOIN fact_enrollment fe ON ds.student_id = fe.student_id
+            {where_clause}
+            GROUP BY df.faculty_name
+            ORDER BY student_count DESC
+            """
+        elif group_by == 'program':
+            query = f"""
+            SELECT 
+                dp.program_name AS program,
+                COUNT(DISTINCT ds.student_id) AS student_count
+            FROM dim_student ds
+            JOIN dim_program dp ON ds.program_id = dp.program_id
+            JOIN dim_department ddept ON dp.department_id = ddept.department_id
+            JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            LEFT JOIN fact_enrollment fe ON ds.student_id = fe.student_id
+            {where_clause}
+            GROUP BY dp.program_name
+            ORDER BY student_count DESC
+            """
+        else:
+            # Default: group by department (existing behavior)
+            query = f"""
+            SELECT 
+                ddept.department_name AS department,
+                df.faculty_name AS faculty,
+                COUNT(DISTINCT ds.student_id) AS student_count
+            FROM dim_student ds
+            JOIN dim_program dp ON ds.program_id = dp.program_id
+            JOIN dim_department ddept ON dp.department_id = ddept.department_id
+            JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            LEFT JOIN fact_enrollment fe ON ds.student_id = fe.student_id
+            {where_clause}
+            GROUP BY ddept.department_name, df.faculty_name
+            ORDER BY student_count DESC
+            """
+
+        df_res = pd.read_sql_query(text(query), engine)
         engine.dispose()
-        
-        return jsonify({
-            'departments': df['department'].tolist(),
-            'faculties': df['faculty'].tolist(),
-            'counts': df['student_count'].tolist()
-        })
+
+        labels = []
+        if group_by == 'faculty':
+            labels = df_res['faculty'].tolist()
+        elif group_by == 'program':
+            labels = df_res['program'].tolist()
+        else:
+            labels = df_res['department'].tolist()
+
+        response = {
+            'labels': labels,
+            'counts': df_res['student_count'].tolist(),
+            'group_by': group_by,
+        }
+
+        # Backwards-compatible fields for existing consumers
+        if group_by == 'department':
+            response['departments'] = df_res['department'].tolist()
+            response['faculties'] = df_res['faculty'].tolist()
+        elif group_by == 'faculty':
+            response['faculties'] = df_res['faculty'].tolist()
+        elif group_by == 'program':
+            response['programs'] = df_res['program'].tolist()
+
+        return jsonify(response)
     except Exception as e:
         print(f"Error in get_students_by_department: {e}")
         import traceback
