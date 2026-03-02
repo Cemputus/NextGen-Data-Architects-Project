@@ -368,6 +368,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                   )}
                 </div>
               )}
+            </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className={chartContainerClass} data-chart-title="Student Distribution by Department" data-chart-container="true">
