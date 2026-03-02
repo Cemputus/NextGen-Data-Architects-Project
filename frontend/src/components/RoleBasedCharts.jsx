@@ -80,10 +80,22 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
   const [gradesOverTimePeriod, setGradesOverTimePeriod] = useState('quarterly');
   const [gradesOverTimeSemesterId, setGradesOverTimeSemesterId] = useState('');
   const [semesterOptions, setSemesterOptions] = useState([]);
+  const [studentDistGroupBy, setStudentDistGroupBy] = useState('department'); // department | faculty | program
+  const [studentDistSemesterId, setStudentDistSemesterId] = useState('');
 
   useEffect(() => {
     loadChartData();
-  }, [JSON.stringify(filters), type, user?.role, paymentTrendsPeriod, attendanceTrendsPeriod, gradesOverTimePeriod, gradesOverTimeSemesterId]);
+  }, [
+    JSON.stringify(filters),
+    type,
+    user?.role,
+    paymentTrendsPeriod,
+    attendanceTrendsPeriod,
+    gradesOverTimePeriod,
+    gradesOverTimeSemesterId,
+    studentDistGroupBy,
+    studentDistSemesterId,
+  ]);
 
   useEffect(() => {
     if (!isFinancePage && role !== 'finance' && role !== 'hr') {
@@ -101,13 +113,17 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       // Role-specific data loading
       const requests = [];
       
-      // Student Distribution by Department (for Senate, Dean, HOD, Staff) - NOT for Finance pages
+      // Student Distribution (for Senate, Dean, HOD, Staff, Analyst) - NOT for Finance pages
       if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role)) {
+        const studentFilters = { ...filters, group_by: studentDistGroupBy };
+        if (studentDistSemesterId) {
+          studentFilters.semester_id = studentDistSemesterId;
+        }
         requests.push(
           axios.get('/api/dashboard/students-by-department', {
             headers: { Authorization: `Bearer ${token}` },
-            params: filters
-          }).catch(() => ({ data: { departments: [], counts: [] } }))
+            params: studentFilters
+          }).catch(() => ({ data: { labels: [], counts: [] } }))
         );
       }
       
@@ -191,9 +207,11 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       // Process Student Distribution
       if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role)) {
         const deptRes = results[resultIndex++];
-        data.studentDistribution = deptRes.data.departments?.map((dept, idx) => ({
-          name: dept,
-          students: deptRes.data.counts?.[idx] || 0
+        const labels = deptRes.data.labels || deptRes.data.departments || [];
+        const counts = deptRes.data.counts || [];
+        data.studentDistribution = labels.map((label, idx) => ({
+          name: label,
+          students: counts[idx] || 0
         })) || [];
       }
       
@@ -302,13 +320,54 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       {!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role) && (
         <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.blue, borderLeftWidth: '4px' }}>
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.blue }}>Student Distribution by Department</CardTitle>
-            <CardDescription className="text-xs">
-              {role === 'senate' && 'Institution-wide student distribution across all departments'}
-              {role === 'dean' && 'Student distribution in your faculty/school'}
-              {role === 'hod' && 'Student distribution in your department'}
-              {role === 'staff' && 'Student distribution in your classes'}
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.blue }}>
+                  {studentDistGroupBy === 'faculty'
+                    ? 'Student Distribution by Faculty'
+                    : studentDistGroupBy === 'program'
+                    ? 'Student Distribution by Program'
+                    : 'Student Distribution by Department'}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {role === 'senate' && 'Institution-wide student distribution with flexible grouping'}
+                  {role === 'analyst' && 'Institution-wide distribution with drill-down by faculty, department, or program'}
+                  {role === 'dean' && 'Student distribution in your faculty/school'}
+                  {role === 'hod' && 'Student distribution in your department'}
+                  {role === 'staff' && 'Student distribution in your classes'}
+                </CardDescription>
+              </div>
+              {['senate', 'analyst'].includes(role) && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-muted-foreground whitespace-nowrap">View by:</span>
+                  <select
+                    value={studentDistGroupBy}
+                    onChange={(e) => setStudentDistGroupBy(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 font-medium"
+                  >
+                    <option value="department">Department</option>
+                    <option value="faculty">Faculty</option>
+                    <option value="program">Program</option>
+                  </select>
+                  {semesterOptions.length > 0 && (
+                    <>
+                      <span className="text-muted-foreground whitespace-nowrap">Semester:</span>
+                      <select
+                        value={studentDistSemesterId}
+                        onChange={(e) => setStudentDistSemesterId(e.target.value)}
+                        className="h-8 rounded-md border border-input bg-background px-2 font-medium min-w-[120px]"
+                      >
+                        <option value="">All</option>
+                        {semesterOptions.map((s) => (
+                          <option key={s.semester_id} value={s.semester_id}>
+                            {s.semester_name || s.semester_id}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+                </div>
+              )}
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className={chartContainerClass} data-chart-title="Student Distribution by Department" data-chart-container="true">
@@ -316,7 +375,13 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                 data={safeChartData.studentDistribution}
                 xDataKey="name"
                 yDataKey="students"
-                xAxisLabel="Department"
+                xAxisLabel={
+                  studentDistGroupBy === 'faculty'
+                    ? 'Faculty'
+                    : studentDistGroupBy === 'program'
+                    ? 'Program'
+                    : 'Department'
+                }
                 yAxisLabel="Number of Students"
                 fillColor="#4F46E5"
                 showLegend={true}
