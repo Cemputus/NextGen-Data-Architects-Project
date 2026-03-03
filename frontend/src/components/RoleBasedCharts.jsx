@@ -98,11 +98,21 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
 
   useEffect(() => {
     if (!isFinancePage && role !== 'finance' && role !== 'hr') {
-      axios.get('/api/analytics/filter-options', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      axios
+        .get('/api/analytics/filter-options', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        })
         .then((r) => setSemesterOptions(r.data?.semesters || []))
         .catch(() => setSemesterOptions([]));
     }
   }, [isFinancePage, role]);
+
+  const studentDistGroupBy = (() => {
+    const f = filters || {};
+    if (f.program_id) return 'course';
+    if (f.department_id) return 'program';
+    return 'department';
+  })();
 
   const loadChartData = async () => {
     try {
@@ -312,13 +322,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
     paymentTrends: chartData.paymentTrends || [],
     studentPaymentBreakdown: chartData.studentPaymentBreakdown || null,
   };
-
-  const studentDistGroupBy = (() => {
-    const f = filters || {};
-    if (f.program_id) return 'course';
-    if (f.department_id) return 'program';
-    return 'department';
-  })();
 
   const chartContainerClass = "min-h-[200px] max-h-[320px] w-full"
   return (
