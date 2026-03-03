@@ -11,6 +11,7 @@ import { DashboardGrid } from '../components/ui/dashboard-grid';
 import ExportButtons from '../components/ExportButtons';
 import UserManagementSection from '../components/admin/UserManagementSection';
 import AuditLogSection from '../components/admin/AuditLogSection';
+import { SciDonutChart, SciBarChart } from '../components/charts/EChartsComponents';
 import axios from 'axios';
 import { Button } from '../components/ui/button';
 import { Loader2 } from 'lucide-react';
@@ -140,6 +141,20 @@ const AdminDashboard = () => {
     user?.username ||
     '';
 
+  const userRoleDistribution = React.useMemo(() => {
+    const counts = {};
+    const users = adminStatus?.users_summary?.by_role || [];
+    users.forEach((u) => {
+      const r = (u.role || 'unknown').toString().toLowerCase();
+      counts[r] = (counts[r] || 0) + (u.count || 0);
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [adminStatus]);
+
+  const [consoleUserChartType, setConsoleUserChartType] = React.useState('donut');
+
   return (
     <div className="space-y-4">
       {/* Header with Export */}
@@ -217,6 +232,53 @@ const AdminDashboard = () => {
               subtitle="Only staff/lecturers: dim_employee (ETL) + app users with role Staff. Refresh after ETL."
             />
           </DashboardGrid>
+
+          {/* User distribution quick view (based on summary from admin status, if available) */}
+          {userRoleDistribution.length > 0 && (
+            <Card className="border shadow-sm">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-base font-semibold">User distribution by role</CardTitle>
+                <CardDescription className="text-xs">
+                  Snapshot of users by role (students + app users). Open Users tab for full management.
+                </CardDescription>
+                <div className="mt-2">
+                  <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>Chart type</span>
+                    <select
+                      value={consoleUserChartType}
+                      onChange={(e) => setConsoleUserChartType(e.target.value)}
+                      className="rounded border border-input bg-background px-2 py-1 text-xs"
+                    >
+                      <option value="donut">Donut</option>
+                      <option value="bar">Bar</option>
+                    </select>
+                  </label>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="h-[220px] w-full">
+                  {consoleUserChartType === 'bar' ? (
+                    <SciBarChart
+                      data={userRoleDistribution}
+                      xDataKey="name"
+                      yDataKey="value"
+                      xAxisLabel="Role"
+                      yAxisLabel="Users"
+                      showGrid
+                    />
+                  ) : (
+                    <SciDonutChart
+                      data={userRoleDistribution}
+                      nameKey="name"
+                      valueKey="value"
+                      title=""
+                      innerRadius="55%"
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Main Management Tabs */}
           <Tabs defaultValue="users" className="space-y-3">

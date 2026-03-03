@@ -16,7 +16,7 @@ import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { exportETLRunToPDF } from '../utils/exportUtils';
 import adminUIState from '../utils/adminUIState';
-import { SciBarChart } from '../components/charts/EChartsComponents';
+import { SciBarChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import CountdownTimer from '../components/admin/CountdownTimer';
 
 const REFRESH_INTERVAL_MS = 5000;
@@ -84,6 +84,7 @@ const AdminETL = () => {
   const [logLoading, setLogLoading] = useState(false);
   const [logError, setLogError] = useState(null);
   const [pdfDownloading, setPdfDownloading] = useState(null);
+  const [etlChartType, setEtlChartType] = useState('duration'); // 'duration' | 'status'
 
   const ETL_RUNS_LIMIT_OPTIONS = [
     { value: 5, label: '5 runs' },
@@ -532,6 +533,20 @@ const AdminETL = () => {
                   </select>
                 </label>
               )}
+              {dataViewMode === 'visual' && (
+                <label className="flex items-center gap-2 text-sm" htmlFor="etl-chart-type">
+                  <span className="text-muted-foreground">Chart type</span>
+                  <select
+                    id="etl-chart-type"
+                    value={etlChartType}
+                    onChange={(e) => setEtlChartType(e.target.value)}
+                    className="rounded border border-input bg-background px-2 py-1.5 text-sm h-9"
+                  >
+                    <option value="duration">Duration by run</option>
+                    <option value="status">Runs by status</option>
+                  </select>
+                </label>
+              )}
               {dataViewMode === 'raw' && (
                 <label className="flex items-center gap-2 text-sm" htmlFor="etl-per-page">
                   <span className="text-muted-foreground">Per page</span>
@@ -552,7 +567,7 @@ const AdminETL = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {etlRuns.length === 0 ? (
+            {etlRuns.length === 0 ? (
             <p className="text-muted-foreground text-sm py-4">No ETL log files found. Click Run ETL to add one run.</p>
           ) : dataViewMode === 'visual' ? (
             (() => {
@@ -578,6 +593,28 @@ const AdminETL = () => {
               if (chartData.length === 0) {
                 return <p className="text-muted-foreground text-sm py-4">No runs match the status filter.</p>;
               }
+              if (etlChartType === 'status') {
+                const statusCounts = [
+                  { name: 'Success', value: filtered.filter((r) => r.success).length },
+                  { name: 'Failed', value: filtered.filter((r) => !r.success).length },
+                ];
+                return (
+                  <>
+                    <div className="h-[320px] min-h-[200px] w-full mb-4">
+                      <SciDonutChart
+                        data={statusCounts}
+                        nameKey="name"
+                        valueKey="value"
+                        title=""
+                        innerRadius="55%"
+                      />
+                    </div>
+                    <p className="text-muted-foreground text-xs">
+                      Runs by status (success vs failed). Use &quot;Raw (tables)&quot; for full list and actions (View, Download PDF).
+                    </p>
+                  </>
+                );
+              }
               return (
                 <>
                   <div className="h-[320px] min-h-[200px] w-full mb-4">
@@ -594,7 +631,9 @@ const AdminETL = () => {
                       showGrid
                     />
                   </div>
-                  <p className="text-muted-foreground text-xs">Showing up to 30 runs. Use &quot;Raw (tables)&quot; for full list and actions (View, Download PDF).</p>
+                  <p className="text-muted-foreground text-xs">
+                    Showing up to 30 runs. Use &quot;Raw (tables)&quot; for full list and actions (View, Download PDF).
+                  </p>
                 </>
               );
             })()

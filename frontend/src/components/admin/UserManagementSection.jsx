@@ -16,6 +16,7 @@ import { LoadingState, EmptyState, ErrorState } from '../ui/state-messages';
 import axios from 'axios';
 import { cn } from '../../lib/utils';
 import adminUIState from '../../utils/adminUIState';
+import { SciDonutChart, SciBarChart } from '../charts/EChartsComponents';
 
 const getToken = () => localStorage.getItem('token');
 
@@ -109,6 +110,23 @@ export default function UserManagementSection({
   const [resetPassword, setResetPassword] = useState('');
   const [resetSubmitting, setResetSubmitting] = useState(false);
   const [resetError, setResetError] = useState(null);
+
+  const [roleChartType, setRoleChartType] = useState('donut'); // 'donut' | 'bar'
+
+  const roleDistribution = React.useMemo(() => {
+    if (!users || users.length === 0) return [];
+    const counts = {};
+    users.forEach((u) => {
+      const r = (u.role || 'unknown').toString().toLowerCase();
+      counts[r] = (counts[r] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([roleName, value]) => ({
+        name: roleName,
+        value,
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [users]);
 
   const loadUsers = useCallback(async () => {
     const token = getToken();
@@ -442,6 +460,69 @@ export default function UserManagementSection({
             </Button>
           </div>
         </CardHeader>
+      )}
+
+      {!compact && (
+        <CardContent className="border-t border-border bg-muted/30">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+            <div className="md:col-span-1 space-y-1">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">User distribution</p>
+              <p className="text-sm text-muted-foreground">
+                Overview of users by role for the current filters.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Total loaded: <span className="font-semibold text-foreground">{total}</span>
+                {roleFilter && (
+                  <>
+                    {' · '}
+                    <span className="font-mono">{roleFilter}</span>
+                  </>
+                )}
+              </p>
+              <div className="mt-2">
+                <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Chart type</span>
+                  <select
+                    value={roleChartType}
+                    onChange={(e) => setRoleChartType(e.target.value)}
+                    className="rounded border border-input bg-background px-2 py-1 text-xs"
+                  >
+                    <option value="donut">Donut</option>
+                    <option value="bar">Bar</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              {roleDistribution.length === 0 ? (
+                <div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border rounded-lg">
+                  No users loaded yet. Adjust filters or click Refresh.
+                </div>
+              ) : (
+                <div className="h-[220px] w-full">
+                  {roleChartType === 'bar' ? (
+                    <SciBarChart
+                      data={roleDistribution}
+                      xDataKey="name"
+                      yDataKey="value"
+                      xAxisLabel="Role"
+                      yAxisLabel="Users"
+                      showGrid
+                    />
+                  ) : (
+                    <SciDonutChart
+                      data={roleDistribution}
+                      nameKey="name"
+                      valueKey="value"
+                      title=""
+                      innerRadius="55%"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
       )}
 
       <Modal open={addModalOpen} onClose={() => !addSubmitting && setAddModalOpen(false)} titleId="add-user-title" maxWidth="max-w-lg">

@@ -13,7 +13,7 @@ import { LoadingState, EmptyState, ErrorState } from '../ui/state-messages';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import adminUIState from '../../utils/adminUIState';
-import { SciBarChart } from '../charts/EChartsComponents';
+import { SciBarChart, SciDonutChart } from '../charts/EChartsComponents';
 
 const AUDIT_LIMIT_OPTIONS = [5, 10, 20, 30, 40, 50, 100, 150, 200, 500, 'all'];
 
@@ -44,6 +44,7 @@ export default function AuditLogSection({
   const [logsLimit, setLogsLimit] = useState(getInitialLimit);
   const [dataViewMode, setDataViewModeState] = useState(() => (compact ? 'raw' : (auditState.dataViewMode || 'raw')));
   const [chartGroupBy, setChartGroupByState] = useState(() => (compact ? 'action' : (auditState.chartGroupBy || 'action')));
+  const [chartType, setChartTypeState] = useState(() => (compact ? 'bar' : (auditState.chartType || 'bar'))); // 'bar' | 'donut'
 
   const setDataViewMode = (v) => {
     setDataViewModeState(v);
@@ -52,6 +53,11 @@ export default function AuditLogSection({
   const setChartGroupBy = (v) => {
     setChartGroupByState(v);
     if (!compact) adminUIState.setSection('audit', { chartGroupBy: v });
+  };
+
+  const setChartType = (v) => {
+    setChartTypeState(v);
+    if (!compact) adminUIState.setSection('audit', { chartType: v });
   };
 
   const setSearchTerm = (v) => {
@@ -298,6 +304,19 @@ export default function AuditLogSection({
                   </select>
                 </label>
               )}
+              {!compact && dataViewMode === 'visual' && (
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Chart type</span>
+                  <select
+                    value={chartType}
+                    onChange={(e) => setChartType(e.target.value)}
+                    className="rounded border border-input bg-background px-2 py-1.5 text-sm"
+                  >
+                    <option value="bar">Bar</option>
+                    <option value="donut">Donut</option>
+                  </select>
+                </label>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -336,15 +355,35 @@ export default function AuditLogSection({
                 Showing top 25 groups from {filteredLogs.length} entries (limit: {logsLimit === 'all' ? 'all' : logsLimit}). Switch to Raw for full table.
               </div>
               <div className="h-[320px] min-h-[200px] w-full">
-                <SciBarChart
-                  data={chartData}
-                  xDataKey="name"
-                  yDataKey="value"
-                  xAxisLabel={chartGroupBy === 'action' ? 'Action' : chartGroupBy === 'resource' ? 'Resource' : chartGroupBy === 'user' ? 'User' : chartGroupBy === 'role' ? 'Role' : 'Status'}
-                  yAxisLabel="Count"
-                  fillColor="#1e3a5f"
-                  showGrid
-                />
+                {chartType === 'donut' ? (
+                  <SciDonutChart
+                    data={chartData}
+                    nameKey="name"
+                    valueKey="value"
+                    title=""
+                    innerRadius="55%"
+                  />
+                ) : (
+                  <SciBarChart
+                    data={chartData}
+                    xDataKey="name"
+                    yDataKey="value"
+                    xAxisLabel={
+                      chartGroupBy === 'action'
+                        ? 'Action'
+                        : chartGroupBy === 'resource'
+                        ? 'Resource'
+                        : chartGroupBy === 'user'
+                        ? 'User'
+                        : chartGroupBy === 'role'
+                        ? 'Role'
+                        : 'Status'
+                    }
+                    yAxisLabel="Count"
+                    fillColor="#1e3a5f"
+                    showGrid
+                  />
+                )}
               </div>
             </>
           ) : (
