@@ -208,6 +208,23 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
   - **Automatic visualizations** (bar, line, area, donut) powered by ECharts; numeric columns auto-detected
   - **Workspace persistence**: last query, history, chart type, X/Y columns, and a snapshot of the last result are saved per user and restored on login (even on another device)
 
+### 6. **Advanced Visualization Dashboards**
+
+- **Role-based, filter-aware dashboards**:
+  - Each role (Student, Staff, HOD, Dean, Senate, Finance, HR, Analyst, Sysadmin) has a tailored dashboard showing KPIs and charts that respect global filters (semester, faculty, department, program, course, etc.).
+  - Senate and institutional views default to **university-wide** scope, with optional drill-down via filters.
+- **Rich chart experiences**:
+  - Unified ECharts wrapper (`BaseChart` + `Sci*` components) powers line, bar, area, stacked column, and donut charts with responsive layouts.
+  - Key admin sections (User Management, ETL Jobs, Audit Logs) support **Chart type** switches (e.g. Donut vs Bar, Duration vs Status).
+- **Table vs Visual modes (no redundancy)**:
+  - Admin can choose to see **Raw tables** or **Visual charts**, but not both at once, keeping layouts clean and focused.
+  - User Management, ETL Run History, and Audit Logs all implement this **data view** toggle.
+- **Drill-down and distribution views**:
+  - Student Distribution automatically changes grouping (Department → Program → Course) based on global filters.
+  - Additional distributions (e.g. users by role, ETL runs by status, audit events by action/resource) give a quick health snapshot before drilling into details.
+- **Per-user, per-session experience**:
+  - Dashboard filters, active tabs, and visualization preferences are scoped to the logged-in user (via `user_state` + local storage keys), so multiple users or roles never “fight” over shared state.
+
 ---
 
 ---
@@ -1386,7 +1403,7 @@ response = requests.post(
 ## 🚀 Future Enhancements
 
 - [ ] Real-time data streaming
-- [ ] Advanced visualization dashboards
+- [x] Advanced visualization dashboards *(implemented via role-based dashboards, Admin visuals for Users/ETL/Audit, chart-type toggles, and drill-down analytics – see sections above)*
 - [ ] Mobile app integration
 - [ ] Automated report scheduling
 - [ ] Email notifications for predictions

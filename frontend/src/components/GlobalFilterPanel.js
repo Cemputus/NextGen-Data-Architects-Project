@@ -15,8 +15,11 @@ import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from '../uti
 import { logAuditEvent } from '../utils/audit';
 
 const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'global', hideHighSchool = false, hideAcademic = false, hideFaculty = false, hideDepartment = false }) => {
+  // For analytics overview pages (e.g. analyst_analytics, senate_analytics), don't reuse old filters –
+  // always start clean so charts don't get "stuck" on stale combinations.
+  const isAnalyticsOverview = typeof pageName === 'string' && pageName.endsWith('_analytics');
   // Load persisted filters and search term
-  const savedFiltersState = loadFilters(pageName, savedFilters || {});
+  const savedFiltersState = isAnalyticsOverview ? {} : loadFilters(pageName, savedFilters || {});
   const savedSearch = loadSearchTerm(pageName, '');
   
   const [filters, setFilters] = useState(savedFiltersState);
@@ -97,7 +100,9 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
     setFilters(newFilters);
     onFilterChange(newFilters);
     logAuditEvent('filter_applied', 'filters', pageName);
-    saveFilters(pageName, newFilters);
+    if (!isAnalyticsOverview) {
+      saveFilters(pageName, newFilters);
+    }
     setTimeout(() => {
       loadFilterOptions(newFilters);
     }, 100);
@@ -131,6 +136,9 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
     setSearchTerm('');
     onFilterChange({});
     logAuditEvent('filter_cleared', 'filters', pageName);
+    if (!isAnalyticsOverview) {
+      saveFilters(pageName, {});
+    }
     loadFilterOptions({});
   };
 

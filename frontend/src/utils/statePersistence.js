@@ -61,12 +61,6 @@ export const loadState = (pageName, defaultState = {}) => {
     if (saved) {
       return JSON.parse(saved);
     }
-    // Fallback to legacy (pre user-scoped) key if present
-    const legacyKey = getLegacyStorageKey(pageName, 'state');
-    const legacySaved = localStorage.getItem(legacyKey);
-    if (legacySaved) {
-      return JSON.parse(legacySaved);
-    }
   } catch (error) {
     console.warn('Failed to load state from localStorage:', error);
   }
@@ -113,12 +107,6 @@ export const loadFilters = (pageName, defaultFilters = {}) => {
     const saved = localStorage.getItem(key);
     if (saved) {
       return JSON.parse(saved);
-    }
-    // Fallback to legacy key
-    const legacyKey = getLegacyStorageKey(pageName, 'filters');
-    const legacySaved = localStorage.getItem(legacyKey);
-    if (legacySaved) {
-      return JSON.parse(legacySaved);
     }
   } catch (error) {
     console.warn('Failed to load filters from localStorage:', error);
