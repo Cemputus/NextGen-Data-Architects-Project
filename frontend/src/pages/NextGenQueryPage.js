@@ -919,11 +919,11 @@ const NextGenQueryPage = () => {
 
       <Modal open={assignModalOpen} onClose={() => !assignSaving && setAssignModalOpen(false)} className="flex flex-col overflow-hidden max-w-2xl min-w-0">
         <ModalHeader onClose={() => !assignSaving && setAssignModalOpen(false)} className="shrink-0">
-          Assign visualization to role or user
+          Share visualization
         </ModalHeader>
         <ModalBody className="flex-1 min-h-0 overflow-auto p-3 sm:p-4">
           <p className="text-sm text-muted-foreground mb-3">
-            Assign this visualization so a <strong>role</strong> (all users with that role) or a specific <strong>app user</strong> can see it under &quot;Views shared with you&quot; on their dashboard.
+            Choose who should see this visualization under <strong>&quot;Views shared with you&quot;</strong> on their dashboard. You can share it with an entire <strong>role</strong> or a specific <strong>app user</strong>.
           </p>
           {result && xColumn && yColumn && (
             <div className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground mb-4 border border-border">
@@ -946,7 +946,7 @@ const NextGenQueryPage = () => {
             </div>
             <div>
               <fieldset className="space-y-3">
-                <legend className="text-sm font-medium text-foreground mb-2">Assign to</legend>
+                <legend className="text-sm font-medium text-foreground mb-2">Share with</legend>
                 {targetOptionsLoading ? (
                   <p className="text-sm text-muted-foreground py-2">Loading roles and users…</p>
                 ) : (
@@ -1021,33 +1021,44 @@ const NextGenQueryPage = () => {
                               <p className="text-sm text-muted-foreground p-3">No users match your search.</p>
                             ) : (
                               filteredAndGroupedUsers.map(([roleName, roleUsers]) => (
-                                <div key={roleName}>
-                                  <div className="sticky top-0 bg-muted/80 px-3 py-1.5 text-xs font-semibold text-foreground border-b border-border">
+                                <div key={roleName} className="border-b border-border last:border-b-0">
+                                  <div className="sticky top-0 bg-muted/80 px-3 py-1.5 text-[11px] font-semibold text-foreground uppercase tracking-wide border-b border-border">
                                     {roleName}
                                   </div>
-                                  {roleUsers.map((u) => {
-                                    const username = String(u.username ?? '').trim();
-                                    if (!username) return null;
-                                    const label = u.full_name ? `${u.full_name} (${username})` : username;
-                                    const isSelected = assignTargetValue === username;
-                                    return (
-                                      <button
-                                        key={username}
-                                        type="button"
-                                        onClick={() => setAssignTargetValue(username)}
-                                        className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/60 focus:bg-muted/60 focus:outline-none ${isSelected ? 'bg-primary/10 text-primary font-medium' : ''}`}
-                                      >
-                                        {label}
-                                        {u.role ? <span className="text-muted-foreground ml-1">· {u.role}</span> : ''}
-                                      </button>
-                                    );
-                                  })}
+                                  <div className="divide-y divide-border">
+                                    {roleUsers.map((u) => {
+                                      const username = String(u.username ?? '').trim();
+                                      if (!username) return null;
+                                      const label = u.full_name ? `${u.full_name} (${username})` : username;
+                                      const isSelected = assignTargetValue === username;
+                                      return (
+                                        <button
+                                          key={username}
+                                          type="button"
+                                          onClick={() => setAssignTargetValue(username)}
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/60 focus:bg-muted/60 focus:outline-none flex items-center justify-between gap-2 ${
+                                            isSelected ? 'bg-primary/10 text-primary font-medium' : ''
+                                          }`}
+                                        >
+                                          <span className="truncate">{label}</span>
+                                          {u.role && (
+                                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                              {u.role}
+                                            </span>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               ))
                             )}
                           </div>
                           {assignTargetValue && assignTargetType === 'user' && (
-                            <p className="text-xs text-muted-foreground">Selected: <span className="font-medium text-foreground">{assignTargetValue}</span></p>
+                            <p className="text-xs text-muted-foreground">
+                              Selected user:&nbsp;
+                              <span className="font-medium text-foreground">{assignTargetValue}</span>
+                            </p>
                           )}
                         </div>
                       )}
