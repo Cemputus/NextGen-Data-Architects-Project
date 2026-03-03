@@ -1963,10 +1963,10 @@ def get_dashboard_stats():
 @app.route('/api/dashboard/students-by-department', methods=['GET'])
 @jwt_required()
 def get_students_by_department():
-    """Get student count grouped by department, faculty, or program with role-based filtering.
+    """Get student count grouped by department, faculty, program, or course with role-based filtering.
 
     Default grouping is by department to preserve existing behavior.
-    New query parameter: group_by = 'department' | 'faculty' | 'program'
+    New query parameter: group_by = 'department' | 'faculty' | 'program' | 'course'
     """
     try:
         from flask_jwt_extended import get_jwt
@@ -1984,7 +1984,7 @@ def get_students_by_department():
 
         # Grouping dimension (validated)
         group_by = (filters.get('group_by') or 'department').strip().lower()
-        if group_by not in ('department', 'faculty', 'program'):
+        if group_by not in ('department', 'faculty', 'program', 'course'):
             group_by = 'department'
 
         # Build WHERE clause based on role and filters
@@ -2044,6 +2044,22 @@ def get_students_by_department():
             GROUP BY dp.program_name
             ORDER BY student_count DESC
             """
+        elif group_by == 'course':
+            # Group by course within the selected program / department / faculty scope
+            query = f"""
+            SELECT 
+                COALESCE(dc.course_name, fe.course_code) AS course,
+                COUNT(DISTINCT ds.student_id) AS student_count
+            FROM dim_student ds
+            JOIN dim_program dp ON ds.program_id = dp.program_id
+            JOIN dim_department ddept ON dp.department_id = ddept.department_id
+            JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            JOIN fact_enrollment fe ON ds.student_id = fe.student_id
+            LEFT JOIN dim_course dc ON fe.course_code = dc.course_code
+            {where_clause}
+            GROUP BY COALESCE(dc.course_name, fe.course_code)
+            ORDER BY student_count DESC
+            """
         else:
             # Default: group by department (existing behavior)
             query = f"""
@@ -2069,6 +2085,8 @@ def get_students_by_department():
             labels = df_res['faculty'].tolist()
         elif group_by == 'program':
             labels = df_res['program'].tolist()
+        elif group_by == 'course':
+            labels = df_res['course'].tolist()
         else:
             labels = df_res['department'].tolist()
 
@@ -2086,6 +2104,8 @@ def get_students_by_department():
             response['faculties'] = df_res['faculty'].tolist()
         elif group_by == 'program':
             response['programs'] = df_res['program'].tolist()
+        elif group_by == 'course':
+            response['courses'] = df_res['course'].tolist()
 
         return jsonify(response)
     except Exception as e:

@@ -111,7 +111,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       
       // Student Distribution (for Senate, Dean, HOD, Staff, Analyst) - NOT for Finance pages
       if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role)) {
-        const studentFilters = { ...filters }; // global filters only; default grouping by department
+        const studentFilters = { ...filters, group_by: studentDistGroupBy };
         requests.push(
           axios.get('/api/dashboard/students-by-department', {
             headers: { Authorization: `Bearer ${token}` },
@@ -306,6 +306,13 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
     studentPaymentBreakdown: chartData.studentPaymentBreakdown || null,
   };
 
+  const studentDistGroupBy = (() => {
+    const f = filters || {};
+    if (f.program_id) return 'course';
+    if (f.department_id) return 'program';
+    return 'department';
+  })();
+
   const chartContainerClass = "min-h-[200px] max-h-[320px] w-full"
   return (
     <div className="space-y-4">
@@ -314,7 +321,11 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.blue, borderLeftWidth: '4px' }}>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.blue }}>
-              Student Distribution by Department
+              {studentDistGroupBy === 'course'
+                ? 'Student Distribution by Course'
+                : studentDistGroupBy === 'program'
+                ? 'Student Distribution by Program'
+                : 'Student Distribution by Department'}
             </CardTitle>
             <CardDescription className="text-xs">
               {role === 'senate' && 'Institution-wide student distribution across all departments (respecting global filters)'}
@@ -330,7 +341,13 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                 data={safeChartData.studentDistribution}
                 xDataKey="name"
                 yDataKey="students"
-                xAxisLabel="Department"
+                xAxisLabel={
+                  studentDistGroupBy === 'course'
+                    ? 'Course'
+                    : studentDistGroupBy === 'program'
+                    ? 'Program'
+                    : 'Department'
+                }
                 yAxisLabel="Number of Students"
                 fillColor="#4F46E5"
                 showLegend={true}
