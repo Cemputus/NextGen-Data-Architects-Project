@@ -61,6 +61,7 @@ export default function UserManagementSection({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [dataViewMode, setDataViewModeState] = useState(() => usersState.dataViewMode || 'raw'); // 'raw' | 'visual'
   const [searchTerm, setSearchTermState] = useState(() => usersState.searchTerm || '');
   const [roleFilter, setRoleFilterState] = useState(() => usersState.roleFilter || '');
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -91,6 +92,10 @@ export default function UserManagementSection({
   const setRoleFilter = (v) => {
     setRoleFilterState(v);
     adminUIState.setSection('users', { roleFilter: v });
+  };
+  const setDataViewMode = (v) => {
+    setDataViewModeState(v);
+    adminUIState.setSection('users', { dataViewMode: v });
   };
   const setUsersLimit = (v) => {
     setUsersLimitState(v);
@@ -440,7 +445,18 @@ export default function UserManagementSection({
             <CardTitle className="text-xl">User Management</CardTitle>
             <CardDescription>System users (students and staff) and their roles</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Data view</span>
+              <select
+                value={dataViewMode}
+                onChange={(e) => setDataViewMode(e.target.value)}
+                className="rounded border border-input bg-background px-2 py-1 text-xs"
+              >
+                <option value="raw">Table</option>
+                <option value="visual">Visual</option>
+              </select>
+            </label>
             <Button size="sm" onClick={openAddModal} className="gap-2">
               <Plus className="h-4 w-4" />
               Add User
@@ -462,7 +478,7 @@ export default function UserManagementSection({
         </CardHeader>
       )}
 
-      {!compact && (
+      {!compact && dataViewMode === 'visual' && (
         <CardContent className="border-t border-border bg-muted/30">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
             <div className="md:col-span-1 space-y-1">
@@ -1037,7 +1053,7 @@ export default function UserManagementSection({
 
         {loading ? (
           <LoadingState message="Loading users..." />
-        ) : (
+        ) : dataViewMode === 'raw' ? (
           <div className="rounded-lg border border-border overflow-hidden">
           <TableWrapper className="border-0 rounded-none">
             <Table>
@@ -1152,7 +1168,7 @@ export default function UserManagementSection({
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
