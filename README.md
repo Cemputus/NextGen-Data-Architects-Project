@@ -23,7 +23,7 @@ A comprehensive data analytics and machine learning platform for Uganda Christia
 
 ## 📌 Recent changes (Admin, export, KPIs, App users, dashboards)
 
-The following updates were made to the Admin console, export behaviour, KPI definitions, App user handling, and dashboard management:
+The following updates were made to the Admin console, export behaviour, KPI definitions, App user handling, dashboard management, and analytics UX:
 
 ### Admin console
 
@@ -72,6 +72,44 @@ The following updates were made to the Admin console, export behaviour, KPI defi
   - Endpoint `GET /api/dashboards/current` returns the current dashboard definition for the authenticated user’s role.
 - **Dynamic role dashboards**:
   - Role-specific pages (Student, Staff, Dean, etc.) now render using a shared `RoleDashboardRenderer` component that reads the current dashboard definition and shows the configured KPIs and RBAC charts, so changes and swaps made in Dashboard Manager are reflected live.
+
+### Analytics filters, query history, and per-user state
+
+- **Global Filters panel (Analytics pages)**:
+  - A single **Filters – “Synced filters”** panel drives all analytics charts on the role analytics pages (HOD, Dean, Senate, Finance, HR, Analyst).
+  - Filters cascade automatically: selecting a **Faculty** restricts **Department / Program / Course** options; selecting a **Department** restricts **Program**; selecting a **Program** restricts **Courses**.
+  - Student Distribution behaves intelligently:
+    - No `department_id` / `program_id` → groups by **Department**.
+    - `department_id` set (no `program_id`) → groups by **Program** within that department.
+    - `program_id` set → groups by **Course** within that program.
+  - Senate analytics default to institution‑wide; global filters deliberately narrow scope when needed.
+
+- **Per-user workspace state (NextGen Query & dashboards)**:
+  - Endpoint `GET/PUT /api/auth/state/<state_key>` stores **per-user, per-role** UI state in `ucu_rbac.user_state` (keyed by `username`, `role`, and `state_key`).
+  - NextGen Query (`state_key = nextgen_query`) persists, per analyst:
+    - Last SQL query, **query history**, chart type, X/Y columns, and a snapshot of the latest results.
+    - State follows the user across hard refreshes, logout/login, and devices; analysts do **not** share history, even if they have the same role.
+
+- **Per-user local state & filters**:
+  - Frontend filter and tab state are stored with **user-scoped keys** in `localStorage` (e.g. `ucu_analytics_<username>_<page>_filters`), so multiple people using the same machine see their own filters and active tabs.
+  - The same per-user scoping is applied to local drafts (e.g. persisted inputs via `usePersistedState`).
+
+### Admin visuals and data views (Users, ETL, Audit Logs)
+
+- **User distribution**:
+  - Admin Console and the full **User Management** page both show a **User distribution** panel summarising users by role.
+  - Admin can toggle between **Table** and **Visual** views; in Visual mode they can choose **Donut** or **Bar** charts.
+
+- **ETL Jobs**:
+  - The ETL Jobs page provides a **Visual / Raw** toggle:
+    - Visual view: bar chart of **warehouse table row counts**, plus **run history** as either **Duration by run** (stacked bar) or **Runs by status** (donut).
+    - Raw view: full ETL run table with actions (View log, Download PDF).
+
+- **Audit Logs**:
+  - The Audit Logs page also supports **Visual / Raw** modes:
+    - Visual view: bar or donut charts of audit entries grouped by **Action / Resource / User / Role / Status**.
+    - Raw view: searchable audit log table (time, user, role, action, resource, status).
+  - A compact Audit Logs widget appears on the Admin Console, linking to the full page for deeper investigation.
 
 ---
 
