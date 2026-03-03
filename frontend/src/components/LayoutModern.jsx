@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Home, User, Settings, LogOut, 
   BarChart3, GraduationCap, Building2, Users, 
-  DollarSign, Shield, FileText, TrendingUp, Menu, X, Database, Bell, Clock, Share2
+  DollarSign, Shield, FileText, TrendingUp, Menu, X, Database, Bell, Clock, Share2, History
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -44,7 +44,7 @@ const LayoutModern = ({ children }) => {
         { path: '/student/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/student/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/student/grades', label: 'My Grades', icon: GraduationCap },
-        { path: '/student/attendance', label: 'Attendance', icon: FileText },
+        { path: '/student/attendance', label: 'Attendance', icon: Clock },
         { path: '/student/payments', label: 'Payments', icon: DollarSign },
         { path: '/student/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/student/user-info', label: 'User Info', icon: FileText },
@@ -116,9 +116,9 @@ const LayoutModern = ({ children }) => {
         { path: '/admin/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/admin/users', label: 'Users', icon: Users },
         { path: '/admin/settings', label: 'Settings', icon: Settings },
-        { path: '/admin/etl', label: 'ETL Jobs', icon: BarChart3 },
+        { path: '/admin/etl', label: 'ETL Jobs', icon: Database },
         { path: '/admin/etl-notifications', label: 'ETL Notifications', icon: Bell },
-        { path: '/admin/audit', label: 'Audit Logs', icon: FileText },
+        { path: '/admin/audit', label: 'Audit Logs', icon: History },
         { path: '/admin/user-info', label: 'User Info', icon: FileText },
         { path: '/admin/profile', label: 'Profile', icon: User },
       ],
@@ -128,7 +128,7 @@ const LayoutModern = ({ children }) => {
         { path: '/hr/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/hr/analytics', label: 'Analytics', icon: BarChart3 },
         { path: '/hr/employees', label: 'Employees', icon: Users },
-        { path: '/hr/staff', label: 'Staff', icon: Users },
+        { path: '/hr/staff', label: 'Staff', icon: User },
         { path: '/hr/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/hr/payroll', label: 'Payroll', icon: DollarSign },
         { path: '/hr/evaluation', label: 'Evaluation', icon: FileText },
@@ -388,8 +388,13 @@ const LayoutModern = ({ children }) => {
             })}
           </nav>
 
-          {/* ETL countdown - admin only, in sidebar; updates every second, no refresh needed */}
-          {role === 'sysadmin' && adminSettings.etl_auto_enabled && etlCountdownSec != null && sidebarOpen && (
+          {/* ETL countdown - admin only, in sidebar; updates every second, no refresh needed.
+              Hidden on ETL Jobs page since that page already focuses on ETL timing. */}
+          {role === 'sysadmin' &&
+            adminSettings.etl_auto_enabled &&
+            etlCountdownSec != null &&
+            sidebarOpen &&
+            !currentPath.startsWith('/admin/etl') && (
             <div className="px-3 pb-2">
               <div className="rounded-lg border border-border bg-muted/50 px-2 py-2">
                 <div className="flex items-center justify-center gap-1.5 mb-1">
