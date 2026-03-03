@@ -1,19 +1,20 @@
 /**
- * Admin Users Page - User management (uses shared UserManagementSection)
+ * Admin Users Page - Full User Management experience.
+ * Uses the same `UserManagementSection` layout as the Admin Console "Users" tab,
+ * so admins see a consistent header, data view toggle, distribution chart, and table.
  */
 import React from 'react';
-import { PageHeader, PageContent } from '../components/ui/page-header';
+import { PageContent } from '../components/ui/page-header';
 import UserManagementSection from '../components/admin/UserManagementSection';
 
-const AdminUsers = () => {
-  return (
-    <PageContent>
-      <PageHeader
-        title="User Management"
-        description="View and search system users (students and staff)"
-      />
-      <UserManagementSection showHeader={false} />
-    </PageContent>
-  );
-};
+const AdminUsers = () => (
+  <PageContent>
+    <UserManagementSection
+      showHeader={true}
+      compact={false}
+      showOpenFullPage={false}
+    />
+  </PageContent>
+);
+
 export default AdminUsers;
