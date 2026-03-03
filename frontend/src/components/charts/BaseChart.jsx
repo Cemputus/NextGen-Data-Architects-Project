@@ -11,7 +11,9 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const defaultOpts = {
-  notMerge: true,
+  // Use merge updates to avoid ECharts internal errors when series structure changes
+  // while the user is interacting with the chart (e.g., hover tooltips).
+  notMerge: false,
   lazyUpdate: true,
 };
 
@@ -64,7 +66,7 @@ export function BaseChart({
     >
       <ReactECharts
         ref={chartRef}
-        option={option}
+        option={option || {}}
         notMerge={defaultOpts.notMerge}
         lazyUpdate={defaultOpts.lazyUpdate}
         style={{ width: '100%', height: '100%', minHeight: minH }}

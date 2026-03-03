@@ -15,7 +15,6 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, SciDonutChart } from './charts/EChartsComponents';
 import { UCU_COLORS } from '../lib/chartTheme';
-import usePersistedState from '../hooks/usePersistedState';
 
 // Modern, visually appealing chart color palettes
 const DEPT_COLORS = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE']; // Vibrant indigo to light purple gradient
@@ -81,14 +80,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
   const [gradesOverTimePeriod, setGradesOverTimePeriod] = useState('quarterly');
   const [gradesOverTimeSemesterId, setGradesOverTimeSemesterId] = useState('');
   const [semesterOptions, setSemesterOptions] = useState([]);
-  const [studentDistGroupBy, setStudentDistGroupBy] = usePersistedState(
-    `studentDist_groupBy_${type}_${role}`,
-    'department'
-  ); // department | faculty | program
-  const [studentDistSemesterId, setStudentDistSemesterId] = usePersistedState(
-    `studentDist_semester_${type}_${role}`,
-    ''
-  );
 
   useEffect(() => {
     loadChartData();
@@ -100,8 +91,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
     attendanceTrendsPeriod,
     gradesOverTimePeriod,
     gradesOverTimeSemesterId,
-    studentDistGroupBy,
-    studentDistSemesterId,
   ]);
 
   useEffect(() => {
@@ -122,10 +111,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       
       // Student Distribution (for Senate, Dean, HOD, Staff, Analyst) - NOT for Finance pages
       if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role)) {
-        const studentFilters = { ...filters, group_by: studentDistGroupBy };
-        if (studentDistSemesterId) {
-          studentFilters.semester_id = studentDistSemesterId;
-        }
+        const studentFilters = { ...filters }; // global filters only; default grouping by department
         requests.push(
           axios.get('/api/dashboard/students-by-department', {
             headers: { Authorization: `Bearer ${token}` },
@@ -327,55 +313,16 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       {!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role) && (
         <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.blue, borderLeftWidth: '4px' }}>
           <CardHeader className="p-4 pb-2">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
-                <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.blue }}>
-                  {studentDistGroupBy === 'faculty'
-                    ? 'Student Distribution by Faculty'
-                    : studentDistGroupBy === 'program'
-                    ? 'Student Distribution by Program'
-                    : 'Student Distribution by Department'}
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  {role === 'senate' && 'Institution-wide student distribution with flexible grouping'}
-                  {role === 'analyst' && 'Institution-wide distribution with drill-down by faculty, department, or program'}
-                  {role === 'dean' && 'Student distribution in your faculty/school'}
-                  {role === 'hod' && 'Student distribution in your department'}
-                  {role === 'staff' && 'Student distribution in your classes'}
-                </CardDescription>
-              </div>
-              {['senate', 'analyst'].includes(role) && (
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-muted-foreground whitespace-nowrap">View by:</span>
-                  <select
-                    value={studentDistGroupBy}
-                    onChange={(e) => setStudentDistGroupBy(e.target.value)}
-                    className="h-8 rounded-md border border-input bg-background px-2 font-medium"
-                  >
-                    <option value="department">Department</option>
-                    <option value="faculty">Faculty</option>
-                    <option value="program">Program</option>
-                  </select>
-                  {semesterOptions.length > 0 && (
-                    <>
-                      <span className="text-muted-foreground whitespace-nowrap">Semester:</span>
-                      <select
-                        value={studentDistSemesterId}
-                        onChange={(e) => setStudentDistSemesterId(e.target.value)}
-                        className="h-8 rounded-md border border-input bg-background px-2 font-medium min-w-[120px]"
-                      >
-                        <option value="">All</option>
-                        {semesterOptions.map((s) => (
-                          <option key={s.semester_id} value={s.semester_id}>
-                            {s.semester_name || s.semester_id}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+            <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.blue }}>
+              Student Distribution by Department
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {role === 'senate' && 'Institution-wide student distribution across all departments (respecting global filters)'}
+              {role === 'analyst' && 'Institution-wide distribution with drill-down using the global Filters panel'}
+              {role === 'dean' && 'Student distribution in your faculty/school'}
+              {role === 'hod' && 'Student distribution in your department'}
+              {role === 'staff' && 'Student distribution in your classes'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className={chartContainerClass} data-chart-title="Student Distribution by Department" data-chart-container="true">
@@ -383,13 +330,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                 data={safeChartData.studentDistribution}
                 xDataKey="name"
                 yDataKey="students"
-                xAxisLabel={
-                  studentDistGroupBy === 'faculty'
-                    ? 'Faculty'
-                    : studentDistGroupBy === 'program'
-                    ? 'Program'
-                    : 'Department'
-                }
+                xAxisLabel="Department"
                 yAxisLabel="Number of Students"
                 fillColor="#4F46E5"
                 showLegend={true}
