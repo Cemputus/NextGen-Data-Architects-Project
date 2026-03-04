@@ -47,7 +47,7 @@ const LayoutModern = ({ children }) => {
         { path: '/student/attendance', label: 'Attendance', icon: Clock },
         { path: '/student/payments', label: 'Payments', icon: DollarSign },
         { path: '/student/predictions', label: 'Predictions', icon: TrendingUp },
-        { path: '/student/user-info', label: 'User Info', icon: FileText },
+        // No User Info option for students
         { path: '/student/profile', label: 'Profile', icon: User },
       ],
       staff: [
