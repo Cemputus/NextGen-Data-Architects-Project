@@ -270,6 +270,10 @@ export default function UserManagementSection({
     try {
       await axios.post('/api/user-mgmt/users', payload, { headers: { Authorization: `Bearer ${token}` } });
       setAddModalOpen(false);
+      // After adding a user, clear filters so the new user is visible in the list
+      setSearchTerm('');
+      setRoleFilter('');
+      setUsersLimit(50);
       await loadUsers();
       onUsersChanged?.();
     } catch (err) {
@@ -470,7 +474,13 @@ export default function UserManagementSection({
                 Open User Management
               </Link>
             )}
-            <Button variant="outline" size="sm" onClick={loadUsers} disabled={loading} className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadUsers}
+              disabled={loading}
+              className="gap-2"
+            >
               <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
               Refresh
             </Button>

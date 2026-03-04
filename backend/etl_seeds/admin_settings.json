@@ -24,7 +24,7 @@
   "enableNotifications": true,
   "etl_auto_enabled": true,
   "etl_auto_interval_minutes": 30,
-  "last_etl_auto_run": 1772604920.397456,
+  "last_etl_auto_run": 1772608681.3954089,
   "maxLoginAttempts": 5,
   "sessionTimeout": 24,
   "sessionTimeoutUnit": "hours",
