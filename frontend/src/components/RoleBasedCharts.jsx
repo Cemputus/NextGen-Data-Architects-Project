@@ -79,6 +79,9 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
   const [attendanceTrendsPeriod, setAttendanceTrendsPeriod] = useState('quarterly');
   const [gradesOverTimePeriod, setGradesOverTimePeriod] = useState('quarterly');
   const [gradesOverTimeSemesterId, setGradesOverTimeSemesterId] = useState('');
+  const [studentDistChartType, setStudentDistChartType] = useState('bar'); // 'bar' | 'donut'
+  const [gradeTrendChartType, setGradeTrendChartType] = useState('line'); // 'line' | 'area'
+  const [attendanceChartType, setAttendanceChartType] = useState('line'); // 'line' | 'area'
   const [semesterOptions, setSemesterOptions] = useState([]);
 
   useEffect(() => {
@@ -95,11 +98,21 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
 
   useEffect(() => {
     if (!isFinancePage && role !== 'finance' && role !== 'hr') {
-      axios.get('/api/analytics/filter-options', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      axios
+        .get('/api/analytics/filter-options', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        })
         .then((r) => setSemesterOptions(r.data?.semesters || []))
         .catch(() => setSemesterOptions([]));
     }
   }, [isFinancePage, role]);
+
+  const studentDistGroupBy = (() => {
+    const f = filters || {};
+    if (f.program_id) return 'course';
+    if (f.department_id) return 'program';
+    return 'department';
+  })();
 
   const loadChartData = async () => {
     try {
@@ -108,6 +121,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       
       // Role-specific data loading
       const requests = [];
+      // For time-series charts we ignore global semester filter and use chart-level controls instead
+      const { semester_id: _ignoredSemester, ...filtersWithoutSemester } = filters || {};
       
       // Student Distribution (for Senate, Dean, HOD, Staff, Analyst) - NOT for Finance pages
       if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role)) {
@@ -122,7 +137,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       
       // Grades Over Time (role-specific scope) - NOT for Finance pages and NOT for HR
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
-        const gradeParams = role === 'senate' ? { ...filters } : { ...filters, role };
+        const baseGradeFilters = filtersWithoutSemester;
+        const gradeParams = role === 'senate' ? { ...baseGradeFilters } : { ...baseGradeFilters, role };
         if (gradesOverTimeSemesterId) gradeParams.semester_id = gradesOverTimeSemesterId;
         requests.push(
           axios.get('/api/dashboard/grades-over-time', {
@@ -174,7 +190,8 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
 
       // Attendance Trends - For all roles except Finance and HR, but Senate also gets attendance
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
-        const attendanceParams = role === 'senate' ? filters : { ...filters, role };
+        const baseAttendanceFilters = filtersWithoutSemester;
+        const attendanceParams = role === 'senate' ? baseAttendanceFilters : { ...baseAttendanceFilters, role };
         requests.push(
           axios.get('/api/dashboard/attendance-trends', {
             headers: { Authorization: `Bearer ${token}` },
@@ -306,13 +323,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
     studentPaymentBreakdown: chartData.studentPaymentBreakdown || null,
   };
 
-  const studentDistGroupBy = (() => {
-    const f = filters || {};
-    if (f.program_id) return 'course';
-    if (f.department_id) return 'program';
-    return 'department';
-  })();
-
   const chartContainerClass = "min-h-[200px] max-h-[320px] w-full"
   return (
     <div className="space-y-4">
@@ -320,39 +330,62 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       {!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role) && (
         <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.blue, borderLeftWidth: '4px' }}>
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.blue }}>
-              {studentDistGroupBy === 'course'
-                ? 'Student Distribution by Course'
-                : studentDistGroupBy === 'program'
-                ? 'Student Distribution by Program'
-                : 'Student Distribution by Department'}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {role === 'senate' && 'Institution-wide student distribution across all departments (respecting global filters)'}
-              {role === 'analyst' && 'Institution-wide distribution with drill-down using the global Filters panel'}
-              {role === 'dean' && 'Student distribution in your faculty/school'}
-              {role === 'hod' && 'Student distribution in your department'}
-              {role === 'staff' && 'Student distribution in your classes'}
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.blue }}>
+                  {studentDistGroupBy === 'course'
+                    ? 'Student Distribution by Course'
+                    : studentDistGroupBy === 'program'
+                    ? 'Student Distribution by Program'
+                    : 'Student Distribution by Department'}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {role === 'senate' && 'Institution-wide student distribution across all departments (respecting global filters)'}
+                  {role === 'analyst' && 'Institution-wide distribution with drill-down using the global Filters panel'}
+                  {role === 'dean' && 'Student distribution in your faculty/school'}
+                  {role === 'hod' && 'Student distribution in your department'}
+                  {role === 'staff' && 'Student distribution in your classes'}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Chart type</span>
+                <select
+                  value={studentDistChartType}
+                  onChange={(e) => setStudentDistChartType(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium"
+                >
+                  <option value="bar">Bar</option>
+                  <option value="donut">Donut</option>
+                </select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className={chartContainerClass} data-chart-title="Student Distribution by Department" data-chart-container="true">
-              <SciBarChart
-                data={safeChartData.studentDistribution}
-                xDataKey="name"
-                yDataKey="students"
-                xAxisLabel={
-                  studentDistGroupBy === 'course'
-                    ? 'Course'
-                    : studentDistGroupBy === 'program'
-                    ? 'Program'
-                    : 'Department'
-                }
-                yAxisLabel="Number of Students"
-                fillColor="#4F46E5"
-                showLegend={true}
-                showGrid={true}
-              />
+              {studentDistChartType === 'donut' ? (
+                <SciDonutChart
+                  data={safeChartData.studentDistribution.map((d) => ({ name: d.name, value: d.students }))}
+                  nameKey="name"
+                  valueKey="value"
+                />
+              ) : (
+                <SciBarChart
+                  data={safeChartData.studentDistribution}
+                  xDataKey="name"
+                  yDataKey="students"
+                  xAxisLabel={
+                    studentDistGroupBy === 'course'
+                      ? 'Course'
+                      : studentDistGroupBy === 'program'
+                      ? 'Program'
+                      : 'Department'
+                  }
+                  yAxisLabel="Number of Students"
+                  fillColor="#4F46E5"
+                  showLegend={true}
+                  showGrid={true}
+                />
+              )}
             </div>
           </CardContent>
         </Card>
@@ -396,23 +429,47 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                     <option value="quarterly">Quarterly</option>
                     <option value="yearly">Yearly</option>
                   </select>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Chart</span>
+                  <select
+                    value={gradeTrendChartType}
+                    onChange={(e) => setGradeTrendChartType(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium"
+                  >
+                    <option value="line">Line</option>
+                    <option value="area">Area</option>
+                  </select>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="p-4 pt-0">
               <div className={chartContainerClass} data-chart-title="Trend Analysis of Grades Over Time" data-chart-container="true">
                 {safeChartData.gradesOverTime.length > 0 ? (
-                  <SciLineChart
-                    data={safeChartData.gradesOverTime}
-                    xDataKey="period"
-                    yDataKey="grade"
-                    xAxisLabel={gradesOverTimePeriod === 'monthly' ? 'Month' : gradesOverTimePeriod === 'yearly' ? 'Year' : 'Quarter'}
-                    yAxisLabel="Average grade (%)"
-                    strokeColor="#8B5CF6"
-                    strokeWidth={3}
-                    showLegend={false}
-                    showGrid={true}
-                  />
+                  gradeTrendChartType === 'area' ? (
+                    <SciAreaChart
+                      data={safeChartData.gradesOverTime}
+                      xDataKey="period"
+                      yDataKey="grade"
+                      xAxisLabel={gradesOverTimePeriod === 'monthly' ? 'Month' : gradesOverTimePeriod === 'yearly' ? 'Year' : 'Quarter'}
+                      yAxisLabel="Average grade (%)"
+                      fillColor="#DDD6FE"
+                      strokeColor="#8B5CF6"
+                      strokeWidth={3}
+                      showLegend={false}
+                      showGrid={true}
+                    />
+                  ) : (
+                    <SciLineChart
+                      data={safeChartData.gradesOverTime}
+                      xDataKey="period"
+                      yDataKey="grade"
+                      xAxisLabel={gradesOverTimePeriod === 'monthly' ? 'Month' : gradesOverTimePeriod === 'yearly' ? 'Year' : 'Quarter'}
+                      yAxisLabel="Average grade (%)"
+                      strokeColor="#8B5CF6"
+                      strokeWidth={3}
+                      showLegend={false}
+                      showGrid={true}
+                    />
+                  )
                 ) : (
                   <div className="h-full min-h-[200px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg text-sm">
                     No grade trend data for the selected period.
@@ -620,7 +677,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                   {role === 'student' && 'Your attendance over time'}
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground whitespace-nowrap">Group by:</span>
                 <select
                   value={attendanceTrendsPeriod}
@@ -631,23 +688,47 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
                   <option value="quarterly">Quarterly</option>
                   <option value="yearly">Yearly</option>
                 </select>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Chart</span>
+                <select
+                  value={attendanceChartType}
+                  onChange={(e) => setAttendanceChartType(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium"
+                >
+                  <option value="line">Line</option>
+                  <option value="area">Area</option>
+                </select>
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className={chartContainerClass} data-chart-title="Attendance Trends" data-chart-container="true">
               {safeChartData.attendance.length > 0 ? (
-                <SciLineChart
-                  data={safeChartData.attendance}
-                  xDataKey="period"
-                  yDataKey="attendance"
-                  xAxisLabel={attendanceTrendsPeriod === 'monthly' ? 'Month' : attendanceTrendsPeriod === 'yearly' ? 'Year' : 'Quarter'}
-                  yAxisLabel="Avg attendance (hours)"
-                  strokeColor={UCU_COLORS.cyan}
-                  strokeWidth={3}
-                  showLegend={false}
-                  showGrid={true}
-                />
+                attendanceChartType === 'area' ? (
+                  <SciAreaChart
+                    data={safeChartData.attendance}
+                    xDataKey="period"
+                    yDataKey="attendance"
+                    xAxisLabel={attendanceTrendsPeriod === 'monthly' ? 'Month' : attendanceTrendsPeriod === 'yearly' ? 'Year' : 'Quarter'}
+                    yAxisLabel="Avg attendance (hours)"
+                    fillColor={UCU_COLORS['blue-light'] || '#bfdbfe'}
+                    strokeColor={UCU_COLORS.cyan}
+                    strokeWidth={3}
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                ) : (
+                  <SciLineChart
+                    data={safeChartData.attendance}
+                    xDataKey="period"
+                    yDataKey="attendance"
+                    xAxisLabel={attendanceTrendsPeriod === 'monthly' ? 'Month' : attendanceTrendsPeriod === 'yearly' ? 'Year' : 'Quarter'}
+                    yAxisLabel="Avg attendance (hours)"
+                    strokeColor={UCU_COLORS.cyan}
+                    strokeWidth={3}
+                    showLegend={false}
+                    showGrid={true}
+                  />
+                )
               ) : (
                 <div className="h-full min-h-[200px] flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg text-sm">
                   No attendance trend data for the selected period.

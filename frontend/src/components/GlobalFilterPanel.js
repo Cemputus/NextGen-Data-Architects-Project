@@ -13,10 +13,33 @@ import { Badge } from './ui/badge';
 import axios from 'axios';
 import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from '../utils/statePersistence';
 import { logAuditEvent } from '../utils/audit';
+import { useAuth } from '../context/AuthContext';
 
-const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'global', hideHighSchool = false, hideAcademic = false, hideFaculty = false, hideDepartment = false }) => {
+const GlobalFilterPanel = ({
+  onFilterChange,
+  savedFilters = [],
+  pageName = 'global',
+  hideHighSchool = false,
+  hideAcademic = false,
+  hideFaculty = false,
+  hideDepartment = false,
+}) => {
+  const { user } = useAuth();
+  const role = (user?.role || '').toString().toLowerCase();
+  const isDean = role === 'dean';
+  const isHod = role === 'hod';
+
+  // For academic leaders we assume:
+  // - Dean is already scoped to a faculty, so filters should start at Department.
+  // - HOD is already scoped to a department, so filters should start at Program.
+  const effectiveHideFaculty = hideFaculty || isDean || isHod;
+  const effectiveHideDepartment = hideDepartment || isHod;
+
+  // For analytics overview pages (e.g. analyst_analytics, senate_analytics), don't reuse old filters –
+  // always start clean so charts don't get "stuck" on stale combinations.
+  const isAnalyticsOverview = typeof pageName === 'string' && pageName.endsWith('_analytics');
   // Load persisted filters and search term
-  const savedFiltersState = loadFilters(pageName, savedFilters || {});
+  const savedFiltersState = isAnalyticsOverview ? {} : loadFilters(pageName, savedFilters || {});
   const savedSearch = loadSearchTerm(pageName, '');
   
   const [filters, setFilters] = useState(savedFiltersState);
@@ -97,7 +120,9 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
     setFilters(newFilters);
     onFilterChange(newFilters);
     logAuditEvent('filter_applied', 'filters', pageName);
-    saveFilters(pageName, newFilters);
+    if (!isAnalyticsOverview) {
+      saveFilters(pageName, newFilters);
+    }
     setTimeout(() => {
       loadFilterOptions(newFilters);
     }, 100);
@@ -131,6 +156,9 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
     setSearchTerm('');
     onFilterChange({});
     logAuditEvent('filter_cleared', 'filters', pageName);
+    if (!isAnalyticsOverview) {
+      saveFilters(pageName, {});
+    }
     loadFilterOptions({});
   };
 
@@ -187,7 +215,7 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
 
             {/* Filter Grid - Synced Filters */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-              {!hideFaculty && (
+              {!effectiveHideFaculty && (
               <Select
                 value={filters.faculty_id || ''}
                 onChange={(e) => handleFilterChange('faculty_id', e.target.value || null)}
@@ -203,13 +231,13 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
               </Select>
               )}
 
-              {!hideDepartment && (
+              {!effectiveHideDepartment && (
               <Select
                 value={filters.department_id || ''}
                 onChange={(e) => handleFilterChange('department_id', e.target.value || null)}
-                disabled={loading || (!hideFaculty && !filters.faculty_id)}
+                disabled={loading || (!effectiveHideFaculty && !filters.faculty_id)}
                 className={`h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary ${
-                  !hideFaculty && !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
+                  !effectiveHideFaculty && !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 <option value="">
@@ -227,9 +255,9 @@ const GlobalFilterPanel = ({ onFilterChange, savedFilters = [], pageName = 'glob
               <Select
                 value={filters.program_id || ''}
                 onChange={(e) => handleFilterChange('program_id', e.target.value || null)}
-                disabled={loading || (!hideFaculty && !filters.faculty_id)}
+                disabled={loading || (!effectiveHideFaculty && !filters.faculty_id)}
                 className={`h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary ${
-                  !hideFaculty && !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
+                  !effectiveHideFaculty && !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 <option value="">

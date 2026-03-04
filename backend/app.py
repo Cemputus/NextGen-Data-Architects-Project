@@ -2162,8 +2162,6 @@ def get_grades_over_time():
         period = (filters.get('period') or 'quarterly').strip().lower()
         if period not in ('monthly', 'quarterly', 'yearly'):
             period = 'quarterly'
-        min_year = 2020 if period == 'yearly' else 2023
-        where_clauses.append(f"dt.year >= {min_year}")
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
@@ -2584,9 +2582,6 @@ def get_attendance_trends():
         period = (filters.get('period') or 'quarterly').strip().lower()
         if period not in ('monthly', 'quarterly', 'yearly'):
             period = 'quarterly'
-        # Date range: yearly needs more history for a visible line; monthly/quarterly from 2023
-        min_year = 2020 if period == 'yearly' else 2023
-        where_clauses.append(f"dt.year >= {min_year}")
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
