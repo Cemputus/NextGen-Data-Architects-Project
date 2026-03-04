@@ -199,6 +199,22 @@
   ],
   "audit_logs": [
     {
+      "log_id": 1449,
+      "user_id": null,
+      "username": "enoch",
+      "role_name": "analyst",
+      "action": "Profile",
+      "resource": "navigation",
+      "resource_id": "/analyst/profile",
+      "old_value": null,
+      "new_value": null,
+      "ip_address": null,
+      "user_agent": null,
+      "status": "success",
+      "error_message": null,
+      "created_at": "2026-03-04 10:57:30"
+    },
+    {
       "log_id": 1448,
       "user_id": null,
       "username": "enoch",
