@@ -1,8 +1,10 @@
 """
-Export list of faculties and their departments from the data warehouse.
+Export list of faculties, departments, and programs from the data warehouse.
 
 Output:
   backend/data/new_anonymized_data/faculties_departments.csv
+Columns:
+  faculty_id, faculty_name, department_id, department_name, program_id, program_name
 """
 
 from sqlalchemy import create_engine, text
@@ -19,11 +21,15 @@ def main():
     df.faculty_id,
     df.faculty_name,
     ddept.department_id,
-    ddept.department_name
+    ddept.department_name,
+    dp.program_id,
+    dp.program_name
   FROM dim_faculty df
   JOIN dim_department ddept
     ON ddept.faculty_id = df.faculty_id
-  ORDER BY df.faculty_name, ddept.department_name;
+  LEFT JOIN dim_program dp
+    ON dp.department_id = ddept.department_id
+  ORDER BY df.faculty_name, ddept.department_name, dp.program_name;
   """
 
   with engine.connect() as conn:
@@ -36,4 +42,5 @@ def main():
 
 if __name__ == "__main__":
   main()
+
 
