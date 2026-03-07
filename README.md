@@ -1,3 +1,273 @@
+# UCU Analytics and Prediction System
+
+Synthetic-data-first analytics, BI, and prediction platform for Uganda Christian University (UCU).
+
+This project has migrated from demo-style sample data to a reproducible synthetic data package used by ETL, dashboards, analytics APIs, and ML workflows.
+
+## Table of Contents
+
+- [What Changed](#what-changed)
+- [System Overview](#system-overview)
+- [Synthetic Data Package (Canonical)](#synthetic-data-package-canonical)
+- [Architecture](#architecture)
+- [Key Features](#key-features)
+- [Quick Start](#quick-start)
+- [Synthetic Data Regeneration](#synthetic-data-regeneration)
+- [ETL and Warehouse Loading](#etl-and-warehouse-loading)
+- [RBAC and Security](#rbac-and-security)
+- [API Snapshot](#api-snapshot)
+- [Troubleshooting](#troubleshooting)
+- [Contributors](#contributors)
+
+---
+
+## What Changed
+
+The project now treats synthetic data as the default operational baseline.
+
+- Canonical data location is `backend/data/Synthetic_Data/`.
+- Dataset references were aligned to current file names such as:
+  - `students_list15.xlsx`, `students_list16.xlsx`
+  - `student_payments_list15.csv`, `student_payments_list16.csv`
+  - `student_grades_list15.csv`, `student_grades_list16.csv`
+- Documentation is consolidated and aligned to current paths:
+  - `backend/data/Synthetic_Data/ucu_analytics_master_technical_documentation.md`
+  - `backend/data/Synthetic_Data/DATASET_MANIFEST.md`
+  - `backend/data/Synthetic_Data/Data_info/*.md`
+- Synthetic generation is reproducible via controlled seeding in:
+  - `backend/data/Synthetic_Data/data_generation.py`
+
+---
+
+## System Overview
+
+The platform provides:
+
+- Role-based operational and analytical dashboards
+- Institutional KPIs across academic, financial, and attendance domains
+- Predictive models for student outcomes and risk signals
+- ETL pipeline into a star-schema warehouse
+- Analyst SQL workspace (NextGen Query) with persisted per-user state
+
+Primary roles include: Student, Staff, HOD, Dean, Senate, Finance, HR, Analyst, and Sysadmin.
+
+---
+
+## Synthetic Data Package (Canonical)
+
+All canonical synthetic assets are in:
+
+- `backend/data/Synthetic_Data/`
+
+Core datasets include:
+
+- Student master: `students_list15.xlsx`, `students_list16.xlsx`
+- Course catalog: `course_catalog_ucu.csv`, `course_catalog_ucu.xlsx`
+- Grades: `student_grades_list15.csv`, `student_grades_list16.csv`
+- Transcript: `student_transcript_list15.csv`, `student_transcript_list16.csv`
+- Academic performance: `fact_student_academic_performance_list15.csv`, `fact_student_academic_performance_list16.csv`
+- Payments: `student_payments_list15.csv`, `student_payments_list16.csv`
+- Sponsorships: `student_sponsorships_list15.csv`, `student_sponsorships_list16.csv`
+- Attendance: `student_attendance_list15.csv`, `student_attendance_list16.csv`
+- Progression: `academic_progression_list15.xlsx`, `academic_progression_list16.xlsx`
+- Date dimension: `dim_date_2022_2026.xlsx`
+- Hierarchy map: `faculties_departments.csv`
+
+Technical references:
+
+- Manifest: `backend/data/Synthetic_Data/DATASET_MANIFEST.md`
+- Master documentation: `backend/data/Synthetic_Data/ucu_analytics_master_technical_documentation.md`
+
+---
+
+## Architecture
+
+```text
+Frontend (React + charting)
+        |
+        v
+Backend API (Flask + JWT + RBAC)
+        |
+        v
+MySQL Warehouse (star schema)
+        ^
+        |
+ETL Pipeline (CSV/XLSX synthetic sources)
+```
+
+Flow summary:
+
+1. Synthetic data files are prepared/regenerated.
+2. ETL transforms source assets into warehouse dimensions and facts.
+3. APIs expose role-scoped analytics and predictions.
+4. Dashboards and analyst tools consume APIs.
+
+---
+
+## Key Features
+
+- Multi-role dashboards with scoped access controls
+- Global filter panel with role-aware behavior
+- Analyst Dashboard Manager and NextGen Query workspace
+- Per-user persisted workspace and filter state
+- Admin console for users, ETL runs, audit logs, and exports
+- PDF and Excel exports for operational reporting
+- Grading policy support (`FCW`, `FEX`, `MEX`, and score-band logic)
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.8+
+- Node.js 16+
+- MySQL 8+
+
+### Backend
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python setup_databases.py
+python etl_pipeline.py
+python app.py
+```
+
+Backend default URL:
+
+- `http://localhost:5000`
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+Frontend default URL:
+
+- `http://localhost:3000`
+
+---
+
+## Synthetic Data Regeneration
+
+Regeneration script:
+
+- `backend/data/Synthetic_Data/data_generation.py`
+
+Reproducible run example:
+
+```bash
+python backend/data/Synthetic_Data/data_generation.py --seed 20260304 --output-dir generated_output
+```
+
+Notes:
+
+- Use the same `--seed` to regenerate the same outputs (or very close when OCR-based optional extraction differs by environment).
+- The generator now derives deterministic per-module seeds from one master seed.
+- Transaction and sponsorship references are generated from seeded RNGs for reproducibility.
+
+---
+
+## ETL and Warehouse Loading
+
+Main ETL:
+
+- `backend/etl_pipeline.py`
+
+Run:
+
+```bash
+cd backend
+python etl_pipeline.py
+```
+
+Expected ETL behavior:
+
+- Loads dimensions and facts from synthetic files
+- Refreshes warehouse tables used by dashboards and analytics
+- Supports reproducible app user seeding from:
+  - `backend/etl_seeds/user_snapshot.json`
+
+Related utilities:
+
+- `backend/export_user_snapshot.py`
+- `backend/export_faculty_departments.py`
+
+---
+
+## RBAC and Security
+
+- JWT-based authentication and authorization
+- RBAC user store in `ucu_rbac` (including `app_users`)
+- Role-scoped data access for API endpoints
+- Per-user persisted state (`user_state`) for query workspace and dashboard context
+
+---
+
+## API Snapshot
+
+Authentication:
+
+- `POST /api/auth/login`
+
+Dashboard and analytics examples:
+
+- `GET /api/dashboard/stats`
+- `GET /api/dashboard/grade-distribution`
+- `GET /api/analytics/fex`
+- `GET /api/analytics/high-school`
+
+Predictions:
+
+- `POST /api/predictions/predict`
+- `POST /api/predictions/tuition-attendance-performance`
+- `POST /api/predictions/scenario`
+
+Analyst workspace:
+
+- `POST /api/query/execute`
+
+HOD class assignment:
+
+- `GET /api/hod/department-courses`
+- `GET /api/hod/staff-in-department`
+- `GET /api/hod/staff-assignments/<staff_id>`
+- `PUT /api/hod/staff-assignments/<staff_id>`
+
+---
+
+## Troubleshooting
+
+- If backend fails to start, confirm MySQL credentials in `backend/config.py`.
+- If no dashboard data appears, run ETL again and verify warehouse table counts.
+- If filters look stale, clear browser storage and re-login.
+- If model endpoints fail, retrain:
+
+```bash
+cd backend
+python train_models.py
+```
+
+---
+
+## Contributors
+
+Developed by the NextGen Data Architects team:
+
+- Guloba Emmanuel Edube - [@Edube20Emmanuel](https://github.com/Edube20Emmanuel)
+- Emmanuel Nsubuga - [@Cemputus](https://github.com/Cemputus)
+- Asingwiire Enoch - [@asingwiireenoch](https://github.com/asingwiireenoch)
+
+---
+
+Last updated: February 2026
+Version: 2.1.0
 # UCU Analytics & Prediction System
 
 A comprehensive data analytics and machine learning platform for Uganda Christian University (UCU), designed to provide insights into student performance, attendance, payment patterns, and predictive analytics for academic success.
