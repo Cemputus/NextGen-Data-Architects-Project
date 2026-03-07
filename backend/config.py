@@ -52,7 +52,8 @@ BRONZE_PATH = BASE_DIR / "data" / "bronze"
 SILVER_PATH = BASE_DIR / "data" / "silver"
 GOLD_PATH = BASE_DIR / "data" / "gold"
 
-# Data source: 'synthetic' = backend/data/Synthetic_Data (CSV/Excel); 'demo' = DB1/DB2 + optional CSVs
+# Data source: synthetic = backend/data/Synthetic_Data (CSV/Excel); demo = DB1/DB2 + optional CSVs
+# Set USE_SYNTHETIC_DATA=0 or false to use demo databases (UCU_SourceDB1, UCU_SourceDB2) instead.
 USE_SYNTHETIC_DATA = os.environ.get("USE_SYNTHETIC_DATA", "true").strip().lower() in ("1", "true", "yes")
 SYNTHETIC_DATA_DIR = BASE_DIR / "data" / "Synthetic_Data"
 
