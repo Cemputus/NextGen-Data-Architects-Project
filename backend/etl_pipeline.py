@@ -21,7 +21,8 @@ from config import (
     DB1_CONN_STRING, DB2_CONN_STRING, CSV1_PATH, CSV2_PATH,
     BRONZE_PATH, SILVER_PATH, GOLD_PATH,
     DATA_WAREHOUSE_NAME, DATA_WAREHOUSE_CONN_STRING,
-    MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD
+    MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD,
+    USE_SYNTHETIC_DATA, SYNTHETIC_DATA_DIR,
 )
 from api.auth import RBAC_CONN_STRING, _ensure_ucu_rbac_database, _ensure_app_users_table, _ensure_user_profiles_table, _ensure_user_state_table
 
@@ -223,12 +224,17 @@ class ETLPipeline:
             raise
         
     def extract(self):
-        """Extract data from all sources (Bronze Layer)"""
+        """Extract data from all sources (Bronze Layer). Uses Synthetic_Data when USE_SYNTHETIC_DATA is True."""
         self.logger.info("=" * 60)
         self.logger.info("EXTRACT PHASE - Bronze Layer")
         self.logger.info("=" * 60)
         print("Extracting data to Bronze layer...")
-        
+
+        if USE_SYNTHETIC_DATA and SYNTHETIC_DATA_DIR and Path(SYNTHETIC_DATA_DIR).exists():
+            self.logger.info("Using SYNTHETIC data source: %s", SYNTHETIC_DATA_DIR)
+            print("Using synthetic data from:", SYNTHETIC_DATA_DIR)
+            return self._extract_from_synthetic_data()
+
         # Extract from Database 1 (ACADEMICS)
         self.logger.info("Extracting from Source Database 1 (ACADEMICS)...")
         engine1 = create_engine(DB1_CONN_STRING)
@@ -314,7 +320,286 @@ class ETLPipeline:
             'payments_csv': payments_csv,
             'grades_csv': grades_csv
         }
-    
+
+    def _extract_from_synthetic_data(self):
+        """Extract from backend/data/Synthetic_Data (CSV/Excel) into same bronze_data structure. RBAC/app users unchanged (seeded separately)."""
+        root = Path(SYNTHETIC_DATA_DIR).resolve()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        # 1) Faculties, departments, programs from faculties_departments.csv
+        fd_path = root / "faculties_departments.csv"
+        if not fd_path.exists():
+            self.logger.warning("faculties_departments.csv not found; using empty dimension DataFrames")
+            faculties_db1 = pd.DataFrame(columns=['FacultyID', 'FacultyName', 'DeanName'])
+            departments_db1 = pd.DataFrame(columns=['DepartmentID', 'DepartmentName', 'FacultyID', 'HeadOfDepartment'])
+            programs_db1 = pd.DataFrame(columns=['ProgramID', 'ProgramName', 'DegreeLevel', 'DepartmentID', 'DurationYears'])
+        else:
+            fd = pd.read_csv(fd_path)
+            faculties_db1 = fd[['faculty_id', 'faculty_name']].drop_duplicates().rename(
+                columns={'faculty_id': 'FacultyID', 'faculty_name': 'FacultyName'})
+            faculties_db1['DeanName'] = 'Dean'
+            departments_db1 = fd[['department_id', 'department_name', 'faculty_id']].drop_duplicates().rename(
+                columns={'department_id': 'DepartmentID', 'department_name': 'DepartmentName', 'faculty_id': 'FacultyID'})
+            departments_db1['HeadOfDepartment'] = 'HOD'
+            programs_db1 = fd[['program_id', 'program_name', 'department_id']].drop_duplicates().rename(
+                columns={'program_id': 'ProgramID', 'program_name': 'ProgramName', 'department_id': 'DepartmentID'})
+            programs_db1['DegreeLevel'] = 'Bachelor'
+            programs_db1['DurationYears'] = 4
+        self.logger.info("  -> Faculties: %d, Departments: %d, Programs: %d",
+                         len(faculties_db1), len(departments_db1), len(programs_db1))
+
+        # Program name -> program_id for mapping students
+        program_name_to_id = {}
+        if not programs_db1.empty and 'ProgramName' in programs_db1.columns:
+            for _, r in programs_db1.iterrows():
+                program_name_to_id[str(r['ProgramName']).strip()] = int(r['ProgramID'])
+
+        # 2) Students from students_list15.xlsx and students_list16.xlsx (or _synthetic_5000 variants)
+        def _read_students_file(path, list_tag):
+            if not path.exists():
+                return None
+            try:
+                if path.suffix.lower() in ('.xlsx', '.xls'):
+                    df = pd.read_excel(path)
+                else:
+                    df = pd.read_csv(path)
+            except Exception as e:
+                self.logger.warning("Could not read %s: %s", path, e)
+                return None
+            if df.empty:
+                return None
+            # Normalize column names (REG. NO. vs REG_NO, etc.)
+            col_map = {}
+            for c in df.columns:
+                if str(c).strip() in ('REG. NO.', 'REG_NO', 'RegNo'):
+                    col_map[c] = 'RegNo'
+                elif str(c).strip() in ('ACC. NO.', 'ACC_NO', 'AccessNumber'):
+                    col_map[c] = 'AccessNumber'
+                elif str(c).strip() in ('NAME', 'FullName'):
+                    col_map[c] = 'FullName'
+                elif str(c).strip() == 'PROGRAM':
+                    col_map[c] = 'ProgramName'
+                elif str(c).strip() in ('HighSchool', 'HIGH_SCHOOL'):
+                    col_map[c] = 'HighSchool'
+                elif str(c).strip() in ('HighSchoolDistrict', 'DISTRICT'):
+                    col_map[c] = 'HighSchoolDistrict'
+                elif str(c).strip() in ('TOTAL REGISTRATIONS', 'TOTAL_REGISTRATIONS', 'YearOfStudy'):
+                    col_map[c] = 'YearOfStudy'
+            df = df.rename(columns=col_map)
+            return df
+
+        students_parts = []
+        for name in ['students_list15.xlsx', 'students_list16.xlsx', 'students_list15_synthetic_5000_corrected_fee_logic.xlsx',
+                     'students_list16_synthetic_5000_corrected_fee_logic.xlsx', 'students_list15_synthetic_5000_corrected_fee_logic.csv',
+                     'students_list16_synthetic_5000_corrected_fee_logic.csv']:
+            p = root / name
+            df = _read_students_file(p, name)
+            if df is not None:
+                students_parts.append(df)
+                if len(students_parts) >= 2:
+                    break
+        if not students_parts:
+            raise FileNotFoundError("No student list found in Synthetic_Data (tried students_list15/16.xlsx and _synthetic_5000 variants)")
+
+        students_df = pd.concat(students_parts, ignore_index=True)
+        # Map to DB1-style columns
+        students_db1 = pd.DataFrame()
+        students_db1['RegNo'] = students_df['RegNo'].astype(str) if 'RegNo' in students_df.columns else students_df.iloc[:, 0].astype(str)
+        students_db1['AccessNumber'] = students_df['AccessNumber'].astype(str) if 'AccessNumber' in students_df.columns else ''
+        students_db1['FullName'] = students_df['FullName'].astype(str) if 'FullName' in students_df.columns else students_db1['RegNo']
+        students_db1['HighSchool'] = students_df['HighSchool'].astype(str) if 'HighSchool' in students_df.columns else ''
+        students_db1['HighSchoolDistrict'] = students_df['HighSchoolDistrict'].astype(str) if 'HighSchoolDistrict' in students_df.columns else ''
+        students_db1['ProgramName'] = students_df['ProgramName'].astype(str) if 'ProgramName' in students_df.columns else ''
+        students_db1['ProgramID'] = students_db1['ProgramName'].map(lambda x: program_name_to_id.get(str(x).strip(), 1))
+        students_db1['YearOfStudy'] = pd.to_numeric(students_df.get('YearOfStudy', 1), errors='coerce').fillna(1).astype(int)
+        students_db1['Status'] = 'Active'
+        students_db1['StudentID'] = range(1, len(students_db1) + 1)
+        reg_to_sid = dict(zip(students_db1['RegNo'].astype(str), students_db1['StudentID']))
+        self.logger.info("  -> Students: %d", len(students_db1))
+
+        # 3) Courses from course_catalog_ucu.csv
+        course_path = root / "course_catalog_ucu.csv"
+        if not course_path.exists():
+            course_path = root / "course_catalog_ucu_actual_titles.csv"
+        if course_path.exists():
+            cat = pd.read_csv(course_path)
+            courses_db1 = pd.DataFrame({
+                'CourseID': range(1, len(cat) + 1),
+                'CourseCode': cat['COURSE_CODE'].astype(str),
+                'CourseName': cat.get('COURSE_TITLE', cat.get('COURSE_CODE', '')).astype(str),
+                'CreditUnits': pd.to_numeric(cat.get('COURSE_UNITS', 3), errors='coerce').fillna(3).astype(int),
+            })
+        else:
+            courses_db1 = pd.DataFrame(columns=['CourseID', 'CourseCode', 'CourseName', 'CreditUnits'])
+        self.logger.info("  -> Courses: %d", len(courses_db1))
+        course_code_to_id = dict(zip(courses_db1['CourseCode'], courses_db1['CourseID'])) if not courses_db1.empty else {}
+
+        # 4) Grades from student_grades_list15.csv and list16
+        grades_parts = []
+        grades_df = None
+        for fname in ['student_grades_list15.csv', 'student_grades_list16.csv']:
+            p = root / fname
+            if p.exists():
+                grades_parts.append(pd.read_csv(p))
+        if grades_parts:
+            grades_df = pd.concat(grades_parts, ignore_index=True)
+            grades_db1 = pd.DataFrame()
+            grades_db1['StudentID'] = grades_df['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int)
+            grades_db1['CourseCode'] = grades_df['COURSE_CODE'].astype(str)
+            grades_db1['CourseworkScore'] = pd.to_numeric(grades_df['CW_MARK_60'], errors='coerce').fillna(0)
+            grades_db1['ExamScore'] = grades_df['EXAM_MARK_40'].replace('', np.nan)
+            grades_db1['TotalScore'] = pd.to_numeric(grades_df['FINAL_MARK_100'], errors='coerce').fillna(0)
+            grades_db1['GradeLetter'] = grades_df['LETTER_GRADE'].astype(str)
+            grades_db1['ExamStatus'] = grades_df['STATUS'].astype(str)
+            grades_db1['AbsenceReason'] = grades_df.get('MEX_REASON', pd.Series([''] * len(grades_df))).astype(str)
+            grades_db1['FCW'] = (grades_df['STATUS'].astype(str) == 'FCW')
+            grades_db1['GradeID'] = range(1, len(grades_db1) + 1)
+        else:
+            grades_db1 = pd.DataFrame(columns=['GradeID', 'StudentID', 'CourseCode', 'CourseworkScore', 'ExamScore', 'TotalScore', 'GradeLetter', 'ExamStatus', 'AbsenceReason', 'FCW'])
+        self.logger.info("  -> Grades: %d", len(grades_db1))
+
+        # 5) Enrollments derived from grades (unique student_id, course_code, semester)
+        if grades_df is not None and not grades_df.empty:
+            enrollments_df = grades_df[['REG_NO', 'COURSE_CODE', 'SEMESTER_INDEX', 'ACADEMIC_YEAR']].drop_duplicates()
+            enrollments_df['EnrollmentID'] = range(1, len(enrollments_df) + 1)
+            enrollments_df['StudentID'] = enrollments_df['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int)
+            enrollments_df['CourseID'] = enrollments_df['COURSE_CODE'].astype(str).map(course_code_to_id).fillna(1).astype(int)
+            enrollments_df['AcademicYear'] = enrollments_df['ACADEMIC_YEAR']
+            enrollments_df['Semester'] = enrollments_df['SEMESTER_INDEX'].map({1: 'Jan (Easter Semester)', 2: 'May (Trinity Semester)', 3: 'September (Advent)'})
+            enrollments_db1 = enrollments_df[['EnrollmentID', 'StudentID', 'CourseID', 'AcademicYear', 'Semester']].copy()
+        else:
+            enrollments_db1 = pd.DataFrame(columns=['EnrollmentID', 'StudentID', 'CourseID', 'AcademicYear', 'Semester'])
+
+        # 6) Payments from student_payments_list15/16
+        pay_parts = []
+        for fname in ['student_payments_list15.csv', 'student_payments_list16.csv', 'student_payments_list15_realistic.csv', 'student_payments_list16_realistic.csv']:
+            p = root / fname
+            if p.exists():
+                pay_parts.append(pd.read_csv(p))
+        if pay_parts:
+            pay_df = pd.concat(pay_parts, ignore_index=True)
+            student_fees_db1 = pd.DataFrame({
+                'PaymentID': pay_df.get('PAYMENT_ID', range(1, len(pay_df) + 1)).astype(str),
+                'StudentID': pay_df['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int),
+                'AmountPaid': pd.to_numeric(pay_df['AMOUNT_UGX'], errors='coerce').fillna(0),
+                'PaymentDate': pd.to_datetime(pay_df['PAYMENT_DATE'], errors='coerce'),
+                'PaymentTimestamp': pd.to_datetime(pay_df['PAYMENT_DATE'], errors='coerce'),
+                'Year': pd.to_datetime(pay_df['PAYMENT_DATE'], errors='coerce').dt.year.fillna(datetime.now().year),
+                'Semester': pay_df.get('SEMESTER', 'SEM1'),
+                'TuitionNational': pd.to_numeric(pay_df.get('AMOUNT_UGX', 0), errors='coerce').fillna(0),
+                'TuitionInternational': 0,
+                'FunctionalFees': 0,
+                'PaymentMethod': pay_df.get('PAYMENT_METHOD', 'BANK').astype(str),
+                'Status': pay_df.get('PAYMENT_STATUS', 'SUCCESS').astype(str),
+            })
+        else:
+            student_fees_db1 = pd.DataFrame()
+        self.logger.info("  -> Payments: %d", len(student_fees_db1))
+
+        # 7) Attendance from student_attendance_list15/16
+        att_parts = []
+        for fname in ['student_attendance_list15.csv', 'student_attendance_list16.csv']:
+            p = root / fname
+            if p.exists():
+                att_parts.append(pd.read_csv(p))
+        if att_parts:
+            att_df = pd.concat(att_parts, ignore_index=True)
+            attendance_db1 = pd.DataFrame({
+                'StudentID': att_df['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int),
+                'Date': pd.to_datetime(att_df['DATE'], errors='coerce'),
+                'Status': att_df['STATUS'].astype(str),
+                'CourseID': 1,
+            })
+        else:
+            attendance_db1 = pd.DataFrame(columns=['StudentID', 'Date', 'Status', 'CourseID'])
+        self.logger.info("  -> Attendance: %d", len(attendance_db1))
+
+        # 8) Employees: generated 7-13 per department, 6-8 per faculty (keep demo-style but satisfy counts)
+        employees_db2 = self._build_employees_for_synthetic(faculties_db1, departments_db1)
+        payroll_db2 = pd.DataFrame()
+
+        # Bronze parquet (optional, for traceability)
+        students_db1.to_parquet(self.bronze_path / f"bronze_students_db1_{timestamp}.parquet", index=False)
+        courses_db1.to_parquet(self.bronze_path / f"bronze_courses_db1_{timestamp}.parquet", index=False)
+        enrollments_db1.to_parquet(self.bronze_path / f"bronze_enrollments_db1_{timestamp}.parquet", index=False)
+        attendance_db1.to_parquet(self.bronze_path / f"bronze_attendance_db1_{timestamp}.parquet", index=False)
+        grades_db1.to_parquet(self.bronze_path / f"bronze_grades_db1_{timestamp}.parquet", index=False)
+        student_fees_db1.to_parquet(self.bronze_path / f"bronze_student_fees_db1_{timestamp}.parquet", index=False) if not student_fees_db1.empty else None
+        if not faculties_db1.empty:
+            faculties_db1.to_parquet(self.bronze_path / f"bronze_faculties_db1_{timestamp}.parquet", index=False)
+        if not departments_db1.empty:
+            departments_db1.to_parquet(self.bronze_path / f"bronze_departments_db1_{timestamp}.parquet", index=False)
+        if not programs_db1.empty:
+            programs_db1.to_parquet(self.bronze_path / f"bronze_programs_db1_{timestamp}.parquet", index=False)
+        employees_db2.to_parquet(self.bronze_path / f"bronze_employees_db2_{timestamp}.parquet", index=False)
+
+        self.logger.info("Bronze (synthetic) extraction complete.")
+        return {
+            'students_db1': students_db1,
+            'courses_db1': courses_db1,
+            'enrollments_db1': enrollments_db1,
+            'attendance_db1': attendance_db1,
+            'grades_db1': grades_db1,
+            'student_fees_db1': student_fees_db1,
+            'faculties_db1': faculties_db1,
+            'departments_db1': departments_db1,
+            'programs_db1': programs_db1,
+            'employees_db2': employees_db2,
+            'payroll_db2': payroll_db2,
+            'payments_csv': pd.DataFrame(),
+            'grades_csv': pd.DataFrame(),
+        }
+
+    def _build_employees_for_synthetic(self, faculties_db1, departments_db1):
+        """Build employees so each department has 7-13 employees and each faculty has 6-8 (faculty-level)."""
+        first_names = ["James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda", "William", "Elizabeth", "David", "Barbara", "Joseph", "Susan", "Charles", "Jessica"]
+        last_names = ["Okello", "Namakula", "Kato", "Achieng", "Mukasa", "Wekesa", "Akol", "Atwine", "Kasule", "Mugisha"]
+        positions = [1, 2, 3]  # position_id
+        contract_types = ["Full-Time", "Part-Time", "Contract"]
+        rows = []
+        eid = 1
+        np.random.seed(42)
+        # Per-department: 7-13 employees
+        if not departments_db1.empty:
+            fid_col = 'FacultyID' if 'FacultyID' in departments_db1.columns else 'faculty_id'
+            did_col = 'DepartmentID' if 'DepartmentID' in departments_db1.columns else 'department_id'
+            for _, dept in departments_db1.iterrows():
+                n = int(np.random.randint(7, 14))
+                for i in range(n):
+                    rows.append({
+                        'EmployeeID': eid,
+                        'FullName': f"{np.random.choice(first_names)} {np.random.choice(last_names)}",
+                        'PositionID': int(np.random.choice(positions)),
+                        'DepartmentID': int(dept[did_col]),
+                        'ContractType': np.random.choice(contract_types),
+                        'Status': 'Active',
+                    })
+                    eid += 1
+        # Per-faculty: 6-8 (assign to first department of that faculty)
+        if not faculties_db1.empty and not departments_db1.empty:
+            fid_col = 'FacultyID' if 'FacultyID' in faculties_db1.columns else 'faculty_id'
+            did_col = 'DepartmentID' if 'DepartmentID' in departments_db1.columns else 'department_id'
+            for _, fac in faculties_db1.iterrows():
+                f_id = int(fac[fid_col])
+                depts = departments_db1[departments_db1[fid_col] == f_id]
+                if depts.empty:
+                    continue
+                first_dept_id = int(depts[did_col].iloc[0])
+                n = int(np.random.randint(6, 9))
+                for i in range(n):
+                    rows.append({
+                        'EmployeeID': eid,
+                        'FullName': f"{np.random.choice(first_names)} {np.random.choice(last_names)}",
+                        'PositionID': int(np.random.choice(positions)),
+                        'DepartmentID': first_dept_id,
+                        'ContractType': np.random.choice(contract_types),
+                        'Status': 'Active',
+                    })
+                    eid += 1
+        df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=['EmployeeID', 'FullName', 'PositionID', 'DepartmentID', 'ContractType', 'Status'])
+        self.logger.info("  -> Employees (synthetic): %d", len(df))
+        return df
+
     def transform(self, bronze_data):
         """Transform and clean data (Silver Layer)"""
         self.logger.info("=" * 60)

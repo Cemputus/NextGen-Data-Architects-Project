@@ -52,6 +52,10 @@ BRONZE_PATH = BASE_DIR / "data" / "bronze"
 SILVER_PATH = BASE_DIR / "data" / "silver"
 GOLD_PATH = BASE_DIR / "data" / "gold"
 
+# Data source: 'synthetic' = backend/data/Synthetic_Data (CSV/Excel); 'demo' = DB1/DB2 + optional CSVs
+USE_SYNTHETIC_DATA = os.environ.get("USE_SYNTHETIC_DATA", "true").strip().lower() in ("1", "true", "yes")
+SYNTHETIC_DATA_DIR = BASE_DIR / "data" / "Synthetic_Data"
+
 # Create directories
 for path in [BRONZE_PATH, SILVER_PATH, GOLD_PATH]:
     path.mkdir(parents=True, exist_ok=True)
