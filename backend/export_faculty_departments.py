@@ -2,7 +2,7 @@
 Export list of faculties, departments, and programs from the data warehouse.
 
 Output:
-  backend/data/new_anonymized_data/faculties_departments.csv
+  backend/data/new_synthetic_data/faculties_departments.csv
 Columns:
   faculty_id, faculty_name, department_id, department_name, program_id, program_name
 """
@@ -35,7 +35,7 @@ def main():
   with engine.connect() as conn:
     df = pd.read_sql_query(text(query), conn)
 
-  out_path = "backend/data/new_anonymized_data/faculties_departments.csv"
+  out_path = "backend/data/new_synthetic_data/faculties_departments.csv"
   df.to_csv(out_path, index=False)
   print(f"Exported {len(df)} rows to {out_path}")
 
