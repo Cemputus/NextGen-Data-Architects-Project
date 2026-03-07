@@ -451,7 +451,7 @@ class ETLPipeline:
             grades_db1['TotalScore'] = pd.to_numeric(grades_df['FINAL_MARK_100'], errors='coerce').fillna(0)
             grades_db1['GradeLetter'] = grades_df['LETTER_GRADE'].astype(str)
             grades_db1['ExamStatus'] = grades_df['STATUS'].astype(str)
-            grades_db1['AbsenceReason'] = grades_df.get('MEX_REASON', pd.Series([''] * len(grades_df))).astype(str)
+            grades_db1['AbsenceReason'] = grades_df.get('MEX_REASON', '').astype(str)
             grades_db1['FCW'] = (grades_df['STATUS'].astype(str) == 'FCW')
             grades_db1['GradeID'] = range(1, len(grades_db1) + 1)
         else:
