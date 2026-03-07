@@ -171,6 +171,24 @@ def _require_sysadmin():
     return None, None
 
 
+# Table type and short description for warehouse UI (4-column table)
+_WAREHOUSE_TABLE_INFO = {
+    'dim_student': ('Dimension', 'Students (RegNo, name, program, year, status)'),
+    'dim_course': ('Dimension', 'Courses (code, name, credits)'),
+    'dim_semester': ('Dimension', 'Semesters (Easter, Trinity, Advent)'),
+    'dim_faculty': ('Dimension', 'Faculties and deans'),
+    'dim_department': ('Dimension', 'Departments and heads'),
+    'dim_program': ('Dimension', 'Academic programs'),
+    'dim_time': ('Dimension', 'Date dimension for reporting'),
+    'dim_employee': ('Dimension', 'Staff/employees (HR)'),
+    'dim_app_user': ('Dimension', 'App users and roles (RBAC)'),
+    'fact_enrollment': ('Fact', 'Student course enrollments'),
+    'fact_attendance': ('Fact', 'Attendance records by student/course'),
+    'fact_payment': ('Fact', 'Fee/payment transactions'),
+    'fact_grade': ('Fact', 'Grades and exam status'),
+}
+
+
 def _get_warehouse_counts(engine):
     """Return dict of table names to row counts for data warehouse."""
     counts = {}
@@ -186,6 +204,21 @@ def _get_warehouse_counts(engine):
         except Exception:
             counts[table] = None
     return counts
+
+
+def _get_warehouse_tables(engine):
+    """Return list of { table, count, type, description } for 4-column warehouse UI."""
+    counts = _get_warehouse_counts(engine)
+    tables = list(counts.keys())
+    return [
+        {
+            'table': t,
+            'count': counts[t],
+            'type': _WAREHOUSE_TABLE_INFO.get(t, ('Unknown', ''))[0],
+            'description': _WAREHOUSE_TABLE_INFO.get(t, ('', ''))[1] or '—',
+        }
+        for t in tables
+    ]
 
 
 def _get_demo_counts():
@@ -462,18 +495,22 @@ def system_status():
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         warehouse = _get_warehouse_counts(engine)
+        warehouse_tables = _get_warehouse_tables(engine)
         log_dir = _get_etl_log_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
         etl_runs = _get_etl_run_history(log_dir, max_runs=limit)
         console_kpis = _get_console_kpis(engine, etl_runs, log_dir)
+        source_databases = {
+            'Synthetic_Data': 'Primary — CSV/Excel (entire system)',
+            'UCU_SourceDB1': 'Academics',
+            'UCU_SourceDB2': 'Administration',
+        }
         return jsonify({
             'warehouse': warehouse,
+            'warehouse_tables': warehouse_tables,
             'etl_runs': etl_runs,
             'console_kpis': console_kpis,
-            'source_databases': {
-                'UCU_SourceDB1': 'Academics',
-                'UCU_SourceDB2': 'Administration',
-            },
+            'source_databases': source_databases,
             'server_time': _server_time_str(),
         })
     except Exception as e:
