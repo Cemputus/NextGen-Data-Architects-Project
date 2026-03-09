@@ -2222,10 +2222,34 @@ class ETLPipeline:
         else:
             payments['functional_fees'] = 0
         
-        # Determine student_type based on which tuition is non-zero
-        payments['student_type'] = payments.apply(
-            lambda row: 'international' if row['tuition_international'] > 0 else 'national', axis=1
-        )
+        # Determine student_type based on nationality where available:
+        # anyone whose nationality is NOT Uganda/Ugandan is classified as 'international'.
+        student_type_series = None
+        students_df = silver_data.get('students', pd.DataFrame())
+        if students_df is not None and not students_df.empty and 'student_id' in students_df.columns:
+            nat_map = (
+                students_df[['student_id', 'nationality']]
+                .assign(
+                    student_id=lambda d: d['student_id'].astype(str),
+                    nationality=lambda d: d['nationality'].astype(str).str.strip().str.lower(),
+                )
+                .drop_duplicates(subset=['student_id'])
+                .set_index('student_id')['nationality']
+            )
+            nat_series = payments['student_id'].astype(str).map(nat_map).fillna('')
+            def _classify_student_type(n: str) -> str:
+                n = (n or '').strip().lower()
+                # Treat only explicit Uganda/Ugandan as national; everything else is international
+                return 'national' if n in ('uganda', 'ugandan') else 'international'
+            student_type_series = nat_series.map(_classify_student_type)
+
+        if student_type_series is not None:
+            payments['student_type'] = student_type_series
+        else:
+            # Fallback: infer from tuition split when nationality is not available
+            payments['student_type'] = payments.apply(
+                lambda row: 'international' if row['tuition_international'] > 0 else 'national', axis=1
+            )
         
         # Extract payment timestamp
         if 'payment_timestamp' in payments.columns:

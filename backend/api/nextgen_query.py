@@ -148,8 +148,9 @@ def execute_query():
     """
     claims = get_jwt()
     role = (claims.get("role") or "").strip().lower()
-    if role != "analyst":
-        return jsonify({"error": "Permission denied. Analyst role required for NextGen Query."}), 403
+    # Allow both Analyst and Sysadmin to use NextGen Query (read-only).
+    if role not in ("analyst", "sysadmin"):
+        return jsonify({"error": "Permission denied. Analyst or Sysadmin role required for NextGen Query."}), 403
 
     payload = request.get_json(silent=True) or {}
     raw_sql = (payload.get("query") or "").strip()
@@ -163,10 +164,40 @@ def execute_query():
         max_rows = 1000
     max_rows = max(1, min(max_rows, 5000))
 
-    normalized = raw_sql.strip().rstrip(";")
+    # Strip leading SQL comments and blank lines so queries that start with
+    # "-- comment" or multi-line comments are still treated as SELECT/WITH.
+    def _strip_leading_comments(sql: str) -> str:
+        lines = sql.splitlines()
+        cleaned = []
+        skipping = True
+        in_block_comment = False
+        for line in lines:
+            stripped = line.lstrip()
+            if in_block_comment:
+                if "*/" in stripped:
+                    in_block_comment = False
+                continue
+            if stripped.startswith("/*"):
+                in_block_comment = True
+                continue
+            if skipping and (not stripped or stripped.startswith("--")):
+                continue
+            skipping = False
+            cleaned.append(line)
+        return "\n".join(cleaned)
+
+    normalized = _strip_leading_comments(raw_sql).strip().rstrip(";")
     lower = normalized.lower()
     first_token = lower.split(None, 1)[0] if lower else ""
     is_select_like = first_token in ("select", "with")
+
+    # Hard safety: NextGen Query is read-only. Block any non-SELECT/WITH statements so
+    # analysts cannot modify, update, or delete data from this workspace.
+    if not is_select_like:
+        return jsonify({
+            "error": "NextGen Query is read-only. Only SELECT/WITH queries are allowed; "
+                     "data modification (INSERT, UPDATE, DELETE, DDL) is blocked here."
+        }), 400
 
     safe_sql = normalized
     # If user did not specify a LIMIT on a read query, append one to minimize errors
@@ -184,20 +215,9 @@ def execute_query():
             except Exception:
                 pass
 
-            if is_select_like:
-                # Return tabular results
-                df = pd.read_sql_query(text(safe_sql), conn)
-                rows_affected = None
-            else:
-                # Non-SELECT statement: execute and return metadata only
-                result_obj = conn.execute(text(safe_sql))
-                try:
-                    conn.commit()
-                except Exception:
-                    # Some drivers autocommit; ignore commit errors
-                    pass
-                df = None
-                rows_affected = getattr(result_obj, "rowcount", None)
+            # Read-only: only SELECT/WITH reach this point
+            df = pd.read_sql_query(text(safe_sql), conn)
+            rows_affected = None
     except Exception as e:
         if engine is not None:
             engine.dispose()
@@ -209,9 +229,6 @@ def execute_query():
 
     frame = _build_response_frame(df)
     frame["elapsed_ms"] = elapsed
-    if not is_select_like:
-        frame["message"] = f"Statement executed successfully (rows affected: {rows_affected})."
-
     return jsonify(frame), 200
 
 
