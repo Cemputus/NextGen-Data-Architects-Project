@@ -392,7 +392,7 @@ const AdminETL = () => {
             <Database className="h-5 w-5" />
             Source Databases
           </CardTitle>
-          <CardDescription>Synthetic data is the primary source for the entire system. ETL loads from CSV/Excel in Synthetic_Data.</CardDescription>
+          <CardDescription>Synthetic data is the primary source for the entire system.</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="space-y-1 text-sm">

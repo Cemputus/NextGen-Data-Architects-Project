@@ -19,6 +19,7 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
+
 def _get_etl_log_dir():
     """
     Single source of truth for ETL log directory so logs are always stored and retrievable.
@@ -32,6 +33,27 @@ def _get_etl_log_dir():
         log_dir = (backend_dir / 'logs').resolve()
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
+
+
+def _count_synthetic_files():
+    """
+    Count primary CSV/Excel files in the Synthetic_Data folder for display
+    on the admin ETL page. This only inspects the top-level folder so that
+    "other data" subfolders do not affect the primary count.
+    """
+    synthetic_root = backend_dir / 'data' / 'Synthetic_Data'
+    if not synthetic_root.exists():
+        return 0
+    exts = {'.csv', '.xlsx'}
+    try:
+        return sum(
+            1
+            for p in synthetic_root.iterdir()
+            if p.is_file() and p.suffix.lower() in exts
+        )
+    except Exception:
+        # If anything goes wrong, fall back to 0 rather than breaking /system-status
+        return 0
 
 from config import (
     DATA_WAREHOUSE_CONN_STRING,
@@ -500,10 +522,16 @@ def system_status():
         log_dir.mkdir(parents=True, exist_ok=True)
         etl_runs = _get_etl_run_history(log_dir, max_runs=limit)
         console_kpis = _get_console_kpis(engine, etl_runs, log_dir)
-        source_databases = {
-            'Synthetic_Data': 'Primary — CSV/Excel (entire system)',
+
+        synthetic_file_count = _count_synthetic_files()
+        other_db_sources = {
             'UCU_SourceDB1': 'Academics',
             'UCU_SourceDB2': 'Administration',
+        }
+        # Synthetic data: show precise count of files + fixed "3 Databases" label for clarity
+        source_databases = {
+            'Synthetic_Data': f'Primary — {synthetic_file_count} CSV/Excel and 3 Databases',
+            **other_db_sources,
         }
         return jsonify({
             'warehouse': warehouse,
