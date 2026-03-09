@@ -1,0 +1,73 @@
+version: "3.9"
+
+#############################################
+# NextGen MIS - Containerised architecture #
+# - mysql          = Gold (warehouse DB)   #
+# - backend        = Flask API + ETL       #
+# - frontend       = React SPA             #
+# - bronze/silver/gold = shared volumes    #
+#############################################
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: nextgen_mysql
+    restart: unless-stopped
+    environment:
+      # NOTE: these values are aligned with backend/config.py defaults.
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: UCU_DataWarehouse
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nextgen_backend
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    environment:
+      # Point the backend at the MySQL warehouse container
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      # Flask secrets – override in production
+      SECRET_KEY: "change-me-in-prod"
+      JWT_SECRET_KEY: "change-me-in-prod-too"
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount the whole backend project (for live code edits in dev)
+      - ./backend:/app
+      # Medallion layers as separate named volumes (easy to inspect and manage)
+      - bronze_data:/app/data/bronze
+      - silver_data:/app/data/silver
+      - gold_data:/app/data/gold
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nextgen_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # React dev server will proxy API calls to this URL (see package.json "proxy")
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+
+volumes:
+  mysql_data:
+  bronze_data:
+  silver_data:
+  gold_data:
+
