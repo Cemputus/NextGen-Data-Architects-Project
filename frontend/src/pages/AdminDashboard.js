@@ -337,19 +337,67 @@ const AdminDashboard = () => {
               <Card className="border shadow-sm">
                 <CardHeader className="p-4 pb-2">
                   <CardTitle className="text-base font-semibold">Data Warehouse & ETL Overview</CardTitle>
-                  <CardDescription className="text-xs">Live counts and last ETL run — full tracking on ETL Jobs page</CardDescription>
+                  <CardDescription className="text-xs">
+                    Live counts for core dimension/fact tables and the last ETL run. Full tracking on ETL Jobs page.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
                   {adminStatus ? (
                     <div className="space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                        {adminStatus.warehouse && Object.entries(adminStatus.warehouse).map(([table, count]) => (
-                          <div key={table} className="rounded border bg-muted/30 px-3 py-2">
-                            <span className="font-medium text-muted-foreground">{table}</span>
-                            <span className="ml-2 font-semibold">{count != null ? count.toLocaleString() : '—'}</span>
-                          </div>
-                        ))}
+                      {/* Visual overview of key warehouse tables only */}
+                      <div className="h-[260px] w-full">
+                        {(() => {
+                          const wh = adminStatus.warehouse || {};
+                          const importantTables = [
+                            'dim_app_user',
+                            'dim_course',
+                            'dim_department',
+                            'dim_employee',
+                            'dim_faculty',
+                            'dim_program',
+                            'dim_semester',
+                            'dim_student',
+                            'dim_time',
+                            'fact_attendance',
+                            'fact_enrollment',
+                            'fact_grade',
+                            'fact_payment',
+                          ];
+                          const labelMap = {
+                            dim_app_user: 'App users',
+                            dim_course: 'Courses',
+                            dim_department: 'Departments',
+                            dim_employee: 'Employees',
+                            dim_faculty: 'Faculties',
+                            dim_program: 'Programs',
+                            dim_semester: 'Semesters',
+                            dim_student: 'Students',
+                            dim_time: 'Time dimension',
+                            fact_attendance: 'Fact attendance',
+                            fact_enrollment: 'Fact enrollment',
+                            fact_grade: 'Fact grade',
+                            fact_payment: 'Fact payment',
+                          };
+                          const data = importantTables
+                            .filter((t) => Object.prototype.hasOwnProperty.call(wh, t))
+                            .map((t) => ({
+                              name: labelMap[t] || t,
+                              value: wh[t] == null ? 0 : wh[t],
+                            }));
+                          return (
+                            <SciBarChart
+                              data={data}
+                              xDataKey="name"
+                              yDataKey="value"
+                              xAxisLabel="Table"
+                              yAxisLabel="Row count"
+                              showLegend={false}
+                              showGrid={true}
+                            />
+                          );
+                        })()}
                       </div>
+
                       {adminStatus.etl_runs && adminStatus.etl_runs.length > 0 && (
                         <div className="rounded border p-3 bg-muted/20">
                           <p className="text-sm font-medium text-muted-foreground mb-1">Last ETL run</p>

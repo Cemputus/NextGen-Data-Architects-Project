@@ -367,7 +367,8 @@ def admin_list_users():
         return err
     search = (request.args.get('search') or '').strip().lower()
     role_filter = (request.args.get('role') or '').strip().lower()
-    limit = min(max(request.args.get('limit', type=int) or 500, 1), 2000)
+    # Allow up to 10,000 users in one response so all synthetic students are visible in User Management.
+    limit = min(max(request.args.get('limit', type=int) or 500, 1), 10000)
     offset = max(request.args.get('offset', type=int) or 0, 0)
     users = []
     warning = None
@@ -393,7 +394,7 @@ def admin_list_users():
                 if conditions:
                     q += " WHERE " + " AND ".join(conditions)
                 q += " ORDER BY ds.last_name, ds.first_name LIMIT :limit"
-                params['limit'] = 2000
+                params['limit'] = limit
                 df = pd.read_sql_query(text(q), engine, params=params)
                 engine.dispose()
                 for _, row in df.iterrows():

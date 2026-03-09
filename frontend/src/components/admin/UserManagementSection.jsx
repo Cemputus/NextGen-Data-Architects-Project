@@ -146,7 +146,8 @@ export default function UserManagementSection({
       const params = new URLSearchParams();
       if (searchTerm.trim()) params.set('search', searchTerm.trim());
       if (roleFilter) params.set('role', roleFilter);
-      const limitVal = usersLimit === 'all' ? 2000 : usersLimit;
+      // When "all" is selected, request up to 10,000 users so all synthetic students are visible.
+      const limitVal = usersLimit === 'all' ? 10000 : usersLimit;
       params.set('limit', String(limitVal));
       const res = await axios.get(`/api/user-mgmt/users?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },

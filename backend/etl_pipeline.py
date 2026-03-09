@@ -2049,7 +2049,7 @@ class ETLPipeline:
         
         if not fact_enrollment.empty:
             try:
-                fact_enrollment.to_sql('fact_enrollment', engine, if_exists='append', index=False, chunksize=20000)
+                fact_enrollment.to_sql('fact_enrollment', engine, if_exists='append', index=False, method='multi', chunksize=15000)
                 self.logger.info(f"  → Loaded {len(fact_enrollment)} enrollments into fact_enrollment")
             except Exception as e:
                 self.logger.error(f"  → fact_enrollment load failed: {e}", exc_info=True)
@@ -2102,7 +2102,7 @@ class ETLPipeline:
 
                 try:
                     # Using method=None (default) correctly routes to PyMySQL fast executemany
-                    fact_attendance.to_sql('fact_attendance', engine, if_exists='append', index=False, chunksize=20000)
+                    fact_attendance.to_sql('fact_attendance', engine, if_exists='append', index=False, method='multi', chunksize=15000)
                     self.logger.info("  -> Loaded %d attendance records into fact_attendance", len(fact_attendance))
                     print(f"  -> Loaded {len(fact_attendance)} attendance records into fact_attendance")
                 except Exception as e:
@@ -2231,7 +2231,7 @@ class ETLPipeline:
 
         if not fact_payment.empty:
             try:
-                fact_payment.to_sql('fact_payment', engine, if_exists='append', index=False, chunksize=20000)
+                fact_payment.to_sql('fact_payment', engine, if_exists='append', index=False, method='multi', chunksize=10000)
                 self.logger.info("  -> Loaded %d payments into fact_payment", len(fact_payment))
                 print(f"  -> Loaded {len(fact_payment)} payments into fact_payment")
             except Exception as e:
@@ -2301,7 +2301,7 @@ class ETLPipeline:
         
         if not fact_grade.empty:
             try:
-                fact_grade.to_sql('fact_grade', engine, if_exists='append', index=False, chunksize=20000)
+                fact_grade.to_sql('fact_grade', engine, if_exists='append', index=False, method='multi', chunksize=10000)
                 self.logger.info("  -> Loaded %d grades into fact_grade", len(fact_grade))
                 print(f"  -> Loaded {len(fact_grade)} grades into fact_grade")
             except Exception as e:
@@ -2320,7 +2320,7 @@ class ETLPipeline:
                 if out[c].dtype == object:
                     out[c] = out[c].astype(str).replace('nan', '')
             try:
-                out.to_sql(table_name, engine, if_exists='replace', index=False, chunksize=20000)
+                out.to_sql(table_name, engine, if_exists='replace', index=False, method='multi', chunksize=10000)
                 self.logger.info(f"  → Loaded {len(out)} rows into {table_name} ({len(out.columns)} columns)")
             except Exception as e:
                 self.logger.error(f"  → {table_name} load failed: {e}", exc_info=True)
