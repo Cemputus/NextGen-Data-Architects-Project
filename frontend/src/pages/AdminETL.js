@@ -438,70 +438,142 @@ const AdminETL = () => {
         </CardContent>
       </Card>
 
-      {/* Data warehouse summary — Visual or Raw */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Data Warehouse (Gold Layer)</CardTitle>
-          <CardDescription>UCU_DataWarehouse — dimension and fact table row counts</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {dataViewMode === 'visual' ? (
-            <>
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Label htmlFor="wh-filter" className="text-sm text-muted-foreground">Filter tables</Label>
-                <Input
-                  id="wh-filter"
-                  placeholder="e.g. dim_ or fact_"
-                  value={warehouseFilter}
-                  onChange={(e) => setWarehouseFilter(e.target.value)}
-                  className="max-w-xs"
-                />
-              </div>
-              {(() => {
-                const entries = Object.entries(warehouse).filter(([t]) => !warehouseFilter || t.toLowerCase().includes(warehouseFilter.toLowerCase()));
-                const chartData = entries.map(([table, count]) => ({ name: table, value: count != null ? count : 0 }));
-                if (chartData.length === 0) {
-                  return <p className="text-muted-foreground text-sm py-4">No tables match the filter.</p>;
-                }
-                return (
-                  <div className="h-[320px] min-h-[200px] w-full">
-                    <SciBarChart
-                      data={chartData}
-                      xDataKey="name"
-                      yDataKey="value"
-                      xAxisLabel="Table"
-                      yAxisLabel="Row count"
-                      fillColor="#1e3a5f"
-                      showGrid
-                    />
-                  </div>
-                );
-              })()}
-            </>
-          ) : (
-            <TableWrapper>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Table</TableHead>
-                    <TableHead className="text-right">Count</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Object.entries(warehouse)
-                    .filter(([t]) => !warehouseFilter || t.toLowerCase().includes(warehouseFilter.toLowerCase()))
-                    .map(([table, count]) => (
-                      <TableRow key={table}>
-                        <TableCell className="font-mono">{table}</TableCell>
-                        <TableCell className="text-right">{count != null ? count.toLocaleString() : '—'}</TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </TableWrapper>
-          )}
-        </CardContent>
-      </Card>
+      {/* Data warehouse summary — split into Dimensions and Facts (2-column layout) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Dimensions (Gold Layer)</CardTitle>
+            <CardDescription>All dimension tables currently loaded in UCU_DataWarehouse.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {dataViewMode === 'visual' ? (
+              <>
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <Label htmlFor="wh-filter-dim" className="text-sm text-muted-foreground">Filter dimensions</Label>
+                  <Input
+                    id="wh-filter-dim"
+                    placeholder="e.g. dim_student"
+                    value={warehouseFilter}
+                    onChange={(e) => setWarehouseFilter(e.target.value)}
+                    className="max-w-xs"
+                  />
+                </div>
+                {(() => {
+                  const entries = Object.entries(warehouse)
+                    .filter(([t]) => t.startsWith('dim_'))
+                    .filter(([t]) => !warehouseFilter || t.toLowerCase().includes(warehouseFilter.toLowerCase()));
+                  const chartData = entries.map(([table, count]) => ({ name: table, value: count != null ? count : 0 }));
+                  if (chartData.length === 0) {
+                    return <p className="text-muted-foreground text-sm py-4">No dimensions match the filter.</p>;
+                  }
+                  return (
+                    <div className="h-[260px] min-h-[180px] w-full">
+                      <SciBarChart
+                        data={chartData}
+                        xDataKey="name"
+                        yDataKey="value"
+                        xAxisLabel="Dimension table"
+                        yAxisLabel="Row count"
+                        fillColor="#1e3a5f"
+                        showGrid
+                      />
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <TableWrapper>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Table</TableHead>
+                      <TableHead className="text-right">Count</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.entries(warehouse)
+                      .filter(([t]) => t.startsWith('dim_'))
+                      .filter(([t]) => !warehouseFilter || t.toLowerCase().includes(warehouseFilter.toLowerCase()))
+                      .map(([table, count]) => (
+                        <TableRow key={table}>
+                          <TableCell className="font-mono">{table}</TableCell>
+                          <TableCell className="text-right">{count != null ? count.toLocaleString() : '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableWrapper>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Fact & Synthetic Tables</CardTitle>
+            <CardDescription>All fact and synthetic tables loaded by the ETL.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {dataViewMode === 'visual' ? (
+              <>
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <Label htmlFor="wh-filter-fact" className="text-sm text-muted-foreground">Filter facts</Label>
+                  <Input
+                    id="wh-filter-fact"
+                    placeholder="e.g. fact_"
+                    value={warehouseFilter}
+                    onChange={(e) => setWarehouseFilter(e.target.value)}
+                    className="max-w-xs"
+                  />
+                </div>
+                {(() => {
+                  const entries = Object.entries(warehouse)
+                    .filter(([t]) => !t.startsWith('dim_'))
+                    .filter(([t]) => !warehouseFilter || t.toLowerCase().includes(warehouseFilter.toLowerCase()));
+                  const chartData = entries.map(([table, count]) => ({ name: table, value: count != null ? count : 0 }));
+                  if (chartData.length === 0) {
+                    return <p className="text-muted-foreground text-sm py-4">No fact tables match the filter.</p>;
+                  }
+                  return (
+                    <div className="h-[260px] min-h-[180px] w-full">
+                      <SciBarChart
+                        data={chartData}
+                        xDataKey="name"
+                        yDataKey="value"
+                        xAxisLabel="Fact/synthetic table"
+                        yAxisLabel="Row count"
+                        fillColor="#1e3a5f"
+                        showGrid
+                      />
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <TableWrapper>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Table</TableHead>
+                      <TableHead className="text-right">Count</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.entries(warehouse)
+                      .filter(([t]) => !t.startsWith('dim_'))
+                      .filter(([t]) => !warehouseFilter || t.toLowerCase().includes(warehouseFilter.toLowerCase()))
+                      .map(([table, count]) => (
+                        <TableRow key={table}>
+                          <TableCell className="font-mono">{table}</TableCell>
+                          <TableCell className="text-right">{count != null ? count.toLocaleString() : '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableWrapper>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* ETL run history — Visual or Raw */}
       <Card>

@@ -204,10 +204,18 @@ _WAREHOUSE_TABLE_INFO = {
     'dim_time': ('Dimension', 'Date dimension for reporting'),
     'dim_employee': ('Dimension', 'Staff/employees (HR)'),
     'dim_app_user': ('Dimension', 'App users and roles (RBAC)'),
+    'dim_high_school': ('Dimension', 'High schools linked to students'),
+    'dim_date': ('Dimension', 'Synthetic date dimension from source'),
     'fact_enrollment': ('Fact', 'Student course enrollments'),
-    'fact_attendance': ('Fact', 'Attendance records by student/course'),
+    'fact_attendance': ('Fact', 'Attendance records by student/date'),
     'fact_payment': ('Fact', 'Fee/payment transactions'),
     'fact_grade': ('Fact', 'Grades and exam status'),
+    'fact_transcript': ('Fact', 'Transcript rows from synthetic data'),
+    'fact_academic_performance': ('Fact', 'Academic performance KPIs'),
+    'fact_sponsorship': ('Fact', 'Scholarship and sponsorship records'),
+    'fact_progression': ('Fact', 'Student progression history'),
+    'fact_student_high_school': ('Fact', 'Student to high school linkage'),
+    'fact_grades_summary': ('Fact', 'Pre-aggregated grade summaries'),
 }
 
 
@@ -217,7 +225,10 @@ def _get_warehouse_counts(engine):
     tables = [
         'dim_student', 'dim_course', 'dim_semester', 'dim_faculty', 'dim_department',
         'dim_program', 'dim_time', 'dim_employee', 'dim_app_user',
+        'dim_high_school', 'dim_date',
         'fact_enrollment', 'fact_attendance', 'fact_payment', 'fact_grade',
+        'fact_transcript', 'fact_academic_performance', 'fact_sponsorship',
+        'fact_progression', 'fact_student_high_school', 'fact_grades_summary',
     ]
     for table in tables:
         try:
@@ -228,9 +239,10 @@ def _get_warehouse_counts(engine):
     return counts
 
 
-def _get_warehouse_tables(engine):
+def _get_warehouse_tables(engine, counts=None):
     """Return list of { table, count, type, description } for 4-column warehouse UI."""
-    counts = _get_warehouse_counts(engine)
+    if counts is None:
+        counts = _get_warehouse_counts(engine)
     tables = list(counts.keys())
     return [
         {
@@ -517,7 +529,7 @@ def system_status():
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         warehouse = _get_warehouse_counts(engine)
-        warehouse_tables = _get_warehouse_tables(engine)
+        warehouse_tables = _get_warehouse_tables(engine, warehouse)
         log_dir = _get_etl_log_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
         etl_runs = _get_etl_run_history(log_dir, max_runs=limit)

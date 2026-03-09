@@ -774,6 +774,8 @@ class ETLPipeline:
                 'REG_NO': att_df['REG_NO'].astype(str).str.strip(),   # use REG_NO directly
                 'Date':   pd.to_datetime(att_df['DATE'], errors='coerce'),
                 'Status': att_df['STATUS'].astype(str).str.strip(),
+                # Stable synthetic primary key for incremental attendance loads
+                'AttendanceID': range(1, len(att_df) + 1),
                 # attendance source has no COURSE_CODE — leave empty string so fact_attendance doesn't filter on it
                 'course_code': '',
             })
@@ -782,7 +784,7 @@ class ETLPipeline:
                 if col not in attendance_db1.columns:
                     attendance_db1[col] = att_df[col].values
         else:
-            attendance_db1 = pd.DataFrame(columns=['REG_NO', 'Date', 'Status', 'course_code'])
+            attendance_db1 = pd.DataFrame(columns=['REG_NO', 'Date', 'Status', 'AttendanceID', 'course_code'])
         self.logger.info("  -> Attendance: %d (columns: %d)", len(attendance_db1), len(attendance_db1.columns))
 
         # 8) Employees: generated 7-13 per department, 6-8 per faculty (keep demo-style but satisfy counts)
@@ -1159,6 +1161,12 @@ class ETLPipeline:
         # Attendance source has NO COURSE_CODE — grain is student x date x status
         attendance_silver = bronze_data['attendance_db1'].copy()
         attendance_silver = attendance_silver.fillna('')
+
+        # Stable synthetic primary key for incremental attendance loads
+        if 'AttendanceID' in attendance_silver.columns and 'attendance_id' not in attendance_silver.columns:
+            attendance_silver['attendance_id'] = pd.to_numeric(
+                attendance_silver['AttendanceID'], errors='coerce'
+            ).fillna(0).astype(int)
 
         # student_id: REG_NO stored directly in bronze (no integer mapping)
         if 'REG_NO' in attendance_silver.columns:
@@ -1907,9 +1915,8 @@ class ETLPipeline:
         
         with engine.connect() as conn:
             # Fact_Enrollment
-            conn.execute(text("DROP TABLE IF EXISTS fact_enrollment"))
             conn.execute(text("""
-                CREATE TABLE fact_enrollment (
+                CREATE TABLE IF NOT EXISTS fact_enrollment (
                     enrollment_id VARCHAR(20) PRIMARY KEY,
                     student_id VARCHAR(20),
                     course_code VARCHAR(20),
@@ -1924,10 +1931,9 @@ class ETLPipeline:
             """))
             
             # Fact_Attendance
-            conn.execute(text("DROP TABLE IF EXISTS fact_attendance"))
             conn.execute(text("""
-                CREATE TABLE fact_attendance (
-                    attendance_id INT AUTO_INCREMENT PRIMARY KEY,
+                CREATE TABLE IF NOT EXISTS fact_attendance (
+                    attendance_id INT PRIMARY KEY,
                     student_id VARCHAR(20),
                     course_code VARCHAR(20),
                     date_key VARCHAR(8),
@@ -1940,9 +1946,8 @@ class ETLPipeline:
             """))
             
             # Fact_Payment
-            conn.execute(text("DROP TABLE IF EXISTS fact_payment"))
             conn.execute(text("""
-                CREATE TABLE fact_payment (
+                CREATE TABLE IF NOT EXISTS fact_payment (
                     payment_id VARCHAR(20) PRIMARY KEY,
                     student_id VARCHAR(20),
                     date_key VARCHAR(8),
@@ -1973,10 +1978,9 @@ class ETLPipeline:
             """))
             
             # Fact_Grade
-            conn.execute(text("DROP TABLE IF EXISTS fact_grade"))
             conn.execute(text("""
-                CREATE TABLE fact_grade (
-                    grade_id VARCHAR(20) PRIMARY KEY,
+                CREATE TABLE IF NOT EXISTS fact_grade (
+                    grade_id VARCHAR(64) PRIMARY KEY,
                     student_id VARCHAR(20),
                     course_code VARCHAR(20),
                     date_key VARCHAR(8),
@@ -1995,13 +1999,47 @@ class ETLPipeline:
                     INDEX idx_grade (grade)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """))
-            conn.commit()
+            # Ensure existing deployments have a wide enough grade_id column
+            try:
+                conn.execute(text("ALTER TABLE fact_grade MODIFY grade_id VARCHAR(64)"))
+                conn.commit()
+            except Exception:
+                # Ignore if ALTER is not needed or fails (e.g. column already wide)
+                pass
         
         # Load valid keys once for all fact tables (FKs)
         with engine.connect() as conn:
             valid_dates_df = pd.read_sql_query("SELECT date_key FROM dim_time", conn)
             valid_students_df = pd.read_sql_query("SELECT student_id FROM dim_student", conn)
             valid_courses_df = pd.read_sql_query("SELECT course_code FROM dim_course", conn)
+            # Existing primary keys for incremental fact loads
+            try:
+                existing_enrollment_ids = set(
+                    pd.read_sql_query("SELECT enrollment_id FROM fact_enrollment", conn)['enrollment_id'].astype(str)
+                )
+            except Exception:
+                existing_enrollment_ids = set()
+            try:
+                existing_payment_ids = set(
+                    pd.read_sql_query("SELECT payment_id FROM fact_payment", conn)['payment_id'].astype(str)
+                )
+            except Exception:
+                existing_payment_ids = set()
+            try:
+                existing_grade_ids = set(
+                    pd.read_sql_query("SELECT grade_id FROM fact_grade", conn)['grade_id'].astype(str)
+                )
+            except Exception:
+                existing_grade_ids = set()
+            # Attendance watermark: highest attendance_id already loaded (0 if table empty)
+            try:
+                att_max_df = pd.read_sql_query("SELECT MAX(attendance_id) AS max_id FROM fact_attendance", conn)
+                if not att_max_df.empty and pd.notna(att_max_df['max_id'].iloc[0]):
+                    max_attendance_id = int(att_max_df['max_id'].iloc[0])
+                else:
+                    max_attendance_id = 0
+            except Exception:
+                max_attendance_id = 0
         def _clean_key(s):
             x = str(s).strip() if s is not None else ''
             return x if x not in ('nan', 'None') else ''
@@ -2045,7 +2083,18 @@ class ETLPipeline:
             course_str = fact_enrollment['course_code'].astype(str).str.strip().replace('nan', '')
             fact_enrollment = fact_enrollment[(course_str == '') | (course_str.isin(valid_course_codes))]
             fact_enrollment['enrollment_id'] = fact_enrollment['enrollment_id'].astype(str)
+            # Drop any duplicates within this batch, then keep only IDs not already in the warehouse
             fact_enrollment = fact_enrollment.drop_duplicates(subset=['enrollment_id'], keep='first')
+            before_inc = len(fact_enrollment)
+            if existing_enrollment_ids:
+                fact_enrollment = fact_enrollment[
+                    ~fact_enrollment['enrollment_id'].astype(str).isin(existing_enrollment_ids)
+                ]
+            self.logger.info(
+                "  → fact_enrollment incremental: %d new rows (skipped %d existing)",
+                len(fact_enrollment),
+                before_inc - len(fact_enrollment),
+            )
         
         if not fact_enrollment.empty:
             try:
@@ -2059,7 +2108,21 @@ class ETLPipeline:
         # Fact_Attendance
         attendance = silver_data['attendance']
         if not attendance.empty and 'student_id' in attendance.columns:
-            att_valid = attendance.copy()
+            # Use a narrow view of columns for scalability on 3M+ rows
+            base_cols = ['student_id']
+            if 'attendance_date' in attendance.columns:
+                base_cols.append('attendance_date')
+            if 'hours_attended' in attendance.columns:
+                base_cols.append('hours_attended')
+            status_source = next((c for c in ['status', 'Status', 'STATUS'] if c in attendance.columns), None)
+            if status_source:
+                base_cols.append(status_source)
+            if 'attendance_id' in attendance.columns:
+                base_cols.append('attendance_id')
+
+            att_valid = attendance[base_cols].copy()
+            att_valid['student_id'] = att_valid['student_id'].astype(str)
+
             # Fast vectorized date_key stringification (assuming attendance_date is datetime, else fallback)
             if 'attendance_date' in att_valid.columns:
                 dates = att_valid['attendance_date']
@@ -2067,15 +2130,22 @@ class ETLPipeline:
                 att_valid['date_key'] = att_valid['date_key'].fillna(default_date_key)
             else:
                 att_valid['date_key'] = default_date_key
-            
-            att_valid['student_id'] = att_valid['student_id'].astype(str)
-            
-            # Filter down early
-            att_valid = att_valid[
-                att_valid['student_id'].isin(valid_student_ids) &
-                att_valid['date_key'].isin(valid_date_keys)
-            ]
-            self.logger.info("  -> Attendance: %d rows pre-filter, %d after student+date filter", len(attendance), len(att_valid))
+
+            # Incremental watermark on attendance_id if available
+            if 'attendance_id' in att_valid.columns:
+                att_valid['attendance_id'] = pd.to_numeric(att_valid['attendance_id'], errors='coerce').fillna(0).astype(int)
+            else:
+                att_valid['attendance_id'] = 0
+
+            # Only keep rows newer than the max already loaded (no heavy student/date filtering here)
+            if max_attendance_id > 0:
+                att_valid = att_valid[att_valid['attendance_id'] > max_attendance_id]
+            self.logger.info(
+                "  -> Attendance: %d rows pre-filter, %d new rows after incremental watermark (max_id=%d)",
+                len(attendance),
+                len(att_valid),
+                max_attendance_id,
+            )
             
             if not att_valid.empty:
                 # Do NOT aggregate away rows; every raw attendance event becomes one fact row.
@@ -2084,13 +2154,14 @@ class ETLPipeline:
                 if status_col:
                     present_flag = att_valid[status_col].astype(str).str.upper().isin(['PRESENT', 'LATE']).astype(int)
                 else:
-                    present_flag = (att_valid['hours_attended'] > 0).astype(int)
+                    present_flag = (att_valid.get('hours_attended', 0) > 0).astype(int)
 
                 fact_attendance = pd.DataFrame({
+                    'attendance_id': att_valid['attendance_id'].astype(int),
                     'student_id': att_valid['student_id'].astype(str),
                     'course_code': '',  # no course dimension in attendance source
                     'date_key': att_valid['date_key'].astype(str),
-                    'total_hours': pd.to_numeric(att_valid['hours_attended'], errors='coerce').fillna(0),
+                    'total_hours': pd.to_numeric(att_valid.get('hours_attended', 0), errors='coerce').fillna(0),
                     'days_present': present_flag,
                 })
 
@@ -2209,13 +2280,19 @@ class ETLPipeline:
         if not fact_payment.empty:
             before = len(fact_payment)
             # Do not filter by dim_time or dim_student here; keep all synthetic payments so analytics
-            # can see the full distribution. Only de-duplicate on payment_id when present.
+            # can see the full distribution. For incremental loads, only skip rows whose payment_id
+            # is already present in the warehouse, but do NOT drop duplicates within this batch so
+            # that we never lose any payment facts.
             if 'payment_id' in fact_payment.columns:
-                fact_payment = fact_payment.drop_duplicates(subset=['payment_id'], keep='first')
-            self.logger.info("  -> fact_payment ready: %d rows (pre-filter: %d)", len(fact_payment), before)
+                fact_payment['payment_id'] = fact_payment['payment_id'].astype(str)
+                if existing_payment_ids:
+                    fact_payment = fact_payment[
+                        ~fact_payment['payment_id'].astype(str).isin(existing_payment_ids)
+                    ]
+            self.logger.info("  -> fact_payment ready (incremental, no in-batch dedupe): %d rows (pre-filter: %d)", len(fact_payment), before)
         if not fact_payment.empty:
             try:
-                fact_payment.to_sql('fact_payment', engine, if_exists='append', index=False, method='multi', chunksize=10000)
+                fact_payment.to_sql('fact_payment', engine, if_exists='append', index=False, method='multi', chunksize=2000)
                 self.logger.info("  -> Loaded %d payments into fact_payment", len(fact_payment))
                 print(f"  -> Loaded {len(fact_payment)} payments into fact_payment")
             except Exception as e:
@@ -2268,16 +2345,21 @@ class ETLPipeline:
             fact_grade = grades[grade_cols].copy()
             before = len(fact_grade)
             # Do not filter by dim_time or dim_student here; keep all synthetic grades so analytics
-            # can see the full grade distribution. Only normalise and de-duplicate on grade_id.
+            # can see the full grade distribution. Only normalise and de-duplicate on grade_id and
+            # skip rows that are already in the warehouse (incremental load).
             fact_grade['grade_id'] = fact_grade['grade_id'].astype(str)
             fact_grade = fact_grade.drop_duplicates(subset=['grade_id'], keep='first')
+            if existing_grade_ids:
+                fact_grade = fact_grade[
+                    ~fact_grade['grade_id'].astype(str).isin(existing_grade_ids)
+                ]
             fact_grade['letter_grade'] = fact_grade['letter_grade'].fillna('F').astype(str).str[:5]
             fact_grade['grade'] = pd.to_numeric(fact_grade['grade'], errors='coerce').fillna(0)
-            self.logger.info("  -> fact_grade ready: %d rows (pre-filter: %d)", len(fact_grade), before)
+            self.logger.info("  -> fact_grade ready (incremental): %d rows (pre-filter: %d)", len(fact_grade), before)
         
         if not fact_grade.empty:
             try:
-                fact_grade.to_sql('fact_grade', engine, if_exists='append', index=False, method='multi', chunksize=10000)
+                fact_grade.to_sql('fact_grade', engine, if_exists='append', index=False, method='multi', chunksize=2000)
                 self.logger.info("  -> Loaded %d grades into fact_grade", len(fact_grade))
                 print(f"  -> Loaded {len(fact_grade)} grades into fact_grade")
             except Exception as e:
@@ -2296,7 +2378,8 @@ class ETLPipeline:
                 if out[c].dtype == object:
                     out[c] = out[c].astype(str).replace('nan', '')
             try:
-                out.to_sql(table_name, engine, if_exists='replace', index=False, method='multi', chunksize=10000)
+                # Use smaller chunksize to avoid SQLAlchemy memory blow‑up on very wide, tall tables.
+                out.to_sql(table_name, engine, if_exists='replace', index=False, method='multi', chunksize=2000)
                 self.logger.info(f"  → Loaded {len(out)} rows into {table_name} ({len(out.columns)} columns)")
             except Exception as e:
                 self.logger.error(f"  → {table_name} load failed: {e}", exc_info=True)
@@ -2317,6 +2400,24 @@ class ETLPipeline:
         _load_synthetic_table('student_high_schools_synthetic', student_high_schools, 'fact_student_high_school')
 
         grades_summary = silver_data.get('grades_summary_synthetic', pd.DataFrame())
+        # If there are no dedicated grades-summary sheets, fall back to transcript
+        # and academic performance summaries so fact_grades_summary is always populated.
+        if grades_summary is None or grades_summary.empty:
+            transcript = silver_data.get('transcript_synthetic', pd.DataFrame())
+            academic_perf = silver_data.get('academic_performance_synthetic', pd.DataFrame())
+            frames = []
+            if transcript is not None and not transcript.empty:
+                frames.append(transcript.copy())
+            if academic_perf is not None and not academic_perf.empty:
+                frames.append(academic_perf.copy())
+            if frames:
+                grades_summary = pd.concat(frames, ignore_index=True, sort=False)
+                self.logger.info(
+                    "  → Grades summary fallback: built from transcript (%d rows) and academic performance (%d rows) -> %d rows",
+                    len(transcript) if transcript is not None else 0,
+                    len(academic_perf) if academic_perf is not None else 0,
+                    len(grades_summary),
+                )
         _load_synthetic_table('grades_summary_synthetic', grades_summary, 'fact_grades_summary')
 
         dim_date_df = silver_data.get('dim_date_synthetic', pd.DataFrame())
