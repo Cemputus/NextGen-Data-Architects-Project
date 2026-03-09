@@ -663,11 +663,13 @@ const AdminETL = () => {
               };
               const chartData = filtered.slice(0, 30).map((run, i) => {
                 const sec = parseDurationSec(run.duration);
+                const minutes = sec / 60;
                 const label = run.log_file ? run.log_file.replace(/^etl_pipeline_|\.log$/gi, '').slice(-12) : `Run ${i + 1}`;
                 return {
                   name: label,
-                  success: run.success ? sec : 0,
-                  failed: !run.success ? Math.max(sec, 0.1) : 0,
+                  // Chart in minutes for readability; keep a small non-zero bar for failed runs
+                  success: run.success ? minutes : 0,
+                  failed: !run.success ? Math.max(minutes, 0.1) : 0,
                 };
               });
               if (chartData.length === 0) {
@@ -703,11 +705,11 @@ const AdminETL = () => {
                       xDataKey="name"
                       yDataKey="value"
                       yDataKeys={[
-                        { key: 'success', label: 'Success (duration sec)', color: '#16a34a' },
-                        { key: 'failed', label: 'Failed (duration sec)', color: '#ca8a04' },
+                        { key: 'success', label: 'Success (duration min)', color: '#16a34a' },
+                        { key: 'failed', label: 'Failed (duration min)', color: '#ca8a04' },
                       ]}
                       xAxisLabel="Run"
-                      yAxisLabel="Duration (sec)"
+                      yAxisLabel="Duration (minutes)"
                       showGrid
                     />
                   </div>
