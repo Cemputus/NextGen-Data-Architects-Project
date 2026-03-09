@@ -538,17 +538,8 @@ class ETLPipeline:
             grades_db1 = pd.DataFrame(columns=['GradeID', 'StudentID', 'CourseCode', 'CourseworkScore', 'ExamScore', 'TotalScore', 'GradeLetter', 'ExamStatus', 'AbsenceReason', 'FCW'])
         self.logger.info("  -> Grades: %d (columns: %d)", len(grades_db1), len(grades_db1.columns))
 
-        # 5) Enrollments derived from grades (unique student_id, course_code, semester)
-        if grades_df is not None and not grades_df.empty:
-            enrollments_df = grades_df[['REG_NO', 'COURSE_CODE', 'SEMESTER_INDEX', 'ACADEMIC_YEAR']].drop_duplicates()
-            enrollments_df['EnrollmentID'] = range(1, len(enrollments_df) + 1)
-            enrollments_df['StudentID'] = enrollments_df['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int)
-            enrollments_df['CourseID'] = enrollments_df['COURSE_CODE'].astype(str).map(course_code_to_id).fillna(1).astype(int)
-            enrollments_df['AcademicYear'] = enrollments_df['ACADEMIC_YEAR']
-            enrollments_df['Semester'] = enrollments_df['SEMESTER_INDEX'].map({1: 'Jan (Easter Semester)', 2: 'May (Trinity Semester)', 3: 'September (Advent)'})
-            enrollments_db1 = enrollments_df[['EnrollmentID', 'StudentID', 'CourseID', 'AcademicYear', 'Semester']].copy()
-        else:
-            enrollments_db1 = pd.DataFrame(columns=['EnrollmentID', 'StudentID', 'CourseID', 'AcademicYear', 'Semester'])
+        # 5) Enrollments: placeholder until built from student_high_schools (see below after section 9)
+        enrollments_db1 = pd.DataFrame(columns=['EnrollmentID', 'StudentID', 'CourseID', 'AcademicYear', 'Semester'])
 
         # 6) Payments from student_payments_list15/16
         pay_parts = []
@@ -650,6 +641,22 @@ class ETLPipeline:
                     self.logger.warning("Could not read %s: %s", fname, e)
         student_high_schools_synthetic = pd.concat(student_high_schools_parts, ignore_index=True).drop_duplicates() if student_high_schools_parts else pd.DataFrame()
         self.logger.info("  -> Student–high school: %d", len(student_high_schools_synthetic))
+
+        # 5b) Enrollments from student_high_schools (one row per student–high school)
+        if not student_high_schools_synthetic.empty and 'REG_NO' in student_high_schools_synthetic.columns:
+            enrollments_hs = student_high_schools_synthetic[['REG_NO']].drop_duplicates()
+            if 'HIGH_SCHOOL' in student_high_schools_synthetic.columns:
+                enrollments_hs = student_high_schools_synthetic[['REG_NO', 'HIGH_SCHOOL']].drop_duplicates()
+            enrollments_hs = enrollments_hs.reset_index(drop=True)
+            enrollments_hs['EnrollmentID'] = range(1, len(enrollments_hs) + 1)
+            enrollments_hs['StudentID'] = enrollments_hs['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int)
+            enrollments_hs['CourseID'] = 0  # no course for high-school enrollment
+            enrollments_hs['AcademicYear'] = ''
+            enrollments_hs['Semester'] = 'High School'
+            enrollments_db1 = enrollments_hs[['EnrollmentID', 'StudentID', 'CourseID', 'AcademicYear', 'Semester']].copy()
+            self.logger.info("  -> Enrollments (from high schools): %d", len(enrollments_db1))
+        else:
+            self.logger.info("  -> Enrollments: 0 (no student_high_schools data)")
 
         # 10) Transcripts (semester-level summary per student)
         transcript_parts = []
@@ -1149,8 +1156,23 @@ class ETLPipeline:
                 grades_silver['absence_reason'] = grades_silver['AbsenceReason']
             else:
                 grades_silver['absence_reason'] = ''
-            grades_silver['exam_date'] = pd.to_datetime(datetime.now(), errors='coerce')
-            grades_silver['semester'] = '2023/2024 Sem 1'
+            # exam_date from ACADEMIC_YEAR so date_key is in dim_time (e.g. 2024/2025 -> 2024-06-01)
+            if 'ACADEMIC_YEAR' in grades_silver.columns:
+                def _exam_date_from_year(ay):
+                    if pd.isna(ay) or ay == '':
+                        return pd.Timestamp('2024-06-01')
+                    s = str(ay).strip()
+                    parts = s.replace('/', '-').split('-')
+                    year = int(parts[0]) if parts else 2024
+                    return pd.Timestamp(f'{year}-06-01')
+                grades_silver['exam_date'] = grades_silver['ACADEMIC_YEAR'].apply(_exam_date_from_year)
+            else:
+                grades_silver['exam_date'] = pd.to_datetime(datetime.now(), errors='coerce')
+            if 'SEMESTER_INDEX' in grades_silver.columns:
+                sem_map = {1: 'Jan (Easter Semester)', 2: 'May (Trinity Semester)', 3: 'September (Advent)'}
+                grades_silver['semester'] = grades_silver['SEMESTER_INDEX'].map(sem_map).fillna('Jan (Easter Semester)')
+            else:
+                grades_silver['semester'] = '2023/2024 Sem 1'
             grades_silver['grade_id'] = grades_silver.get('GradeID', range(1, len(grades_silver) + 1))
         elif not bronze_data['grades_csv'].empty:
             grades_silver = bronze_data['grades_csv'].copy()
@@ -1446,11 +1468,10 @@ class ETLPipeline:
         if 'status' not in students_dim.columns:
             students_dim['status'] = students_dim.get('Status', 'Active')
         students_dim = students_dim.drop_duplicates(subset=['student_id'], keep='first')
-        # Avoid collapsing rows: blank access_number would dedup to one row; make them unique
+        # Make blank access_number unique for display (do not dedup by access_number or we lose students who share ACC_NO)
         if 'access_number' in students_dim.columns:
             mask = students_dim['access_number'].astype(str).str.strip().isin(('', 'nan', 'None'))
             students_dim.loc[mask, 'access_number'] = 'ACC_' + students_dim.loc[mask, 'student_id'].astype(str)
-        students_dim = students_dim.drop_duplicates(subset=['access_number'], keep='first')
         # Deduplicate columns by normalized name (MySQL case-insensitive: Status and status → duplicate). Keep last so silver (student_id, status) wins over Excel (StudentID, Status).
         def _norm(s):
             return str(s).replace(' ', '_').replace('-', '_').replace('%', 'pct')[:64].lower()
@@ -1792,9 +1813,12 @@ class ETLPipeline:
             valid_dates_df = pd.read_sql_query("SELECT date_key FROM dim_time", conn)
             valid_students_df = pd.read_sql_query("SELECT student_id FROM dim_student", conn)
             valid_courses_df = pd.read_sql_query("SELECT course_code FROM dim_course", conn)
-        valid_date_keys = set(valid_dates_df['date_key'].astype(str).tolist())
-        valid_student_ids = set(valid_students_df['student_id'].astype(str).tolist())
-        valid_course_codes = set(valid_courses_df['course_code'].astype(str).tolist())
+        def _clean_key(s):
+            x = str(s).strip() if s is not None else ''
+            return x if x not in ('nan', 'None') else ''
+        valid_date_keys = set(_clean_key(x) for x in valid_dates_df['date_key'].tolist() if _clean_key(x))
+        valid_student_ids = set(_clean_key(x) for x in valid_students_df['student_id'].tolist() if _clean_key(x))
+        valid_course_codes = set(_clean_key(x) for x in valid_courses_df['course_code'].tolist() if _clean_key(x))
         default_date_key = '20240101' if '20240101' in valid_date_keys else (list(valid_date_keys)[0] if valid_date_keys else '20240101')
         
         # Fact_Enrollment
@@ -1828,7 +1852,9 @@ class ETLPipeline:
             fact_enrollment['date_key'] = fact_enrollment['date_key'].astype(str)
             fact_enrollment = fact_enrollment[fact_enrollment['date_key'].isin(valid_date_keys)]
             fact_enrollment = fact_enrollment[fact_enrollment['student_id'].astype(str).isin(valid_student_ids)]
-            fact_enrollment = fact_enrollment[fact_enrollment['course_code'].astype(str).isin(valid_course_codes)]
+            # Allow empty course_code (high-school enrollment from student_high_schools)
+            course_str = fact_enrollment['course_code'].astype(str).str.strip().replace('nan', '')
+            fact_enrollment = fact_enrollment[(course_str == '') | (course_str.isin(valid_course_codes))]
             fact_enrollment['enrollment_id'] = fact_enrollment['enrollment_id'].astype(str)
             fact_enrollment = fact_enrollment.drop_duplicates(subset=['enrollment_id'], keep='first')
         
@@ -1846,9 +1872,9 @@ class ETLPipeline:
         attendance['date_key'] = pd.to_datetime(attendance['attendance_date'], errors='coerce').dt.strftime('%Y%m%d').fillna('')
         attendance.loc[attendance['date_key'] == '', 'date_key'] = default_date_key
         attendance['date_key'] = attendance['date_key'].astype(str)
-        attendance = attendance[attendance['date_key'].isin(valid_date_keys)]
-        attendance = attendance[attendance['student_id'].astype(str).isin(valid_student_ids)]
-        attendance = attendance[attendance['course_code'].astype(str).isin(valid_course_codes)]
+        attendance = attendance[attendance['date_key'].astype(str).str.strip().isin(valid_date_keys)]
+        attendance = attendance[attendance['student_id'].astype(str).str.strip().isin(valid_student_ids)]
+        attendance = attendance[attendance['course_code'].astype(str).str.strip().isin(valid_course_codes)]
         
         if not attendance.empty:
             # Aggregate attendance by student, course, and date
@@ -2088,9 +2114,9 @@ class ETLPipeline:
         available_cols = [col for col in fact_payment_cols if col in payments.columns]
         fact_payment = payments[available_cols].copy()
         if not fact_payment.empty:
-            fact_payment = fact_payment[fact_payment['date_key'].astype(str).isin(valid_date_keys)]
+            fact_payment = fact_payment[fact_payment['date_key'].astype(str).str.strip().isin(valid_date_keys)]
             initial_count = len(fact_payment)
-            fact_payment = fact_payment[fact_payment['student_id'].astype(str).isin(valid_student_ids)]
+            fact_payment = fact_payment[fact_payment['student_id'].astype(str).str.strip().isin(valid_student_ids)]
             if initial_count > len(fact_payment):
                 self.logger.warning(f"  → Filtered out {initial_count - len(fact_payment)} payment records with invalid student_ids or date_keys")
             if 'payment_id' in fact_payment.columns:
@@ -2147,9 +2173,9 @@ class ETLPipeline:
             fact_grade = pd.DataFrame()
         else:
             fact_grade = grades[grade_cols].copy()
-            fact_grade = fact_grade[fact_grade['date_key'].isin(valid_date_keys)]
-            fact_grade = fact_grade[fact_grade['student_id'].astype(str).isin(valid_student_ids)]
-            fact_grade = fact_grade[fact_grade['course_code'].astype(str).isin(valid_course_codes)]
+            fact_grade = fact_grade[fact_grade['date_key'].astype(str).str.strip().isin(valid_date_keys)]
+            fact_grade = fact_grade[fact_grade['student_id'].astype(str).str.strip().isin(valid_student_ids)]
+            fact_grade = fact_grade[fact_grade['course_code'].astype(str).str.strip().isin(valid_course_codes)]
             fact_grade['grade_id'] = fact_grade['grade_id'].astype(str)
             fact_grade = fact_grade.drop_duplicates(subset=['grade_id'], keep='first')
             fact_grade['letter_grade'] = fact_grade['letter_grade'].fillna('F').astype(str).str[:5]

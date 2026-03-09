@@ -61,10 +61,12 @@ const AdminETL = () => {
 
   const setEtlRunsLimit = (v) => {
     setEtlRunsLimitState(v);
+    setEtlPageState(1);
     adminUIState.setSection('etl', { runsLimit: v, page: 1 });
   };
   const setEtlPerPage = (v) => {
     setEtlPerPageState(v);
+    setEtlPageState(1);
     adminUIState.setSection('etl', { perPage: v, page: 1 });
   };
   const setEtlPage = (v) => {
@@ -97,7 +99,7 @@ const AdminETL = () => {
     { value: 100, label: '100 runs' },
     { value: 9999, label: 'All' },
   ];
-  const ETL_PER_PAGE_OPTIONS = [10, 20, 30, 50, 100];
+  const ETL_PER_PAGE_OPTIONS = [5, 10, 15, 20, 30, 50, 100];
   useEffect(() => {
     return () => {
       if (refreshIntervalRef.current) clearInterval(refreshIntervalRef.current);
@@ -383,23 +385,27 @@ const AdminETL = () => {
         </CardContent>
       </Card>
 
-      {/* Source databases */}
+      {/* Source databases / ETL data source */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
             Source Databases
           </CardTitle>
-          <CardDescription>Feeds for ETL pipeline (setup_databases.py)</CardDescription>
+          <CardDescription>Synthetic data is the primary source for the entire system. ETL loads from CSV/Excel in Synthetic_Data.</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="space-y-1 text-sm">
-            {Object.entries(sourceDbs).map(([db, label]) => (
-              <li key={db} className="flex items-center gap-2">
-                <span className="font-mono bg-muted px-2 py-0.5 rounded">{db}</span>
-                <span className="text-muted-foreground">— {label}</span>
-              </li>
-            ))}
+            {Object.entries(sourceDbs).length === 0 ? (
+              <li className="text-muted-foreground">No source info (run ETL or refresh).</li>
+            ) : (
+              Object.entries(sourceDbs).map(([db, label]) => (
+                <li key={db} className="flex items-center gap-2">
+                  <span className="font-mono bg-muted px-2 py-0.5 rounded">{db}</span>
+                  <span className="text-muted-foreground">— {label}</span>
+                </li>
+              ))
+            )}
           </ul>
         </CardContent>
       </Card>
@@ -482,12 +488,14 @@ const AdminETL = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(warehouse).map(([table, count]) => (
-                    <TableRow key={table}>
-                      <TableCell className="font-mono">{table}</TableCell>
-                      <TableCell className="text-right">{count != null ? count.toLocaleString() : '—'}</TableCell>
-                    </TableRow>
-                  ))}
+                  {Object.entries(warehouse)
+                    .filter(([t]) => !warehouseFilter || t.toLowerCase().includes(warehouseFilter.toLowerCase()))
+                    .map(([table, count]) => (
+                      <TableRow key={table}>
+                        <TableCell className="font-mono">{table}</TableCell>
+                        <TableCell className="text-right">{count != null ? count.toLocaleString() : '—'}</TableCell>
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
             </TableWrapper>
