@@ -55,10 +55,12 @@ export default function UserManagementSection({
   showOpenFullPage = false,
   refreshTrigger,
   onUsersChanged,
-  // Optional: cap number of users for preview contexts (e.g. Admin Console tab)
+  // Optional: cap "all" for preview contexts (e.g. Admin Console tab)
   maxUsers = null,
-  // Optional: hide the "Show last N" selector when we want a fixed preview
+  // Optional: hide the "Show last N" selector
   hideLimitSelector = false,
+  // Optional: override the per-page options (defaults to USER_LIMIT_OPTIONS)
+  limitOptionsOverride = null,
 }) {
   const usersState = adminUIState.getSection('users');
   const [users, setUsers] = useState([]);
@@ -83,10 +85,6 @@ export default function UserManagementSection({
   const [addError, setAddError] = useState(null);
   const [listWarning, setListWarning] = useState(null);
   const [usersLimit, setUsersLimitState] = useState(() => {
-    // For preview usage (console page), start with a fixed small limit (e.g. 20)
-    if (maxUsers && typeof maxUsers === 'number') {
-      return maxUsers;
-    }
     const L = usersState.limit;
     if (L === 'all') return 'all';
     const n = Number(L);
@@ -155,13 +153,11 @@ export default function UserManagementSection({
       if (searchTerm.trim()) params.set('search', searchTerm.trim());
       if (roleFilter) params.set('role', roleFilter);
       // When "all" is selected, request up to 10,000 users so all synthetic students are visible.
-      // For preview contexts (maxUsers), always respect that cap regardless of selector.
+      // For preview contexts (maxUsers), cap the "all" case at maxUsers.
       const effectiveLimit =
-        maxUsers && typeof maxUsers === 'number'
-          ? maxUsers
-          : usersLimit === 'all'
-            ? 10000
-            : usersLimit;
+        usersLimit === 'all'
+          ? (maxUsers && typeof maxUsers === 'number' ? maxUsers : 10000)
+          : usersLimit;
       params.set('limit', String(effectiveLimit));
       const res = await axios.get(`/api/user-mgmt/users?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -1042,7 +1038,10 @@ export default function UserManagementSection({
                 className="w-28"
                 aria-label="Number of users to show"
               >
-                {USER_LIMIT_OPTIONS.map((n) => (
+                {(limitOptionsOverride && Array.isArray(limitOptionsOverride) && limitOptionsOverride.length
+                  ? limitOptionsOverride
+                  : USER_LIMIT_OPTIONS
+                ).map((n) => (
                   <option key={n} value={String(n)}>
                     {n === 'all' ? 'All' : `${n}`}
                   </option>

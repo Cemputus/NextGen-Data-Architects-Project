@@ -306,11 +306,10 @@ const AdminDashboard = () => {
                 showHeader={true}
                 compact={false}
                 showOpenFullPage={true}
-                refreshTrigger={refreshTrigger}
-                onUsersChanged={handleUsersChanged}
-                // Console view: show a preview of the first 20 users; for full list use Admin Users page.
-                maxUsers={20}
-                hideLimitSelector={true}
+          refreshTrigger={refreshTrigger}
+          onUsersChanged={handleUsersChanged}
+          // Console view: industrial-grade preview — only small page sizes, up to 20.
+          limitOptionsOverride={[5, 10, 15, 20]}
               />
             </TabsContent>
 
