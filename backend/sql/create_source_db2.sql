@@ -1,105 +1,93 @@
--- Source Database 2: UCU_SourceDB2 (ADMINISTRATION DATABASE)
--- Contains: Employees, Positions, Contracts, Employee Attendance, Payroll, Assets, Suppliers, Purchase Orders, Maintenance Records
+-- Source Database 2: ucu_sourcedb2 (ADMINISTRATION DATABASE)
+-- PostgreSQL version
 
-CREATE DATABASE IF NOT EXISTS UCU_SourceDB2;
-USE UCU_SourceDB2;
-
--- Positions Table (must be created before Employees)
 CREATE TABLE IF NOT EXISTS positions (
-    PositionID INT PRIMARY KEY AUTO_INCREMENT,
+    PositionID SERIAL PRIMARY KEY,
     PositionTitle VARCHAR(200),
     DepartmentID INT,
-    SalaryScale DECIMAL(15,2),
-    INDEX idx_department (DepartmentID)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    SalaryScale DECIMAL(15,2)
+);
+CREATE INDEX IF NOT EXISTS idx_positions_department ON positions(DepartmentID);
 
--- Employees Table
 CREATE TABLE IF NOT EXISTS employees (
-    EmployeeID INT PRIMARY KEY AUTO_INCREMENT,
+    EmployeeID SERIAL PRIMARY KEY,
     FullName VARCHAR(100),
     PositionID INT,
     DepartmentID INT,
     ContractType VARCHAR(50),
     Status VARCHAR(50),
-    FOREIGN KEY (PositionID) REFERENCES positions(PositionID) ON DELETE CASCADE,
-    INDEX idx_position (PositionID),
-    INDEX idx_department (DepartmentID),
-    INDEX idx_status (Status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (PositionID) REFERENCES positions(PositionID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_employees_position ON employees(PositionID);
+CREATE INDEX IF NOT EXISTS idx_employees_department ON employees(DepartmentID);
+CREATE INDEX IF NOT EXISTS idx_employees_status ON employees(Status);
 
--- Contracts Table
 CREATE TABLE IF NOT EXISTS contracts (
-    ContractID INT PRIMARY KEY AUTO_INCREMENT,
+    ContractID SERIAL PRIMARY KEY,
     EmployeeID INT,
     StartDate DATE,
     EndDate DATE,
     Status VARCHAR(50),
-    FOREIGN KEY (EmployeeID) REFERENCES employees(EmployeeID) ON DELETE CASCADE,
-    INDEX idx_employee (EmployeeID),
-    INDEX idx_status (Status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (EmployeeID) REFERENCES employees(EmployeeID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_contracts_employee ON contracts(EmployeeID);
+CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(Status);
 
--- Employee Attendance Table
 CREATE TABLE IF NOT EXISTS employee_attendance (
-    AttendanceID INT PRIMARY KEY AUTO_INCREMENT,
+    AttendanceID SERIAL PRIMARY KEY,
     EmployeeID INT,
     Date DATE,
     Status VARCHAR(20),
-    FOREIGN KEY (EmployeeID) REFERENCES employees(EmployeeID) ON DELETE CASCADE,
-    INDEX idx_employee (EmployeeID),
-    INDEX idx_date (Date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (EmployeeID) REFERENCES employees(EmployeeID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_emp_attendance_employee ON employee_attendance(EmployeeID);
+CREATE INDEX IF NOT EXISTS idx_emp_attendance_date ON employee_attendance(Date);
 
--- Payroll Table
 CREATE TABLE IF NOT EXISTS payroll (
-    PayrollID INT PRIMARY KEY AUTO_INCREMENT,
+    PayrollID SERIAL PRIMARY KEY,
     EmployeeID INT,
     PayPeriod VARCHAR(20),
     NetPay DECIMAL(15,2),
-    FOREIGN KEY (EmployeeID) REFERENCES employees(EmployeeID) ON DELETE CASCADE,
-    INDEX idx_employee (EmployeeID),
-    INDEX idx_pay_period (PayPeriod)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (EmployeeID) REFERENCES employees(EmployeeID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_payroll_employee ON payroll(EmployeeID);
+CREATE INDEX IF NOT EXISTS idx_payroll_pay_period ON payroll(PayPeriod);
 
--- Assets Table
 CREATE TABLE IF NOT EXISTS assets (
-    AssetID INT PRIMARY KEY AUTO_INCREMENT,
+    AssetID SERIAL PRIMARY KEY,
     AssetName VARCHAR(200),
     AssetTag VARCHAR(50),
     AssignedTo INT,
     Status VARCHAR(50),
-    FOREIGN KEY (AssignedTo) REFERENCES employees(EmployeeID) ON DELETE SET NULL,
-    INDEX idx_assigned_to (AssignedTo),
-    INDEX idx_status (Status),
-    INDEX idx_asset_tag (AssetTag)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (AssignedTo) REFERENCES employees(EmployeeID) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_assets_assigned_to ON assets(AssignedTo);
+CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(Status);
+CREATE INDEX IF NOT EXISTS idx_assets_tag ON assets(AssetTag);
 
--- Suppliers Table
 CREATE TABLE IF NOT EXISTS suppliers (
-    SupplierID INT PRIMARY KEY AUTO_INCREMENT,
+    SupplierID SERIAL PRIMARY KEY,
     SupplierName VARCHAR(200),
-    ContactPerson VARCHAR(100),
-    INDEX idx_supplier_name (SupplierName)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ContactPerson VARCHAR(100)
+);
+CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(SupplierName);
 
--- Purchase Orders Table
 CREATE TABLE IF NOT EXISTS purchase_orders (
-    OrderID INT PRIMARY KEY AUTO_INCREMENT,
+    OrderID SERIAL PRIMARY KEY,
     SupplierID INT,
     OrderNumber VARCHAR(50),
     Status VARCHAR(50),
-    FOREIGN KEY (SupplierID) REFERENCES suppliers(SupplierID) ON DELETE CASCADE,
-    INDEX idx_supplier (SupplierID),
-    INDEX idx_order_number (OrderNumber)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (SupplierID) REFERENCES suppliers(SupplierID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_supplier ON purchase_orders(SupplierID);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_number ON purchase_orders(OrderNumber);
 
--- Maintenance Records Table
 CREATE TABLE IF NOT EXISTS maintenance_records (
-    MaintenanceID INT PRIMARY KEY AUTO_INCREMENT,
+    MaintenanceID SERIAL PRIMARY KEY,
     AssetID INT,
     Date DATE,
     Cost DECIMAL(15,2),
-    FOREIGN KEY (AssetID) REFERENCES assets(AssetID) ON DELETE CASCADE,
-    INDEX idx_asset (AssetID),
-    INDEX idx_date (Date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (AssetID) REFERENCES assets(AssetID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_maintenance_asset ON maintenance_records(AssetID);
+CREATE INDEX IF NOT EXISTS idx_maintenance_date ON maintenance_records(Date);

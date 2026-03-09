@@ -1,21 +1,16 @@
--- UCU Data Engineering System - Users and RBAC Schema
--- This file creates the user management and role-based access control system
+-- UCU Data Engineering System - Users and RBAC Schema — PostgreSQL version
 
-USE UCU_DataWarehouse;
-
--- User Roles Enum
--- Roles: senate, sysadmin, analyst, student, staff, dean, hod, hr, finance
+-- User Roles
 CREATE TABLE IF NOT EXISTS user_roles (
-    role_id INT PRIMARY KEY AUTO_INCREMENT,
+    role_id SERIAL PRIMARY KEY,
     role_name VARCHAR(50) UNIQUE NOT NULL,
     role_description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
--- Insert default roles
 INSERT INTO user_roles (role_name, role_description) VALUES
 ('senate', 'Senate members - can view all analytics & reports (read-only)'),
-('sysadmin', 'System Administrator - full system control (manage users, system variables, ETL jobs, schema migrations)'),
+('sysadmin', 'System Administrator - full system control'),
 ('analyst', 'Analyst - create/modify analytics, dashboards, datasets, run advanced queries'),
 ('student', 'Student - view only their analytics and profile (login with Access number)'),
 ('staff', 'Staff - view/edit own profile; view evaluations and analytics for classes they teach'),
@@ -23,46 +18,46 @@ INSERT INTO user_roles (role_name, role_description) VALUES
 ('hod', 'Head of Department - view all academic & administrative activities in their department'),
 ('hr', 'HR - view/edit HR-related analytics, staff lists'),
 ('finance', 'Finance - view finance analytics, payments, scholarships')
-ON DUPLICATE KEY UPDATE role_description = VALUES(role_description);
+ON CONFLICT (role_name) DO UPDATE SET role_description = EXCLUDED.role_description;
 
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
-    user_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id SERIAL PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,  -- bcrypt hash
-    access_number VARCHAR(10) UNIQUE,  -- For students: A##### or B#####
-    reg_number VARCHAR(50),  -- Student registration number
-    staff_number VARCHAR(50),  -- For staff
+    password_hash VARCHAR(255) NOT NULL,
+    access_number VARCHAR(10) UNIQUE,
+    reg_number VARCHAR(50),
+    staff_number VARCHAR(50),
     full_name VARCHAR(200) NOT NULL,
     role_id INT NOT NULL,
-    faculty_id INT,  -- For dean, hod, staff
-    department_id INT,  -- For hod, staff
-    program_id INT,  -- For students
-    student_id INT,  -- Link to dim_student if student
-    staff_id INT,  -- Link to employees if staff
+    faculty_id INT,
+    department_id INT,
+    program_id INT,
+    student_id INT,
+    staff_id INT,
     is_active BOOLEAN DEFAULT TRUE,
-    last_login TIMESTAMP NULL,
+    last_login TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (role_id) REFERENCES user_roles(role_id) ON DELETE RESTRICT,
-    INDEX idx_username (username),
-    INDEX idx_access_number (access_number),
-    INDEX idx_reg_number (reg_number),
-    INDEX idx_staff_number (staff_number),
-    INDEX idx_role (role_id),
-    INDEX idx_faculty (faculty_id),
-    INDEX idx_department (department_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES user_roles(role_id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS idx_us_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_us_access_number ON users(access_number);
+CREATE INDEX IF NOT EXISTS idx_us_reg_number ON users(reg_number);
+CREATE INDEX IF NOT EXISTS idx_us_staff_number ON users(staff_number);
+CREATE INDEX IF NOT EXISTS idx_us_role ON users(role_id);
+CREATE INDEX IF NOT EXISTS idx_us_faculty ON users(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_us_department ON users(department_id);
 
 -- Permissions Table
 CREATE TABLE IF NOT EXISTS permissions (
-    permission_id INT PRIMARY KEY AUTO_INCREMENT,
+    permission_id SERIAL PRIMARY KEY,
     permission_name VARCHAR(100) UNIQUE NOT NULL,
-    resource VARCHAR(100) NOT NULL,  -- e.g., 'analytics', 'users', 'reports'
-    action VARCHAR(50) NOT NULL,  -- e.g., 'read', 'write', 'delete', 'execute'
+    resource VARCHAR(100) NOT NULL,
+    action VARCHAR(50) NOT NULL,
     description TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 -- Role Permissions (Many-to-Many)
 CREATE TABLE IF NOT EXISTS role_permissions (
@@ -71,26 +66,26 @@ CREATE TABLE IF NOT EXISTS role_permissions (
     PRIMARY KEY (role_id, permission_id),
     FOREIGN KEY (role_id) REFERENCES user_roles(role_id) ON DELETE CASCADE,
     FOREIGN KEY (permission_id) REFERENCES permissions(permission_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 -- Audit Log Table
 CREATE TABLE IF NOT EXISTS audit_logs (
-    log_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    log_id BIGSERIAL PRIMARY KEY,
     user_id INT,
     username VARCHAR(100),
     role_name VARCHAR(50),
-    action VARCHAR(100) NOT NULL,  -- e.g., 'login', 'role_change', 'data_export', 'user_create'
-    resource VARCHAR(100),  -- e.g., 'users', 'analytics', 'reports'
-    resource_id VARCHAR(100),  -- ID of the affected resource
-    details JSON,  -- Additional details about the action
+    action VARCHAR(100) NOT NULL,
+    resource VARCHAR(100),
+    resource_id VARCHAR(100),
+    details JSONB,
     ip_address VARCHAR(45),
     user_agent TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_user (user_id),
-    INDEX idx_action (action),
-    INDEX idx_resource (resource),
-    INDEX idx_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_us_audit_user ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_us_audit_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_us_audit_resource ON audit_logs(resource);
+CREATE INDEX IF NOT EXISTS idx_us_audit_created_at ON audit_logs(created_at);
 
 -- User Sessions Table (for JWT refresh tokens)
 CREATE TABLE IF NOT EXISTS user_sessions (
@@ -101,38 +96,37 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     user_agent TEXT,
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    INDEX idx_user (user_id),
-    INDEX idx_expires_at (expires_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_us_sess_user ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_us_sess_expires ON user_sessions(expires_at);
 
--- Saved Filter Presets (for analysts and senate)
+-- Saved Filter Presets
 CREATE TABLE IF NOT EXISTS filter_presets (
-    preset_id INT PRIMARY KEY AUTO_INCREMENT,
+    preset_id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     preset_name VARCHAR(200) NOT NULL,
-    filters JSON NOT NULL,  -- Store filter configuration as JSON
-    is_shared BOOLEAN DEFAULT FALSE,  -- Can be shared with other users
+    filters JSONB NOT NULL,
+    is_shared BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    INDEX idx_user (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_us_preset_user ON filter_presets(user_id);
 
--- Saved Reports (for sharing)
+-- Saved Reports
 CREATE TABLE IF NOT EXISTS saved_reports (
-    report_id INT PRIMARY KEY AUTO_INCREMENT,
+    report_id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     report_name VARCHAR(200) NOT NULL,
-    report_type VARCHAR(50),  -- e.g., 'dashboard', 'analytics', 'export'
-    report_config JSON NOT NULL,  -- Store report configuration
-    share_token VARCHAR(255) UNIQUE,  -- Token for sharing
-    expires_at TIMESTAMP,  -- Optional expiry for shared reports
+    report_type VARCHAR(50),
+    report_config JSONB NOT NULL,
+    share_token VARCHAR(255) UNIQUE,
+    expires_at TIMESTAMP,
     is_public BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    INDEX idx_user (user_id),
-    INDEX idx_share_token (share_token)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_us_report_user ON saved_reports(user_id);
+CREATE INDEX IF NOT EXISTS idx_us_report_share_token ON saved_reports(share_token);

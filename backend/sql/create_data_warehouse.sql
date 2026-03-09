@@ -1,8 +1,6 @@
--- Data Warehouse: UCU_DataWarehouse
+-- Data Warehouse: ucu_datawarehouse
 -- Star Schema with Dimension and Fact Tables
-
-CREATE DATABASE IF NOT EXISTS UCU_DataWarehouse;
-USE UCU_DataWarehouse;
+-- PostgreSQL version
 
 -- Dimension: Student
 CREATE TABLE IF NOT EXISTS dim_student (
@@ -19,24 +17,24 @@ CREATE TABLE IF NOT EXISTS dim_student (
     high_school_district VARCHAR(100),
     program_id INT,
     year_of_study INT,
-    status VARCHAR(50),
-    INDEX idx_name (last_name, first_name),
-    INDEX idx_email (email),
-    INDEX idx_access_number (access_number),
-    INDEX idx_reg_no (reg_no),
-    INDEX idx_high_school (high_school),
-    INDEX idx_program (program_id),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    status VARCHAR(50)
+);
+CREATE INDEX IF NOT EXISTS idx_dim_student_name ON dim_student(last_name, first_name);
+CREATE INDEX IF NOT EXISTS idx_dim_student_email ON dim_student(email);
+CREATE INDEX IF NOT EXISTS idx_dim_student_access_number ON dim_student(access_number);
+CREATE INDEX IF NOT EXISTS idx_dim_student_reg_no ON dim_student(reg_no);
+CREATE INDEX IF NOT EXISTS idx_dim_student_high_school ON dim_student(high_school);
+CREATE INDEX IF NOT EXISTS idx_dim_student_program ON dim_student(program_id);
+CREATE INDEX IF NOT EXISTS idx_dim_student_status ON dim_student(status);
 
 -- Dimension: Course
 CREATE TABLE IF NOT EXISTS dim_course (
     course_code VARCHAR(20) PRIMARY KEY,
     course_name VARCHAR(100),
     credits INT,
-    department VARCHAR(50),
-    INDEX idx_department (department)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    department VARCHAR(50)
+);
+CREATE INDEX IF NOT EXISTS idx_dim_course_department ON dim_course(department);
 
 -- Dimension: Time
 CREATE TABLE IF NOT EXISTS dim_time (
@@ -49,26 +47,26 @@ CREATE TABLE IF NOT EXISTS dim_time (
     day INT,
     day_of_week INT,
     day_name VARCHAR(20),
-    is_weekend BOOLEAN,
-    INDEX idx_date (date),
-    INDEX idx_year_month (year, month)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    is_weekend BOOLEAN
+);
+CREATE INDEX IF NOT EXISTS idx_dim_time_date ON dim_time(date);
+CREATE INDEX IF NOT EXISTS idx_dim_time_year_month ON dim_time(year, month);
 
 -- Dimension: Semester
 CREATE TABLE IF NOT EXISTS dim_semester (
     semester_id INT PRIMARY KEY,
     semester_name VARCHAR(50),
-    academic_year VARCHAR(20),
-    INDEX idx_academic_year (academic_year)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    academic_year VARCHAR(20)
+);
+CREATE INDEX IF NOT EXISTS idx_dim_semester_academic_year ON dim_semester(academic_year);
 
 -- Dimension: Faculty
 CREATE TABLE IF NOT EXISTS dim_faculty (
     faculty_id INT PRIMARY KEY,
     faculty_name VARCHAR(200),
-    dean_name VARCHAR(100),
-    INDEX idx_faculty_name (faculty_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    dean_name VARCHAR(100)
+);
+CREATE INDEX IF NOT EXISTS idx_dim_faculty_name ON dim_faculty(faculty_name);
 
 -- Dimension: Department
 CREATE TABLE IF NOT EXISTS dim_department (
@@ -76,10 +74,10 @@ CREATE TABLE IF NOT EXISTS dim_department (
     department_name VARCHAR(200),
     faculty_id INT,
     head_of_department VARCHAR(100),
-    FOREIGN KEY (faculty_id) REFERENCES dim_faculty(faculty_id) ON DELETE CASCADE,
-    INDEX idx_faculty (faculty_id),
-    INDEX idx_dept_name (department_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (faculty_id) REFERENCES dim_faculty(faculty_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_dim_department_faculty ON dim_department(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_dim_department_name ON dim_department(department_name);
 
 -- Dimension: Program
 CREATE TABLE IF NOT EXISTS dim_program (
@@ -88,10 +86,10 @@ CREATE TABLE IF NOT EXISTS dim_program (
     degree_level VARCHAR(50),
     department_id INT,
     duration_years INT,
-    FOREIGN KEY (department_id) REFERENCES dim_department(department_id) ON DELETE CASCADE,
-    INDEX idx_department (department_id),
-    INDEX idx_program_name (program_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (department_id) REFERENCES dim_department(department_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_dim_program_department ON dim_program(department_id);
+CREATE INDEX IF NOT EXISTS idx_dim_program_name ON dim_program(program_name);
 
 -- Fact: Enrollment
 CREATE TABLE IF NOT EXISTS fact_enrollment (
@@ -104,16 +102,16 @@ CREATE TABLE IF NOT EXISTS fact_enrollment (
     FOREIGN KEY (student_id) REFERENCES dim_student(student_id) ON DELETE CASCADE,
     FOREIGN KEY (course_code) REFERENCES dim_course(course_code) ON DELETE CASCADE,
     FOREIGN KEY (date_key) REFERENCES dim_time(date_key) ON DELETE CASCADE,
-    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id) ON DELETE CASCADE,
-    INDEX idx_student (student_id),
-    INDEX idx_course (course_code),
-    INDEX idx_date (date_key),
-    INDEX idx_semester (semester_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_fact_enrollment_student ON fact_enrollment(student_id);
+CREATE INDEX IF NOT EXISTS idx_fact_enrollment_course ON fact_enrollment(course_code);
+CREATE INDEX IF NOT EXISTS idx_fact_enrollment_date ON fact_enrollment(date_key);
+CREATE INDEX IF NOT EXISTS idx_fact_enrollment_semester ON fact_enrollment(semester_id);
 
 -- Fact: Attendance
 CREATE TABLE IF NOT EXISTS fact_attendance (
-    attendance_id INT AUTO_INCREMENT PRIMARY KEY,
+    attendance_id SERIAL PRIMARY KEY,
     student_id VARCHAR(20),
     course_code VARCHAR(20),
     date_key VARCHAR(8),
@@ -121,73 +119,69 @@ CREATE TABLE IF NOT EXISTS fact_attendance (
     days_present INT,
     FOREIGN KEY (student_id) REFERENCES dim_student(student_id) ON DELETE CASCADE,
     FOREIGN KEY (course_code) REFERENCES dim_course(course_code) ON DELETE CASCADE,
-    FOREIGN KEY (date_key) REFERENCES dim_time(date_key) ON DELETE CASCADE,
-    INDEX idx_student (student_id),
-    INDEX idx_course (course_code),
-    INDEX idx_date (date_key)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (date_key) REFERENCES dim_time(date_key) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_fact_attendance_student ON fact_attendance(student_id);
+CREATE INDEX IF NOT EXISTS idx_fact_attendance_course ON fact_attendance(course_code);
+CREATE INDEX IF NOT EXISTS idx_fact_attendance_date ON fact_attendance(date_key);
 
 -- Fact: Payment
--- Updated to include fees breakdown: tuition (national/international) + functional fees
 CREATE TABLE IF NOT EXISTS fact_payment (
     payment_id VARCHAR(20) PRIMARY KEY,
     student_id VARCHAR(20),
     date_key VARCHAR(8),
     semester_id INT,
-    year INT,  -- Academic year
-    tuition_national DECIMAL(15,2),  -- National student tuition
-    tuition_international DECIMAL(15,2),  -- International student tuition
-    functional_fees DECIMAL(15,2),  -- Functional fees
-    amount DECIMAL(15,2),  -- Total amount (tuition + functional fees)
+    year INT,
+    tuition_national DECIMAL(15,2),
+    tuition_international DECIMAL(15,2),
+    functional_fees DECIMAL(15,2),
+    amount DECIMAL(15,2),
     payment_method VARCHAR(50),
     status VARCHAR(20),
-    student_type VARCHAR(20) DEFAULT 'national',  -- 'national' or 'international'
-    payment_timestamp DATETIME,  -- Exact payment timestamp
-    semester_start_date DATE,  -- Semester start date for deadline calculation
-    deadline_met BOOLEAN DEFAULT FALSE,  -- Whether payment met the deadline
-    deadline_type VARCHAR(50),  -- Which deadline: prompt_payment, registration, midterm, full_fees, late_penalty_week1, late_penalty_week2
-    weeks_from_deadline DECIMAL(5,2),  -- Weeks from the relevant deadline (negative if before, positive if after)
-    late_penalty DECIMAL(15,2) DEFAULT 0,  -- Late penalty amount if applicable
+    student_type VARCHAR(20) DEFAULT 'national',
+    payment_timestamp TIMESTAMP,
+    semester_start_date DATE,
+    deadline_met BOOLEAN DEFAULT FALSE,
+    deadline_type VARCHAR(50),
+    weeks_from_deadline DECIMAL(5,2),
+    late_penalty DECIMAL(15,2) DEFAULT 0,
     FOREIGN KEY (student_id) REFERENCES dim_student(student_id) ON DELETE CASCADE,
     FOREIGN KEY (date_key) REFERENCES dim_time(date_key) ON DELETE CASCADE,
-    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id) ON DELETE CASCADE,
-    INDEX idx_student (student_id),
-    INDEX idx_date (date_key),
-    INDEX idx_semester (semester_id),
-    INDEX idx_year (year),
-    INDEX idx_status (status),
-    INDEX idx_payment_timestamp (payment_timestamp),
-    INDEX idx_deadline_met (deadline_met),
-    INDEX idx_deadline_type (deadline_type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_fact_payment_student ON fact_payment(student_id);
+CREATE INDEX IF NOT EXISTS idx_fact_payment_date ON fact_payment(date_key);
+CREATE INDEX IF NOT EXISTS idx_fact_payment_semester ON fact_payment(semester_id);
+CREATE INDEX IF NOT EXISTS idx_fact_payment_year ON fact_payment(year);
+CREATE INDEX IF NOT EXISTS idx_fact_payment_status ON fact_payment(status);
+CREATE INDEX IF NOT EXISTS idx_fact_payment_timestamp ON fact_payment(payment_timestamp);
+CREATE INDEX IF NOT EXISTS idx_fact_payment_deadline_met ON fact_payment(deadline_met);
+CREATE INDEX IF NOT EXISTS idx_fact_payment_deadline_type ON fact_payment(deadline_type);
 
 -- Fact: Grade
--- UCU Policy: CW = 60% (Law: 30%), Exam = 40% (Law: 70%), FCW threshold = 35% (Law: 17.5%)
--- grade: Total numeric score (0-100), calculated from coursework_score and exam_score
--- letter_grade: Letter grade (A, B+, B, C, D, F, MEX, FEX, FCW), calculated from grade and exam_status
 CREATE TABLE IF NOT EXISTS fact_grade (
     grade_id VARCHAR(20) PRIMARY KEY,
     student_id VARCHAR(20),
     course_code VARCHAR(20),
     date_key VARCHAR(8),
     semester_id INT,
-    coursework_score DECIMAL(5,2) NOT NULL,  -- Coursework score (0-100)
-    exam_score DECIMAL(5,2),                  -- Exam score (0-100), NULL if MEX
-    grade DECIMAL(5,2) NOT NULL,              -- Total numeric score (always present)
-    letter_grade VARCHAR(5) NOT NULL,          -- Letter grade (always present, calculated)
-    fcw BOOLEAN DEFAULT FALSE,                -- Failed Coursework flag
-    exam_status VARCHAR(10),                  -- Completed, MEX, FEX, FCW
+    coursework_score DECIMAL(5,2) NOT NULL,
+    exam_score DECIMAL(5,2),
+    grade DECIMAL(5,2) NOT NULL,
+    letter_grade VARCHAR(5) NOT NULL,
+    fcw BOOLEAN DEFAULT FALSE,
+    exam_status VARCHAR(10),
     absence_reason VARCHAR(200),
     FOREIGN KEY (student_id) REFERENCES dim_student(student_id) ON DELETE CASCADE,
     FOREIGN KEY (course_code) REFERENCES dim_course(course_code) ON DELETE CASCADE,
     FOREIGN KEY (date_key) REFERENCES dim_time(date_key) ON DELETE CASCADE,
-    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id) ON DELETE CASCADE,
-    INDEX idx_student (student_id),
-    INDEX idx_course (course_code),
-    INDEX idx_date (date_key),
-    INDEX idx_semester (semester_id),
-    INDEX idx_grade (grade)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_fact_grade_student ON fact_grade(student_id);
+CREATE INDEX IF NOT EXISTS idx_fact_grade_course ON fact_grade(course_code);
+CREATE INDEX IF NOT EXISTS idx_fact_grade_date ON fact_grade(date_key);
+CREATE INDEX IF NOT EXISTS idx_fact_grade_semester ON fact_grade(semester_id);
+CREATE INDEX IF NOT EXISTS idx_fact_grade_grade ON fact_grade(grade);
 
 -- Insert default semester data
 INSERT INTO dim_semester (semester_id, semester_name, academic_year) VALUES
@@ -195,14 +189,6 @@ INSERT INTO dim_semester (semester_id, semester_name, academic_year) VALUES
 (2, 'Spring 2024', '2023-2024'),
 (3, 'Fall 2024', '2024-2025'),
 (4, 'Spring 2025', '2024-2025')
-ON DUPLICATE KEY UPDATE 
-    semester_name = VALUES(semester_name),
-    academic_year = VALUES(academic_year);
-
--- Populate time dimension (2023-01-01 to 2025-12-31)
--- This is a simplified version - you may want to use a stored procedure
--- For now, we'll populate it via Python script
-
-
-
-
+ON CONFLICT (semester_id) DO UPDATE SET
+    semester_name = EXCLUDED.semester_name,
+    academic_year = EXCLUDED.academic_year;

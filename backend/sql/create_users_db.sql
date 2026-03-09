@@ -1,66 +1,59 @@
--- Users and Roles Database
--- This will be part of the data warehouse or a separate auth database
-
-USE UCU_DataWarehouse;
+-- Users and Roles Database — PostgreSQL version
 
 -- Roles Table
 CREATE TABLE IF NOT EXISTS roles (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     name VARCHAR(50) UNIQUE NOT NULL,
     description TEXT,
-    permissions TEXT,  -- JSON string
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_name (name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    permissions TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_roles_name ON roles(name);
 
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    access_number VARCHAR(10) UNIQUE,  -- For students: A##### or B#####
-    reg_number VARCHAR(50),  -- For students: RegNo
-    staff_number VARCHAR(50),  -- For staff
+    access_number VARCHAR(10) UNIQUE,
+    reg_number VARCHAR(50),
+    staff_number VARCHAR(50),
     full_name VARCHAR(200),
     role_id INT NOT NULL,
-    
-    -- Role-specific associations
-    student_id INT,  -- FK to dim_student if student
-    staff_id INT,  -- FK to lecturers/employees if staff
-    faculty_id INT,  -- FK to faculties if dean
-    department_id INT,  -- FK to departments if HOD
-    
+    student_id INT,
+    staff_id INT,
+    faculty_id INT,
+    department_id INT,
     is_active BOOLEAN DEFAULT TRUE,
-    last_login DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT,
-    INDEX idx_username (username),
-    INDEX idx_access_number (access_number),
-    INDEX idx_email (email),
-    INDEX idx_role (role_id),
-    INDEX idx_student (student_id),
-    INDEX idx_staff (staff_id),
-    INDEX idx_faculty (faculty_id),
-    INDEX idx_department (department_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    last_login TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS idx_users_db_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_db_access_number ON users(access_number);
+CREATE INDEX IF NOT EXISTS idx_users_db_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_db_role ON users(role_id);
+CREATE INDEX IF NOT EXISTS idx_users_db_student ON users(student_id);
+CREATE INDEX IF NOT EXISTS idx_users_db_staff ON users(staff_id);
+CREATE INDEX IF NOT EXISTS idx_users_db_faculty ON users(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_users_db_department ON users(department_id);
 
 -- Audit Log Table
 CREATE TABLE IF NOT EXISTS audit_logs (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     user_id INT,
     username VARCHAR(100),
     action VARCHAR(100) NOT NULL,
     resource VARCHAR(200),
     details TEXT,
     ip_address VARCHAR(45),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_user (user_id),
-    INDEX idx_action (action),
-    INDEX idx_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_logs(created_at);
 
 -- Insert default roles
 INSERT INTO roles (name, description, permissions) VALUES
@@ -73,5 +66,4 @@ INSERT INTO roles (name, description, permissions) VALUES
 ('hod', 'Head of Department - View all department activities', '{"read": ["department_data", "department_staff", "department_students"], "write": ["department_reports"], "export": ["department_data"]}'),
 ('hr', 'HR - View HR analytics and staff data', '{"read": ["staff_data", "hr_analytics"], "write": ["staff_records", "hr_reports"], "export": ["staff_data", "hr_analytics"]}'),
 ('finance', 'Finance - View finance analytics and payments', '{"read": ["finance_data", "payments", "scholarships"], "write": ["finance_reports"], "export": ["finance_data"]}')
-ON DUPLICATE KEY UPDATE description=VALUES(description), permissions=VALUES(permissions);
-
+ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description, permissions = EXCLUDED.permissions;

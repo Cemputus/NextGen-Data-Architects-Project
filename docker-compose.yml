@@ -1,26 +1,31 @@
 version: "3.9"
 
-#############################################
-# NextGen MIS - Containerised architecture #
-# - mysql          = Gold (warehouse DB)   #
-# - backend        = Flask API + ETL       #
-# - frontend       = React SPA             #
-# - bronze/silver/gold = shared volumes    #
-#############################################
+##################################################
+# NextGen MIS - Containerised architecture       #
+# - postgres       = Gold (warehouse DB)         #
+# - backend        = Flask API + ETL             #
+# - frontend       = React SPA                   #
+# - bronze/silver/gold = shared volumes          #
+##################################################
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: nextgen_mysql
+  postgres:
+    image: postgres:16-alpine
+    container_name: nextgen_postgres
     restart: unless-stopped
     environment:
-      # NOTE: these values are aligned with backend/config.py defaults.
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: UCU_DataWarehouse
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ucu_datawarehouse
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   backend:
     build:
@@ -29,13 +34,14 @@ services:
     container_name: nextgen_backend
     restart: unless-stopped
     depends_on:
-      - mysql
+      postgres:
+        condition: service_healthy
     environment:
-      # Point the backend at the MySQL warehouse container
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
+      # Point the backend at the PostgreSQL warehouse container
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: postgres
+      PG_PASSWORD: postgres
       # Flask secrets – override in production
       SECRET_KEY: "change-me-in-prod"
       JWT_SECRET_KEY: "change-me-in-prod-too"
@@ -66,8 +72,7 @@ services:
       - ./frontend:/app
 
 volumes:
-  mysql_data:
+  pg_data:
   bronze_data:
   silver_data:
   gold_data:
-

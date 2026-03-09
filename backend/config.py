@@ -3,44 +3,41 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 
-# MySQL Configuration
-MYSQL_HOST = os.environ.get('MYSQL_HOST', 'localhost')
-MYSQL_PORT = os.environ.get('MYSQL_PORT', '3306')
-MYSQL_USER = os.environ.get('MYSQL_USER', 'root')
-MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', 'root')
-MYSQL_CHARSET = os.environ.get('MYSQL_CHARSET', 'utf8mb4')
+# PostgreSQL Configuration
+PG_HOST = os.environ.get('PG_HOST', 'localhost')
+PG_PORT = os.environ.get('PG_PORT', '5432')
+PG_USER = os.environ.get('PG_USER', 'postgres')
+PG_PASSWORD = os.environ.get('PG_PASSWORD', 'postgres')
 
 # Database names
-DB1_NAME = 'UCU_SourceDB1'
-DB2_NAME = 'UCU_SourceDB2'
-DATA_WAREHOUSE_NAME = 'UCU_DataWarehouse'
+DB1_NAME = 'ucu_sourcedb1'
+DB2_NAME = 'ucu_sourcedb2'
+DATA_WAREHOUSE_NAME = 'ucu_datawarehouse'
 
-# SQLAlchemy connection strings (URL encode password)
+# SQLAlchemy connection strings
 from urllib.parse import quote_plus
 
 def get_sqlalchemy_conn_string(database_name):
-    """Generate SQLAlchemy connection string for MySQL"""
-    password_encoded = quote_plus(MYSQL_PASSWORD) if MYSQL_PASSWORD else ''
+    """Generate SQLAlchemy connection string for PostgreSQL"""
+    password_encoded = quote_plus(PG_PASSWORD) if PG_PASSWORD else ''
     if password_encoded:
-        return f"mysql+pymysql://{MYSQL_USER}:{password_encoded}@{MYSQL_HOST}:{MYSQL_PORT}/{database_name}?charset={MYSQL_CHARSET}"
+        return f"postgresql+psycopg2://{PG_USER}:{password_encoded}@{PG_HOST}:{PG_PORT}/{database_name}"
     else:
-        return f"mysql+pymysql://{MYSQL_USER}@{MYSQL_HOST}:{MYSQL_PORT}/{database_name}?charset={MYSQL_CHARSET}"
+        return f"postgresql+psycopg2://{PG_USER}@{PG_HOST}:{PG_PORT}/{database_name}"
 
 DB1_CONN_STRING = get_sqlalchemy_conn_string(DB1_NAME)
 DB2_CONN_STRING = get_sqlalchemy_conn_string(DB2_NAME)
 DATA_WAREHOUSE_CONN_STRING = get_sqlalchemy_conn_string(DATA_WAREHOUSE_NAME)
 
-# PyMySQL connection parameters (for direct connections)
-def get_pymysql_params(database_name):
-    """Generate PyMySQL connection parameters"""
+# psycopg2 connection parameters (for direct connections)
+def get_pg_params(database_name):
+    """Generate psycopg2 connection parameters"""
     return {
-        'host': MYSQL_HOST,
-        'port': int(MYSQL_PORT),
-        'user': MYSQL_USER,
-        'password': MYSQL_PASSWORD,
-        'database': database_name,
-        'charset': MYSQL_CHARSET,
-        'autocommit': False
+        'host': PG_HOST,
+        'port': int(PG_PORT),
+        'user': PG_USER,
+        'password': PG_PASSWORD,
+        'dbname': database_name,
     }
 
 # CSV paths (UCU tailored data)
@@ -64,3 +61,10 @@ for path in [BRONZE_PATH, SILVER_PATH, GOLD_PATH]:
 SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
 JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-change-in-production')
 
+# ── Backward-compat aliases so any file that still imports the old names won't crash ──
+MYSQL_HOST = PG_HOST
+MYSQL_PORT = PG_PORT
+MYSQL_USER = PG_USER
+MYSQL_PASSWORD = PG_PASSWORD
+MYSQL_CHARSET = 'utf8'          # unused with PG, but prevents ImportError at call sites
+get_pymysql_params = get_pg_params   # alias

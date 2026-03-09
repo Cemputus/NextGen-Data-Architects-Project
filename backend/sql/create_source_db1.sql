@@ -1,168 +1,148 @@
--- Source Database 1: UCU_SourceDB1 (ACADEMICS DATABASE)
--- Contains: Faculties, Departments, Programs, Courses, Lecturers, Students, Enrollments, Grades, Attendance, Student Fees
+-- Source Database 1: ucu_sourcedb1 (ACADEMICS DATABASE)
+-- PostgreSQL version
 
-CREATE DATABASE IF NOT EXISTS UCU_SourceDB1;
-USE UCU_SourceDB1;
-
--- Faculties Table
 CREATE TABLE IF NOT EXISTS faculties (
-    FacultyID INT PRIMARY KEY AUTO_INCREMENT,
+    FacultyID SERIAL PRIMARY KEY,
     FacultyName VARCHAR(200),
-    DeanName VARCHAR(100),
-    INDEX idx_faculty_name (FacultyName)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    DeanName VARCHAR(100)
+);
+CREATE INDEX IF NOT EXISTS idx_faculties_name ON faculties(FacultyName);
 
--- Departments Table
 CREATE TABLE IF NOT EXISTS departments (
-    DepartmentID INT PRIMARY KEY AUTO_INCREMENT,
+    DepartmentID SERIAL PRIMARY KEY,
     DepartmentName VARCHAR(200),
     FacultyID INT,
     HeadOfDepartment VARCHAR(100),
-    FOREIGN KEY (FacultyID) REFERENCES faculties(FacultyID) ON DELETE CASCADE,
-    INDEX idx_faculty (FacultyID),
-    INDEX idx_dept_name (DepartmentName)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (FacultyID) REFERENCES faculties(FacultyID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_departments_faculty ON departments(FacultyID);
+CREATE INDEX IF NOT EXISTS idx_departments_name ON departments(DepartmentName);
 
--- Programs Table
 CREATE TABLE IF NOT EXISTS programs (
-    ProgramID INT PRIMARY KEY AUTO_INCREMENT,
+    ProgramID SERIAL PRIMARY KEY,
     ProgramName VARCHAR(200),
     DegreeLevel VARCHAR(50),
     DepartmentID INT,
     DurationYears INT,
-    TuitionNationals DECIMAL(15,2),  -- Tuition for national students (per semester)
-    TuitionNonNationals DECIMAL(15,2),  -- Tuition for non-national students (per semester)
-    FOREIGN KEY (DepartmentID) REFERENCES departments(DepartmentID) ON DELETE CASCADE,
-    INDEX idx_department (DepartmentID),
-    INDEX idx_program_name (ProgramName)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    TuitionNationals DECIMAL(15,2),
+    TuitionNonNationals DECIMAL(15,2),
+    FOREIGN KEY (DepartmentID) REFERENCES departments(DepartmentID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_programs_department ON programs(DepartmentID);
+CREATE INDEX IF NOT EXISTS idx_programs_name ON programs(ProgramName);
 
--- Courses Table
 CREATE TABLE IF NOT EXISTS courses (
-    CourseID INT PRIMARY KEY AUTO_INCREMENT,
+    CourseID SERIAL PRIMARY KEY,
     CourseCode VARCHAR(20),
     CourseName VARCHAR(200),
     ProgramID INT,
     CreditUnits INT,
-    FOREIGN KEY (ProgramID) REFERENCES programs(ProgramID) ON DELETE CASCADE,
-    INDEX idx_program (ProgramID),
-    INDEX idx_course_code (CourseCode)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (ProgramID) REFERENCES programs(ProgramID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_courses_program ON courses(ProgramID);
+CREATE INDEX IF NOT EXISTS idx_courses_code ON courses(CourseCode);
 
--- Lecturers Table
 CREATE TABLE IF NOT EXISTS lecturers (
-    LecturerID INT PRIMARY KEY AUTO_INCREMENT,
+    LecturerID SERIAL PRIMARY KEY,
     StaffNumber VARCHAR(50),
     FullName VARCHAR(100),
     DepartmentID INT,
     Rank VARCHAR(100),
-    FOREIGN KEY (DepartmentID) REFERENCES departments(DepartmentID) ON DELETE CASCADE,
-    INDEX idx_department (DepartmentID),
-    INDEX idx_staff_number (StaffNumber)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (DepartmentID) REFERENCES departments(DepartmentID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_lecturers_department ON lecturers(DepartmentID);
+CREATE INDEX IF NOT EXISTS idx_lecturers_staff_number ON lecturers(StaffNumber);
 
--- Students Table
 CREATE TABLE IF NOT EXISTS students (
-    StudentID INT PRIMARY KEY AUTO_INCREMENT,
+    StudentID SERIAL PRIMARY KEY,
     RegNo VARCHAR(50),
-    AccessNumber VARCHAR(10) UNIQUE NOT NULL,  -- Format: A##### or B#####
+    AccessNumber VARCHAR(10) UNIQUE NOT NULL,
     FullName VARCHAR(100),
     ProgramID INT,
     YearOfStudy INT,
     Status VARCHAR(50),
-    HighSchool VARCHAR(200),  -- High school name
-    HighSchoolDistrict VARCHAR(100),  -- District where high school is located
-    INDEX idx_reg_no (RegNo),
-    INDEX idx_access_number (AccessNumber),
-    INDEX idx_program (ProgramID),
-    INDEX idx_status (Status),
-    INDEX idx_high_school (HighSchool),
+    HighSchool VARCHAR(200),
+    HighSchoolDistrict VARCHAR(100),
     FOREIGN KEY (ProgramID) REFERENCES programs(ProgramID) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
+CREATE INDEX IF NOT EXISTS idx_students_reg_no ON students(RegNo);
+CREATE INDEX IF NOT EXISTS idx_students_access_number ON students(AccessNumber);
+CREATE INDEX IF NOT EXISTS idx_students_program ON students(ProgramID);
+CREATE INDEX IF NOT EXISTS idx_students_status ON students(Status);
+CREATE INDEX IF NOT EXISTS idx_students_high_school ON students(HighSchool);
 
--- Enrollments Table
 CREATE TABLE IF NOT EXISTS enrollments (
-    EnrollmentID INT PRIMARY KEY AUTO_INCREMENT,
+    EnrollmentID SERIAL PRIMARY KEY,
     StudentID INT,
     CourseID INT,
     AcademicYear VARCHAR(20),
     Semester VARCHAR(20),
-    HighSchool VARCHAR(200),  -- High school at time of enrollment (for tracking)
+    HighSchool VARCHAR(200),
     FOREIGN KEY (StudentID) REFERENCES students(StudentID) ON DELETE CASCADE,
-    FOREIGN KEY (CourseID) REFERENCES courses(CourseID) ON DELETE CASCADE,
-    INDEX idx_student (StudentID),
-    INDEX idx_course (CourseID),
-    INDEX idx_academic_year (AcademicYear),
-    INDEX idx_high_school (HighSchool)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (CourseID) REFERENCES courses(CourseID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_enrollments_student ON enrollments(StudentID);
+CREATE INDEX IF NOT EXISTS idx_enrollments_course ON enrollments(CourseID);
+CREATE INDEX IF NOT EXISTS idx_enrollments_academic_year ON enrollments(AcademicYear);
+CREATE INDEX IF NOT EXISTS idx_enrollments_high_school ON enrollments(HighSchool);
 
--- Grades Table
--- UCU Policy:
---   Most programs: CW = 60%, Exam = 40%, FCW threshold = 35%
---   Law program: CW = 30%, Exam = 70%, FCW threshold = 17.5%
--- TotalScore: Final numeric score (0-100), calculated from CourseworkScore and ExamScore
--- GradeLetter: Letter grade (A, B+, B, C, D, F, MEX, FEX, FCW), calculated from TotalScore and ExamStatus
 CREATE TABLE IF NOT EXISTS grades (
-    GradeID INT PRIMARY KEY AUTO_INCREMENT,
+    GradeID SERIAL PRIMARY KEY,
     StudentID INT,
     CourseID INT,
-    CourseworkScore DECIMAL(5,2) NOT NULL,  -- Coursework score (0-100)
-    ExamScore DECIMAL(5,2),                  -- Exam score (0-100), NULL if MEX
-    TotalScore DECIMAL(5,2) NOT NULL,        -- Final score (calculated: CW% + Exam%)
-    GradeLetter VARCHAR(5) NOT NULL,         -- Letter grade (always present, calculated)
-    FCW BOOLEAN DEFAULT FALSE,               -- Failed Coursework (true if CW below threshold)
-    ExamStatus VARCHAR(10),                  -- Completed, MEX, FEX, FCW
+    CourseworkScore DECIMAL(5,2) NOT NULL,
+    ExamScore DECIMAL(5,2),
+    TotalScore DECIMAL(5,2) NOT NULL,
+    GradeLetter VARCHAR(5) NOT NULL,
+    FCW BOOLEAN DEFAULT FALSE,
+    ExamStatus VARCHAR(10),
     AbsenceReason VARCHAR(200),
     FOREIGN KEY (StudentID) REFERENCES students(StudentID) ON DELETE CASCADE,
-    FOREIGN KEY (CourseID) REFERENCES courses(CourseID) ON DELETE CASCADE,
-    INDEX idx_student (StudentID),
-    INDEX idx_course (CourseID),
-    INDEX idx_grade (GradeLetter),
-    INDEX idx_exam_status (ExamStatus)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (CourseID) REFERENCES courses(CourseID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_grades_student ON grades(StudentID);
+CREATE INDEX IF NOT EXISTS idx_grades_course ON grades(CourseID);
+CREATE INDEX IF NOT EXISTS idx_grades_letter ON grades(GradeLetter);
+CREATE INDEX IF NOT EXISTS idx_grades_exam_status ON grades(ExamStatus);
 
--- Attendance Table
 CREATE TABLE IF NOT EXISTS attendance (
-    AttendanceID INT PRIMARY KEY AUTO_INCREMENT,
+    AttendanceID SERIAL PRIMARY KEY,
     StudentID INT,
     CourseID INT,
     Date DATE,
     Status VARCHAR(20),
     FOREIGN KEY (StudentID) REFERENCES students(StudentID) ON DELETE CASCADE,
-    FOREIGN KEY (CourseID) REFERENCES courses(CourseID) ON DELETE CASCADE,
-    INDEX idx_student (StudentID),
-    INDEX idx_course (CourseID),
-    INDEX idx_date (Date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    FOREIGN KEY (CourseID) REFERENCES courses(CourseID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance(StudentID);
+CREATE INDEX IF NOT EXISTS idx_attendance_course ON attendance(CourseID);
+CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(Date);
 
--- Student Fees Table
--- Updated to include fees breakdown: tuition (national/international) + functional fees
--- Added payment tracking with timestamps and deadline compliance
 CREATE TABLE IF NOT EXISTS student_fees (
-    PaymentID INT PRIMARY KEY AUTO_INCREMENT,
+    PaymentID SERIAL PRIMARY KEY,
     StudentID INT,
-    Year INT,  -- Academic year
-    Semester VARCHAR(50),  -- UCU semester: Jan (Easter), May (Trinity), September (Advent)
-    TuitionNational DECIMAL(15,2),  -- National student tuition
-    TuitionInternational DECIMAL(15,2),  -- International student tuition
-    FunctionalFees DECIMAL(15,2),  -- Functional fees (same for all)
-    AmountPaid DECIMAL(15,2),  -- Total amount paid
-    Balance DECIMAL(15,2),  -- Outstanding balance
-    StudentType VARCHAR(20) DEFAULT 'national',  -- 'national' or 'international'
-    PaymentDate DATETIME DEFAULT CURRENT_TIMESTAMP,  -- When payment was made
-    PaymentTimestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,  -- Exact timestamp
-    PaymentMethod VARCHAR(50) DEFAULT 'Bank Transfer',  -- Payment method (Bank Transfer, Mobile Money, Cash, etc.)
-    Status VARCHAR(20) DEFAULT 'Pending',  -- Payment status: Pending, Completed, Failed, Refunded
-    SemesterStartDate DATE,  -- Semester start date for deadline calculation
-    DeadlineMet BOOLEAN DEFAULT FALSE,  -- Whether payment met the deadline
-    DeadlineType VARCHAR(50),  -- Which deadline: prompt_payment, registration, midterm, full_fees, late_penalty_week1, late_penalty_week2
-    WeeksFromDeadline DECIMAL(5,2),  -- Weeks from the relevant deadline (negative if before, positive if after)
-    LatePenalty DECIMAL(15,2) DEFAULT 0,  -- Late penalty amount if applicable
-    FOREIGN KEY (StudentID) REFERENCES students(StudentID) ON DELETE CASCADE,
-    INDEX idx_student (StudentID),
-    INDEX idx_semester (Semester),
-    INDEX idx_year (Year),
-    INDEX idx_payment_date (PaymentDate),
-    INDEX idx_status (Status),
-    INDEX idx_deadline_met (DeadlineMet)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    Year INT,
+    Semester VARCHAR(50),
+    TuitionNational DECIMAL(15,2),
+    TuitionInternational DECIMAL(15,2),
+    FunctionalFees DECIMAL(15,2),
+    AmountPaid DECIMAL(15,2),
+    Balance DECIMAL(15,2),
+    StudentType VARCHAR(20) DEFAULT 'national',
+    PaymentDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PaymentTimestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PaymentMethod VARCHAR(50) DEFAULT 'Bank Transfer',
+    Status VARCHAR(20) DEFAULT 'Pending',
+    SemesterStartDate DATE,
+    DeadlineMet BOOLEAN DEFAULT FALSE,
+    DeadlineType VARCHAR(50),
+    WeeksFromDeadline DECIMAL(5,2),
+    LatePenalty DECIMAL(15,2) DEFAULT 0,
+    FOREIGN KEY (StudentID) REFERENCES students(StudentID) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_student_fees_student ON student_fees(StudentID);
+CREATE INDEX IF NOT EXISTS idx_student_fees_semester ON student_fees(Semester);
+CREATE INDEX IF NOT EXISTS idx_student_fees_year ON student_fees(Year);
+CREATE INDEX IF NOT EXISTS idx_student_fees_payment_date ON student_fees(PaymentDate);
+CREATE INDEX IF NOT EXISTS idx_student_fees_status ON student_fees(Status);
+CREATE INDEX IF NOT EXISTS idx_student_fees_deadline_met ON student_fees(DeadlineMet);
