@@ -22,10 +22,15 @@ pip install -r requirements.txt
 
 ### 2. Configure Database
 
-Edit `backend/config.py` with your MySQL credentials:
+Edit `backend/config.py` with your PostgreSQL credentials:
 ```python
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = 'your_password'
+PG_USER = 'postgres'
+PG_PASSWORD = 'your_password'
+```
+
+Or use Docker (recommended):
+```bash
+docker-compose up -d postgres
 ```
 
 ### 3. Setup Databases
@@ -85,7 +90,5 @@ After setup, create users in the database. For testing:
 ## ⚠️ Troubleshooting
 
 - **Import errors**: Make sure you're running from the correct directory
-- **Database connection**: Check MySQL is running and credentials are correct
+- **Database connection**: Check PostgreSQL is running and credentials are correct
 - **Port conflicts**: Change ports in `app.py` (backend) and `package.json` (frontend)
-
-

@@ -1,6 +1,6 @@
 # SQL Scripts for NextGen-Data-Architects System
 
-This directory contains SQL scripts to create and populate the MySQL databases.
+This directory contains SQL scripts to create and populate the PostgreSQL databases.
 
 ## Files
 
@@ -22,26 +22,26 @@ This directory contains SQL scripts to create and populate the MySQL databases.
 
 ## Usage
 
-### Option 1: Execute via MySQL Command Line
+### Option 1: Execute via psql Command Line
 
 ```bash
-# Connect to MySQL
-mysql -u root -p
+# Connect to PostgreSQL
+psql -U postgres
 
 # Execute scripts
-source sql/create_source_db1.sql;
-source sql/create_source_db2.sql;
-source sql/create_data_warehouse.sql;
-source sql/populate_time_dimension.sql;
+\i sql/create_source_db1.sql;
+\i sql/create_source_db2.sql;
+\i sql/create_data_warehouse.sql;
+\i sql/populate_time_dimension.sql;
 ```
 
 ### Option 2: Execute via Command Line
 
 ```bash
-mysql -u root -p < sql/create_source_db1.sql
-mysql -u root -p < sql/create_source_db2.sql
-mysql -u root -p < sql/create_data_warehouse.sql
-mysql -u root -p < sql/populate_time_dimension.sql
+psql -U postgres -f sql/create_source_db1.sql
+psql -U postgres -f sql/create_source_db2.sql
+psql -U postgres -f sql/create_data_warehouse.sql
+psql -U postgres -f sql/populate_time_dimension.sql
 ```
 
 ### Option 3: Use Python Scripts
@@ -76,17 +76,13 @@ The Python scripts (`setup_databases.py` and `etl_pipeline.py`) will automatical
 
 ## Notes
 
-- All tables use `InnoDB` engine for transaction support
-- Character set is `utf8mb4` for full Unicode support
+- All tables use PostgreSQL with full transactional support
+- Character encoding is UTF-8 (PostgreSQL default)
 - Foreign key constraints are enabled with `ON DELETE CASCADE`
-- Indexes are created on frequently queried columns
-- The time dimension is populated via recursive CTE (requires MySQL 8.0+)
+- Indexes are created on frequently queried columns using `CREATE INDEX IF NOT EXISTS`
+- The time dimension is populated via PostgreSQL's `generate_series` function
 
-## MySQL Version Requirements
+## PostgreSQL Version Requirements
 
-- Minimum: MySQL 5.7 (with manual time dimension population)
-- Recommended: MySQL 8.0+ (for recursive CTE support in time dimension)
-
-
-
-
+- Minimum: PostgreSQL 13+
+- Recommended: PostgreSQL 16+ (used in Docker setup)

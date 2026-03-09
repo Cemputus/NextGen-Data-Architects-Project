@@ -89,7 +89,7 @@ Frontend (React + charting)
 Backend API (Flask + JWT + RBAC)
         |
         v
-MySQL Warehouse (star schema)
+PostgreSQL Warehouse (star schema)
         ^
         |
 ETL Pipeline (CSV/XLSX synthetic sources)
@@ -122,7 +122,7 @@ Flow summary:
 
 - Python 3.8+
 - Node.js 16+
-- MySQL 8+
+- PostgreSQL 16+ (or Docker)
 
 ### Backend
 
@@ -244,7 +244,7 @@ HOD class assignment:
 
 ## Troubleshooting
 
-- If backend fails to start, confirm MySQL credentials in `backend/config.py`.
+- If backend fails to start, confirm PostgreSQL credentials in `backend/config.py` or ensure the Docker `postgres` service is running.
 - If no dashboard data appears, run ETL again and verify warehouse table counts.
 - If filters look stale, clear browser storage and re-login.
 - If model endpoints fail, retrain:
@@ -266,8 +266,8 @@ Developed by the NextGen Data Architects team:
 
 ---
 
-Last updated: February 2026
-Version: 2.1.0
+Last updated: March 2026
+Version: 3.0.0
 # UCU Analytics & Prediction System
 
 A comprehensive data analytics and machine learning platform for Uganda Christian University (UCU), designed to provide insights into student performance, attendance, payment patterns, and predictive analytics for academic success.
@@ -316,7 +316,7 @@ The following updates were made to the Admin console, export behaviour, KPI defi
 
 ### Technical notes
 
-- Admin KPIs use the same RBAC connection as the main app (`ucu_rbac`); if the SQLAlchemy path fails, a direct PyMySQL fallback to `ucu_rbac` is used for app user counts.
+- Admin KPIs use the same RBAC connection as the main app (`ucu_rbac`); if the SQLAlchemy path fails, a direct psycopg2 fallback to `ucu_rbac` is used for app user counts.
 - Demo user fallback ensures Employees and Staff KPIs are never zero when `ucu_rbac` is empty or unavailable.
 
 ### App users, login, and dimensional model
@@ -411,8 +411,8 @@ The UCU Analytics & Prediction System is a full-stack web application that provi
 └────────┬────────┘
          │ SQL
 ┌────────▼────────┐
-│  Data Warehouse │  MySQL (Star Schema)
-│  (MySQL)        │
+│  Data Warehouse │  PostgreSQL (Star Schema)
+│  (PostgreSQL)   │
 └────────┬────────┘
          │
 ┌────────▼────────┐
@@ -618,10 +618,9 @@ python train_models.py
 
 #### Database & ORM
 
-- **MySQL**: 8.0+ - Relational database
+- **PostgreSQL**: 16+ - Relational database (via Docker or local install)
 - **SQLAlchemy**: 2.0+ - SQL toolkit and ORM
-- **PyMySQL**: MySQL database connector
-- **pymysql**: Pure Python MySQL client
+- **psycopg2-binary**: PostgreSQL database connector
 
 #### Machine Learning & Data Science
 
@@ -749,10 +748,10 @@ python train_models.py
 
 #### Data Warehouse
 
-- **MySQL 8.0+**: Star schema design
-- **InnoDB Engine**: Transactional storage
-- **Indexes**: Optimized for query performance
-- **Foreign Keys**: Referential integrity
+- **PostgreSQL 16+**: Star schema design (containerized via Docker)
+- **ACID-compliant**: Full transactional storage
+- **Indexes**: Optimized for query performance with `CREATE INDEX IF NOT EXISTS`
+- **Foreign Keys**: Referential integrity with CASCADE support
 
 #### Data Formats
 
@@ -771,9 +770,9 @@ python train_models.py
 
 #### Database
 
-- **MySQL 8.0+**: Primary database
-- **InnoDB**: Storage engine with ACID compliance
-- **Character Set**: utf8mb4 (full Unicode support)
+- **PostgreSQL 16+**: Primary database (containerized via Docker Compose)
+- **Full ACID compliance**: With advanced features (CTEs, window functions, JSONB, materialized views)
+- **Character Set**: UTF-8 (PostgreSQL default)
 
 #### File Storage
 
@@ -797,7 +796,7 @@ python train_models.py
 #### IDE & Tools
 
 - **VS Code / PyCharm**: Development IDEs
-- **MySQL Workbench**: Database management
+- **pgAdmin / DBeaver**: Database management
 - **Postman / Insomnia**: API testing
 
 #### Package Management
@@ -821,7 +820,7 @@ reportlab==4.0.7
 python-dotenv==1.0.0
 werkzeug==3.0.1
 bcrypt==4.1.2
-pymysql==1.1.0
+psycopg2-binary>=2.9.0
 cryptography>=3.4.0,<42.0.0
 openpyxl>=3.1.0
 requests==2.31.0
@@ -881,7 +880,7 @@ dash-bootstrap-components==1.5.0
 - **OS**: Windows 10+, Linux (Ubuntu 20.04+), macOS 10.15+
 - **Python**: 3.8 or higher
 - **Node.js**: 16.0 or higher
-- **MySQL**: 8.0 or higher
+- **PostgreSQL**: 13+ or Docker (recommended: 16+)
 - **RAM**: 4GB minimum (8GB recommended)
 - **Storage**: 2GB free space
 
@@ -890,7 +889,7 @@ dash-bootstrap-components==1.5.0
 - **OS**: Windows 11, Linux (Ubuntu 22.04+), macOS 12+
 - **Python**: 3.10 or higher
 - **Node.js**: 18.0 or higher
-- **MySQL**: 8.0.30 or higher
+- **PostgreSQL**: 16+ (via Docker Compose)
 - **RAM**: 8GB or more
 - **Storage**: 5GB+ free space
 - **CPU**: Multi-core processor (2+ cores)
@@ -903,7 +902,7 @@ dash-bootstrap-components==1.5.0
 
 - Python 3.8+
 - Node.js 16+
-- MySQL 8.0+
+- PostgreSQL 16+ (or Docker)
 - Git
 
 ### Backend Setup
@@ -936,13 +935,18 @@ pip install -r requirements.txt
 
 4. **Configure database**
 
-- Edit `backend/config.py` with your MySQL credentials:
+**Option A: Docker (recommended)**
+```bash
+# From project root
+docker-compose up -d postgres
+```
 
+**Option B: Local PostgreSQL** – Edit `backend/config.py`:
 ```python
-MYSQL_HOST = 'localhost'
-MYSQL_USER = 'your_username'
-MYSQL_PASSWORD = 'your_password'
-MYSQL_DATABASE = 'UCU_DataWarehouse'
+PG_HOST = 'localhost'
+PG_PORT = '5432'
+PG_USER = 'postgres'
+PG_PASSWORD = 'your_password'
 ```
 
 5. **Create database and run ETL**
@@ -1255,7 +1259,7 @@ GET /api/export/pdf?type=fex&department_id=5
 - `faculty_name`
 - `dean_name`
 
-#### RBAC & App Users (MySQL)
+#### RBAC & App Users (PostgreSQL)
 
 **app_users** (in RBAC database)
 
@@ -1377,7 +1381,7 @@ To make app users, profiles, and analyst/admin workspaces fully reproducible acr
 
 2. **Reproducing on a new machine**  
    - Clone the repo (including `backend/etl_seeds/user_snapshot.json` and `backend/etl_seeds/profile_photos/`)
-   - Configure MySQL credentials in `backend/config.py`
+   - Configure PostgreSQL credentials in `backend/config.py` (or use `docker-compose up -d postgres`)
    - Run ETL via Admin **Run ETL** or:
 
    ```bash
@@ -1630,8 +1634,8 @@ response = requests.post(
    ```
 2. **Database connection error**
 
-   - Check MySQL is running
-   - Verify credentials in `config.py`
+   - Check PostgreSQL is running (`docker-compose ps` or `pg_isready`)
+   - Verify credentials in `config.py` (`PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD`)
    - Ensure database exists
 3. **Port already in use**
 
@@ -1716,8 +1720,10 @@ For issues or questions:
 
 ---
 
-**Last Updated**: February 2026
+**Last Updated**: March 2026
 
-**Version**: 2.0.0
+**Version**: 3.0.0
+
+**Changelog (v3.0.0)**: Full migration from MySQL to PostgreSQL; Docker Compose containerization (PostgreSQL 16 Alpine + backend + frontend); all SQL schemas, ETL pipeline, API layer, utility scripts, and documentation updated for PostgreSQL; no MySQL dependencies remain.
 
 **Changelog (v2.0.0)**: Admin console Refresh and KPI behaviour; Employees/Staff KPI definitions (ETL + app users; demo fallback); full admin export (users, audit logs, ETL, warehouse); HR/Finance faculty/department on create; Recent ETL runs label and 50-run cap.

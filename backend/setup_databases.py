@@ -1604,7 +1604,7 @@ if __name__ == "__main__":
     print("UCU REALISTIC DATA GENERATION")
     print("="*60)
     print("Generating 1000+ entries for each table...")
-    print("Note: Make sure MySQL is running and credentials are correct")
+    print("Note: Make sure PostgreSQL is running and credentials are correct")
     print()
     
     try:
@@ -1623,6 +1623,6 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         print("\nPlease check:")
-        print("1. MySQL is running")
-        print("2. MySQL credentials in config.py are correct")
+        print("1. PostgreSQL is running (docker-compose up -d postgres, or local install)")
+        print("2. PostgreSQL credentials in config.py are correct")
         print("3. User has CREATE DATABASE privileges")

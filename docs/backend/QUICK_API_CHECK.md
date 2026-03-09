@@ -41,7 +41,7 @@ python test_apis.py
 
 1. **ModuleNotFoundError**: Run `pip install -r requirements.txt` in venv
 2. **Port 5000 in use**: Change port in `start_server.py` or kill existing process
-3. **MySQL connection error**: Check MySQL is running and credentials in `config.py`
+3. **PostgreSQL connection error**: Check PostgreSQL is running and credentials in `config.py`
 
 ## API Endpoints Summary
 
@@ -51,4 +51,3 @@ python test_apis.py
 - `/api/analytics/fex` - FEX analytics (JWT required)
 - `/api/analytics/filter-options` - Filter options (JWT required)
 - `/api/dashboard/*` - Various dashboard endpoints (JWT required)
-

@@ -32,7 +32,7 @@ try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
         # Check if fact_grade exists
-        check_table = "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'UCU_DataWarehouse' AND table_name = 'fact_grade'"
+        check_table = "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'fact_grade'"
         table_exists = pd.read_sql_query(text(check_table), engine)
         
         if table_exists['count'].iloc[0] == 0:
@@ -85,7 +85,7 @@ try:
         
     except Exception as e:
         print(f"   ✗ Error checking data warehouse: {e}")
-        print("   → Make sure MySQL is running and databases exist")
+        print("   → Make sure PostgreSQL is running and databases exist")
     
     # Check source database
     print("\n2. Checking Source Database (UCU_SourceDB1)...")
@@ -93,7 +93,7 @@ try:
         engine = create_engine(DB1_CONN_STRING)
         
         # Check if grades table exists
-        check_table = "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'UCU_SourceDB1' AND table_name = 'grades'"
+        check_table = "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'grades'"
         table_exists = pd.read_sql_query(text(check_table), engine)
         
         if table_exists['count'].iloc[0] == 0:

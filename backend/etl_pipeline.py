@@ -1648,7 +1648,7 @@ class ETLPipeline:
         if 'access_number' in students_dim.columns:
             mask = students_dim['access_number'].astype(str).str.strip().isin(('', 'nan', 'None'))
             students_dim.loc[mask, 'access_number'] = 'ACC_' + students_dim.loc[mask, 'student_id'].astype(str)
-        # Deduplicate columns by normalized name (MySQL case-insensitive: Status and status → duplicate). Keep last so silver (student_id, status) wins over Excel (StudentID, Status).
+        # Deduplicate columns by normalized name (PostgreSQL is case-sensitive but pandas may produce dupes). Keep last so silver (student_id, status) wins over Excel (StudentID, Status).
         def _norm(s):
             return str(s).replace(' ', '_').replace('-', '_').replace('%', 'pct')[:64].lower()
         seen = {}
@@ -2374,7 +2374,7 @@ class ETLPipeline:
             if df is None or df.empty:
                 self.logger.info(f"  → {table_name}: no data, skipped")
                 return
-            # Ensure string columns for MySQL; keep all columns
+            # Ensure string columns for PostgreSQL; keep all columns
             out = df.copy()
             for c in out.columns:
                 if out[c].dtype == object:

@@ -134,7 +134,7 @@ fetch('http://localhost:5000/api/dashboard/stats', {
 
 1. **Check backend logs** for errors
 2. **Verify database connection** in `backend/config.py`
-3. **Check MySQL is running**
+3. **Check PostgreSQL is running**
 4. **Verify environment variables** are set correctly
 
 ## Quick Diagnostic Commands

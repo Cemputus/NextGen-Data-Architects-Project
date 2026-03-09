@@ -86,11 +86,11 @@
 ### Dependencies
 - Python packages need to be installed in virtual environment:
   - flask, flask-cors, flask-jwt-extended
-  - sqlalchemy, pymysql, pandas
+  - sqlalchemy, psycopg2-binary, pandas
   - numpy, scikit-learn (for ML models)
 
 ### Database
-- MySQL database must be running
+- PostgreSQL database must be running (via Docker or local install)
 - Source databases (UCU_SourceDB1) must exist
 - Data warehouse (UCU_DataWarehouse) must exist
 
@@ -145,4 +145,3 @@ All components are properly configured and ready to run. The system includes:
 - Comprehensive error handling
 
 The system is ready for testing and deployment.
-

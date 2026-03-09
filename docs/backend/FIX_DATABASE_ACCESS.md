@@ -1,7 +1,7 @@
 # Fix Database Access Denied Error
 
 ## Problem
-You're seeing: `Access denied for user 'root'@'localhost' (using password: YES)`
+You're seeing: `FATAL: password authentication failed for user "postgres"`
 
 ## Solution
 
@@ -20,7 +20,7 @@ Run this to verify your database connection:
 ```powershell
 cd backend
 .\.venv\Scripts\activate
-python test_db_connection.py
+python test_scripts\test_db_connection.py
 ```
 
 You should see: `✓ All connection tests passed!`
@@ -71,33 +71,33 @@ The backend reads credentials from environment variables. Make sure they're set:
 
 **Windows PowerShell:**
 ```powershell
-$env:MYSQL_USER='root'
-$env:MYSQL_PASSWORD='your_password'
+$env:PG_USER='postgres'
+$env:PG_PASSWORD='your_password'
 ```
 
 **Windows CMD:**
 ```cmd
-set MYSQL_USER=root
-set MYSQL_PASSWORD=your_password
+set PG_USER=postgres
+set PG_PASSWORD=your_password
 ```
 
 **Or edit `backend/config.py` directly:**
 ```python
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = 'your_actual_password'  # Change this
+PG_USER = 'postgres'
+PG_PASSWORD = 'your_actual_password'  # Change this
 ```
 
-### Verify MySQL is Running
+### Verify PostgreSQL is Running
 
-1. Open MySQL Command Line Client or MySQL Workbench
-2. Try logging in with: `mysql -u root -p`
+1. If using Docker: `docker-compose ps` should show postgres service running
+2. If local install: try connecting with `psql -U postgres`
 3. If that works, use the same password in your config
 
-### Check for Multiple MySQL Instances
+### Check Connection Settings
 
-Make sure you're connecting to the correct MySQL instance:
-- Check `MYSQL_HOST` in `config.py` (should be `localhost` or `127.0.0.1`)
-- Check `MYSQL_PORT` (default is `3306`)
+Make sure you're connecting to the correct PostgreSQL instance:
+- Check `PG_HOST` in `config.py` (should be `localhost` or `127.0.0.1`)
+- Check `PG_PORT` (default is `5432`)
 
 ## Quick Test
 
@@ -107,5 +107,3 @@ python test_dashboard_api.py
 ```
 
 This will test the dashboard endpoints and show if the connection is working.
-
-
