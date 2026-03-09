@@ -2459,5 +2459,33 @@ class ETLPipeline:
             raise
 
 if __name__ == "__main__":
+    """
+    Entry point for running the ETL pipeline.
+
+    We support three execution modes, controlled by the ETL_PHASE
+    environment variable so that each Medallion layer (Bronze / Silver /
+    Gold) can be run in its own container:
+
+      - ETL_PHASE=bronze  -> run extract() only (Bronze compute container)
+      - ETL_PHASE=silver  -> run extract() + transform() (Silver compute container)
+      - ETL_PHASE=gold    -> full pipeline (extract + transform + load)
+
+    If ETL_PHASE is not set or has an unknown value, we default to the
+    full end‑to‑end pipeline for backwards compatibility.
+    """
+    phase = os.environ.get("ETL_PHASE", "gold").strip().lower()
     pipeline = ETLPipeline()
-    pipeline.run()
+
+    if phase == "bronze":
+        # Bronze container: seed RBAC + extract and persist raw data only.
+        pipeline.seed_user_system_from_snapshot()
+        pipeline.extract()
+    elif phase == "silver":
+        # Silver container: seed RBAC, extract from sources into Bronze,
+        # then transform into cleaned Silver datasets (no load to warehouse).
+        pipeline.seed_user_system_from_snapshot()
+        bronze_data = pipeline.extract()
+        pipeline.transform(bronze_data)
+    else:
+        # Gold container (default): run the full Medallion pipeline.
+        pipeline.run()

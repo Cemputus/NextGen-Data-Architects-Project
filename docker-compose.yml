@@ -3,7 +3,10 @@ version: "3.9"
 ##################################################
 # NextGen MIS - Containerised architecture       #
 # - postgres       = Gold (warehouse DB)         #
-# - backend        = Flask API + ETL             #
+# - backend        = Flask API (stateless)       #
+# - bronze-etl     = Bronze compute container    #
+# - silver-etl     = Silver compute container    #
+# - gold-etl       = Gold compute container      #
 # - frontend       = React SPA                   #
 # - bronze/silver/gold = shared volumes          #
 ##################################################
@@ -37,7 +40,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      # Point the backend at the PostgreSQL warehouse container
+      # Point the backend API at the PostgreSQL warehouse container
       PG_HOST: postgres
       PG_PORT: 5432
       PG_USER: postgres
@@ -48,9 +51,67 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # Mount the whole backend project (for live code edits in dev)
+      # Mount the backend source for live reload in development
       - ./backend:/app
-      # Medallion layers as separate named volumes (easy to inspect and manage)
+
+  bronze-etl:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nextgen_bronze_etl
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Bronze ETL uses the same database connection (for any metadata it needs)
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      ETL_PHASE: "bronze"
+    volumes:
+      # Share code and data directories so parquet files land in the bronze volume
+      - ./backend:/app
+      - bronze_data:/app/data/bronze
+
+  silver-etl:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nextgen_silver_etl
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      ETL_PHASE: "silver"
+    volumes:
+      - ./backend:/app
+      - bronze_data:/app/data/bronze
+      - silver_data:/app/data/silver
+
+  gold-etl:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nextgen_gold_etl
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      ETL_PHASE: "gold"
+    volumes:
+      - ./backend:/app
       - bronze_data:/app/data/bronze
       - silver_data:/app/data/silver
       - gold_data:/app/data/gold
