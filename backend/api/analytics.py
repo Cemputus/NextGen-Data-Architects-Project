@@ -679,12 +679,12 @@ def get_filter_options():
         # Get courses - filtered by department if provided, or by faculty if department not provided
         # Role-based scoping for courses
         if role == Role.STUDENT:
-            # Students see courses they're enrolled in
+            # Students see courses they have grades in (grades ~= effective course enrollments)
             course_query = """
                 SELECT DISTINCT c.course_code, c.course_name
                 FROM dim_course c
-                JOIN fact_enrollment fe ON c.course_code = fe.course_code
-                JOIN dim_student ds ON fe.student_id = ds.student_id
+                JOIN fact_grade fg ON c.course_code = fg.course_code
+                JOIN dim_student ds ON fg.student_id = ds.student_id
                 WHERE ds.student_id = :student_id
                 ORDER BY c.course_code
             """
@@ -935,9 +935,9 @@ def get_faculty_analytics():
         total_courses = 0
         try:
             courses_q = f"""
-            SELECT COUNT(DISTINCT fe.course_code) AS total_courses
-            FROM fact_enrollment fe
-            JOIN dim_student ds ON fe.student_id = ds.student_id
+            SELECT COUNT(DISTINCT fg.course_code) AS total_courses
+            FROM fact_grade fg
+            JOIN dim_student ds ON fg.student_id = ds.student_id
             LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
             LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id

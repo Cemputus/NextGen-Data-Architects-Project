@@ -247,6 +247,28 @@ DEMO_USERS = {
     'finance': {'password': 'finance123', 'role': 'finance', 'full_name': 'Finance Manager'},
 }
 
+@auth_bp.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh_token():
+    """
+    Issue a fresh short-lived access token from a valid refresh token.
+    Called silently by the frontend every 10 minutes to keep the session alive.
+    Returns 401/422 when the refresh token is expired or invalid, triggering frontend logout.
+    """
+    try:
+        identity = get_jwt_identity()
+        claims   = get_jwt()
+
+        # Rebuild additional claims (excluding JWT-standard fields)
+        _skip = {'sub', 'iat', 'nbf', 'jti', 'exp', 'type', 'fresh'}
+        additional = {k: v for k, v in claims.items() if k not in _skip}
+
+        new_access_token = create_access_token(identity=identity, additional_claims=additional)
+        return jsonify({'access_token': new_access_token}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
     """User login - supports Access Number for students, username/email for others, and all app_users."""

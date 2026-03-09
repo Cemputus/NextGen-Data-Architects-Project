@@ -2,7 +2,7 @@
  * Modern Login Page — Split layout, strong branding, refined form
  */
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { GraduationCap, Lock, User, Loader2, ArrowRight, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -22,10 +22,21 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const { login, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Read session expiry reason from query string (?session=idle|expired|closed)
+  const sessionReason = new URLSearchParams(location.search).get('session');
+  const sessionMessages = {
+    idle: { text: 'You were logged out due to 30 minutes of inactivity.', color: 'amber' },
+    expired: { text: 'Your session has expired. Please sign in again.', color: 'red' },
+    closed: { text: 'You were signed out because the browser was closed.', color: 'blue' },
+  };
+  const sessionMsg = sessionReason ? sessionMessages[sessionReason] : null;
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      const role = (JSON.parse(localStorage.getItem('user'))?.role || '').toString().toLowerCase();
+      const storedUser = sessionStorage.getItem('ucu_session_user');
+      const role = storedUser ? (JSON.parse(storedUser)?.role || '').toString().toLowerCase() : '';
       const route = rbac.getDefaultRoute(role) || '/student/dashboard';
       navigate(route);
     }
@@ -188,104 +199,123 @@ const Login = () => {
               </p>
             </motion.div>
 
+            {/* Session expiry / idle / closed notification */}
+            {sessionMsg && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`flex items-start gap-2 rounded-lg px-4 py-3 text-sm border ${sessionMsg.color === 'amber'
+                    ? 'bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300'
+                    : sessionMsg.color === 'red'
+                      ? 'bg-red-50 border-red-300 text-red-800 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300'
+                      : 'bg-blue-50 border-blue-300 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300'
+                  }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                {sessionMsg.text}
+              </motion.div>
+            )}
+
             <motion.div
               variants={formVariants}
               custom={4}
               className="focus-within:ring-2 focus-within:ring-primary/20 focus-within:ring-offset-2 rounded-2xl transition-shadow duration-300"
             >
-            <Card className="border border-border shadow-xl shadow-black/5 dark:shadow-none bg-card/98 backdrop-blur-sm overflow-hidden hover:shadow-2xl hover:shadow-primary/5 transition-shadow duration-300">
-              <CardContent className="p-6 sm:p-8 pt-6">
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  {error && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      id="login-error"
-                      role="alert"
-                      className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-start gap-2"
-                    >
-                      <span className="shrink-0 mt-0.5">!</span>
-                      <span>{error}</span>
-                    </motion.div>
-                  )}
-
-                  <motion.div variants={formVariants} custom={1} className="space-y-2">
-                    <Label htmlFor="username" className="text-xs font-medium text-muted-foreground">
-                      Username or Access Number
-                    </Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
-                      <Input
-                        id="username"
-                        type="text"
-                        placeholder="e.g. Awor Joy or AccessNumber"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        className="pl-10 h-10 rounded-xl border-input bg-background dark:bg-secondary text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all duration-200"
-                        required
-                        autoComplete="username"
-                        aria-describedby={error ? 'login-error' : undefined}
-                      />
-                    </div>
-                  </motion.div>
-
-                  <motion.div variants={formVariants} custom={2} className="space-y-2">
-                    <Label htmlFor="password" className="text-xs font-medium text-muted-foreground">
-                      Password
-                    </Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 h-10 rounded-xl border-input bg-background dark:bg-secondary text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all duration-200"
-                        required
-                        autoComplete="current-password"
-                        aria-describedby={error ? 'login-error' : undefined}
-                      />
-                    </div>
-                  </motion.div>
-
-                  <motion.div variants={formVariants} custom={3}>
-                    <motion.div whileHover={loading ? {} : { scale: 1.02 }} whileTap={loading ? {} : { scale: 0.98 }}>
-                      <Button
-                        type="submit"
-                        className="w-full h-12 rounded-xl font-semibold text-base bg-gradient-to-r from-primary to-blue-600 hover:from-primary/95 hover:to-blue-600/95 text-white shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 gap-2 border-0"
-                        disabled={loading}
+              <Card className="border border-border shadow-xl shadow-black/5 dark:shadow-none bg-card/98 backdrop-blur-sm overflow-hidden hover:shadow-2xl hover:shadow-primary/5 transition-shadow duration-300">
+                <CardContent className="p-6 sm:p-8 pt-6">
+                  <form onSubmit={handleSubmit} className="space-y-5">
+                    {error && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        id="login-error"
+                        role="alert"
+                        className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-start gap-2"
                       >
-                        {loading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                            Signing in...
-                          </>
-                        ) : (
-                          <>
-                            Sign in
-                            <ArrowRight className="h-4 w-4" aria-hidden />
-                          </>
-                        )}
-                      </Button>
-                    </motion.div>
-                  </motion.div>
-                </form>
+                        <span className="shrink-0 mt-0.5">!</span>
+                        <span>{error}</span>
+                      </motion.div>
+                    )}
 
-                <div className="mt-6 pt-5 border-t border-border">
-                  <p className="text-xs text-muted-foreground">
-                    <strong className="text-foreground/80">Students:</strong> Use Access Number and password{' '}
-                    <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono">AccessNumber@ucu</code>
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    <strong className="text-foreground/80">Staff/Admin:</strong> Use your username and password (see Admin → Users).
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    <strong className="text-foreground/80">Demo admin:</strong> <code className="bg-muted px-1 rounded text-[11px]">admin</code> / <code className="bg-muted px-1 rounded text-[11px]">admin123</code>
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+                    <motion.div variants={formVariants} custom={1} className="space-y-2">
+                      <Label htmlFor="username" className="text-xs font-medium text-muted-foreground">
+                        Username or Access Number
+                      </Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
+                        <Input
+                          id="username"
+                          type="text"
+                          placeholder="e.g. Awor Joy or AccessNumber"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          className="pl-10 h-10 rounded-xl border-input bg-background dark:bg-secondary text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all duration-200"
+                          required
+                          autoComplete="username"
+                          aria-describedby={error ? 'login-error' : undefined}
+                        />
+                      </div>
+                    </motion.div>
+
+                    <motion.div variants={formVariants} custom={2} className="space-y-2">
+                      <Label htmlFor="password" className="text-xs font-medium text-muted-foreground">
+                        Password
+                      </Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
+                        <Input
+                          id="password"
+                          type="password"
+                          placeholder="Enter your password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="pl-10 h-10 rounded-xl border-input bg-background dark:bg-secondary text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all duration-200"
+                          required
+                          autoComplete="current-password"
+                          aria-describedby={error ? 'login-error' : undefined}
+                        />
+                      </div>
+                    </motion.div>
+
+                    <motion.div variants={formVariants} custom={3}>
+                      <motion.div whileHover={loading ? {} : { scale: 1.02 }} whileTap={loading ? {} : { scale: 0.98 }}>
+                        <Button
+                          type="submit"
+                          className="w-full h-12 rounded-xl font-semibold text-base bg-gradient-to-r from-primary to-blue-600 hover:from-primary/95 hover:to-blue-600/95 text-white shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 gap-2 border-0"
+                          disabled={loading}
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                              Signing in...
+                            </>
+                          ) : (
+                            <>
+                              Sign in
+                              <ArrowRight className="h-4 w-4" aria-hidden />
+                            </>
+                          )}
+                        </Button>
+                      </motion.div>
+                    </motion.div>
+                  </form>
+
+                  <div className="mt-6 pt-5 border-t border-border">
+                    <p className="text-xs text-muted-foreground">
+                      <strong className="text-foreground/80">Students:</strong> Use Access Number and password{' '}
+                      <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono">AccessNumber@ucu</code>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      <strong className="text-foreground/80">Staff/Admin:</strong> Use your username and password (see Admin → Users).
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      <strong className="text-foreground/80">Demo admin:</strong> <code className="bg-muted px-1 rounded text-[11px]">admin</code> / <code className="bg-muted px-1 rounded text-[11px]">admin123</code>
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             </motion.div>
           </motion.div>
         </div>

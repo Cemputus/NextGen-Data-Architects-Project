@@ -748,7 +748,11 @@ def setup_audit_db():
 @admin_bp.route('/audit-logs', methods=['GET'])
 @jwt_required()
 def audit_logs():
-    """Audit log entries (from ucu_rbac.audit_logs or empty if DB not set up). Query param: limit (default 200, max 500)."""
+    """Audit log entries (from ucu_rbac.audit_logs or empty if DB not set up).
+    
+    Query param:
+      - limit: number of rows to return (default 500, max 5000).
+    """
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -756,17 +760,18 @@ def audit_logs():
         raw_limit = request.args.get('limit')
         print(f"[audit_logs] Raw limit from request: {raw_limit}, type: {type(raw_limit)}")
         if raw_limit is None:
-            limit = 200
+            # Higher default now that we have more data
+            limit = 500
         else:
             limit = int(raw_limit)
             if limit < 1:
-                limit = 200
-            elif limit > 500:
                 limit = 500
+            elif limit > 5000:
+                limit = 5000
         print(f"[audit_logs] Using limit: {limit}")
     except (TypeError, ValueError) as e:
         print(f"[audit_logs] Error parsing limit: {e}")
-        limit = 200
+        limit = 500
     try:
         logs, db_error = _get_audit_logs(limit=limit)
         print(f"[audit_logs] Returning {len(logs)} logs (requested limit was {limit})")

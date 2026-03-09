@@ -6,9 +6,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { logAuditEvent } from '../utils/audit';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  LayoutDashboard, Home, User, Settings, LogOut, 
-  BarChart3, GraduationCap, Building2, Users, 
+import {
+  LayoutDashboard, Home, User, Settings, LogOut,
+  BarChart3, GraduationCap, Building2, Users,
   DollarSign, Shield, FileText, TrendingUp, Menu, X, Database, Bell, Clock, Share2, History, LineChart
 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -22,7 +22,7 @@ import CountdownTimer from './admin/CountdownTimer';
 import axios from 'axios';
 
 const LayoutModern = ({ children }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, sessionWarning, dismissWarning } = useAuth();
   const profilePhotoUrl = useProfilePhoto(user?.profile_picture_url);
   const navigate = useNavigate();
   const location = useLocation();
@@ -185,7 +185,7 @@ const LayoutModern = ({ children }) => {
       return;
     }
     let cancelled = false;
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('ucu_session_token');
     if (!token) return;
     const fetchList = () => {
       axios
@@ -221,7 +221,7 @@ const LayoutModern = ({ children }) => {
 
   // Admin settings for ETL countdown — fetch on mount and poll so timer resets after ETL runs
   const fetchAdminSettings = React.useCallback(() => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('ucu_session_token');
     if (!token) return Promise.resolve();
     return axios
       .get('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } })
@@ -282,22 +282,22 @@ const LayoutModern = ({ children }) => {
     role === 'student'
       ? '/student/profile'
       : role === 'staff'
-      ? '/staff/profile'
-      : role === 'hod'
-      ? '/hod/profile'
-      : role === 'dean'
-      ? '/dean/profile'
-      : role === 'senate'
-      ? '/senate/profile'
-      : role === 'analyst'
-      ? '/analyst/profile'
-      : role === 'sysadmin'
-      ? '/admin/profile'
-      : role === 'hr'
-      ? '/hr/profile'
-      : role === 'finance'
-      ? '/finance/profile'
-      : '/profile';
+        ? '/staff/profile'
+        : role === 'hod'
+          ? '/hod/profile'
+          : role === 'dean'
+            ? '/dean/profile'
+            : role === 'senate'
+              ? '/senate/profile'
+              : role === 'analyst'
+                ? '/analyst/profile'
+                : role === 'sysadmin'
+                  ? '/admin/profile'
+                  : role === 'hr'
+                    ? '/hr/profile'
+                    : role === 'finance'
+                      ? '/finance/profile'
+                      : '/profile';
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -356,8 +356,8 @@ const LayoutModern = ({ children }) => {
                     variant={isActive ? "default" : "ghost"}
                     className={cn(
                       "w-full justify-start gap-3 h-11 font-medium transition-all duration-200",
-                      isActive 
-                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-indigo-700" 
+                      isActive
+                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg hover:shadow-xl hover:from-blue-700 hover:to-indigo-700"
                         : "hover:bg-muted hover:text-foreground text-foreground",
                       !sidebarOpen && "justify-center px-0"
                     )}
@@ -395,22 +395,22 @@ const LayoutModern = ({ children }) => {
             etlCountdownSec != null &&
             sidebarOpen &&
             !currentPath.startsWith('/admin/etl') && (
-            <div className="px-3 pb-2">
-              <div className="rounded-lg border border-border bg-muted/50 px-2 py-2">
-                <div className="flex items-center justify-center gap-1.5 mb-1">
-                  <span className="text-xs font-medium text-muted-foreground">Next ETL run</span>
-                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400" title="Updates in real time">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <div className="px-3 pb-2">
+                <div className="rounded-lg border border-border bg-muted/50 px-2 py-2">
+                  <div className="flex items-center justify-center gap-1.5 mb-1">
+                    <span className="text-xs font-medium text-muted-foreground">Next ETL run</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400" title="Updates in real time">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      </span>
+                      Live
                     </span>
-                    Live
-                  </span>
+                  </div>
+                  <CountdownTimer seconds={etlCountdownSec} compact size="sm" />
                 </div>
-                <CountdownTimer seconds={etlCountdownSec} compact size="sm" />
               </div>
-            </div>
-          )}
+            )}
 
           {/* User Section */}
           <div className="p-4 border-t border-border bg-muted/30">
@@ -569,6 +569,24 @@ const LayoutModern = ({ children }) => {
           </>
         )}
       </AnimatePresence>
+
+      {/* ── Idle Session Warning Banner ──────────────────────────────── */}
+      {sessionWarning && (
+        <div className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between gap-4 bg-amber-500 text-white px-5 py-3 shadow-lg">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            Your session will expire in <strong>5 minutes</strong> due to inactivity.
+          </div>
+          <button
+            onClick={dismissWarning}
+            className="shrink-0 rounded-md bg-white/20 hover:bg-white/30 px-4 py-1.5 text-sm font-semibold transition-colors"
+          >
+            Stay Logged In
+          </button>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">

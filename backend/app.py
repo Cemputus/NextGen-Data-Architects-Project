@@ -258,8 +258,10 @@ except Exception as e:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
+# Security: short-lived access tokens (15 min), refresh tokens last 8 hours (one working day).
+# The frontend will silently refresh the access token before it expires using /api/auth/refresh.
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=15)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=8)
 
 # CORS: allow frontend (localhost:3000) to call backend (localhost:5000); preflight must get 2xx + headers
 CORS(app, supports_credentials=True, origins=['http://localhost:3000', 'http://localhost:5000', 'http://127.0.0.1:3000', 'http://127.0.0.1:5000'],
