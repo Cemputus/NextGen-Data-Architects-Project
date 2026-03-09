@@ -429,21 +429,13 @@ class ETLPipeline:
         self.logger.info("  -> Faculties: %d, Departments: %d, Programs: %d",
                          len(faculties_db1), len(departments_db1), len(programs_db1))
 
-        # Program name -> program_id for mapping students (exact match + prefix match so "Bachelor of Laws" maps to "Bachelor of Laws (LLB)")
+        # Program name -> program_id mapping (initially from hierarchy/curriculum files; will be
+        # extended below using PROGRAM values from students_list15/16 so every program in the
+        # student lists has a concrete program_id in dim_program / dim_student).
         program_name_to_id = {}
         if not programs_db1.empty and 'ProgramName' in programs_db1.columns:
             for _, r in programs_db1.iterrows():
                 program_name_to_id[str(r['ProgramName']).strip()] = int(r['ProgramID'])
-
-        def _resolve_program_id(program_name):
-            name = str(program_name).strip()
-            if name in program_name_to_id:
-                return program_name_to_id[name]
-            # Prefix match: e.g. "Bachelor of Laws" -> "Bachelor of Laws (LLB)" (only when exactly one catalog program starts with student name)
-            matches = [pid for pn, pid in program_name_to_id.items() if pn.startswith(name)]
-            if len(matches) == 1:
-                return matches[0]
-            return 1
 
         # 2) Students from students_list15.xlsx and students_list16.xlsx (or _synthetic_5000 variants)
         def _read_students_file(path, list_tag):
@@ -474,7 +466,7 @@ class ETLPipeline:
                     col_map[c] = 'HighSchool'
                 elif str(c).strip() in ('HighSchoolDistrict', 'DISTRICT'):
                     col_map[c] = 'HighSchoolDistrict'
-                elif str(c).strip() in ('TOTAL REGISTRATIONS', 'TOTAL_REGISTRATIONS', 'YearOfStudy'):
+                elif str(c).strip() in ('TOTAL REGISTRATIONS', 'TOTAL_REGISTRATIONS', 'YearOfStudy', 'YEAR'):
                     col_map[c] = 'YearOfStudy'
             df = df.rename(columns=col_map)
             return df
@@ -503,6 +495,71 @@ class ETLPipeline:
         reg_col = 'RegNo' if 'RegNo' in students_df.columns else students_df.columns[0]
         students_df = students_df.drop_duplicates(subset=[reg_col], keep='first').reset_index(drop=True)
         self.logger.info("  -> Combined student lists: %d unique (by %s)", len(students_df), reg_col)
+
+        # Extend programs_db1 using PROGRAM values from students_list15/16 so every program in the
+        # student lists has a concrete ProgramID. Prefer existing hierarchy (from faculties_departments
+        # or course_catalog) but add any missing programs here.
+        if 'ProgramName' in students_df.columns:
+            # Ensure we have a base DataFrame to extend
+            if programs_db1 is None or programs_db1.empty:
+                programs_db1 = pd.DataFrame(columns=['ProgramID', 'ProgramName', 'DegreeLevel', 'DepartmentID', 'DurationYears'])
+            # Track existing program names and max ProgramID
+            existing_names = set(str(p).strip() for p in programs_db1.get('ProgramName', []).tolist())
+            max_id = int(programs_db1['ProgramID'].max()) if 'ProgramID' in programs_db1.columns and not programs_db1.empty else 0
+            # Optionally use DEPARTMENT column from students to assign departments when present
+            dept_name_to_id = {}
+            if 'departments_db1' in locals() and not departments_db1.empty and 'DepartmentName' in departments_db1.columns:
+                dept_name_to_id = {str(n).strip(): int(i) for n, i in zip(departments_db1['DepartmentName'], departments_db1['DepartmentID'])}
+
+            new_rows = []
+            for prog_name in sorted(set(students_df['ProgramName'].astype(str).str.strip())):
+                if not prog_name or prog_name in existing_names:
+                    continue
+                max_id += 1
+                # Infer basic degree level and duration from the program name
+                name_upper = prog_name.upper()
+                if 'CERTIFICATE' in name_upper:
+                    degree_level = 'Certificate'
+                    duration_years = 1
+                elif 'DIPLOMA' in name_upper:
+                    degree_level = 'Diploma'
+                    duration_years = 2
+                elif name_upper.startswith('PHD'):
+                    degree_level = 'PhD'
+                    duration_years = 3
+                elif name_upper.startswith('MASTER') or name_upper.startswith('MA '):
+                    degree_level = 'Master'
+                    duration_years = 2
+                elif name_upper.startswith('DOCTOR '):
+                    degree_level = 'Doctorate'
+                    duration_years = 3
+                else:
+                    degree_level = 'Bachelor'
+                    duration_years = 4
+
+                # Try to get a department from the student rows for this program
+                dept_id = 1
+                if 'DEPARTMENT' in students_df.columns and dept_name_to_id:
+                    depts_for_prog = (
+                        students_df.loc[students_df['ProgramName'].astype(str).str.strip() == prog_name, 'DEPARTMENT']
+                        .astype(str).str.strip().unique()
+                    )
+                    if len(depts_for_prog) == 1:
+                        dept_id = dept_name_to_id.get(depts_for_prog[0], 1)
+
+                new_rows.append({
+                    'ProgramID': max_id,
+                    'ProgramName': prog_name,
+                    'DegreeLevel': degree_level,
+                    'DepartmentID': dept_id,
+                    'DurationYears': duration_years,
+                })
+                program_name_to_id[prog_name] = max_id
+
+            if new_rows:
+                programs_db1 = pd.concat([programs_db1, pd.DataFrame(new_rows)], ignore_index=True)
+                self.logger.info("  -> Extended programs_db1 with %d program(s) from students_list15/16", len(new_rows))
+
         # Map to DB1-style columns and keep every column from source
         students_db1 = pd.DataFrame()
         students_db1['RegNo'] = students_df['RegNo'].astype(str) if 'RegNo' in students_df.columns else students_df.iloc[:, 0].astype(str)
@@ -520,8 +577,18 @@ class ETLPipeline:
         students_db1['HighSchool'] = students_df['HighSchool'].astype(str) if 'HighSchool' in students_df.columns else ''
         students_db1['HighSchoolDistrict'] = students_df['HighSchoolDistrict'].astype(str) if 'HighSchoolDistrict' in students_df.columns else ''
         students_db1['ProgramName'] = students_df['ProgramName'].astype(str) if 'ProgramName' in students_df.columns else ''
+        # Assign ProgramID using the extended program_name_to_id mapping built above
+        def _resolve_program_id(name: str) -> int:
+            key = str(name).strip()
+            return program_name_to_id.get(key, 1)
         students_db1['ProgramID'] = students_db1['ProgramName'].map(_resolve_program_id)
-        students_db1['YearOfStudy'] = pd.to_numeric(students_df.get('YearOfStudy', 1), errors='coerce').fillna(1).astype(int)
+        if 'YearOfStudy' in students_df.columns:
+            yos = students_df['YearOfStudy']
+            if isinstance(yos, pd.DataFrame):
+                yos = yos.iloc[:, 0]
+            students_db1['YearOfStudy'] = pd.to_numeric(yos, errors='coerce').fillna(1).astype(int)
+        else:
+            students_db1['YearOfStudy'] = 1
         students_db1['Status'] = 'Active'
         students_db1['StudentID'] = range(1, len(students_db1) + 1)
         # Ensure every row has a non-empty RegNo (use StudentID as fallback for display/joins)
@@ -1814,7 +1881,7 @@ class ETLPipeline:
             conn.execute(text("DELETE FROM dim_time"))
             conn.commit()
         
-        time_dim.to_sql('dim_time', engine, if_exists='append', index=False, method='multi', chunksize=1000)
+        time_dim.to_sql('dim_time', engine, if_exists='append', index=False, chunksize=1000)
         self.logger.info(f"  → Loaded {len(time_dim)} time dimension records")
         print("Time dimension populated!")
         
@@ -1982,7 +2049,7 @@ class ETLPipeline:
         
         if not fact_enrollment.empty:
             try:
-                fact_enrollment.to_sql('fact_enrollment', engine, if_exists='append', index=False, method='multi', chunksize=15000)
+                fact_enrollment.to_sql('fact_enrollment', engine, if_exists='append', index=False, chunksize=20000)
                 self.logger.info(f"  → Loaded {len(fact_enrollment)} enrollments into fact_enrollment")
             except Exception as e:
                 self.logger.error(f"  → fact_enrollment load failed: {e}", exc_info=True)
@@ -2034,9 +2101,8 @@ class ETLPipeline:
                 fact_attendance['course_code'] = ''
 
                 try:
-                    # Optimized chunksize = 15000 drastically reduces MySQL network roundtrips
-                    fact_attendance.to_sql('fact_attendance', engine, if_exists='append', index=False,
-                                           method='multi', chunksize=15000)
+                    # Using method=None (default) correctly routes to PyMySQL fast executemany
+                    fact_attendance.to_sql('fact_attendance', engine, if_exists='append', index=False, chunksize=20000)
                     self.logger.info("  -> Loaded %d attendance records into fact_attendance", len(fact_attendance))
                     print(f"  -> Loaded {len(fact_attendance)} attendance records into fact_attendance")
                 except Exception as e:
@@ -2165,8 +2231,7 @@ class ETLPipeline:
 
         if not fact_payment.empty:
             try:
-                fact_payment.to_sql('fact_payment', engine, if_exists='append', index=False,
-                                    method='multi', chunksize=15000)
+                fact_payment.to_sql('fact_payment', engine, if_exists='append', index=False, chunksize=20000)
                 self.logger.info("  -> Loaded %d payments into fact_payment", len(fact_payment))
                 print(f"  -> Loaded {len(fact_payment)} payments into fact_payment")
             except Exception as e:
@@ -2236,7 +2301,7 @@ class ETLPipeline:
         
         if not fact_grade.empty:
             try:
-                fact_grade.to_sql('fact_grade', engine, if_exists='append', index=False, method='multi', chunksize=10000)
+                fact_grade.to_sql('fact_grade', engine, if_exists='append', index=False, chunksize=20000)
                 self.logger.info("  -> Loaded %d grades into fact_grade", len(fact_grade))
                 print(f"  -> Loaded {len(fact_grade)} grades into fact_grade")
             except Exception as e:
@@ -2255,7 +2320,7 @@ class ETLPipeline:
                 if out[c].dtype == object:
                     out[c] = out[c].astype(str).replace('nan', '')
             try:
-                out.to_sql(table_name, engine, if_exists='replace', index=False, method='multi', chunksize=5000)
+                out.to_sql(table_name, engine, if_exists='replace', index=False, chunksize=20000)
                 self.logger.info(f"  → Loaded {len(out)} rows into {table_name} ({len(out.columns)} columns)")
             except Exception as e:
                 self.logger.error(f"  → {table_name} load failed: {e}", exc_info=True)
