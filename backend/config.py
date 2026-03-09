@@ -61,10 +61,3 @@ for path in [BRONZE_PATH, SILVER_PATH, GOLD_PATH]:
 SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
 JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-change-in-production')
 
-# ── Backward-compat aliases so any file that still imports the old names won't crash ──
-MYSQL_HOST = PG_HOST
-MYSQL_PORT = PG_PORT
-MYSQL_USER = PG_USER
-MYSQL_PASSWORD = PG_PASSWORD
-MYSQL_CHARSET = 'utf8'          # unused with PG, but prevents ImportError at call sites
-get_pymysql_params = get_pg_params   # alias

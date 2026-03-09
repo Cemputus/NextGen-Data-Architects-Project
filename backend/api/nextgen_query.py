@@ -38,22 +38,22 @@ def _ensure_assigned_viz_table(engine):
                     title VARCHAR(200) NOT NULL,
                     target_type VARCHAR(20) NOT NULL,
                     target_value VARCHAR(100) NOT NULL,
-                    query_text MEDIUMTEXT,
+                    query_text TEXT,
                     chart_type VARCHAR(20),
                     x_column VARCHAR(100),
                     y_column VARCHAR(100),
-                    result_snapshot JSON,
+                    result_snapshot JSONB,
                     parent_viz_id VARCHAR(64) NULL,
                     reshared_by_username VARCHAR(100) NULL,
                     reshare_description TEXT NULL,
-                    original_creator_username VARCHAR(100) NULL,
-                    INDEX idx_target (target_type, target_value),
-                    INDEX idx_created_by (created_by_username),
-                    INDEX idx_parent (parent_viz_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    original_creator_username VARCHAR(100) NULL
+                )
                 """
             )
         )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_aqv_target ON assigned_query_visualizations(target_type, target_value)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_aqv_created_by ON assigned_query_visualizations(created_by_username)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_aqv_parent ON assigned_query_visualizations(parent_viz_id)"))
         conn.commit()
         try:
             _add_assigned_viz_columns_if_missing(conn)
@@ -71,7 +71,7 @@ def _add_assigned_viz_columns_if_missing(conn):
         ("original_creator_username", "VARCHAR(100) NULL"),
     ]:
         try:
-            conn.execute(text(f"ALTER TABLE assigned_query_visualizations ADD COLUMN {col} {defn}"))
+            conn.execute(text(f"ALTER TABLE assigned_query_visualizations ADD COLUMN IF NOT EXISTS {col} {defn}"))
             conn.commit()
         except Exception:
             conn.rollback()
@@ -87,12 +87,12 @@ def _ensure_viz_feedback_tables(engine):
                     viz_id VARCHAR(64) NOT NULL,
                     author_username VARCHAR(100) NOT NULL,
                     message TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_viz (viz_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
                 """
             )
         )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vf_viz ON viz_feedback(viz_id)"))
         conn.execute(
             text(
                 """
@@ -101,12 +101,12 @@ def _ensure_viz_feedback_tables(engine):
                     feedback_id VARCHAR(64) NOT NULL,
                     author_username VARCHAR(100) NOT NULL,
                     message TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_feedback (feedback_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
                 """
             )
         )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vfr_feedback ON viz_feedback_replies(feedback_id)"))
         conn.commit()
 
 
@@ -209,9 +209,9 @@ def execute_query():
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         with engine.connect() as conn:
-            # Best-effort server-side timeout for MySQL (ignore failure for other engines)
+            # Best-effort server-side timeout for PostgreSQL
             try:
-                conn.execute(text("SET SESSION max_execution_time = 8000"))
+                conn.execute(text("SET statement_timeout = 8000"))
             except Exception:
                 pass
 

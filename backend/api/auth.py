@@ -31,7 +31,7 @@ except ImportError:
     Resource = None
     Permission = None
 
-from config import DATA_WAREHOUSE_CONN_STRING, MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_CHARSET
+from config import DATA_WAREHOUSE_CONN_STRING, PG_HOST, PG_PORT, PG_USER, PG_PASSWORD
 
 try:
     from audit_log import log as audit_log
@@ -83,32 +83,10 @@ RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace("UCU_DataWarehouse", RBAC_
 
 
 def _ensure_ucu_rbac_database():
-    """Create ucu_rbac database if it does not exist (so engine.connect() to ucu_rbac can succeed)."""
+    """Create ucu_rbac database if it does not exist (PostgreSQL)."""
     try:
-        from sqlalchemy.engine.url import make_url
-        url = make_url(DATA_WAREHOUSE_CONN_STRING)
-        # Connect without database: same driver, host, port, user, password, no database
-        root_url = url.set(database=None)
-        root_engine = create_engine(root_url)
-        with root_engine.connect() as conn:
-            conn.execute(text("CREATE DATABASE IF NOT EXISTS ucu_rbac CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
-            conn.commit()
-        root_engine.dispose()
-    except Exception:
-        pass
-    try:
-        import pymysql
-        conn = pymysql.connect(
-            host=MYSQL_HOST,
-            port=int(MYSQL_PORT),
-            user=MYSQL_USER,
-            password=MYSQL_PASSWORD or "",
-            charset='utf8mb4',
-        )
-        with conn.cursor() as cur:
-            cur.execute("CREATE DATABASE IF NOT EXISTS ucu_rbac CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-        conn.commit()
-        conn.close()
+        from pg_helpers import ensure_ucu_rbac_database
+        ensure_ucu_rbac_database()
     except Exception:
         pass
 
@@ -122,7 +100,7 @@ def _ensure_user_profiles_table(engine):
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS user_profiles (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id SERIAL PRIMARY KEY,
                     username VARCHAR(100) NOT NULL UNIQUE,
                     role VARCHAR(50),
                     first_name VARCHAR(100),
@@ -131,11 +109,11 @@ def _ensure_user_profiles_table(engine):
                     phone VARCHAR(20),
                     profile_picture_url VARCHAR(255),
                     preferences TEXT,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_username (username),
-                    INDEX idx_role (role)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_up_username ON user_profiles(username)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_up_role ON user_profiles(role)"))
             conn.commit()
     except Exception:
         pass
@@ -150,18 +128,18 @@ def _ensure_user_state_table(engine):
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS user_state (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id SERIAL PRIMARY KEY,
                     username VARCHAR(100) NOT NULL,
                     role VARCHAR(50) NOT NULL,
                     state_key VARCHAR(100) NOT NULL,
-                    state_json LONGTEXT NOT NULL,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    UNIQUE KEY uniq_user_state (username, role, state_key),
-                    INDEX idx_username (username),
-                    INDEX idx_role (role),
-                    INDEX idx_state_key (state_key)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    state_json TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (username, role, state_key)
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_us_username ON user_state(username)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_us_role ON user_state(role)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_us_state_key ON user_state(state_key)"))
             conn.commit()
     except Exception:
         pass
@@ -207,7 +185,7 @@ def _ensure_app_users_table(engine):
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS app_users (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id SERIAL PRIMARY KEY,
                     username VARCHAR(100) NOT NULL UNIQUE,
                     password_hash VARCHAR(255) NOT NULL,
                     role VARCHAR(50) NOT NULL,
@@ -758,12 +736,12 @@ def update_profile():
                             """
                         INSERT INTO user_profiles (username, role, first_name, last_name, email, phone, profile_picture_url)
                         VALUES (:username, :role, :first_name, :last_name, :email, :phone, :pp)
-                        ON DUPLICATE KEY UPDATE
-                            first_name = VALUES(first_name),
-                            last_name = VALUES(last_name),
-                            email = VALUES(email),
-                            phone = VALUES(phone),
-                            profile_picture_url = VALUES(profile_picture_url)
+                        ON CONFLICT (username) DO UPDATE SET
+                            first_name = EXCLUDED.first_name,
+                            last_name = EXCLUDED.last_name,
+                            email = EXCLUDED.email,
+                            phone = EXCLUDED.phone,
+                            profile_picture_url = EXCLUDED.profile_picture_url
                         """
                         ),
                         {
@@ -866,7 +844,7 @@ def user_state(state_key):
                         """
                     INSERT INTO user_state (username, role, state_key, state_json)
                     VALUES (:username, :role, :skey, :state_json)
-                    ON DUPLICATE KEY UPDATE state_json = VALUES(state_json)
+                    ON CONFLICT (username, role, state_key) DO UPDATE SET state_json = EXCLUDED.state_json
                     """
                     ),
                     {

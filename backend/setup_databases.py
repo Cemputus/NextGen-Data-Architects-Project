@@ -1,8 +1,8 @@
 """
 Setup script to create source databases with realistic UCU data
-Uses MySQL - Generates 1000+ entries per table
+Uses PostgreSQL - Generates 1000+ entries per table
 """
-import pymysql
+import psycopg2
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -10,9 +10,9 @@ import random
 from pathlib import Path
 from sqlalchemy import create_engine, text
 from config import (
-    MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD,
+    PG_HOST, PG_PORT, PG_USER, PG_PASSWORD,
     DB1_NAME, DB2_NAME, CSV1_PATH, CSV2_PATH,
-    get_pymysql_params, DB1_CONN_STRING, DB2_CONN_STRING
+    get_pg_params, DB1_CONN_STRING, DB2_CONN_STRING
 )
 
 # Set seeds for reproducibility
@@ -87,23 +87,11 @@ UGANDAN_HIGH_SCHOOLS = [
 ]
 
 def create_database_if_not_exists(database_name):
-    """Create MySQL database if it doesn't exist"""
+    """Create PostgreSQL database if it doesn't exist"""
     try:
-        conn = pymysql.connect(
-            host=MYSQL_HOST,
-            port=int(MYSQL_PORT),
-            user=MYSQL_USER,
-            password=MYSQL_PASSWORD,
-            charset='utf8mb4'
-        )
-        cursor = conn.cursor()
-        cursor.execute(f"SHOW DATABASES LIKE '{database_name}'")
-        if cursor.fetchone() is None:
-            cursor.execute(f"CREATE DATABASE `{database_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-            print(f"Database {database_name} created successfully")
-        else:
-            print(f"Database {database_name} already exists")
-        conn.close()
+        from pg_helpers import ensure_database
+        ensure_database(database_name)
+        print(f"Database {database_name} ready")
     except Exception as e:
         print(f"Error creating database {database_name}: {e}")
         raise

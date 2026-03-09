@@ -16,17 +16,17 @@ PASSWORD = "ChangeMe123"
 
 def main():
     try:
-        from config import MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD
+        from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD
         from werkzeug.security import generate_password_hash
-        import pymysql
+        import psycopg2
     except ImportError as e:
         print(f"ERROR: {e}. Run from backend with: python reset_all_app_passwords.py")
         return
 
     ph = generate_password_hash(PASSWORD, method="pbkdf2:sha256")
-    conn = pymysql.connect(
-        host=MYSQL_HOST, port=int(MYSQL_PORT), user=MYSQL_USER, password=MYSQL_PASSWORD or "",
-        database="ucu_rbac", charset="utf8mb4"
+    conn = psycopg2.connect(
+        host=PG_HOST, port=int(PG_PORT), user=PG_USER, password=PG_PASSWORD or "",
+        dbname="ucu_rbac"
     )
     try:
         with conn.cursor() as cur:

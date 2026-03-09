@@ -1,6 +1,6 @@
 """
 ETL Pipeline with Medallion Architecture (Bronze, Silver, Gold)
-Uses MySQL
+Uses PostgreSQL
 
 Extended to also make the RBAC / app-user system reproducible across environments
 by seeding user-related tables (app_users, user_profiles, user_state) from a
@@ -11,7 +11,7 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text
-import pymysql
+import psycopg2
 import os
 import random
 import logging
@@ -21,7 +21,7 @@ from config import (
     DB1_CONN_STRING, DB2_CONN_STRING, CSV1_PATH, CSV2_PATH,
     BRONZE_PATH, SILVER_PATH, GOLD_PATH,
     DATA_WAREHOUSE_NAME, DATA_WAREHOUSE_CONN_STRING,
-    MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD,
+    PG_HOST, PG_PORT, PG_USER, PG_PASSWORD,
     USE_SYNTHETIC_DATA, SYNTHETIC_DATA_DIR,
 )
 from api.auth import RBAC_CONN_STRING, _ensure_ucu_rbac_database, _ensure_app_users_table, _ensure_user_profiles_table, _ensure_user_state_table
@@ -115,7 +115,7 @@ class ETLPipeline:
                     try:
                         conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS audit_logs (
-                                log_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                                log_id BIGSERIAL PRIMARY KEY,
                                 user_id INT,
                                 username VARCHAR(100),
                                 role_name VARCHAR(50),
@@ -128,14 +128,14 @@ class ETLPipeline:
                                 user_agent VARCHAR(500),
                                 status VARCHAR(50),
                                 error_message TEXT,
-                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                INDEX idx_user_id (user_id),
-                                INDEX idx_action (action),
-                                INDEX idx_resource (resource),
-                                INDEX idx_created_at (created_at),
-                                INDEX idx_role (role_name)
-                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
                         """))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_logs(user_id)"))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)"))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs(resource)"))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at)"))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_role ON audit_logs(role_name)"))
                         conn.commit()
                         conn.execute(text("DELETE FROM audit_logs"))
                         conn.commit()
@@ -197,27 +197,10 @@ class ETLPipeline:
         """Create data warehouse database if it doesn't exist"""
         try:
             self.logger.info(f"Creating data warehouse database: {self.dw_name}")
-            # Connect to MySQL server (without specifying database)
-            conn = pymysql.connect(
-                host=MYSQL_HOST,
-                port=int(MYSQL_PORT),
-                user=MYSQL_USER,
-                password=MYSQL_PASSWORD,
-                charset='utf8mb4'
-            )
-            cursor = conn.cursor()
-            
-            # Check if database exists
-            cursor.execute(f"SHOW DATABASES LIKE '{self.dw_name}'")
-            if cursor.fetchone() is None:
-                cursor.execute(f"CREATE DATABASE `{self.dw_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-                self.logger.info(f"Data warehouse database {self.dw_name} created successfully")
-                print(f"Data warehouse database {self.dw_name} created successfully")
-            else:
-                self.logger.info(f"Data warehouse database {self.dw_name} already exists")
-                print(f"Data warehouse database {self.dw_name} already exists")
-            
-            conn.close()
+            from pg_helpers import ensure_database
+            ensure_database(self.dw_name)
+            self.logger.info(f"Data warehouse database {self.dw_name} ready")
+            print(f"Data warehouse database {self.dw_name} ready")
         except Exception as e:
             self.logger.error(f"Error creating data warehouse: {e}", exc_info=True)
             print(f"Error creating data warehouse: {e}")
@@ -1521,28 +1504,26 @@ class ETLPipeline:
         self.logger.info("Creating dimension tables...")
         
         with engine.connect() as conn:
-            # Temporarily disable FK checks so we can drop and recreate tables safely
-            conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
-
+            # PostgreSQL: use CASCADE to drop dependent objects
             # Drop fact tables first (they reference dimensions)
-            conn.execute(text("DROP TABLE IF EXISTS fact_grade"))
-            conn.execute(text("DROP TABLE IF EXISTS fact_payment"))
-            conn.execute(text("DROP TABLE IF EXISTS fact_attendance"))
-            conn.execute(text("DROP TABLE IF EXISTS fact_enrollment"))
-            conn.execute(text("DROP TABLE IF EXISTS fact_transcript"))
-            conn.execute(text("DROP TABLE IF EXISTS fact_academic_performance"))
-            conn.execute(text("DROP TABLE IF EXISTS fact_sponsorship"))
-            conn.execute(text("DROP TABLE IF EXISTS fact_progression"))
-            conn.execute(text("DROP TABLE IF EXISTS fact_student_high_school"))
-            conn.execute(text("DROP TABLE IF EXISTS fact_grades_summary"))
+            conn.execute(text("DROP TABLE IF EXISTS fact_grade CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS fact_payment CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS fact_attendance CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS fact_enrollment CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS fact_transcript CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS fact_academic_performance CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS fact_sponsorship CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS fact_progression CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS fact_student_high_school CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS fact_grades_summary CASCADE"))
             conn.execute(text("DROP TABLE IF EXISTS dim_date"))
 
             # Dim_Student and Dim_Course created from DataFrames with all columns (see load below)
-            conn.execute(text("DROP TABLE IF EXISTS dim_student"))
-            conn.execute(text("DROP TABLE IF EXISTS dim_course"))
+            conn.execute(text("DROP TABLE IF EXISTS dim_student CASCADE"))
+            conn.execute(text("DROP TABLE IF EXISTS dim_course CASCADE"))
             
             # Dim_Time
-            conn.execute(text("DROP TABLE IF EXISTS dim_time"))
+            conn.execute(text("DROP TABLE IF EXISTS dim_time CASCADE"))
             conn.execute(text("""
                 CREATE TABLE dim_time (
                     date_key VARCHAR(8) PRIMARY KEY,
@@ -1554,25 +1535,25 @@ class ETLPipeline:
                     day INT,
                     day_of_week INT,
                     day_name VARCHAR(20),
-                    is_weekend BOOLEAN,
-                    INDEX idx_date (date),
-                    INDEX idx_year_month (year, month)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    is_weekend BOOLEAN
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dt_date ON dim_time(date)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dt_year_month ON dim_time(year, month)"))
             
             # Dim_Semester
-            conn.execute(text("DROP TABLE IF EXISTS dim_semester"))
+            conn.execute(text("DROP TABLE IF EXISTS dim_semester CASCADE"))
             conn.execute(text("""
                 CREATE TABLE dim_semester (
                     semester_id INT PRIMARY KEY,
                     semester_name VARCHAR(50),
-                    academic_year VARCHAR(20),
-                    INDEX idx_academic_year (academic_year)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    academic_year VARCHAR(20)
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ds_academic_year ON dim_semester(academic_year)"))
 
             # Dim_App_User - snapshot of RBAC app users into the warehouse for reproducibility and analytics
-            conn.execute(text("DROP TABLE IF EXISTS dim_app_user"))
+            conn.execute(text("DROP TABLE IF EXISTS dim_app_user CASCADE"))
             conn.execute(text("""
                 CREATE TABLE dim_app_user (
                     app_user_id INT PRIMARY KEY,
@@ -1581,19 +1562,17 @@ class ETLPipeline:
                     full_name VARCHAR(200),
                     faculty_id INT NULL,
                     department_id INT NULL,
-                    created_at TIMESTAMP NULL,
-                    INDEX idx_username (username),
-                    INDEX idx_role (role),
-                    INDEX idx_faculty (faculty_id),
-                    INDEX idx_department (department_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    created_at TIMESTAMP NULL
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_username ON dim_app_user(username)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_role ON dim_app_user(role)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_faculty ON dim_app_user(faculty_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_department ON dim_app_user(department_id)"))
 
             # Dim_High_School - recreated from DataFrame with all columns when loading
-            conn.execute(text("DROP TABLE IF EXISTS dim_high_school"))
+            conn.execute(text("DROP TABLE IF EXISTS dim_high_school CASCADE"))
 
-            # Re‑enable foreign key checks
-            conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
             conn.commit()
         
         # Dim_Course first (from catalog fallback) so fact tables never fail on FK — then overwrite with silver if present
@@ -1827,11 +1806,11 @@ class ETLPipeline:
                             position_id INT,
                             department_id INT,
                             contract_type VARCHAR(50),
-                            status VARCHAR(50),
-                            INDEX idx_department (department_id),
-                            INDEX idx_status (status)
-                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                            status VARCHAR(50)
+                        )
                     """))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_de_department ON dim_employee(department_id)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_de_status ON dim_employee(status)"))
                     conn.commit()
                     conn.execute(text("DELETE FROM dim_employee"))
                     conn.commit()
@@ -1847,18 +1826,17 @@ class ETLPipeline:
             dim_hs.to_sql('dim_high_school', engine, if_exists='replace', index=False)
             self.logger.info(f"  -> Loaded {len(dim_hs)} high schools into dim_high_school (all columns)")
         
-        # Ensure FK-referenced columns have indexes (MySQL requires this for fact table FKs).
-        # Use key length for TEXT/BLOB columns: (column_name(191)) so index creation succeeds.
+        # Ensure FK-referenced columns have indexes (PostgreSQL requires this for efficient FK lookups).
         with engine.connect() as conn:
             for stmt in [
-                "CREATE INDEX idx_student_id ON dim_student (student_id(191))",
-                "CREATE INDEX idx_course_code ON dim_course (course_code(191))",
+                "CREATE INDEX IF NOT EXISTS idx_student_id ON dim_student (student_id)",
+                "CREATE INDEX IF NOT EXISTS idx_course_code ON dim_course (course_code)",
             ]:
                 try:
                     conn.execute(text(stmt))
                     conn.commit()
                 except Exception as e:
-                    if "Duplicate key name" in str(e) or "1061" in str(e):
+                    if "already exists" in str(e).lower():
                         pass  # index already exists
                     else:
                         self.logger.warning("  → Index creation: %s", e)
@@ -1922,13 +1900,13 @@ class ETLPipeline:
                     course_code VARCHAR(20),
                     date_key VARCHAR(8),
                     semester_id INT,
-                    status VARCHAR(20),
-                    INDEX idx_student (student_id),
-                    INDEX idx_course (course_code),
-                    INDEX idx_date (date_key),
-                    INDEX idx_semester (semester_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    status VARCHAR(20)
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fe_student ON fact_enrollment(student_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fe_course ON fact_enrollment(course_code)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fe_date ON fact_enrollment(date_key)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fe_semester ON fact_enrollment(semester_id)"))
             
             # Fact_Attendance
             conn.execute(text("""
@@ -1938,12 +1916,12 @@ class ETLPipeline:
                     course_code VARCHAR(20),
                     date_key VARCHAR(8),
                     total_hours DECIMAL(10,2),
-                    days_present INT,
-                    INDEX idx_student (student_id),
-                    INDEX idx_course (course_code),
-                    INDEX idx_date (date_key)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    days_present INT
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fa_student ON fact_attendance(student_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fa_course ON fact_attendance(course_code)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fa_date ON fact_attendance(date_key)"))
             
             # Fact_Payment
             conn.execute(text("""
@@ -1960,22 +1938,22 @@ class ETLPipeline:
                     payment_method VARCHAR(50),
                     status VARCHAR(20),
                     student_type VARCHAR(20) DEFAULT 'national',
-                    payment_timestamp DATETIME,
+                    payment_timestamp TIMESTAMP,
                     semester_start_date DATE,
                     deadline_met BOOLEAN DEFAULT FALSE,
                     deadline_type VARCHAR(50),
                     weeks_from_deadline DECIMAL(5,2),
-                    late_penalty DECIMAL(15,2) DEFAULT 0,
-                    INDEX idx_student (student_id),
-                    INDEX idx_date (date_key),
-                    INDEX idx_semester (semester_id),
-                    INDEX idx_year (year),
-                    INDEX idx_status (status),
-                    INDEX idx_payment_timestamp (payment_timestamp),
-                    INDEX idx_deadline_met (deadline_met),
-                    INDEX idx_deadline_type (deadline_type)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    late_penalty DECIMAL(15,2) DEFAULT 0
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fp_student ON fact_payment(student_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fp_date ON fact_payment(date_key)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fp_semester ON fact_payment(semester_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fp_year ON fact_payment(year)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fp_status ON fact_payment(status)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fp_timestamp ON fact_payment(payment_timestamp)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fp_deadline_met ON fact_payment(deadline_met)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fp_deadline_type ON fact_payment(deadline_type)"))
             
             # Fact_Grade
             conn.execute(text("""
@@ -1991,17 +1969,17 @@ class ETLPipeline:
                     letter_grade VARCHAR(5) NOT NULL,
                     fcw BOOLEAN DEFAULT FALSE,
                     exam_status VARCHAR(10),
-                    absence_reason VARCHAR(200),
-                    INDEX idx_student (student_id),
-                    INDEX idx_course (course_code),
-                    INDEX idx_date (date_key),
-                    INDEX idx_semester (semester_id),
-                    INDEX idx_grade (grade)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    absence_reason VARCHAR(200)
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fg_student ON fact_grade(student_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fg_course ON fact_grade(course_code)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fg_date ON fact_grade(date_key)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fg_semester ON fact_grade(semester_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fg_grade ON fact_grade(grade)"))
             # Ensure existing deployments have a wide enough grade_id column
             try:
-                conn.execute(text("ALTER TABLE fact_grade MODIFY grade_id VARCHAR(64)"))
+                conn.execute(text("ALTER TABLE fact_grade ALTER COLUMN grade_id TYPE VARCHAR(64)"))
                 conn.commit()
             except Exception:
                 # Ignore if ALTER is not needed or fails (e.g. column already wide)

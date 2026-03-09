@@ -11,26 +11,20 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 from sqlalchemy import create_engine, text
-from config import MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_CHARSET, DATA_WAREHOUSE_CONN_STRING
-from urllib.parse import quote_plus
+from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME
 
 def main():
-    password_encoded = quote_plus(MYSQL_PASSWORD) if MYSQL_PASSWORD else ''
-    conn_no_db = f"mysql+pymysql://{MYSQL_USER}:{password_encoded}@{MYSQL_HOST}:{MYSQL_PORT}/?charset={MYSQL_CHARSET}"
     print("Creating database ucu_rbac and table audit_logs...")
     try:
-        engine = create_engine(conn_no_db)
-        with engine.connect() as conn:
-            conn.execute(text("CREATE DATABASE IF NOT EXISTS ucu_rbac CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
-            conn.commit()
-        engine.dispose()
+        from pg_helpers import ensure_ucu_rbac_database
+        ensure_ucu_rbac_database()
 
-        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace("UCU_DataWarehouse", "ucu_rbac")
+        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, "ucu_rbac")
         engine = create_engine(rbac_conn)
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS audit_logs (
-                    log_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    log_id BIGSERIAL PRIMARY KEY,
                     user_id INT,
                     username VARCHAR(100),
                     role_name VARCHAR(50),
@@ -43,14 +37,14 @@ def main():
                     user_agent VARCHAR(500),
                     status VARCHAR(50),
                     error_message TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_user_id (user_id),
-                    INDEX idx_action (action),
-                    INDEX idx_resource (resource),
-                    INDEX idx_created_at (created_at),
-                    INDEX idx_role (role_name)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_logs(user_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs(resource)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_role ON audit_logs(role_name)"))
             conn.commit()
         engine.dispose()
         print("Done. ucu_rbac.audit_logs is ready. Audit Logs in the admin UI will work now.")

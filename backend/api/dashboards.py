@@ -37,61 +37,61 @@ def _ensure_dashboard_tables(engine):
             description TEXT,
             created_by_username VARCHAR(100) NOT NULL,
             created_by_role VARCHAR(50),
-            definition LONGTEXT,
+            definition TEXT,
             is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_created_by (created_by_username),
-            INDEX idx_active (is_active)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
           """
         )
       )
+      conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dash_created_by ON dashboards(created_by_username)"))
+      conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dash_active ON dashboards(is_active)"))
       conn.execute(
         text(
           """
           CREATE TABLE IF NOT EXISTS dashboard_role_access (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             dashboard_id VARCHAR(64) NOT NULL,
             role_name VARCHAR(50) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY uniq_dash_role (dashboard_id, role_name),
-            INDEX idx_role (role_name),
+            UNIQUE (dashboard_id, role_name),
             FOREIGN KEY (dashboard_id) REFERENCES dashboards(id) ON DELETE CASCADE
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+          )
           """
         )
       )
+      conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dra_role ON dashboard_role_access(role_name)"))
       conn.execute(
         text(
           """
           CREATE TABLE IF NOT EXISTS dashboard_user_access (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             dashboard_id VARCHAR(64) NOT NULL,
             username VARCHAR(100) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY uniq_dash_user (dashboard_id, username),
-            INDEX idx_username (username),
+            UNIQUE (dashboard_id, username),
             FOREIGN KEY (dashboard_id) REFERENCES dashboards(id) ON DELETE CASCADE
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+          )
           """
         )
       )
+      conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dua_username ON dashboard_user_access(username)"))
       conn.execute(
         text(
           """
           CREATE TABLE IF NOT EXISTS role_current_dashboard (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             role_name VARCHAR(50) NOT NULL UNIQUE,
             dashboard_id VARCHAR(64) NOT NULL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_by_username VARCHAR(100),
-            FOREIGN KEY (dashboard_id) REFERENCES dashboards(id) ON DELETE CASCADE,
-            INDEX idx_role_name (role_name)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            FOREIGN KEY (dashboard_id) REFERENCES dashboards(id) ON DELETE CASCADE
+          )
           """
         )
       )
+      conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rcd_role_name ON role_current_dashboard(role_name)"))
       conn.commit()
   except Exception:
     # Any failure will be surfaced by the calling handler
@@ -129,7 +129,7 @@ def _load_dashboards_for_user(engine, username: str, role: str) -> List[Dict[str
         FROM dashboards d
         LEFT JOIN dashboard_role_access dra ON d.id = dra.dashboard_id
         LEFT JOIN dashboard_user_access dua ON d.id = dua.dashboard_id
-        WHERE d.is_active = 1
+        WHERE d.is_active = TRUE
           AND (
             dra.role_name = :role
             OR dua.username = :username
@@ -180,7 +180,7 @@ def list_dashboards():
             """
             SELECT d.*
             FROM dashboards d
-            WHERE d.is_active = 1
+            WHERE d.is_active = TRUE
             ORDER BY d.created_at DESC
             """
           )
@@ -394,7 +394,7 @@ def swap_dashboard():
 
       # Ensure dashboard exists and is active
       row = conn.execute(
-        text("SELECT id FROM dashboards WHERE id = :id AND is_active = 1"),
+        text("SELECT id FROM dashboards WHERE id = :id AND is_active = TRUE"),
         {"id": dashboard_id},
       ).scalar()
       if not row:
@@ -406,9 +406,9 @@ def swap_dashboard():
           """
           INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username)
           VALUES (:role_name, :dashboard_id, :updated_by)
-          ON DUPLICATE KEY UPDATE
-            dashboard_id = VALUES(dashboard_id),
-            updated_by_username = VALUES(updated_by_username)
+          ON CONFLICT (role_name) DO UPDATE SET
+            dashboard_id = EXCLUDED.dashboard_id,
+            updated_by_username = EXCLUDED.updated_by_username
           """
         ),
         {
@@ -491,7 +491,7 @@ def create_dashboard():
         text(
           """
           INSERT INTO dashboards (id, name, description, created_by_username, created_by_role, definition, is_active)
-          VALUES (:id, :name, :description, :created_by, :created_role, :definition, 1)
+          VALUES (:id, :name, :description, :created_by, :created_role, :definition, TRUE)
           """
         ),
         {
@@ -510,7 +510,7 @@ def create_dashboard():
             """
             INSERT INTO dashboard_role_access (dashboard_id, role_name)
             VALUES (:dash_id, :role_name)
-            ON DUPLICATE KEY UPDATE role_name = VALUES(role_name)
+            ON CONFLICT (dashboard_id, role_name) DO NOTHING
             """
           ),
           {"dash_id": dash_id, "role_name": r},
@@ -521,7 +521,7 @@ def create_dashboard():
             """
             INSERT INTO dashboard_user_access (dashboard_id, username)
             VALUES (:dash_id, :username)
-            ON DUPLICATE KEY UPDATE username = VALUES(username)
+            ON CONFLICT (dashboard_id, username) DO NOTHING
             """
           ),
           {"dash_id": dash_id, "username": u},
@@ -565,7 +565,7 @@ def update_dashboard(dash_id):
 
       # Ensure dashboard exists and is visible to editor
       rows = conn.execute(
-        text("SELECT id, created_by_username FROM dashboards WHERE id = :id AND is_active = 1"),
+        text("SELECT id, created_by_username FROM dashboards WHERE id = :id AND is_active = TRUE"),
         {"id": dash_id},
       ).mappings()
       existing = next(iter(rows), None)
@@ -669,7 +669,7 @@ def get_current_dashboard_for_role():
                  d.*
           FROM role_current_dashboard r
           LEFT JOIN dashboards d ON d.id = r.dashboard_id
-          WHERE LOWER(r.role_name) = :rname AND d.is_active = 1
+          WHERE LOWER(r.role_name) = :rname AND d.is_active = TRUE
           """
         ),
         {"rname": role},

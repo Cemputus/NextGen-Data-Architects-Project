@@ -58,11 +58,10 @@ def _count_synthetic_files():
 from config import (
     DATA_WAREHOUSE_CONN_STRING,
     DATA_WAREHOUSE_NAME,
-    MYSQL_HOST,
-    MYSQL_PORT,
-    MYSQL_USER,
-    MYSQL_PASSWORD,
-    MYSQL_CHARSET,
+    PG_HOST,
+    PG_PORT,
+    PG_USER,
+    PG_PASSWORD,
 )
 def _get_rbac_conn_string():
     """RBAC DB connection (ucu_rbac) - same as app.py."""
@@ -232,7 +231,7 @@ def _get_warehouse_counts(engine):
     ]
     for table in tables:
         try:
-            r = pd.read_sql_query(f"SELECT COUNT(*) as c FROM `{table}`", engine)
+            r = pd.read_sql_query(f'SELECT COUNT(*) as c FROM "{table}"', engine)
             counts[table] = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
         except Exception:
             counts[table] = None
@@ -325,7 +324,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             r = pd.read_sql_query(text("""
                 SELECT COUNT(DISTINCT username) as c FROM audit_logs
                 WHERE action = 'login' AND status = 'success'
-                AND created_at >= DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+                AND created_at >= NOW() - INTERVAL '30 minutes'
             """), rbac_engine)
             kpis['active_sessions'] = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
         except Exception as e:
@@ -337,17 +336,16 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             kpis['system_health'] = 50
         kpis['employees'] = etl_employee_count
         kpis['staff'] = etl_staff_lecturer_count  # at least ETL staff/lecturers
-    # If both still 0, try direct PyMySQL to ucu_rbac (in case SQLAlchemy engine had issues)
+    # If both still 0, try direct psycopg2 to ucu_rbac (in case SQLAlchemy engine had issues)
     if kpis['employees'] == 0 and kpis['staff'] == 0:
         try:
-            import pymysql
-            conn = pymysql.connect(
-                host=MYSQL_HOST,
-                port=int(MYSQL_PORT),
-                user=MYSQL_USER,
-                password=MYSQL_PASSWORD,
-                database='ucu_rbac',
-                charset=MYSQL_CHARSET or 'utf8mb4',
+            import psycopg2
+            conn = psycopg2.connect(
+                host=PG_HOST,
+                port=int(PG_PORT),
+                user=PG_USER,
+                password=PG_PASSWORD,
+                dbname='ucu_rbac',
             )
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM app_users")
@@ -464,21 +462,16 @@ DEMO_ACCOUNTS = [
 
 def _ensure_app_users_table(engine):
     """Create ucu_rbac DB if not exists, then app_users table (real users added via Admin)."""
-    import pymysql
     try:
-        conn = pymysql.connect(
-            host=MYSQL_HOST, port=int(MYSQL_PORT), user=MYSQL_USER, password=MYSQL_PASSWORD
-        )
-        conn.cursor().execute("CREATE DATABASE IF NOT EXISTS ucu_rbac CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-        conn.commit()
-        conn.close()
+        from pg_helpers import ensure_ucu_rbac_database
+        ensure_ucu_rbac_database()
     except Exception:
         pass
     try:
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS app_users (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id SERIAL PRIMARY KEY,
                     username VARCHAR(100) NOT NULL UNIQUE,
                     password_hash VARCHAR(255) NOT NULL,
                     role VARCHAR(50) NOT NULL,
@@ -724,22 +717,16 @@ def run_etl():
 
 def _ensure_audit_db():
     """Create ucu_rbac database and audit_logs table if they don't exist. Returns (success, error_message)."""
-    from urllib.parse import quote_plus
-    password_encoded = quote_plus(MYSQL_PASSWORD) if MYSQL_PASSWORD else ''
-    conn_no_db = f"mysql+pymysql://{MYSQL_USER}:{password_encoded}@{MYSQL_HOST}:{MYSQL_PORT}/?charset={MYSQL_CHARSET}"
     try:
-        engine = create_engine(conn_no_db)
-        with engine.connect() as conn:
-            conn.execute(text("CREATE DATABASE IF NOT EXISTS ucu_rbac CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
-            conn.commit()
-        engine.dispose()
+        from pg_helpers import ensure_ucu_rbac_database
+        ensure_ucu_rbac_database()
 
-        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace('UCU_DataWarehouse', 'ucu_rbac')
+        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
         engine = create_engine(rbac_conn)
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS audit_logs (
-                    log_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    log_id BIGSERIAL PRIMARY KEY,
                     user_id INT,
                     username VARCHAR(100),
                     role_name VARCHAR(50),
@@ -752,14 +739,14 @@ def _ensure_audit_db():
                     user_agent VARCHAR(500),
                     status VARCHAR(50),
                     error_message TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_user_id (user_id),
-                    INDEX idx_action (action),
-                    INDEX idx_resource (resource),
-                    INDEX idx_created_at (created_at),
-                    INDEX idx_role (role_name)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_logs(user_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs(resource)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_role ON audit_logs(role_name)"))
             conn.commit()
         engine.dispose()
         return True, None

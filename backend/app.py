@@ -19,10 +19,10 @@ from config import (
     DATA_WAREHOUSE_CONN_STRING,
     SECRET_KEY,
     JWT_SECRET_KEY,
-    MYSQL_HOST,
-    MYSQL_PORT,
-    MYSQL_USER,
-    MYSQL_PASSWORD,
+    PG_HOST,
+    PG_PORT,
+    PG_USER,
+    PG_PASSWORD,
 )
 from werkzeug.security import generate_password_hash
 from werkzeug.exceptions import NotFound
@@ -44,13 +44,13 @@ def _ensure_dim_app_user_table(engine):
                     full_name VARCHAR(200),
                     faculty_id INT NULL,
                     department_id INT NULL,
-                    created_at TIMESTAMP NULL,
-                    INDEX idx_username (username),
-                    INDEX idx_role (role),
-                    INDEX idx_faculty (faculty_id),
-                    INDEX idx_department (department_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    created_at TIMESTAMP NULL
+                )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_username ON dim_app_user(username)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_role ON dim_app_user(role)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_faculty ON dim_app_user(faculty_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_department ON dim_app_user(department_id)"))
             conn.commit()
     except Exception:
         pass
@@ -69,9 +69,9 @@ def _sync_dim_app_user(action, app_user_id, data=None):
                 conn.execute(text("""
                     INSERT INTO dim_app_user (app_user_id, username, role, full_name, faculty_id, department_id, created_at)
                     VALUES (:aid, :username, :role, :full_name, :faculty_id, :department_id, :created_at)
-                    ON DUPLICATE KEY UPDATE
-                    username = VALUES(username), role = VALUES(role), full_name = VALUES(full_name),
-                    faculty_id = VALUES(faculty_id), department_id = VALUES(department_id)
+                    ON CONFLICT (app_user_id) DO UPDATE SET
+                    username = EXCLUDED.username, role = EXCLUDED.role, full_name = EXCLUDED.full_name,
+                    faculty_id = EXCLUDED.faculty_id, department_id = EXCLUDED.department_id
                 """), {
                     'aid': app_user_id,
                     'username': data.get('username', ''),
@@ -100,20 +100,15 @@ DEMO_ACCOUNTS_FOR_LIST = [
 def _ensure_app_users_table(engine):
     """Create ucu_rbac DB and app_users table if not present."""
     try:
-        import pymysql
-        conn = pymysql.connect(
-            host=MYSQL_HOST, port=int(MYSQL_PORT), user=MYSQL_USER, password=MYSQL_PASSWORD
-        )
-        conn.cursor().execute("CREATE DATABASE IF NOT EXISTS ucu_rbac CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-        conn.commit()
-        conn.close()
+        from pg_helpers import ensure_ucu_rbac_database
+        ensure_ucu_rbac_database()
     except Exception:
         pass
     try:
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS app_users (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id SERIAL PRIMARY KEY,
                     username VARCHAR(100) NOT NULL UNIQUE,
                     password_hash VARCHAR(255) NOT NULL,
                     role VARCHAR(50) NOT NULL,
@@ -388,7 +383,7 @@ def admin_list_users():
                     conditions.append(
                         "(LOWER(ds.access_number) LIKE :search OR LOWER(ds.reg_no) LIKE :search "
                         "OR LOWER(ds.first_name) LIKE :search OR LOWER(ds.last_name) LIKE :search "
-                        "OR LOWER(CONCAT(ds.first_name, ' ', ds.last_name)) LIKE :search)"
+                        "OR LOWER(ds.first_name || ' ' || ds.last_name) LIKE :search)"
                     )
                     params['search'] = f'%{search}%'
                 if conditions:
@@ -1149,7 +1144,7 @@ def _ensure_leave_requests_table(engine):
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS leave_requests (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id SERIAL PRIMARY KEY,
                     username VARCHAR(100) NOT NULL,
                     start_date DATE NOT NULL,
                     end_date DATE NOT NULL,
@@ -1159,11 +1154,11 @@ def _ensure_leave_requests_table(engine):
                     parent_leave_id INT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     reviewed_at TIMESTAMP NULL,
-                    reviewed_by VARCHAR(100) NULL,
-                    INDEX idx_username (username),
-                    INDEX idx_status_dates (status, start_date, end_date)
+                    reviewed_by VARCHAR(100) NULL
                 )
             """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_lr_username ON leave_requests(username)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_lr_status_dates ON leave_requests(status, start_date, end_date)"))
             conn.commit()
     except Exception:
         pass

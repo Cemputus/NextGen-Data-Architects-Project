@@ -1,4 +1,4 @@
-"""Script to create and populate dimension tables"""
+"""Script to create and populate dimension tables — PostgreSQL version"""
 from sqlalchemy import create_engine, text
 from config import DATA_WAREHOUSE_CONN_STRING, DB1_CONN_STRING
 import pandas as pd
@@ -13,41 +13,38 @@ dw_engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
 db1_engine = create_engine(DB1_CONN_STRING)
 
 with dw_engine.connect() as conn:
-    # Disable foreign key checks
-    conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
-    
     # Create dim_faculty
     print("\n1. Creating dim_faculty...")
-    conn.execute(text("DROP TABLE IF EXISTS dim_faculty"))
+    conn.execute(text("DROP TABLE IF EXISTS dim_faculty CASCADE"))
     conn.execute(text("""
         CREATE TABLE dim_faculty (
             faculty_id INT PRIMARY KEY,
             faculty_name VARCHAR(200),
-            dean_name VARCHAR(100),
-            INDEX idx_faculty_name (faculty_name)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            dean_name VARCHAR(100)
+        )
     """))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_faculty_name ON dim_faculty(faculty_name)"))
     print("   ✓ dim_faculty created")
-    
+
     # Create dim_department
     print("\n2. Creating dim_department...")
-    conn.execute(text("DROP TABLE IF EXISTS dim_department"))
+    conn.execute(text("DROP TABLE IF EXISTS dim_department CASCADE"))
     conn.execute(text("""
         CREATE TABLE dim_department (
             department_id INT PRIMARY KEY,
             department_name VARCHAR(200),
             faculty_id INT,
             head_of_department VARCHAR(100),
-            FOREIGN KEY (faculty_id) REFERENCES dim_faculty(faculty_id) ON DELETE CASCADE,
-            INDEX idx_faculty (faculty_id),
-            INDEX idx_dept_name (department_name)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            FOREIGN KEY (faculty_id) REFERENCES dim_faculty(faculty_id) ON DELETE CASCADE
+        )
     """))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dept_faculty ON dim_department(faculty_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dept_name ON dim_department(department_name)"))
     print("   ✓ dim_department created")
-    
+
     # Create dim_program
     print("\n3. Creating dim_program...")
-    conn.execute(text("DROP TABLE IF EXISTS dim_program"))
+    conn.execute(text("DROP TABLE IF EXISTS dim_program CASCADE"))
     conn.execute(text("""
         CREATE TABLE dim_program (
             program_id INT PRIMARY KEY,
@@ -55,15 +52,13 @@ with dw_engine.connect() as conn:
             degree_level VARCHAR(50),
             department_id INT,
             duration_years INT,
-            FOREIGN KEY (department_id) REFERENCES dim_department(department_id) ON DELETE CASCADE,
-            INDEX idx_department (department_id),
-            INDEX idx_program_name (program_name)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            FOREIGN KEY (department_id) REFERENCES dim_department(department_id) ON DELETE CASCADE
+        )
     """))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_prog_department ON dim_program(department_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_prog_name ON dim_program(program_name)"))
     print("   ✓ dim_program created")
-    
-    # Re-enable foreign key checks
-    conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
+
     conn.commit()
 
 # Extract data from source database
@@ -89,7 +84,7 @@ if not faculties_df.empty:
         faculties_dim['faculty_name'] = faculties_dim['FacultyName']
     if 'DeanName' in faculties_dim.columns:
         faculties_dim['dean_name'] = faculties_dim['DeanName']
-    
+
     faculty_cols = ['faculty_id', 'faculty_name', 'dean_name']
     available_cols = [col for col in faculty_cols if col in faculties_dim.columns]
     if available_cols:
@@ -112,7 +107,7 @@ if not departments_df.empty:
         departments_dim['faculty_id'] = departments_dim['FacultyID']
     if 'HeadOfDepartment' in departments_dim.columns:
         departments_dim['head_of_department'] = departments_dim['HeadOfDepartment']
-    
+
     dept_cols = ['department_id', 'department_name', 'faculty_id', 'head_of_department']
     available_cols = [col for col in dept_cols if col in departments_dim.columns]
     if available_cols:
@@ -137,7 +132,7 @@ if not programs_df.empty:
         programs_dim['department_id'] = programs_dim['DepartmentID']
     if 'DurationYears' in programs_dim.columns:
         programs_dim['duration_years'] = programs_dim['DurationYears']
-    
+
     program_cols = ['program_id', 'program_name', 'degree_level', 'department_id', 'duration_years']
     available_cols = [col for col in program_cols if col in programs_dim.columns]
     if available_cols:
@@ -164,5 +159,3 @@ with dw_engine.connect() as conn:
 
 dw_engine.dispose()
 db1_engine.dispose()
-
-

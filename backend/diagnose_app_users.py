@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Diagnostic script: Check app_users, dim_app_user, and login readiness.
-Uses pymysql only (no sqlalchemy). Run from backend: python diagnose_app_users.py
+Uses psycopg2 only (no sqlalchemy). Run from backend: python diagnose_app_users.py
 """
 import sys
 import json
@@ -13,17 +13,18 @@ if str(backend_dir) not in sys.path:
 
 def main():
     try:
-        from config import MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD
-        import pymysql
+        from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD
+        import psycopg2
     except ImportError as e:
-        print(f"ERROR: {e}. Install: pip install pymysql")
+        print(f"ERROR: {e}. Install: pip install psycopg2-binary")
         return
 
     def query(db_name, sql, params=None):
-        conn = pymysql.connect(
-            host=MYSQL_HOST, port=int(MYSQL_PORT), user=MYSQL_USER, password=MYSQL_PASSWORD or "",
-            database=db_name, charset="utf8mb4"
+        conn = psycopg2.connect(
+            host=PG_HOST, port=int(PG_PORT), user=PG_USER, password=PG_PASSWORD or "",
+            dbname=db_name
         )
+        conn.autocommit = True
         try:
             with conn.cursor() as cur:
                 cur.execute(sql, params or ())
@@ -34,7 +35,7 @@ def main():
     print("=" * 60)
     print("APP USERS & DIM_APP_USER DIAGNOSTIC")
     print("=" * 60)
-    print(f"MySQL: {MYSQL_HOST}:{MYSQL_PORT} user={MYSQL_USER}")
+    print(f"PostgreSQL: {PG_HOST}:{PG_PORT} user={PG_USER}")
     print()
 
     # 1. ucu_rbac.app_users
