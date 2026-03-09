@@ -538,8 +538,51 @@ class ETLPipeline:
             grades_db1 = pd.DataFrame(columns=['GradeID', 'StudentID', 'CourseCode', 'CourseworkScore', 'ExamScore', 'TotalScore', 'GradeLetter', 'ExamStatus', 'AbsenceReason', 'FCW'])
         self.logger.info("  -> Grades: %d (columns: %d)", len(grades_db1), len(grades_db1.columns))
 
-        # 5) Enrollments: placeholder until built from student_high_schools (see below after section 9)
-        enrollments_db1 = pd.DataFrame(columns=['EnrollmentID', 'StudentID', 'CourseID', 'AcademicYear', 'Semester'])
+        # 5) Enrollments from enrollment_list15/16 (program-level registrations per student/semester)
+        enroll_parts = []
+        for fname in ['enrollment_list15.csv', 'enrollment_list16.csv']:
+            p = root / fname
+            if p.exists():
+                try:
+                    enroll_parts.append(pd.read_csv(p))
+                except Exception as e:
+                    self.logger.warning("Could not read %s: %s", fname, e)
+        if enroll_parts:
+            enroll_df = pd.concat(enroll_parts, ignore_index=True)
+            # Normalize key column names from Excel header variants
+            col_map = {}
+            for c in enroll_df.columns:
+                cname = str(c).strip()
+                up = cname.upper()
+                if up.startswith('REG') and 'NO' in up:
+                    col_map[c] = 'REG_NO'
+                elif up.startswith('ACC') and 'NO' in up:
+                    col_map[c] = 'ACC_NO'
+                elif up == 'YEAR':
+                    col_map[c] = 'YEAR_OF_STUDY'
+                elif up == 'SEMESTER':
+                    col_map[c] = 'SEMESTER_INDEX'
+                elif up == 'STUDENT STATUS':
+                    col_map[c] = 'STUDENT_STATUS'
+            if col_map:
+                enroll_df = enroll_df.rename(columns=col_map)
+            if 'REG_NO' not in enroll_df.columns:
+                raise ValueError("enrollment_list15/16.csv must have a 'REG. NO.' column")
+            enrollments_db1 = pd.DataFrame()
+            enrollments_db1['EnrollmentID'] = range(1, len(enroll_df) + 1)
+            enrollments_db1['StudentID'] = enroll_df['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int)
+            # No specific course mapping in these files; keep CourseID = 0 so fact_enrollment can still load (with empty course_code).
+            enrollments_db1['CourseID'] = 0
+            # Optional year-of-study and semester index for downstream analytics
+            enrollments_db1['YearOfStudy'] = pd.to_numeric(enroll_df.get('YEAR_OF_STUDY', np.nan), errors='coerce')
+            enrollments_db1['SemesterIndex'] = pd.to_numeric(enroll_df.get('SEMESTER_INDEX', np.nan), errors='coerce')
+            enrollments_db1['StudentStatus'] = enroll_df.get('STUDENT_STATUS', '').astype(str)
+            # Backward-compatibility placeholders (not used by new logic)
+            enrollments_db1['AcademicYear'] = ''
+            enrollments_db1['Semester'] = ''
+        else:
+            enrollments_db1 = pd.DataFrame(columns=['EnrollmentID', 'StudentID', 'CourseID', 'AcademicYear', 'Semester'])
+        self.logger.info("  -> Enrollments (from enrollment_list15/16): %d", len(enrollments_db1))
 
         # 6) Payments from student_payments_list15/16
         pay_parts = []
@@ -641,22 +684,6 @@ class ETLPipeline:
                     self.logger.warning("Could not read %s: %s", fname, e)
         student_high_schools_synthetic = pd.concat(student_high_schools_parts, ignore_index=True).drop_duplicates() if student_high_schools_parts else pd.DataFrame()
         self.logger.info("  -> Student–high school: %d", len(student_high_schools_synthetic))
-
-        # 5b) Enrollments from student_high_schools (one row per student–high school)
-        if not student_high_schools_synthetic.empty and 'REG_NO' in student_high_schools_synthetic.columns:
-            enrollments_hs = student_high_schools_synthetic[['REG_NO']].drop_duplicates()
-            if 'HIGH_SCHOOL' in student_high_schools_synthetic.columns:
-                enrollments_hs = student_high_schools_synthetic[['REG_NO', 'HIGH_SCHOOL']].drop_duplicates()
-            enrollments_hs = enrollments_hs.reset_index(drop=True)
-            enrollments_hs['EnrollmentID'] = range(1, len(enrollments_hs) + 1)
-            enrollments_hs['StudentID'] = enrollments_hs['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int)
-            enrollments_hs['CourseID'] = 0  # no course for high-school enrollment
-            enrollments_hs['AcademicYear'] = ''
-            enrollments_hs['Semester'] = 'High School'
-            enrollments_db1 = enrollments_hs[['EnrollmentID', 'StudentID', 'CourseID', 'AcademicYear', 'Semester']].copy()
-            self.logger.info("  -> Enrollments (from high schools): %d", len(enrollments_db1))
-        else:
-            self.logger.info("  -> Enrollments: 0 (no student_high_schools data)")
 
         # 10) Transcripts (semester-level summary per student)
         transcript_parts = []
