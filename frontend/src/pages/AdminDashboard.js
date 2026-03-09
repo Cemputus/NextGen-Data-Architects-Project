@@ -308,6 +308,9 @@ const AdminDashboard = () => {
                 showOpenFullPage={true}
                 refreshTrigger={refreshTrigger}
                 onUsersChanged={handleUsersChanged}
+                // Console view: show a preview of the first 20 users; for full list use Admin Users page.
+                maxUsers={20}
+                hideLimitSelector={true}
               />
             </TabsContent>
 

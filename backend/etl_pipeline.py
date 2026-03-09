@@ -2078,30 +2078,23 @@ class ETLPipeline:
             self.logger.info("  -> Attendance: %d rows pre-filter, %d after student+date filter", len(attendance), len(att_valid))
             
             if not att_valid.empty:
-                # Fast categorization for extreme 10x+ groupby speedup on millions of rows
-                att_valid['student_id'] = att_valid['student_id'].astype('category')
-                att_valid['date_key'] = att_valid['date_key'].astype('category')
-                att_valid['course_code'] = ''
-                att_valid['course_code'] = att_valid['course_code'].astype('category')
-                
+                # Do NOT aggregate away rows; every raw attendance event becomes one fact row.
+                # Derive total_hours and a 0/1 flag for presence.
                 status_col = next((c for c in ['status', 'Status', 'STATUS'] if c in att_valid.columns), None)
                 if status_col:
-                    att_valid['_present'] = att_valid[status_col].astype(str).str.upper().isin(['PRESENT']).astype(int)
+                    present_flag = att_valid[status_col].astype(str).str.upper().isin(['PRESENT', 'LATE']).astype(int)
                 else:
-                    att_valid['_present'] = 1
+                    present_flag = (att_valid['hours_attended'] > 0).astype(int)
 
-                fact_attendance = att_valid.groupby(['student_id', 'date_key', 'course_code'], observed=True).agg(
-                    total_hours=('hours_attended', 'sum'),
-                    days_present=('_present', 'sum')
-                ).reset_index()
-
-                # Revert to base types for stable DB insertion
-                fact_attendance['student_id'] = fact_attendance['student_id'].astype(str)
-                fact_attendance['date_key'] = fact_attendance['date_key'].astype(str)
-                fact_attendance['course_code'] = ''
+                fact_attendance = pd.DataFrame({
+                    'student_id': att_valid['student_id'].astype(str),
+                    'course_code': '',  # no course dimension in attendance source
+                    'date_key': att_valid['date_key'].astype(str),
+                    'total_hours': pd.to_numeric(att_valid['hours_attended'], errors='coerce').fillna(0),
+                    'days_present': present_flag,
+                })
 
                 try:
-                    # Using method=None (default) correctly routes to PyMySQL fast executemany
                     fact_attendance.to_sql('fact_attendance', engine, if_exists='append', index=False, method='multi', chunksize=15000)
                     self.logger.info("  -> Loaded %d attendance records into fact_attendance", len(fact_attendance))
                     print(f"  -> Loaded {len(fact_attendance)} attendance records into fact_attendance")
@@ -2215,20 +2208,11 @@ class ETLPipeline:
         fact_payment = payments[available_cols].copy()
         if not fact_payment.empty:
             before = len(fact_payment)
-            # Filter to valid date_keys only
-            fact_payment = fact_payment[fact_payment['date_key'].astype(str).str.strip().isin(valid_date_keys)]
-            after_date = len(fact_payment)
-            if after_date < before:
-                self.logger.warning("  -> Payments: dropped %d rows with dates outside dim_time range", before - after_date)
-            # Filter to valid student_ids only
-            fact_payment = fact_payment[fact_payment['student_id'].astype(str).str.strip().isin(valid_student_ids)]
-            after_stu = len(fact_payment)
-            if after_stu < after_date:
-                self.logger.warning("  -> Payments: dropped %d rows with student_id not in dim_student", after_date - after_stu)
+            # Do not filter by dim_time or dim_student here; keep all synthetic payments so analytics
+            # can see the full distribution. Only de-duplicate on payment_id when present.
             if 'payment_id' in fact_payment.columns:
                 fact_payment = fact_payment.drop_duplicates(subset=['payment_id'], keep='first')
             self.logger.info("  -> fact_payment ready: %d rows (pre-filter: %d)", len(fact_payment), before)
-
         if not fact_payment.empty:
             try:
                 fact_payment.to_sql('fact_payment', engine, if_exists='append', index=False, method='multi', chunksize=10000)
@@ -2283,16 +2267,8 @@ class ETLPipeline:
         else:
             fact_grade = grades[grade_cols].copy()
             before = len(fact_grade)
-            # Filter to valid dim_time dates
-            fact_grade = fact_grade[fact_grade['date_key'].astype(str).str.strip().isin(valid_date_keys)]
-            after_date = len(fact_grade)
-            if after_date < before:
-                self.logger.warning("  -> Grades: dropped %d rows with dates outside dim_time", before - after_date)
-            # Filter to valid student_ids
-            fact_grade = fact_grade[fact_grade['student_id'].astype(str).str.strip().isin(valid_student_ids)]
-            after_stu = len(fact_grade)
-            if after_stu < after_date:
-                self.logger.warning("  -> Grades: dropped %d rows with unmatched student_id", after_date - after_stu)
+            # Do not filter by dim_time or dim_student here; keep all synthetic grades so analytics
+            # can see the full grade distribution. Only normalise and de-duplicate on grade_id.
             fact_grade['grade_id'] = fact_grade['grade_id'].astype(str)
             fact_grade = fact_grade.drop_duplicates(subset=['grade_id'], keep='first')
             fact_grade['letter_grade'] = fact_grade['letter_grade'].fillna('F').astype(str).str[:5]
