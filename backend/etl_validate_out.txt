@@ -1,0 +1,86 @@
+2026-03-09 13:18:38,270 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260309_131838.log
+2026-03-09 13:18:38,270 - INFO - ============================================================
+2026-03-09 13:18:38,270 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-09 13:18:38,271 - INFO - ============================================================
+2026-03-09 13:18:38,271 - INFO - Using SYNTHETIC data source: d:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 13:18:38,271 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 13:18:38,272 - INFO -   -> Found 33 CSV/XLSX files in Synthetic_Data
+2026-03-09 13:18:38,300 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-09 13:18:38,300 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-09 13:18:48,990 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-09 13:18:49,067 - INFO -   -> Students: 10000 (columns: 40)
+2026-03-09 13:18:49,082 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-09 13:18:50,241 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-09 13:18:50,337 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-09 13:18:51,091 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-09 13:18:59,682 - INFO -   -> Attendance: 3117871 (columns: 8)
+2026-03-09 13:18:59,765 - INFO -   -> Employees (synthetic): 253
+2026-03-09 13:18:59,767 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-09 13:18:59,898 - INFO -   -> Studentûhigh school: 20000
+2026-03-09 13:19:00,145 - INFO -   -> Transcript: 36233
+2026-03-09 13:19:00,375 - INFO -   -> Academic performance: 36233
+2026-03-09 13:19:00,804 - INFO -   -> Sponsorships: 41866
+2026-03-09 13:19:21,455 - INFO -   -> Progression: 469956
+2026-03-09 13:19:21,458 - INFO -   -> Grades summary sheets: 0
+2026-03-09 13:19:21,649 - INFO -   -> Dim date: 1826
+2026-03-09 13:19:34,901 - INFO - Bronze (synthetic) extraction complete.
+2026-03-09 13:19:35,170 - INFO - ============================================================
+2026-03-09 13:19:35,171 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-09 13:19:35,171 - INFO - ============================================================
+2026-03-09 13:20:12,184 - INFO - Silver layer files saved to: d:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-09 13:20:12,185 - INFO -   \u2192 Students: 10000
+2026-03-09 13:20:12,186 - INFO -   \u2192 Courses: 3035
+2026-03-09 13:20:12,186 - INFO -   \u2192 Enrollments: 10000
+2026-03-09 13:20:12,186 - INFO -   \u2192 Attendance: 3117871
+2026-03-09 13:20:12,188 - INFO -   \u2192 Payments: 130871
+2026-03-09 13:20:12,188 - INFO -   \u2192 Grades: 234978
+2026-03-09 13:20:12,188 - INFO -   \u2192 Transcript: 36233
+2026-03-09 13:20:12,188 - INFO -   \u2192 Academic performance: 36233
+2026-03-09 13:20:12,188 - INFO -   \u2192 Sponsorships: 41866
+2026-03-09 13:20:12,188 - INFO -   \u2192 Progression: 469956
+2026-03-09 13:20:12,188 - INFO -   \u2192 Studentûhigh school: 20000
+2026-03-09 13:20:12,188 - INFO -   \u2192 High schools: 73
+2026-03-09 13:20:12,188 - INFO - Silver layer transformation complete!
+All models loaded successfully!
+Pipeline init OK
+Extracting data to Bronze layer...
+Using synthetic data from: d:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+EXTRACT OK
+  bronze[students_db1]: 10000 rows
+  bronze[courses_db1]: 3035 rows
+  bronze[enrollments_db1]: 10000 rows
+  bronze[attendance_db1]: 3117871 rows
+  bronze[grades_db1]: 234978 rows
+  bronze[student_fees_db1]: 130871 rows
+  bronze[faculties_db1]: 11 rows
+  bronze[departments_db1]: 18 rows
+  bronze[programs_db1]: 91 rows
+  bronze[employees_db2]: 253 rows
+  bronze[payroll_db2]: 0 rows
+  bronze[payments_csv]: 0 rows
+  bronze[grades_csv]: 0 rows
+  bronze[high_schools_synthetic]: 73 rows
+  bronze[student_high_schools_synthetic]: 20000 rows
+  bronze[transcript_synthetic]: 36233 rows
+  bronze[academic_performance_synthetic]: 36233 rows
+  bronze[sponsorships_synthetic]: 41866 rows
+  bronze[progression_synthetic]: 469956 rows
+  bronze[grades_summary_synthetic]: 0 rows
+  bronze[dim_date_synthetic]: 1826 rows
+Transforming data to Silver layer...
+Silver layer transformation complete!
+TRANSFORM OK
+  silver grades rows: 234978
+  grade cols: ['REG_NO', 'CourseCode', 'CourseworkScore', 'TotalScore', 'GradeLetter', 'ExamStatus', 'AbsenceReason', 'FCW', 'GradeID', 'RECORD_ID']
+  grade student_id[0]: ['J23B06/001', 'J23B06/001', 'J23B06/001']
+  grade course_code[0]: ['BOD0101', 'BOD0102', 'BOD0103']
+  grade grade_id[0]: ['L1_J23B06001-01-BOD0101', 'L1_J23B06001-01-BOD0102', 'L1_J23B06001-01-BOD0103']
+  grade "grade" col present: True
+  grade "letter_grade" col present: True
+  silver attendance rows: 3117871
+  attendance cols: ['REG_NO', 'Date', 'Status', 'course_code', 'ACC_NO', 'DATE', 'SEMESTER_INDEX', 'STATUS']
+  attendance student_id[0]: ['J23B06/001', 'J23B06/001', 'J23B06/001']
+  silver payments rows: 130871
+  payment cols: ['PaymentID', 'REG_NO', 'AmountPaid', 'PaymentDate', 'PaymentTimestamp', 'Year', 'Semester', 'TuitionNational', 'TuitionInternational', 'FunctionalFees']
+  payment student_id[0]: ['J23B06/001', 'J23B06/001', 'J23B06/001']
+VALIDATION COMPLETE - all transforms OK

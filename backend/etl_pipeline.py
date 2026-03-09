@@ -343,16 +343,14 @@ class ETLPipeline:
         except Exception:
             found_files = []
 
-        # 1) Faculties, departments, programs from faculties_departments.csv (all rows, every faculty/department)
+        # 1) Faculties, departments, programs
+        # Primary source: faculties_departments.csv
+        # Fallback: derive from course_catalog_ucu.csv (which has FACULTY, DEPARTMENT, PROGRAM, PROGRAM ID)
         fd_path = root / "faculties_departments.csv"
-        if not fd_path.exists():
-            self.logger.warning("faculties_departments.csv not found; using empty dimension DataFrames")
-            faculties_db1 = pd.DataFrame(columns=['FacultyID', 'FacultyName', 'DeanName'])
-            departments_db1 = pd.DataFrame(columns=['DepartmentID', 'DepartmentName', 'FacultyID', 'HeadOfDepartment'])
-            programs_db1 = pd.DataFrame(columns=['ProgramID', 'ProgramName', 'DegreeLevel', 'DepartmentID', 'DurationYears'])
-        else:
+        catalog_path = next((root / f for f in ['course_catalog_ucu.csv', 'course_catalog_ucu.xlsx'] if (root / f).exists()), None)
+
+        if fd_path.exists():
             fd = pd.read_csv(fd_path)
-            # Build dimensions from every unique faculty, department, program (no filtering)
             faculties_db1 = fd[['faculty_id', 'faculty_name']].drop_duplicates().rename(
                 columns={'faculty_id': 'FacultyID', 'faculty_name': 'FacultyName'})
             faculties_db1['DeanName'] = 'Dean'
@@ -363,6 +361,71 @@ class ETLPipeline:
                 columns={'program_id': 'ProgramID', 'program_name': 'ProgramName', 'department_id': 'DepartmentID'})
             programs_db1['DegreeLevel'] = 'Bachelor'
             programs_db1['DurationYears'] = 4
+            self.logger.info("  -> Loaded dimension hierarchy from faculties_departments.csv")
+        elif catalog_path is not None:
+            # ── FALLBACK: derive hierarchy from course_catalog_ucu ──────────────────
+            self.logger.warning("faculties_departments.csv not found — deriving hierarchy from course_catalog_ucu")
+            try:
+                cat_raw = pd.read_csv(str(catalog_path)) if str(catalog_path).endswith('.csv') else pd.read_excel(str(catalog_path))
+                # --- Faculties ---
+                fac_col  = next((c for c in cat_raw.columns if c.strip().upper() == 'FACULTY'), None)
+                dept_col = next((c for c in cat_raw.columns if c.strip().upper() == 'DEPARTMENT'), None)
+                prog_col = next((c for c in cat_raw.columns if c.strip().upper() == 'PROGRAM'), None)
+                pid_col  = next((c for c in cat_raw.columns if c.strip().upper() in ('PROGRAM ID', 'PROGRAM_ID')), None)
+
+                if fac_col:
+                    fac_list = cat_raw[[fac_col]].drop_duplicates().reset_index(drop=True)
+                    fac_list['FacultyID'] = range(1, len(fac_list) + 1)
+                    fac_list = fac_list.rename(columns={fac_col: 'FacultyName'})
+                    fac_list['DeanName'] = 'Dean'
+                    faculties_db1 = fac_list[['FacultyID', 'FacultyName', 'DeanName']]
+                    fac_name_to_id = dict(zip(faculties_db1['FacultyName'], faculties_db1['FacultyID']))
+                else:
+                    faculties_db1 = pd.DataFrame(columns=['FacultyID', 'FacultyName', 'DeanName'])
+                    fac_name_to_id = {}
+
+                if dept_col and fac_col:
+                    dept_list = cat_raw[[dept_col, fac_col]].drop_duplicates().reset_index(drop=True)
+                    dept_list['DepartmentID'] = range(1, len(dept_list) + 1)
+                    dept_list['FacultyID'] = dept_list[fac_col].map(fac_name_to_id).fillna(1).astype(int)
+                    dept_list['HeadOfDepartment'] = 'HOD'
+                    departments_db1 = dept_list.rename(columns={dept_col: 'DepartmentName'})[['DepartmentID', 'DepartmentName', 'FacultyID', 'HeadOfDepartment']]
+                    dept_name_to_id = dict(zip(departments_db1['DepartmentName'], departments_db1['DepartmentID']))
+                else:
+                    departments_db1 = pd.DataFrame(columns=['DepartmentID', 'DepartmentName', 'FacultyID', 'HeadOfDepartment'])
+                    dept_name_to_id = {}
+
+                if prog_col:
+                    prog_cols_needed = [prog_col]
+                    if pid_col: prog_cols_needed.append(pid_col)
+                    if dept_col: prog_cols_needed.append(dept_col)
+                    prog_list = cat_raw[prog_cols_needed].drop_duplicates(subset=[prog_col]).reset_index(drop=True)
+                    if pid_col and pid_col in prog_list.columns:
+                        prog_list['ProgramID'] = pd.to_numeric(prog_list[pid_col], errors='coerce').fillna(0).astype(int)
+                        # Re-index if IDs are 0 or non-unique
+                        if prog_list['ProgramID'].eq(0).any() or prog_list['ProgramID'].duplicated().any():
+                            prog_list['ProgramID'] = range(1, len(prog_list)+1)
+                    else:
+                        prog_list['ProgramID'] = range(1, len(prog_list)+1)
+                    prog_list['DepartmentID'] = prog_list[dept_col].map(dept_name_to_id).fillna(1).astype(int) if dept_col in prog_list.columns else 1
+                    prog_list['DegreeLevel'] = 'Bachelor'
+                    prog_list['DurationYears'] = 4
+                    programs_db1 = prog_list.rename(columns={prog_col: 'ProgramName'})[['ProgramID', 'ProgramName', 'DegreeLevel', 'DepartmentID', 'DurationYears']]
+                else:
+                    programs_db1 = pd.DataFrame(columns=['ProgramID', 'ProgramName', 'DegreeLevel', 'DepartmentID', 'DurationYears'])
+
+                self.logger.info("  -> Derived: %d faculties, %d departments, %d programs from course catalog",
+                                 len(faculties_db1), len(departments_db1), len(programs_db1))
+            except Exception as _fd_err:
+                self.logger.error("Failed to derive hierarchy from course catalog: %s", _fd_err, exc_info=True)
+                faculties_db1 = pd.DataFrame(columns=['FacultyID', 'FacultyName', 'DeanName'])
+                departments_db1 = pd.DataFrame(columns=['DepartmentID', 'DepartmentName', 'FacultyID', 'HeadOfDepartment'])
+                programs_db1 = pd.DataFrame(columns=['ProgramID', 'ProgramName', 'DegreeLevel', 'DepartmentID', 'DurationYears'])
+        else:
+            self.logger.warning("faculties_departments.csv and course catalog both missing — dimensions will be empty")
+            faculties_db1 = pd.DataFrame(columns=['FacultyID', 'FacultyName', 'DeanName'])
+            departments_db1 = pd.DataFrame(columns=['DepartmentID', 'DepartmentName', 'FacultyID', 'HeadOfDepartment'])
+            programs_db1 = pd.DataFrame(columns=['ProgramID', 'ProgramName', 'DegreeLevel', 'DepartmentID', 'DurationYears'])
         self.logger.info("  -> Faculties: %d, Departments: %d, Programs: %d",
                          len(faculties_db1), len(departments_db1), len(programs_db1))
 
@@ -512,31 +575,45 @@ class ETLPipeline:
         course_code_to_id = dict(zip(courses_db1['CourseCode'], courses_db1['CourseID'])) if not courses_db1.empty else {}
 
         # 4) Grades from student_grades_list15.csv and list16
+        # KEY: Keep REG_NO as student key (matches dim_student.student_id) and RECORD_ID as grade_id
         grades_parts = []
-        grades_df = None
-        for fname in ['student_grades_list15.csv', 'student_grades_list16.csv']:
+        for fidx, fname in enumerate(['student_grades_list15.csv', 'student_grades_list16.csv']):
             p = root / fname
             if p.exists():
-                grades_parts.append(pd.read_csv(p))
+                part = pd.read_csv(p)
+                # Prefix RECORD_ID with file index to prevent PK collision across list15 + list16
+                if 'RECORD_ID' in part.columns:
+                    part['RECORD_ID'] = f'L{fidx+1}_' + part['RECORD_ID'].astype(str)
+                part['_source_list'] = fidx + 1
+                grades_parts.append(part)
         if grades_parts:
             grades_df = pd.concat(grades_parts, ignore_index=True)
             grades_db1 = pd.DataFrame()
-            grades_db1['StudentID'] = grades_df['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int)
-            grades_db1['CourseCode'] = grades_df['COURSE_CODE'].astype(str)
-            grades_db1['CourseworkScore'] = pd.to_numeric(grades_df['CW_MARK_60'], errors='coerce').fillna(0)
-            grades_db1['ExamScore'] = grades_df['EXAM_MARK_40'].replace('', np.nan)
-            grades_db1['TotalScore'] = pd.to_numeric(grades_df['FINAL_MARK_100'], errors='coerce').fillna(0)
-            grades_db1['GradeLetter'] = grades_df['LETTER_GRADE'].astype(str)
-            grades_db1['ExamStatus'] = grades_df['STATUS'].astype(str)
-            grades_db1['AbsenceReason'] = grades_df.get('MEX_REASON', pd.Series([''] * len(grades_df))).astype(str)
-            grades_db1['FCW'] = (grades_df['STATUS'].astype(str) == 'FCW')
-            grades_db1['GradeID'] = range(1, len(grades_db1) + 1)
+            # Use REG_NO directly as student_id — no integer mapping needed; dim_student.student_id = REG_NO
+            grades_db1['REG_NO']          = grades_df['REG_NO'].astype(str).str.strip()
+            grades_db1['CourseCode']      = grades_df['COURSE_CODE'].astype(str).str.strip()
+            grades_db1['CourseworkScore'] = pd.to_numeric(grades_df['CW_MARK_60'],    errors='coerce').fillna(0)
+            grades_db1['ExamScore']       = grades_df['EXAM_MARK_40'].replace('', np.nan)
+            grades_db1['TotalScore']      = pd.to_numeric(grades_df['FINAL_MARK_100'], errors='coerce').fillna(0)
+            grades_db1['GradeLetter']     = grades_df['LETTER_GRADE'].astype(str)
+            grades_db1['ExamStatus']      = grades_df['STATUS'].astype(str)
+            grades_db1['AbsenceReason']   = grades_df.get('MEX_REASON', pd.Series([''] * len(grades_df))).fillna('').astype(str)
+            grades_db1['FCW']             = (grades_df['STATUS'].astype(str) == 'FCW')
+            # Use RECORD_ID as the natural PK (already prefixed above to avoid cross-list collision)
+            if 'RECORD_ID' in grades_df.columns:
+                grades_db1['GradeID'] = grades_df['RECORD_ID'].astype(str)
+            else:
+                grades_db1['GradeID'] = [f'GRD{i:07d}' for i in range(1, len(grades_db1)+1)]
+            # Preserve all original source columns for silver-layer pass-through
             for col in grades_df.columns:
                 if col not in grades_db1.columns:
                     grades_db1[col] = grades_df[col].values
         else:
-            grades_db1 = pd.DataFrame(columns=['GradeID', 'StudentID', 'CourseCode', 'CourseworkScore', 'ExamScore', 'TotalScore', 'GradeLetter', 'ExamStatus', 'AbsenceReason', 'FCW'])
+            grades_db1 = pd.DataFrame(columns=['GradeID', 'REG_NO', 'CourseCode', 'CourseworkScore',
+                                                'ExamScore', 'TotalScore', 'GradeLetter', 'ExamStatus',
+                                                'AbsenceReason', 'FCW'])
         self.logger.info("  -> Grades: %d (columns: %d)", len(grades_db1), len(grades_db1.columns))
+
 
         # 5) Enrollments from enrollment_list15/16 (program-level registrations per student/semester)
         enroll_parts = []
@@ -585,35 +662,40 @@ class ETLPipeline:
         self.logger.info("  -> Enrollments (from enrollment_list15/16): %d", len(enrollments_db1))
 
         # 6) Payments from student_payments_list15/16
+        # KEY: Keep REG_NO as student_id directly — no integer mapping needed
         pay_parts = []
-        for fname in ['student_payments_list15.csv', 'student_payments_list16.csv', 'student_payments_list15_realistic.csv', 'student_payments_list16_realistic.csv']:
+        for fname in ['student_payments_list15.csv', 'student_payments_list16.csv',
+                      'student_payments_list15_realistic.csv', 'student_payments_list16_realistic.csv']:
             p = root / fname
             if p.exists():
                 pay_parts.append(pd.read_csv(p))
         if pay_parts:
             pay_df = pd.concat(pay_parts, ignore_index=True)
+            dates_parsed = pd.to_datetime(pay_df['PAYMENT_DATE'], errors='coerce')
             student_fees_db1 = pd.DataFrame({
-                'PaymentID': pay_df.get('PAYMENT_ID', range(1, len(pay_df) + 1)).astype(str),
-                'StudentID': pay_df['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int),
-                'AmountPaid': pd.to_numeric(pay_df['AMOUNT_UGX'], errors='coerce').fillna(0),
-                'PaymentDate': pd.to_datetime(pay_df['PAYMENT_DATE'], errors='coerce'),
-                'PaymentTimestamp': pd.to_datetime(pay_df['PAYMENT_DATE'], errors='coerce'),
-                'Year': pd.to_datetime(pay_df['PAYMENT_DATE'], errors='coerce').dt.year.fillna(datetime.now().year),
-                'Semester': pay_df.get('SEMESTER', 'SEM1'),
-                'TuitionNational': pd.to_numeric(pay_df.get('AMOUNT_UGX', 0), errors='coerce').fillna(0),
+                'PaymentID':          pay_df.get('PAYMENT_ID', pd.Series(range(1, len(pay_df)+1))).astype(str),
+                'REG_NO':             pay_df['REG_NO'].astype(str).str.strip(),   # use REG_NO directly
+                'AmountPaid':         pd.to_numeric(pay_df['AMOUNT_UGX'],   errors='coerce').fillna(0),
+                'PaymentDate':        dates_parsed,
+                'PaymentTimestamp':   dates_parsed,
+                'Year':               dates_parsed.dt.year.fillna(datetime.now().year).astype(int),
+                'Semester':           pay_df.get('SEMESTER', pd.Series(['Jan (Easter Semester)'] * len(pay_df))),
+                'TuitionNational':    pd.to_numeric(pay_df.get('AMOUNT_UGX', pd.Series([0]*len(pay_df))), errors='coerce').fillna(0),
                 'TuitionInternational': 0,
-                'FunctionalFees': 0,
-                'PaymentMethod': pay_df.get('PAYMENT_METHOD', 'BANK').astype(str),
-                'Status': pay_df.get('PAYMENT_STATUS', 'SUCCESS').astype(str),
+                'FunctionalFees':     0,
+                'PaymentMethod':      pay_df.get('PAYMENT_METHOD', pd.Series(['BANK']*len(pay_df))).astype(str),
+                'Status':             pay_df.get('PAYMENT_STATUS', pd.Series(['SUCCESS']*len(pay_df))).astype(str),
             })
             for col in pay_df.columns:
                 if col not in student_fees_db1.columns:
                     student_fees_db1[col] = pay_df[col].values
         else:
             student_fees_db1 = pd.DataFrame()
-        self.logger.info("  -> Payments: %d (columns: %d)", len(student_fees_db1), len(student_fees_db1.columns) if not student_fees_db1.empty else 0)
+        self.logger.info("  -> Payments: %d (columns: %d)", len(student_fees_db1),
+                         len(student_fees_db1.columns) if not student_fees_db1.empty else 0)
 
         # 7) Attendance from student_attendance_list15/16
+        # NOTE: attendance source has NO COURSE_CODE — grain is student x date x status
         att_parts = []
         for fname in ['student_attendance_list15.csv', 'student_attendance_list16.csv']:
             p = root / fname
@@ -621,22 +703,19 @@ class ETLPipeline:
                 att_parts.append(pd.read_csv(p))
         if att_parts:
             att_df = pd.concat(att_parts, ignore_index=True)
-            # Use COURSE_CODE -> CourseID when present so attendance links to correct course
-            if 'COURSE_CODE' in att_df.columns and course_code_to_id:
-                course_ids = att_df['COURSE_CODE'].astype(str).map(course_code_to_id).fillna(1).astype(int)
-            else:
-                course_ids = 1
             attendance_db1 = pd.DataFrame({
-                'StudentID': att_df['REG_NO'].astype(str).map(reg_to_sid).fillna(1).astype(int),
-                'Date': pd.to_datetime(att_df['DATE'], errors='coerce'),
-                'Status': att_df['STATUS'].astype(str),
-                'CourseID': course_ids,
+                'REG_NO': att_df['REG_NO'].astype(str).str.strip(),   # use REG_NO directly
+                'Date':   pd.to_datetime(att_df['DATE'], errors='coerce'),
+                'Status': att_df['STATUS'].astype(str).str.strip(),
+                # attendance source has no COURSE_CODE — leave empty string so fact_attendance doesn't filter on it
+                'course_code': '',
             })
+            # Carry forward all original columns for traceability
             for col in att_df.columns:
                 if col not in attendance_db1.columns:
                     attendance_db1[col] = att_df[col].values
         else:
-            attendance_db1 = pd.DataFrame(columns=['StudentID', 'Date', 'Status', 'CourseID'])
+            attendance_db1 = pd.DataFrame(columns=['REG_NO', 'Date', 'Status', 'course_code'])
         self.logger.info("  -> Attendance: %d (columns: %d)", len(attendance_db1), len(attendance_db1.columns))
 
         # 8) Employees: generated 7-13 per department, 6-8 per faculty (keep demo-style but satisfy counts)
@@ -1010,43 +1089,51 @@ class ETLPipeline:
         enrollments_silver['enrollment_id'] = enrollments_silver.get('EnrollmentID', range(1, len(enrollments_silver) + 1))
         
         # Clean attendance (DB1)
+        # Attendance source has NO COURSE_CODE — grain is student x date x status
         attendance_silver = bronze_data['attendance_db1'].copy()
         attendance_silver = attendance_silver.fillna('')
-        
-        # Join with students to get RegNo
-        if 'StudentID' in attendance_silver.columns and 'RegNo' in bronze_data['students_db1'].columns:
+
+        # student_id: REG_NO stored directly in bronze (no integer mapping)
+        if 'REG_NO' in attendance_silver.columns:
+            attendance_silver['student_id'] = attendance_silver['REG_NO'].astype(str).str.strip()
+        elif 'StudentID' in attendance_silver.columns and 'RegNo' in bronze_data['students_db1'].columns:
             student_map = dict(zip(bronze_data['students_db1']['StudentID'], bronze_data['students_db1']['RegNo']))
             attendance_silver['student_id'] = attendance_silver['StudentID'].map(student_map).fillna('')
         elif 'StudentID' in attendance_silver.columns:
-            attendance_silver['student_id'] = attendance_silver['StudentID'].apply(lambda x: f"STU{int(x):06d}" if pd.notna(x) else '')
-        
-        # Join with courses to get CourseCode
-        if 'CourseID' in attendance_silver.columns and 'CourseCode' in bronze_data['courses_db1'].columns:
-            course_map = dict(zip(bronze_data['courses_db1']['CourseID'], bronze_data['courses_db1']['CourseCode']))
-            attendance_silver['course_code'] = attendance_silver['CourseID'].map(course_map).fillna('')
-        elif 'CourseID' in attendance_silver.columns:
-            attendance_silver['course_code'] = attendance_silver['CourseID'].apply(lambda x: f"COURSE{int(x):03d}" if pd.notna(x) else '')
-        
+            attendance_silver['student_id'] = attendance_silver['StudentID'].astype(str)
+
+        # course_code: blank for attendance (no course column in source)
+        if 'course_code' not in attendance_silver.columns:
+            attendance_silver['course_code'] = ''
+
         if 'Date' in attendance_silver.columns:
             attendance_silver['attendance_date'] = pd.to_datetime(attendance_silver['Date'], errors='coerce')
-        # Calculate hours_attended based on status
-        if 'Status' in attendance_silver.columns:
-            attendance_silver['hours_attended'] = attendance_silver['Status'].apply(
-                lambda x: 2.0 if str(x).upper() == 'PRESENT' else (1.0 if str(x).upper() == 'LATE' else 0.0)
+        elif 'attendance_date' not in attendance_silver.columns:
+            attendance_silver['attendance_date'] = pd.NaT
+
+        # hours_attended based on status
+        status_col = next((c for c in ['Status', 'STATUS', 'status'] if c in attendance_silver.columns), None)
+        if status_col:
+            attendance_silver['hours_attended'] = attendance_silver[status_col].apply(
+                lambda x: 2.0 if str(x).upper() in ('PRESENT',) else (1.0 if str(x).upper() in ('LATE',) else 0.0)
             )
+            attendance_silver['status'] = attendance_silver[status_col].astype(str).str.upper()
         else:
             attendance_silver['hours_attended'] = 2.0
+            attendance_silver['status'] = 'PRESENT'
         
-        # Clean payments (from DB1 student_fees or CSV)
+        # Clean payments
         if not bronze_data['student_fees_db1'].empty:
             payments_silver = bronze_data['student_fees_db1'].copy()
             payments_silver = payments_silver.fillna('')
-            # Join with students to get RegNo
-            if 'StudentID' in payments_silver.columns and 'RegNo' in bronze_data['students_db1'].columns:
+            # student_id: REG_NO stored directly in bronze (no integer mapping)
+            if 'REG_NO' in payments_silver.columns:
+                payments_silver['student_id'] = payments_silver['REG_NO'].astype(str).str.strip()
+            elif 'StudentID' in payments_silver.columns and 'RegNo' in bronze_data['students_db1'].columns:
                 student_map = dict(zip(bronze_data['students_db1']['StudentID'], bronze_data['students_db1']['RegNo']))
                 payments_silver['student_id'] = payments_silver['StudentID'].map(student_map).fillna('')
             elif 'StudentID' in payments_silver.columns:
-                payments_silver['student_id'] = payments_silver['StudentID'].apply(lambda x: f"STU{int(x):06d}" if pd.notna(x) else '')
+                payments_silver['student_id'] = payments_silver['StudentID'].astype(str)
             if 'AmountPaid' in payments_silver.columns:
                 payments_silver['amount'] = pd.to_numeric(payments_silver['AmountPaid'], errors='coerce').fillna(0)
             # Extract fee breakdown from database
@@ -1134,24 +1221,28 @@ class ETLPipeline:
         else:
             payments_silver = pd.DataFrame()
         
-        # Clean grades (from DB1 or CSV)
+        # Clean grades
         if not bronze_data['grades_db1'].empty:
             grades_silver = bronze_data['grades_db1'].copy()
             grades_silver = grades_silver.fillna('')
-            # Join with students to get RegNo
-            if 'StudentID' in grades_silver.columns and 'RegNo' in bronze_data['students_db1'].columns:
+            # student_id: REG_NO stored directly in bronze
+            if 'REG_NO' in grades_silver.columns:
+                grades_silver['student_id'] = grades_silver['REG_NO'].astype(str).str.strip()
+            elif 'StudentID' in grades_silver.columns and 'RegNo' in bronze_data['students_db1'].columns:
                 student_map = dict(zip(bronze_data['students_db1']['StudentID'], bronze_data['students_db1']['RegNo']))
                 grades_silver['student_id'] = grades_silver['StudentID'].map(student_map).fillna('')
             elif 'StudentID' in grades_silver.columns:
-                grades_silver['student_id'] = grades_silver['StudentID'].apply(lambda x: f"STU{int(x):06d}" if pd.notna(x) else '')
-            # Join with courses to get course_code (synthetic has CourseCode; demo has CourseID)
+                grades_silver['student_id'] = grades_silver['StudentID'].astype(str)
+            # course_code from CourseCode column (set in bronze)
             if 'CourseCode' in grades_silver.columns:
-                grades_silver['course_code'] = grades_silver['CourseCode'].astype(str)
+                grades_silver['course_code'] = grades_silver['CourseCode'].astype(str).str.strip()
+            elif 'COURSE_CODE' in grades_silver.columns:
+                grades_silver['course_code'] = grades_silver['COURSE_CODE'].astype(str).str.strip()
             elif 'CourseID' in grades_silver.columns and 'CourseCode' in bronze_data['courses_db1'].columns:
                 course_map = dict(zip(bronze_data['courses_db1']['CourseID'], bronze_data['courses_db1']['CourseCode']))
                 grades_silver['course_code'] = grades_silver['CourseID'].map(course_map).fillna('')
             elif 'CourseID' in grades_silver.columns:
-                grades_silver['course_code'] = grades_silver['CourseID'].apply(lambda x: f"COURSE{int(x):03d}" if pd.notna(x) else '')
+                grades_silver['course_code'] = grades_silver['CourseID'].astype(str)
             # Extract coursework and exam scores
             if 'CourseworkScore' in grades_silver.columns:
                 grades_silver['coursework_score'] = pd.to_numeric(grades_silver['CourseworkScore'], errors='coerce').fillna(0)
@@ -1204,7 +1295,7 @@ class ETLPipeline:
                 grades_silver['semester'] = grades_silver['SEMESTER_INDEX'].map(sem_map).fillna('Jan (Easter Semester)')
             else:
                 grades_silver['semester'] = '2023/2024 Sem 1'
-            grades_silver['grade_id'] = grades_silver.get('GradeID', range(1, len(grades_silver) + 1))
+            grades_silver['grade_id'] = grades_silver['GradeID'] if 'GradeID' in grades_silver.columns else pd.Series([f'GRD{i:07d}' for i in range(1, len(grades_silver)+1)], index=grades_silver.index)
         elif not bronze_data['grades_csv'].empty:
             grades_silver = bronze_data['grades_csv'].copy()
             grades_silver = grades_silver.fillna('')
@@ -1891,7 +1982,7 @@ class ETLPipeline:
         
         if not fact_enrollment.empty:
             try:
-                fact_enrollment.to_sql('fact_enrollment', engine, if_exists='append', index=False, method='multi', chunksize=500)
+                fact_enrollment.to_sql('fact_enrollment', engine, if_exists='append', index=False, method='multi', chunksize=15000)
                 self.logger.info(f"  → Loaded {len(fact_enrollment)} enrollments into fact_enrollment")
             except Exception as e:
                 self.logger.error(f"  → fact_enrollment load failed: {e}", exc_info=True)
@@ -1899,47 +1990,61 @@ class ETLPipeline:
             self.logger.warning("  → No enrollment data to load")
         
         # Fact_Attendance
-        attendance = silver_data['attendance'].copy()
-        # Derive date_key from attendance_date if present, else from Date, else use default
-        if 'attendance_date' in attendance.columns:
-            attendance['date_key'] = pd.to_datetime(attendance['attendance_date'], errors='coerce').dt.strftime('%Y%m%d').fillna('')
-        elif 'Date' in attendance.columns:
-            attendance['date_key'] = pd.to_datetime(attendance['Date'], errors='coerce').dt.strftime('%Y%m%d').fillna('')
-        else:
-            attendance['date_key'] = default_date_key
-        attendance.loc[attendance['date_key'] == '', 'date_key'] = default_date_key
-        attendance['date_key'] = attendance['date_key'].astype(str)
-        
-        if not attendance.empty:
-            # Aggregate attendance by student, course, and date
-            # Check which columns exist
-            agg_dict = {'hours_attended': 'sum'}
-            if 'Status' in attendance.columns:
-                agg_dict['Status'] = lambda x: (x == 'Present').sum() if len(x) > 0 and 'Present' in x.values else 0
-            elif 'status' in attendance.columns:
-                agg_dict['status'] = lambda x: (x == 'Present').sum() if len(x) > 0 and 'Present' in x.values else 0
-            
-            attendance_agg = attendance.groupby(['student_id', 'course_code', 'date_key']).agg(agg_dict).reset_index()
-            
-            # Rename columns appropriately
-            if 'Status' in attendance_agg.columns or 'status' in attendance_agg.columns:
-                status_col = 'Status' if 'Status' in attendance_agg.columns else 'status'
-                attendance_agg.columns = ['student_id', 'course_code', 'date_key', 
-                                          'total_hours', 'days_present']
+        attendance = silver_data['attendance']
+        if not attendance.empty and 'student_id' in attendance.columns:
+            att_valid = attendance.copy()
+            # Fast vectorized date_key stringification (assuming attendance_date is datetime, else fallback)
+            if 'attendance_date' in att_valid.columns:
+                dates = att_valid['attendance_date']
+                att_valid['date_key'] = dates.dt.strftime('%Y%m%d') if hasattr(dates, 'dt') else pd.to_datetime(dates, errors='coerce').dt.strftime('%Y%m%d')
+                att_valid['date_key'] = att_valid['date_key'].fillna(default_date_key)
             else:
-                # If no status column, calculate days_present from hours_attended
-                attendance_agg['days_present'] = (attendance_agg['hours_attended'] > 0).astype(int)
-                attendance_agg.columns = ['student_id', 'course_code', 'date_key', 
-                                          'total_hours', 'days_present']
+                att_valid['date_key'] = default_date_key
             
-            fact_attendance = attendance_agg.copy()
-            try:
-                fact_attendance.to_sql('fact_attendance', engine, if_exists='append', index=False, method='multi', chunksize=500)
-                self.logger.info(f"  → Loaded {len(fact_attendance)} attendance records into fact_attendance")
-            except Exception as e:
-                self.logger.error(f"  → fact_attendance load failed: {e}", exc_info=True)
+            att_valid['student_id'] = att_valid['student_id'].astype(str)
+            
+            # Filter down early
+            att_valid = att_valid[
+                att_valid['student_id'].isin(valid_student_ids) &
+                att_valid['date_key'].isin(valid_date_keys)
+            ]
+            self.logger.info("  -> Attendance: %d rows pre-filter, %d after student+date filter", len(attendance), len(att_valid))
+            
+            if not att_valid.empty:
+                # Fast categorization for extreme 10x+ groupby speedup on millions of rows
+                att_valid['student_id'] = att_valid['student_id'].astype('category')
+                att_valid['date_key'] = att_valid['date_key'].astype('category')
+                att_valid['course_code'] = ''
+                att_valid['course_code'] = att_valid['course_code'].astype('category')
+                
+                status_col = next((c for c in ['status', 'Status', 'STATUS'] if c in att_valid.columns), None)
+                if status_col:
+                    att_valid['_present'] = att_valid[status_col].astype(str).str.upper().isin(['PRESENT']).astype(int)
+                else:
+                    att_valid['_present'] = 1
+
+                fact_attendance = att_valid.groupby(['student_id', 'date_key', 'course_code'], observed=True).agg(
+                    total_hours=('hours_attended', 'sum'),
+                    days_present=('_present', 'sum')
+                ).reset_index()
+
+                # Revert to base types for stable DB insertion
+                fact_attendance['student_id'] = fact_attendance['student_id'].astype(str)
+                fact_attendance['date_key'] = fact_attendance['date_key'].astype(str)
+                fact_attendance['course_code'] = ''
+
+                try:
+                    # Optimized chunksize = 15000 drastically reduces MySQL network roundtrips
+                    fact_attendance.to_sql('fact_attendance', engine, if_exists='append', index=False,
+                                           method='multi', chunksize=15000)
+                    self.logger.info("  -> Loaded %d attendance records into fact_attendance", len(fact_attendance))
+                    print(f"  -> Loaded {len(fact_attendance)} attendance records into fact_attendance")
+                except Exception as e:
+                    self.logger.error("  -> fact_attendance load failed: %s", e, exc_info=True)
+            else:
+                self.logger.warning("  -> Attendance: no rows passed student/date validation — fact_attendance empty")
         else:
-            self.logger.warning("  → No attendance data to load")
+            self.logger.warning("  -> No attendance data to load (empty or missing student_id)")
         
         # Fact_Payment
         payments = silver_data['payments'].copy()
@@ -2004,19 +2109,27 @@ class ETLPipeline:
         if 'semester_start_date' in payments.columns:
             payments['semester_start_date'] = pd.to_datetime(payments['semester_start_date'], errors='coerce')
         else:
-            # Default semester start dates based on semester and year
-            def get_semester_start_date(row):
-                semester_id = row['semester_id']
-                year = int(row['year']) if pd.notna(row['year']) else datetime.now().year
-                if semester_id == 1:  # Jan (Easter)
-                    return pd.Timestamp(f'{year}-01-15')
-                elif semester_id == 2:  # May (Trinity)
-                    return pd.Timestamp(f'{year}-05-15')
-                elif semester_id == 3:  # September (Advent)
-                    return pd.Timestamp(f'{year}-08-29')  # Based on the image provided
-                else:
-                    return pd.Timestamp(f'{year}-01-15')
-            payments['semester_start_date'] = payments.apply(get_semester_start_date, axis=1)
+            # Vectorised semester_start_date calculation (avoids slow per-row apply on 130k+ rows)
+            pass
+        def _semester_start_date_vec(semester_id_series, year_series):
+            """Return a pd.Series of Timestamps based on UCU semester schedule."""
+            result = pd.Series(pd.NaT, index=semester_id_series.index)
+            for sid, month, day in [(1, 1, 15), (2, 5, 15), (3, 8, 29)]:
+                mask = semester_id_series == sid
+                years = year_series[mask].fillna(datetime.now().year).astype(int)
+                result[mask] = pd.to_datetime(
+                    years.astype(str) + f'-{month:02d}-{day:02d}', errors='coerce'
+                ).values
+            # Default fallback for unknown semester IDs
+            unknown = result.isna()
+            if unknown.any():
+                result[unknown] = pd.to_datetime(
+                    year_series[unknown].fillna(datetime.now().year).astype(int).astype(str) + '-01-15',
+                    errors='coerce'
+                ).values
+            return result
+
+        payments['semester_start_date'] = _semester_start_date_vec(payments['semester_id'], payments['year'])
         
         # Calculate deadline compliance for payments.
         # To keep the pipeline scalable on large synthetic datasets, skip expensive per-row
@@ -2035,22 +2148,31 @@ class ETLPipeline:
         available_cols = [col for col in fact_payment_cols if col in payments.columns]
         fact_payment = payments[available_cols].copy()
         if not fact_payment.empty:
-            # Keep only dates that exist in dim_time; allow orphan students so we don't drop all rows
+            before = len(fact_payment)
+            # Filter to valid date_keys only
             fact_payment = fact_payment[fact_payment['date_key'].astype(str).str.strip().isin(valid_date_keys)]
-            initial_count = len(fact_payment)
-            if initial_count < len(payments):
-                self.logger.warning(f"  → Filtered out {len(payments) - initial_count} payment records with invalid date_keys")
+            after_date = len(fact_payment)
+            if after_date < before:
+                self.logger.warning("  -> Payments: dropped %d rows with dates outside dim_time range", before - after_date)
+            # Filter to valid student_ids only
+            fact_payment = fact_payment[fact_payment['student_id'].astype(str).str.strip().isin(valid_student_ids)]
+            after_stu = len(fact_payment)
+            if after_stu < after_date:
+                self.logger.warning("  -> Payments: dropped %d rows with student_id not in dim_student", after_date - after_stu)
             if 'payment_id' in fact_payment.columns:
                 fact_payment = fact_payment.drop_duplicates(subset=['payment_id'], keep='first')
-        
+            self.logger.info("  -> fact_payment ready: %d rows (pre-filter: %d)", len(fact_payment), before)
+
         if not fact_payment.empty:
             try:
-                fact_payment.to_sql('fact_payment', engine, if_exists='append', index=False, method='multi', chunksize=500)
-                self.logger.info(f"  → Loaded {len(fact_payment)} payments into fact_payment")
+                fact_payment.to_sql('fact_payment', engine, if_exists='append', index=False,
+                                    method='multi', chunksize=15000)
+                self.logger.info("  -> Loaded %d payments into fact_payment", len(fact_payment))
+                print(f"  -> Loaded {len(fact_payment)} payments into fact_payment")
             except Exception as e:
-                self.logger.error(f"  → fact_payment load failed: {e}", exc_info=True)
+                self.logger.error("  -> fact_payment load failed: %s", e, exc_info=True)
         else:
-            self.logger.warning("  → No payment data to load")
+            self.logger.warning("  -> No payment data to load")
         
         # Fact_Grade
         grades = silver_data['grades'].copy()
@@ -2090,21 +2212,33 @@ class ETLPipeline:
                      'letter_grade', 'fcw', 'exam_status', 'absence_reason']
         missing_grade_cols = [c for c in grade_cols if c not in grades.columns]
         if missing_grade_cols:
-            self.logger.warning("  → Grades missing columns %s; skipping fact_grade", missing_grade_cols)
+            self.logger.warning("  -> Grades missing columns %s; skipping fact_grade", missing_grade_cols)
+            self.logger.warning("  -> Available grade columns: %s", list(grades.columns))
             fact_grade = pd.DataFrame()
         else:
             fact_grade = grades[grade_cols].copy()
-            # Keep only dates that exist in dim_time; allow orphan students/courses so we don't drop all rows
+            before = len(fact_grade)
+            # Filter to valid dim_time dates
             fact_grade = fact_grade[fact_grade['date_key'].astype(str).str.strip().isin(valid_date_keys)]
+            after_date = len(fact_grade)
+            if after_date < before:
+                self.logger.warning("  -> Grades: dropped %d rows with dates outside dim_time", before - after_date)
+            # Filter to valid student_ids
+            fact_grade = fact_grade[fact_grade['student_id'].astype(str).str.strip().isin(valid_student_ids)]
+            after_stu = len(fact_grade)
+            if after_stu < after_date:
+                self.logger.warning("  -> Grades: dropped %d rows with unmatched student_id", after_date - after_stu)
             fact_grade['grade_id'] = fact_grade['grade_id'].astype(str)
             fact_grade = fact_grade.drop_duplicates(subset=['grade_id'], keep='first')
             fact_grade['letter_grade'] = fact_grade['letter_grade'].fillna('F').astype(str).str[:5]
             fact_grade['grade'] = pd.to_numeric(fact_grade['grade'], errors='coerce').fillna(0)
+            self.logger.info("  -> fact_grade ready: %d rows (pre-filter: %d)", len(fact_grade), before)
         
         if not fact_grade.empty:
             try:
-                fact_grade.to_sql('fact_grade', engine, if_exists='append', index=False, method='multi', chunksize=500)
-                self.logger.info(f"  → Loaded {len(fact_grade)} grades into fact_grade")
+                fact_grade.to_sql('fact_grade', engine, if_exists='append', index=False, method='multi', chunksize=10000)
+                self.logger.info("  -> Loaded %d grades into fact_grade", len(fact_grade))
+                print(f"  -> Loaded {len(fact_grade)} grades into fact_grade")
             except Exception as e:
                 self.logger.error(f"  → fact_grade load failed: {e}", exc_info=True)
         else:
@@ -2120,8 +2254,11 @@ class ETLPipeline:
             for c in out.columns:
                 if out[c].dtype == object:
                     out[c] = out[c].astype(str).replace('nan', '')
-            out.to_sql(table_name, engine, if_exists='replace', index=False, method='multi', chunksize=500)
-            self.logger.info(f"  → Loaded {len(out)} rows into {table_name} ({len(out.columns)} columns)")
+            try:
+                out.to_sql(table_name, engine, if_exists='replace', index=False, method='multi', chunksize=5000)
+                self.logger.info(f"  → Loaded {len(out)} rows into {table_name} ({len(out.columns)} columns)")
+            except Exception as e:
+                self.logger.error(f"  → {table_name} load failed: {e}", exc_info=True)
 
         transcript = silver_data.get('transcript_synthetic', pd.DataFrame())
         _load_synthetic_table('transcript_synthetic', transcript, 'fact_transcript')
