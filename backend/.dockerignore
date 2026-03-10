@@ -1,0 +1,37 @@
+# Data and large assets (mounted at runtime or in ETL volumes)
+data/
+*.parquet
+*.csv
+*.xlsx
+*.xls
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+
+# Git and IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+*.md
+!START.md
+
+# Logs and temp
+*.log
+*.txt
+!requirements.txt
+etl_*.txt
+etl_*.out
+
+# Optional: shrink image (tests/docs not needed in container)
+test_scripts/
+Check_Scripts/
+verify_Scripts/
+*.ipynb
