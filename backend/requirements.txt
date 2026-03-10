@@ -35,3 +35,6 @@ pyarrow>=10.0.0,<14.0.0
 plotly==5.18.0
 dash==2.14.2
 dash-bootstrap-components==1.5.0
+
+# Orchestration
+apache-airflow[postgres]==2.10.2
