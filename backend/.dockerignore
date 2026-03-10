@@ -1,9 +1,4 @@
-# Data and large assets (mounted at runtime or in ETL volumes)
-data/
-*.parquet
-*.csv
-*.xlsx
-*.xls
+
 
 # Python
 __pycache__/
