@@ -1,13 +1,30 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).parent
 
 # PostgreSQL Configuration
-PG_HOST = os.environ.get('PG_HOST', 'localhost')
-PG_PORT = os.environ.get('PG_PORT', '5432')
-PG_USER = os.environ.get('PG_USER', 'postgres')
-PG_PASSWORD = os.environ.get('PG_PASSWORD', 'postgres')
+# When deploying (e.g. Render), DATABASE_URL can be set and overrides PG_* for the same host/user/password.
+_db_url = os.environ.get('DATABASE_URL')
+if _db_url:
+    # Support postgres:// and postgresql://; ensure netloc is parsed (password may contain @)
+    if _db_url.startswith('postgres://'):
+        _db_url = 'postgresql://' + _db_url.split('://', 1)[1]
+    _p = urlparse(_db_url)
+    _host = _p.hostname or 'localhost'
+    _port = _p.port or 5432
+    _user = _p.username or 'postgres'
+    _password = (_p.password or '') if _p.password is not None else ''
+    PG_HOST = os.environ.get('PG_HOST', _host)
+    PG_PORT = os.environ.get('PG_PORT', str(_port))
+    PG_USER = os.environ.get('PG_USER', _user)
+    PG_PASSWORD = os.environ.get('PG_PASSWORD', _password)
+else:
+    PG_HOST = os.environ.get('PG_HOST', 'localhost')
+    PG_PORT = os.environ.get('PG_PORT', '5432')
+    PG_USER = os.environ.get('PG_USER', 'postgres')
+    PG_PASSWORD = os.environ.get('PG_PASSWORD', 'postgres')
 
 # Database names
 DB1_NAME = 'ucu_sourcedb1'

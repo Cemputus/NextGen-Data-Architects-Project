@@ -1,0 +1,45 @@
+# Render Blueprint: NextGen Data Architects
+# Deploy backend, frontend, and PostgreSQL from this file.
+# See docs/RENDER_DEPLOYMENT.md for step-by-step instructions.
+
+databases:
+  - name: nextgen-db
+    databaseName: nextgen_db
+    plan: free  # Use starter or higher for production; free tier spins down
+    region: oregon
+
+services:
+  # Flask API + ETL (Docker)
+  - type: web
+    runtime: docker
+    name: nextgen-backend
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: free
+    healthCheckPath: /api/user-mgmt/ping
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nextgen-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+  # React SPA (static site)
+  - type: web
+    runtime: static
+    name: nextgen-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+    region: oregon
+    envVars:
+      # Point API requests to the backend (replace with your backend URL after first deploy)
+      - key: REACT_APP_API_URL
+        sync: false  # Set in Dashboard to https://nextgen-backend.onrender.com (or your backend URL)
