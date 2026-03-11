@@ -15,6 +15,8 @@ import subprocess
 import sys
 import json
 import time
+import os
+
 from config import (
     DATA_WAREHOUSE_CONN_STRING,
     SECRET_KEY,
