@@ -707,70 +707,54 @@ def list_app_users():
             engine.dispose()
 
 
-_etl_lock = threading.Lock()
-_etl_active = False
-
-
-def _run_etl_in_background():
-    """Run export_user_snapshot + ETL pipeline in a subprocess with backend as cwd so it runs like CLI and logs correctly."""
-    import subprocess
-    global _etl_active
-    try:
-        # First export latest user/app-user snapshot so RBAC/user data is reproducible
-        try:
-            subprocess.run(
-                [sys.executable, '-m', 'export_user_snapshot'],
-                cwd=str(backend_dir),
-                capture_output=False,
-                timeout=60,
-            )
-        except subprocess.TimeoutExpired:
-            pass
-
-        # Then run the main ETL pipeline (which will also seed from snapshot on clean envs)
-        subprocess.run(
-            [sys.executable, '-m', 'etl_pipeline'],
-            cwd=str(backend_dir),
-            capture_output=False,
-            timeout=300,
-        )
-    except subprocess.TimeoutExpired:
-        pass
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-    finally:
-        with _etl_lock:
-            _etl_active = False
-
-
 @admin_bp.route('/run-etl', methods=['POST'])
 @jwt_required()
 def run_etl():
-    """Start ETL pipeline in background. Returns immediately; refresh system-status to see new run."""
+    """Trigger an Airflow DAG for a manual ETL run and return immediately.
+
+    The actual ETL work is orchestrated entirely by Apache Airflow via the
+    ``etl_manual_run`` DAG. This keeps manual runs and auto runs under the
+    same orchestrator.
+    """
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
-
-    global _etl_active
-    with _etl_lock:
-        if _etl_active:
-            # There is already an ETL job running
-            return jsonify({
-                'error': 'An ETL job is already in progress. Please wait for it to finish before starting a new one.',
-                'in_progress': True,
-            }), 409
-        _etl_active = True
 
     claims = get_jwt()
     username = claims.get('username') or ''
     role_name = claims.get('role') or ''
     if audit_log:
         audit_log('etl_started', 'system', username=username, role_name=role_name, resource_id='etl_pipeline', status='success')
-    thread = threading.Thread(target=_run_etl_in_background, daemon=True)
-    thread.start()
+
+    # Trigger the Airflow DAG for a manual ETL run.
+    # This assumes the Airflow CLI is available in the same environment/container.
+    try:
+        import subprocess
+
+        run_id = f"manual__{datetime.utcnow().isoformat()}"
+        subprocess.run(
+            [
+                'airflow',
+                'dags',
+                'trigger',
+                'etl_manual_run',
+                '--run-id',
+                run_id,
+            ],
+            cwd=str(backend_dir.parent / 'airflow'),
+            check=True,
+            timeout=30,
+        )
+    except Exception as e:
+        # Surface a clear error back to the UI if we cannot reach Airflow.
+        return jsonify({
+            'error': f'Failed to trigger Airflow DAG etl_manual_run: {str(e)}',
+            'started': False,
+            'in_progress': False,
+        }), 500
+
     return jsonify({
-        'message': 'ETL pipeline started. The page will refresh in a few seconds to show the new run.',
+        'message': 'ETL pipeline triggered via Airflow. The page will refresh in a few seconds to show the new run.',
         'started': True,
         'in_progress': True,
     }), 202

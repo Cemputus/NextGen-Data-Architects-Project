@@ -1585,8 +1585,13 @@ def _etl_scheduler_loop():
             traceback.print_exc()
 
 
-_etl_scheduler_thread = threading.Thread(target=_etl_scheduler_loop, daemon=True)
-_etl_scheduler_thread.start()
+# By default, automatic ETL scheduling is now handled by Apache Airflow
+# via the DAG defined in airflow/dags/etl_auto_scheduler.py.
+# The legacy Flask-based background scheduler is disabled unless explicitly
+# re-enabled via an environment flag for backwards compatibility.
+if os.environ.get('USE_FLASK_ETL_SCHEDULER') == '1':
+    _etl_scheduler_thread = threading.Thread(target=_etl_scheduler_loop, daemon=True)
+    _etl_scheduler_thread.start()
 
 
 # --- Daily digest email (if enabled in settings) ---
