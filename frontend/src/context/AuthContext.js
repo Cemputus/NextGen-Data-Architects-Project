@@ -95,20 +95,15 @@ export const AuthProvider = ({ children }) => {
     if (!isLoggedInRef.current) return;
 
     // Role-based idle timeout:
-    // - sysadmin + analyst: no idle timeout (they stay logged in unless token truly expires)
+    // - sysadmin + analyst: 3 hours of inactivity
     // - all other roles: 15 minutes of inactivity
     const role = (currentRoleRef.current || '').toString().toLowerCase();
-    const isIdleExempt = role === 'sysadmin' || role === 'analyst';
-    const timeoutMs = isIdleExempt ? null : 15 * 60 * 1000; // 15 minutes
+    const isLongLived = role === 'sysadmin' || role === 'analyst';
+    const timeoutMs = isLongLived ? 3 * 60 * 60 * 1000 : 15 * 60 * 1000;
 
     clearTimeout(idleTimerRef.current);
     clearTimeout(warningTimerRef.current);
     setSessionWarning(false);
-
-    if (!timeoutMs) {
-      // No idle timeout for exempt roles
-      return;
-    }
 
     // Show warning 5 minutes before idle logout
     warningTimerRef.current = setTimeout(() => {
