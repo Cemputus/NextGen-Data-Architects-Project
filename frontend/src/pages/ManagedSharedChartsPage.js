@@ -27,7 +27,7 @@ export default function ManagedSharedChartsPage() {
   const [newReplyMsg, setNewReplyMsg] = usePersistedState('managed_shared_newReplyMsg', {});
   const [replySubmitting, setReplySubmitting] = useState(false);
 
-  const token = () => localStorage.getItem('token');
+  const token = () => (typeof window !== 'undefined' ? sessionStorage.getItem('ucu_session_token') : null);
   const auth = () => ({ headers: { Authorization: `Bearer ${token()}` } });
 
   useEffect(() => {

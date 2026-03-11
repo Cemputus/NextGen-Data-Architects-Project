@@ -41,7 +41,7 @@ export default function SharedViewsPage() {
   const { addToast } = usePersistentToast();
   const currentUsername = (user?.username || '').toString().toLowerCase();
 
-  const token = () => localStorage.getItem('token');
+  const token = () => (typeof window !== 'undefined' ? sessionStorage.getItem('ucu_session_token') : null);
   const auth = () => ({ headers: { Authorization: `Bearer ${token()}` } });
 
   useEffect(() => {

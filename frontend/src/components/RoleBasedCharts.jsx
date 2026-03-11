@@ -100,7 +100,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
     if (!isFinancePage && role !== 'finance' && role !== 'hr') {
       axios
         .get('/api/analytics/filter-options', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         })
         .then((r) => setSemesterOptions(r.data?.semesters || []))
         .catch(() => setSemesterOptions([]));
@@ -117,7 +117,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
   const loadChartData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('ucu_session_token');
       
       // Role-specific data loading
       const requests = [];

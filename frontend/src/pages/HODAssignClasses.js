@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button';
 import { Loader2, Users, Save } from 'lucide-react';
 import axios from 'axios';
 
-const getToken = () => localStorage.getItem('token');
+const getToken = () => (typeof window !== 'undefined' ? sessionStorage.getItem('ucu_session_token') : null);
 
 export default function HODAssignClasses() {
   const [staff, setStaff] = useState([]);

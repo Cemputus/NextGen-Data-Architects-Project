@@ -35,7 +35,7 @@ const RoleDashboardRenderer = ({ stats, type }) => {
       try {
         setLoading(true);
         const resp = await axios.get('/api/dashboards/current', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         });
         const dash = resp.data?.dashboard;
         if (!dash || !dash.definition) {

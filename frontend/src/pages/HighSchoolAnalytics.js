@@ -38,7 +38,7 @@ const HighSchoolAnalytics = ({ filters: externalFilters, onFilterChange: externa
     try {
       setLoading(true);
       const response = await axios.get('/api/analytics/high-school', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params: filters
       });
 

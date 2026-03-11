@@ -174,7 +174,7 @@ export const captureChartImages = async (chartSelectors = []) => {
  */
 export const exportToExcel = async (data = null, filename = 'export', filters = {}, chartImages = []) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('ucu_session_token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const role = user.role || 'student';
     
@@ -288,7 +288,7 @@ export const exportToExcel = async (data = null, filename = 'export', filters = 
  */
 export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartImages = [], data = null, stats = null) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('ucu_session_token');
     let user = {};
     try {
       const userStr = localStorage.getItem('user');
@@ -645,7 +645,7 @@ export const exportDashboard = async (stats, charts, filters = {}, chartImages =
  * adminData: { kpis, users[], auditLogs[], etlRuns[], warehouse{} }
  */
 export const exportAdminToExcel = async (adminData, filename = 'admin_console', chartImages = []) => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('ucu_session_token');
   if (!token) {
     alert('Please log in to export.');
     return;

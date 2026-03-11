@@ -34,7 +34,7 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
   const loadChartData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('ucu_session_token');
       
       // Load all chart data sources with filters
       const [deptRes, gradesRes, paymentsRes, gradeDistRes, topStudentsRes, attendanceRes] = await Promise.all([

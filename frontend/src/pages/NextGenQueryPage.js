@@ -119,7 +119,7 @@ const NextGenQueryPage = () => {
 
   // Restore persisted NextGen Query workspace from backend (per-user, survives hard refresh / logout / devices)
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('ucu_session_token');
     if (!token) {
       hasRestoredRef.current = true;
       return;
@@ -169,7 +169,7 @@ const NextGenQueryPage = () => {
   // Persist visualization (chart type + axes) and full workspace when they change so it survives hard refresh
   useEffect(() => {
     if (!hasRestoredRef.current) return;
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('ucu_session_token');
     if (!token) return;
     const t = setTimeout(() => {
       const stateToSave = {
@@ -200,7 +200,7 @@ const NextGenQueryPage = () => {
     if (!assignTitle.trim()) setAssignTitle(suggestedTitle);
     axios
       .get('/api/query/assigned-visualizations/target-options', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       })
       .then((res) => {
         const roles = Array.isArray(res.data?.roles) ? res.data.roles.map((r) => String(r).trim()).filter(Boolean) : [];
@@ -220,7 +220,7 @@ const NextGenQueryPage = () => {
     setManageAssignedLoading(true);
     axios
       .get('/api/query/assigned-visualizations?created_by=me', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       })
       .then((res) => setMyAssignedList(res.data?.visualizations || []))
       .catch(() => setMyAssignedList([]))
@@ -231,7 +231,7 @@ const NextGenQueryPage = () => {
     setDeletingId(vizId);
     try {
       await axios.delete(`/api/query/assigned-visualizations/${vizId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
       setMyAssignedList((prev) => prev.filter((v) => v.id !== vizId));
     } catch (err) {
@@ -271,7 +271,7 @@ const NextGenQueryPage = () => {
           resultSnapshot,
         },
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
           timeout: 30000,
         }
       );
@@ -317,14 +317,14 @@ const NextGenQueryPage = () => {
         '/api/query/execute',
         { query },
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         }
       );
       const resultData = response.data || null;
       setResult(resultData);
 
       // Persist workspace state to backend so it survives logout/login and across devices
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('ucu_session_token');
       if (token) {
         const stateToSave = {
           query,

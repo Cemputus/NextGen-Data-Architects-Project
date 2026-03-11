@@ -131,7 +131,7 @@ const AdminETL = () => {
   const loadSettings = async () => {
     try {
       const res = await axios.get('/api/admin/settings', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
       setAdminSettings(res.data?.settings ?? {});
     } catch {
@@ -144,7 +144,7 @@ const AdminETL = () => {
     setSettingsSaving(true);
     try {
       await axios.put('/api/admin/settings', { settings: next }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
       setAdminSettings(next);
     } catch (err) {
@@ -171,7 +171,7 @@ const AdminETL = () => {
       const params = { etl_runs_limit: etlRunsLimit };
       if (!silent) params._ = Date.now(); // cache bust so Refresh always gets fresh data
       const response = await axios.get('/api/admin/system-status', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params,
       });
       setStatus(response.data);
@@ -218,7 +218,7 @@ const AdminETL = () => {
       setRunning(true);
       setEtlMessage(null);
       const response = await axios.post('/api/admin/run-etl', {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` }
       });
       setEtlMessage(response.data?.message || 'ETL started. Refreshing list every few seconds...');
       let count = 0;
@@ -243,7 +243,7 @@ const AdminETL = () => {
     if (!filename) return null;
     try {
       const res = await axios.get(`/api/admin/etl-log/${encodeURIComponent(filename)}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
       return res.data?.content ?? '';
     } catch (err) {

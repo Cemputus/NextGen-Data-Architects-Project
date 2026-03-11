@@ -44,7 +44,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
     try {
       setLoading(true);
       const response = await axios.get('/api/analytics/fex', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params: { ...filters, drilldown }
       });
       

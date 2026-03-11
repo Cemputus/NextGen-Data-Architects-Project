@@ -58,7 +58,7 @@ const PredictionPage = () => {
   const loadScenarios = async () => {
     try {
       const response = await axios.get('/api/predictions/scenarios', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` }
       });
       setScenarios(response.data.scenarios || []);
     } catch (err) {
@@ -87,7 +87,7 @@ const PredictionPage = () => {
       }
 
       const response = await axios.post(endpoint, payload, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` }
       });
 
       setPredictions({
@@ -124,7 +124,7 @@ const PredictionPage = () => {
         student_id: studentIdentifier,
         scenario: scenario.parameters || scenario.params || {}
       }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` }
       });
 
       setPredictions({

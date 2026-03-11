@@ -25,7 +25,7 @@ const StudentGrades = () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/analytics/student', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params: { access_number: user?.access_number || user?.username }
       });
       setStats(response.data);

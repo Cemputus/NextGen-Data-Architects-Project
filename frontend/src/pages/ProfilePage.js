@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { cn } from '../lib/utils';
 
-const getToken = () => localStorage.getItem('token');
+const getToken = () => (typeof window !== 'undefined' ? sessionStorage.getItem('ucu_session_token') : null);
 
 export default function ProfilePage() {
   const { user, setUser } = useAuth();

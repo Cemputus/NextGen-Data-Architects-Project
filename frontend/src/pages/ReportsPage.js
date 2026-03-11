@@ -21,7 +21,7 @@ const ReportsPage = () => {
     try {
       setLoading(true);
       const response = await axios.get(`/api/export/${format}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params: {
           ...filters,
           ...(type ? { type } : {})

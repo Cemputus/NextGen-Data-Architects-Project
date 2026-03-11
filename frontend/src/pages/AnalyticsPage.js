@@ -44,7 +44,7 @@ const AnalyticsPage = ({ type = 'general' }) => {
       setLoading(true);
       const endpoint = type === 'finance' ? '/api/analytics/finance' : '/api/dashboard/stats';
       const response = await axios.get(endpoint, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params: filters
       });
       setStats(response.data);

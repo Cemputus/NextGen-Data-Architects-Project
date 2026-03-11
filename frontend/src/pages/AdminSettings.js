@@ -71,7 +71,7 @@ const AdminSettings = () => {
     // Optional: load saved settings from API
     const loadSettings = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('ucu_session_token');
         if (!token) return;
         const res = await fetch('/api/admin/settings', {
           headers: { Authorization: `Bearer ${token}` },
@@ -101,7 +101,7 @@ const AdminSettings = () => {
     setSaving(true);
     setMessage(null);
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('ucu_session_token');
       const res = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: {

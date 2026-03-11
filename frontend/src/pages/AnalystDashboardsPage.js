@@ -175,7 +175,7 @@ const AnalystDashboardsPage = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('ucu_session_token');
 
       const params = {};
       if (filterRole) params.role = filterRole;
@@ -290,7 +290,7 @@ const AnalystDashboardsPage = () => {
       await axios.post(
         '/api/dashboard-manager/swap',
         { role: targetRole, dashboard_id: dash.id },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+        { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
       );
       await loadData();
     } catch (err) {
@@ -313,7 +313,7 @@ const AnalystDashboardsPage = () => {
       await axios.post(
         '/api/dashboard-manager/remove-current',
         { role },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+        { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
       );
       await loadData();
     } catch (err) {
@@ -343,7 +343,7 @@ const AnalystDashboardsPage = () => {
     setDeletingId(dash.id);
     try {
       await axios.delete(`/api/dashboards/${dash.id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
       await loadData();
     } catch (err) {
@@ -375,7 +375,7 @@ const AnalystDashboardsPage = () => {
           },
         },
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         }
       );
       setContentDashboard(null);
@@ -417,7 +417,7 @@ const AnalystDashboardsPage = () => {
           },
         },
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         }
       );
       setShowCreate(false);

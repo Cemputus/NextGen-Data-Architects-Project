@@ -23,7 +23,7 @@ const StudentAttendance = () => {
   const loadAttendance = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('ucu_session_token');
       const [statsRes, trendsRes] = await Promise.all([
         axios.get('/api/analytics/student', {
           headers: { Authorization: `Bearer ${token}` },

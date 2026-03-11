@@ -50,7 +50,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
     
     try {
       const res = await axios.get('/api/analytics/filter-options', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params
       });
       setFilterOptions(res.data);

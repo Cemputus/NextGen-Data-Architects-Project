@@ -41,11 +41,11 @@ const HRDashboard = () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/analytics/hr', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params: filters
       }).catch(() => {
         return axios.get('/api/dashboard/stats', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
           params: filters
         });
       });

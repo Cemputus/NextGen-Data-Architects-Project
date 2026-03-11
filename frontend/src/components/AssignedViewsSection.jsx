@@ -113,7 +113,7 @@ export default function AssignedViewsSection() {
   useEffect(() => {
     axios
       .get('/api/query/assigned-visualizations/for-me', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       })
       .then((res) => setList(res.data?.visualizations || []))
       .catch(() => setList([]))

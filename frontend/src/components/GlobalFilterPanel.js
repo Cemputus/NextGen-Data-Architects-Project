@@ -65,7 +65,7 @@ const GlobalFilterPanel = ({
       if (currentFilters.program_id) params.program_id = currentFilters.program_id;
       
       const res = await axios.get('/api/analytics/filter-options', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params
       });
       setFilterOptions(res.data);

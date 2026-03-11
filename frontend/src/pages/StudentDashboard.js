@@ -40,14 +40,14 @@ const StudentDashboard = () => {
       let response;
       try {
         response = await axios.get('/api/analytics/student', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
           params: { access_number: user?.access_number || user?.username }
         });
         setStats(response.data);
       } catch (err) {
         // Fallback to dashboard stats with student scope
         response = await axios.get('/api/dashboard/stats', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
           params: { access_number: user?.access_number || user?.username }
         });
         setStats(response.data);
@@ -56,7 +56,7 @@ const StudentDashboard = () => {
       // Load attendance trends for this student only
       try {
         const trendsRes = await axios.get('/api/dashboard/attendance-trends', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         });
         if (trendsRes.data && Array.isArray(trendsRes.data.periods)) {
           const mapped = trendsRes.data.periods.map((period, idx) => ({

@@ -5,7 +5,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const getToken = () => localStorage.getItem('token');
+const TOKEN_KEY = 'ucu_session_token';
+const getToken = () => (typeof window !== 'undefined' ? sessionStorage.getItem(TOKEN_KEY) : null);
 
 export function useProfilePhoto(profilePictureUrl) {
   const [url, setUrl] = useState(null);

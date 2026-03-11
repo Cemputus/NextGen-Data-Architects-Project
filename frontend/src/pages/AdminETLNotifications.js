@@ -93,11 +93,11 @@ const AdminETLNotifications = () => {
       setError(null);
       const [statusRes, auditRes] = await Promise.all([
         axios.get('/api/admin/system-status', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
           params: { etl_runs_limit: etlLimit },
         }),
         axios.get('/api/admin/audit-logs', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
           params: { limit: 100 },
         }),
       ]);
@@ -120,7 +120,7 @@ const AdminETLNotifications = () => {
   const fetchLogContent = async (filename) => {
     if (!filename) return null;
     const res = await axios.get(`/api/admin/etl-log/${encodeURIComponent(filename)}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
     });
     return res.data?.content ?? '';
   };

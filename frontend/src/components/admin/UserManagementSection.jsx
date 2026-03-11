@@ -18,7 +18,9 @@ import { cn } from '../../lib/utils';
 import adminUIState from '../../utils/adminUIState';
 import { SciDonutChart, SciBarChart } from '../charts/EChartsComponents';
 
-const getToken = () => localStorage.getItem('token');
+// Keep in sync with AuthContext's TOKEN_KEY
+const TOKEN_KEY = 'ucu_session_token';
+const getToken = () => (typeof window !== 'undefined' ? sessionStorage.getItem(TOKEN_KEY) : null);
 
 const ROLES = [
   { value: '', label: 'All roles' },

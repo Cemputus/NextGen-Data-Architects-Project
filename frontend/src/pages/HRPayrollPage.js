@@ -6,7 +6,7 @@ import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Loader2, DollarSign } from 'lucide-react';
 
-const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
 export default function HRPayrollPage() {
   const [data, setData] = useState({ payroll_by_role: [], total_payroll: 0, paid: [], pending: [] });

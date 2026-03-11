@@ -30,9 +30,10 @@ const AdminDashboard = () => {
   const [showWelcome, setShowWelcome] = useState(true);
 
   const loadAdminStatus = async () => {
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('ucu_session_token') : null;
     try {
       const response = await axios.get('/api/admin/system-status', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         params: { etl_runs_limit: 50 }, // For "Last ETL run" display; KPI uses total count from backend
       });
       setAdminStatus(response.data);
@@ -107,7 +108,8 @@ const AdminDashboard = () => {
   };
 
   const getExportData = async () => {
-    const token = localStorage.getItem('token');
+    // Keep key in sync with AuthContext's TOKEN_KEY
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('ucu_session_token') : null;
     if (!token) return { kpis: systemStats, users: [], auditLogs: [], etlRuns: [], warehouse: {} };
     try {
       const [usersRes, logsRes] = await Promise.all([

@@ -25,11 +25,11 @@ const StudentPayments = () => {
       setLoading(true);
       const [statsRes, breakdownRes] = await Promise.all([
         axios.get('/api/analytics/student', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
           params: { access_number: user?.access_number || user?.username }
         }).catch(() => ({ data: null })),
         axios.get('/api/dashboard/student-payment-breakdown', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` }
         }).catch(() => ({ data: null }))
       ]);
       setStats(statsRes.data);

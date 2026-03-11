@@ -24,7 +24,7 @@ const StaffClasses = () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/analytics/staff/classes', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` }
       });
       setClasses(response.data.classes || []);
     } catch (err) {

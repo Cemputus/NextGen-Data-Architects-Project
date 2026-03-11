@@ -10,7 +10,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Loader2, User, Calendar, DollarSign } from 'lucide-react';
 
-const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
 export default function UserInfoPage() {
   const [employment, setEmployment] = useState(null);

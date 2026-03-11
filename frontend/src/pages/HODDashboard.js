@@ -40,7 +40,7 @@ const HODDashboard = () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/analytics/department', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params: filters
       });
       setStats(response.data);

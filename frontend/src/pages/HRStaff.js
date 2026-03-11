@@ -23,7 +23,7 @@ const HRStaff = () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/hr/staff-list', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
       setStaff(response.data.staff || []);
     } catch (err) {

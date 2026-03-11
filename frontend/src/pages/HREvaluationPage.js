@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { Loader2, ClipboardCheck } from 'lucide-react';
 
-const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
 export default function HREvaluationPage() {
   const [employees, setEmployees] = useState([]);
