@@ -290,7 +290,8 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
     etl_employee_count = 0
     etl_staff_lecturer_count = 0  # dim_employee rows (all are staff/lecturers per ETL)
     try:
-        r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM `dim_employee`"), warehouse_engine)
+        # Use Postgres-friendly syntax (no MySQL-style backticks)
+        r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM dim_employee"), warehouse_engine)
         etl_employee_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
         etl_staff_lecturer_count = etl_employee_count  # dim_employee = staff/lecturers only
     except Exception:
@@ -326,8 +327,9 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             pass
         # Employees = ETL (dim_employee) + all app users (none are students)
         kpis['employees'] = etl_employee_count + app_users_count
-        # Staff = only employees with role Staff: dim_employee (staff/lecturers) + app users with role Staff
-        kpis['staff'] = etl_staff_lecturer_count + app_staff_role_count
+        # Staff KPI: show ONLY app users with role 'staff' (RBAC staff accounts),
+        # not all employees in dim_employee.
+        kpis['staff'] = app_staff_role_count
         try:
             _ensure_audit_db()
             r = pd.read_sql_query(text("""
