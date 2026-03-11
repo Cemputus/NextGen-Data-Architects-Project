@@ -2173,10 +2173,28 @@ class ETLPipeline:
                     'days_present': present_flag,
                 })
 
+                # Write very large attendance fact table in smaller batches to
+                # avoid doing all heavy work in a single to_sql call.
+                total_rows = len(fact_attendance)
+                batch_size = 200_000
+                written = 0
                 try:
-                    fact_attendance.to_sql('fact_attendance', engine, if_exists='append', index=False, method='multi', chunksize=15000)
-                    self.logger.info("  -> Loaded %d attendance records into fact_attendance", len(fact_attendance))
-                    print(f"  -> Loaded {len(fact_attendance)} attendance records into fact_attendance")
+                    for start in range(0, total_rows, batch_size):
+                        end = min(start + batch_size, total_rows)
+                        batch = fact_attendance.iloc[start:end]
+                        if batch.empty:
+                            continue
+                        batch.to_sql(
+                            'fact_attendance',
+                            engine,
+                            if_exists='append',
+                            index=False,
+                            method='multi',
+                            chunksize=5000,
+                        )
+                        written += len(batch)
+                    self.logger.info("  -> Loaded %d attendance records into fact_attendance (in batches)", written)
+                    print(f"  -> Loaded {written} attendance records into fact_attendance (in batches)")
                 except Exception as e:
                     self.logger.error("  -> fact_attendance load failed: %s", e, exc_info=True)
             else:
