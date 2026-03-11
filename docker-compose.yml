@@ -163,6 +163,8 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/.env:/app/.env
 
 volumes:
   pg_data:
