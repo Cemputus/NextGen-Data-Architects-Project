@@ -1,7 +1,0 @@
-Traceback (most recent call last):
-  File "<string>", line 7, in <module>
-  File "d:/NextGen-Data-Architects-Project/backend\etl_pipeline.py", line 586, in _extract_from_synthetic_data
-    students_db1['YearOfStudy'] = pd.to_numeric(students_df['YearOfStudy'], errors='coerce').fillna(1).astype(int)
-  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\pandas\core\tools\numeric.py", line 191, in to_numeric
-    raise TypeError("arg must be a list, tuple, 1-d array, or Series")
-TypeError: arg must be a list, tuple, 1-d array, or Series

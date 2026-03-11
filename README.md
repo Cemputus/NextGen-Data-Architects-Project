@@ -6,6 +6,8 @@ This project has migrated from demo-style sample data to a reproducible syntheti
 
 ## Table of Contents
 
+- [Repository structure](#repository-structure)
+- [Documentation](#documentation)
 - [What Changed](#what-changed)
 - [System Overview](#system-overview)
 - [Synthetic Data Package (Canonical)](#synthetic-data-package-canonical)
@@ -18,6 +20,31 @@ This project has migrated from demo-style sample data to a reproducible syntheti
 - [API Snapshot](#api-snapshot)
 - [Troubleshooting](#troubleshooting)
 - [Contributors](#contributors)
+
+---
+
+## Repository structure
+
+The repo is organized for clear separation of app code, config, and docs:
+
+| Area | Purpose |
+|------|--------|
+| **`backend/`** | Flask API, ETL pipeline, RBAC, SQL scripts, tests and checks |
+| **`frontend/`** | React SPA (dashboards, admin, analytics) |
+| **`airflow/`** | Apache Airflow DAGs for ETL orchestration |
+| **`docs/`** | All documentation (deployment, operations, backend, frontend) |
+| **`render.yaml`** | Render Blueprint for one-click deploy |
+| **`docker-compose.yml`** | Local/CI stack (Postgres, backend, frontend, Airflow) |
+
+See **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** for the full directory tree and deployment-related paths.
+
+---
+
+## Documentation
+
+- **Doc index** → [docs/README.md](docs/README.md) (links to all guides)
+- **Deploy to Render** → [docs/deployment/RENDER_DEPLOYMENT.md](docs/deployment/RENDER_DEPLOYMENT.md)
+- **Run backend locally** → [docs/backend/RUNNING.md](docs/backend/RUNNING.md)
 
 ---
 

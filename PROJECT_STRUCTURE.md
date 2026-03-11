@@ -50,7 +50,6 @@ NextGen-Data-Architects-Project/
     ├── operations/          # Ops runbooks (e.g. password reset)
     ├── backend/             # Backend runbooks and API notes
     ├── frontend/            # UI/UX and migration docs
-    ├── backend/             # API, SQL, quick checks
     └── mds/                 # Historical and reference markdown
 ```
 
