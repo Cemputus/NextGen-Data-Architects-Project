@@ -51,6 +51,7 @@ export const AuthProvider = ({ children }) => {
   const refreshTimerRef = useRef(null);
   const warningTimerRef = useRef(null);
   const isLoggedInRef   = useRef(false); // avoid stale closures in event listeners
+  const currentRoleRef  = useRef('');    // track role for role-based idle behaviour
 
   // ── Internal: clear all timers ─────────────────────────────────────────────
   const clearAllTimers = useCallback(() => {
@@ -62,6 +63,16 @@ export const AuthProvider = ({ children }) => {
   // ── Internal: logout ───────────────────────────────────────────────────────
   const logout = useCallback((reason = 'manual') => {
     clearAllTimers();
+    // Preserve the last in-app route so, after re-login, we can resume
+    // from where the user left off (unless they closed the browser).
+    try {
+      const currentPath = window.location.pathname + window.location.search;
+      if (currentPath && currentPath !== '/login') {
+        sessionStorage.setItem('ucu_last_route', currentPath);
+      }
+    } catch {
+      // ignore storage errors
+    }
     sessionStore.clear();
     setToken(null);
     setUserState(null);
@@ -82,19 +93,32 @@ export const AuthProvider = ({ children }) => {
   // ── Internal: reset idle timer ─────────────────────────────────────────────
   const resetIdleTimer = useCallback(() => {
     if (!isLoggedInRef.current) return;
+
+    // Role-based idle timeout:
+    // - sysadmin + analyst: no idle timeout (they stay logged in unless token truly expires)
+    // - all other roles: 15 minutes of inactivity
+    const role = (currentRoleRef.current || '').toString().toLowerCase();
+    const isIdleExempt = role === 'sysadmin' || role === 'analyst';
+    const timeoutMs = isIdleExempt ? null : 15 * 60 * 1000; // 15 minutes
+
     clearTimeout(idleTimerRef.current);
     clearTimeout(warningTimerRef.current);
     setSessionWarning(false);
 
+    if (!timeoutMs) {
+      // No idle timeout for exempt roles
+      return;
+    }
+
     // Show warning 5 minutes before idle logout
     warningTimerRef.current = setTimeout(() => {
       if (isLoggedInRef.current) setSessionWarning(true);
-    }, IDLE_TIMEOUT_MS - 5 * 60 * 1000);
+    }, timeoutMs - 5 * 60 * 1000);
 
     // Logout after full idle timeout
     idleTimerRef.current = setTimeout(() => {
       if (isLoggedInRef.current) logout('idle');
-    }, IDLE_TIMEOUT_MS);
+    }, timeoutMs);
   }, [logout]);
 
   // ── Internal: silent token refresh ─────────────────────────────────────────
@@ -143,6 +167,12 @@ export const AuthProvider = ({ children }) => {
 
     setToken(accessToken);
     setUserState(userData);
+    try {
+      const role = (userData?.role || '').toString().toLowerCase();
+      currentRoleRef.current = role;
+    } catch {
+      currentRoleRef.current = '';
+    }
     setIsAuthenticated(true);
     isLoggedInRef.current = true;
     axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
@@ -161,8 +191,20 @@ export const AuthProvider = ({ children }) => {
       (res) => res,
       (err) => {
         const status = err.response?.status;
-        // Treat both 401 and 422 from the API as "session no longer valid"
-        if ((status === 401 || status === 422) && isLoggedInRef.current) {
+        const url = err.config?.url || '';
+
+        // Endpoints that may be long-running or noisy (ETL, admin status/logs).
+        // For these, we surface the error to the page but do NOT auto-logout,
+        // so a transient failure while ETL is running doesn't kick the user out.
+        const isLongRunningAdminEndpoint =
+          url.startsWith('/api/admin/system-status') ||
+          url.startsWith('/api/admin/run-etl') ||
+          url.startsWith('/api/admin/etl-log') ||
+          url.startsWith('/api/admin/audit-logs');
+
+        // Treat both 401 and 422 from most APIs as "session no longer valid",
+        // but skip auto-logout for long-running admin/ETL endpoints.
+        if (!isLongRunningAdminEndpoint && (status === 401 || status === 422) && isLoggedInRef.current) {
           logout('expired');
         }
         return Promise.reject(err);

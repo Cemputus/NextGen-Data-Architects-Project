@@ -35,6 +35,14 @@ const Login = () => {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
+      // If we have a "last route" from a previous session expiry, resume from there.
+      // Otherwise, fall back to role-based default dashboard.
+      const lastRoute = sessionStorage.getItem('ucu_last_route');
+      if (lastRoute && lastRoute !== '/login') {
+        sessionStorage.removeItem('ucu_last_route');
+        navigate(lastRoute, { replace: true });
+        return;
+      }
       const storedUser = sessionStorage.getItem('ucu_session_user');
       const role = storedUser ? (JSON.parse(storedUser)?.role || '').toString().toLowerCase() : '';
       const route = rbac.getDefaultRoute(role) || '/student/dashboard';

@@ -233,7 +233,15 @@ const AdminETL = () => {
         }
       }, REFRESH_INTERVAL_MS);
     } catch (err) {
-      setEtlMessage(err.response?.data?.error || err.message || 'Failed to start ETL');
+      if (err.response?.status === 409) {
+        // ETL already running — show a friendly message instead of generic error
+        setEtlMessage(
+          err.response?.data?.error ||
+          'An ETL job is already in progress. Please wait for it to finish before starting a new one.'
+        );
+      } else {
+        setEtlMessage(err.response?.data?.error || err.message || 'Failed to start ETL');
+      }
     } finally {
       setRunning(false);
     }
@@ -610,6 +618,7 @@ const AdminETL = () => {
                     <option value="all">All</option>
                     <option value="success">Success</option>
                     <option value="failed">Failed</option>
+                    <option value="in_progress">In progress</option>
                   </select>
                 </label>
               )}
@@ -653,7 +662,14 @@ const AdminETL = () => {
             (() => {
               const filtered = etlStatusFilter === 'all'
                 ? etlRuns
-                : etlRuns.filter((r) => (etlStatusFilter === 'success' && r.success) || (etlStatusFilter === 'failed' && !r.success));
+                : etlRuns.filter((r) => {
+                    const status = r.status || (r.success ? 'success' : 'failed');
+                    return (
+                      (etlStatusFilter === 'success' && status === 'success') ||
+                      (etlStatusFilter === 'failed' && status === 'failed') ||
+                      (etlStatusFilter === 'running' && status === 'running')
+                    );
+                  });
               const parseDurationSec = (d) => {
                 if (!d || typeof d !== 'string') return 0;
                 const parts = d.trim().split(':').map((p) => parseFloat(p, 10) || 0);
@@ -665,11 +681,13 @@ const AdminETL = () => {
                 const sec = parseDurationSec(run.duration);
                 const minutes = sec / 60;
                 const label = run.log_file ? run.log_file.replace(/^etl_pipeline_|\.log$/gi, '').slice(-12) : `Run ${i + 1}`;
+                const status = run.status || (run.success ? 'success' : 'failed');
                 return {
                   name: label,
-                  // Chart in minutes for readability; keep a small non-zero bar for failed runs
-                  success: run.success ? minutes : 0,
-                  failed: !run.success ? Math.max(minutes, 0.1) : 0,
+                  // Chart in minutes for readability; keep a small non-zero bar for failed runs.
+                  // Treat "running" as its own status (no bar here; highlighted elsewhere in table).
+                  success: status === 'success' ? minutes : 0,
+                  failed: status === 'failed' ? Math.max(minutes, 0.1) : 0,
                 };
               });
               if (chartData.length === 0) {
@@ -677,8 +695,9 @@ const AdminETL = () => {
               }
               if (etlChartType === 'status') {
                 const statusCounts = [
-                  { name: 'Success', value: filtered.filter((r) => r.success).length },
-                  { name: 'Failed', value: filtered.filter((r) => !r.success).length },
+                  { name: 'Success', value: filtered.filter((r) => (r.status || (r.success ? 'success' : 'failed')) === 'success').length },
+                  { name: 'Failed', value: filtered.filter((r) => (r.status || (r.success ? 'success' : 'failed')) === 'failed').length },
+                  { name: 'Running', value: filtered.filter((r) => (r.status || (r.success ? 'success' : 'failed')) === 'running').length },
                 ];
                 return (
                   <>
@@ -739,15 +758,28 @@ const AdminETL = () => {
                         <TableCell>{run.start_time || '—'}</TableCell>
                         <TableCell>{run.duration || '—'}</TableCell>
                         <TableCell>
-                          {run.success ? (
-                            <span className="inline-flex items-center gap-1 text-green-600">
-                              <CheckCircle className="h-4 w-4" aria-hidden /> Success
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-amber-600">
-                              <XCircle className="h-4 w-4" aria-hidden /> Failed
-                            </span>
-                          )}
+                          {(() => {
+                            const status = run.status || (run.success ? 'success' : 'failed');
+                            if (status === 'running') {
+                              return (
+                                <span className="inline-flex items-center gap-1 text-blue-600">
+                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Running
+                                </span>
+                              );
+                            }
+                            if (status === 'success') {
+                              return (
+                                <span className="inline-flex items-center gap-1 text-green-600">
+                                  <CheckCircle className="h-4 w-4" aria-hidden /> Success
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="inline-flex items-center gap-1 text-amber-600">
+                                <XCircle className="h-4 w-4" aria-hidden /> Failed
+                              </span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">

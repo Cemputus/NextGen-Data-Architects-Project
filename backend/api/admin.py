@@ -299,6 +299,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
     try:
         rbac_engine = create_engine(_get_rbac_conn_string())
         _ensure_app_users_table(rbac_engine)
+        # Prefer live RBAC app_users; if empty but dim_app_user has rows, use warehouse dim_app_user count as fallback
         try:
             r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM app_users"), rbac_engine)
             app_users_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
@@ -306,6 +307,14 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             app_users_count = 0
             if kpis['system_health'] > 0:
                 kpis['system_health'] = 50
+        if app_users_count == 0:
+            try:
+                r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM dim_app_user"), warehouse_engine)
+                dim_app_users = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
+                if dim_app_users > 0:
+                    app_users_count = dim_app_users
+            except Exception:
+                pass
         app_staff_role_count = 0
         try:
             r = pd.read_sql_query(text("""
@@ -370,7 +379,14 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
 
 
 def _get_etl_run_history(log_dir, max_runs=20):
-    """Parse ETL log directory and return list of runs."""
+    """Parse ETL log directory and return list of runs.
+
+    Status semantics:
+      - "success"     → log contains "ETL Pipeline completed successfully in ..."
+      - "failed"      → log contains "ETL Pipeline failed"
+      - "in_progress" → log exists but neither success nor failed markers are present yet
+                        (most recent run still in progress or log truncated)
+    """
     log_dir = Path(log_dir)
     if not log_dir.exists():
         return []
@@ -380,6 +396,7 @@ def _get_etl_run_history(log_dir, max_runs=20):
         start_time = None
         duration_str = None
         success = False
+        failed = False
         try:
             with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
                 lines = f.readlines()
@@ -391,15 +408,26 @@ def _get_etl_run_history(log_dir, max_runs=20):
                 if m:
                     duration_str = m.group(1)
                     success = True
+                    failed = False
                 if 'ETL Pipeline failed' in line:
+                    failed = True
                     success = False
         except Exception:
             pass
+
+        if success:
+            status = 'success'
+        elif failed:
+            status = 'failed'
+        else:
+            status = 'in_progress'
+
         history.append({
             'log_file': log_file.name,
             'start_time': start_time,
             'duration': duration_str,
             'success': success,
+            'status': status,
         })
     return history
 
@@ -666,9 +694,14 @@ def list_app_users():
             engine.dispose()
 
 
+_etl_lock = threading.Lock()
+_etl_active = False
+
+
 def _run_etl_in_background():
     """Run export_user_snapshot + ETL pipeline in a subprocess with backend as cwd so it runs like CLI and logs correctly."""
     import subprocess
+    global _etl_active
     try:
         # First export latest user/app-user snapshot so RBAC/user data is reproducible
         try:
@@ -693,6 +726,9 @@ def _run_etl_in_background():
     except Exception as e:
         import traceback
         traceback.print_exc()
+    finally:
+        with _etl_lock:
+            _etl_active = False
 
 
 @admin_bp.route('/run-etl', methods=['POST'])
@@ -702,6 +738,17 @@ def run_etl():
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
+
+    global _etl_active
+    with _etl_lock:
+        if _etl_active:
+            # There is already an ETL job running
+            return jsonify({
+                'error': 'An ETL job is already in progress. Please wait for it to finish before starting a new one.',
+                'in_progress': True,
+            }), 409
+        _etl_active = True
+
     claims = get_jwt()
     username = claims.get('username') or ''
     role_name = claims.get('role') or ''
@@ -712,6 +759,7 @@ def run_etl():
     return jsonify({
         'message': 'ETL pipeline started. The page will refresh in a few seconds to show the new run.',
         'started': True,
+        'in_progress': True,
     }), 202
 
 
