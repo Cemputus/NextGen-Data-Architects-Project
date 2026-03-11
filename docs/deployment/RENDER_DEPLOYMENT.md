@@ -56,7 +56,7 @@ Render gives one database per instance. Your app expects multiple DBs (`ucu_data
   ```
   Then in the backend, point `PG_HOST` etc. to the same instance; the app uses the same host with different `dbname`.
 
-**Note:** Render’s free Postgres has one database; creating more may require a paid plan or using schemas in one DB. The app creates `ucu_datawarehouse`, `ucu_rbac`, etc., on first run via `ensure_database()` when connected to the same instance (same host/user/password). The backend supports **`DATABASE_URL`** (e.g. from Render’s “Link PostgreSQL” or Blueprint `fromDatabase.connectionString`); when set, it overrides `PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD` so you only need one env var.
+**Note:** Render's free Postgres has one database; creating more may require a paid plan or using schemas in one DB. The app creates `ucu_datawarehouse`, `ucu_rbac`, etc., on first run via `ensure_database()` when connected to the same instance (same host/user/password). The backend supports **`DATABASE_URL`** (e.g. from Render's "Link PostgreSQL" or Blueprint `fromDatabase.connectionString`); when set, it overrides `PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD` so you only need one env var.
 
 ---
 
@@ -86,7 +86,7 @@ Render gives one database per instance. Your app expects multiple DBs (`ucu_data
    | `JWT_SECRET_KEY` | Another long random string |
    | `PYTHONUNBUFFERED` | `1` |
 
-   **If using Render’s “Link PostgreSQL”:**  
+   **If using Render's "Link PostgreSQL":**  
    Render can inject `DATABASE_URL`. Your app uses `PG_*`. Add a **Pre-Deploy** or **Start Command** that exports `PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD` from `DATABASE_URL`, or set them manually from the Internal URL.
 
 5. **Build & Deploy:**
@@ -155,22 +155,22 @@ If you want the full Airflow UI and DAGs on Render:
    - Runs both scheduler and webserver (e.g. in one Dockerfile with a script that starts both), or run two services (one scheduler, one webserver).
 
 4. **Environment**: Same `PG_*` host/user/password; database name `airflow_meta`.  
-5. **Internal URL**: Use Render’s Internal Database URL with `?options=-c%20search_path=airflow` if needed.
+5. **Internal URL**: Use Render's Internal Database URL with `?options=-c%20search_path=airflow` if needed.
 
 **Simpler alternative:**  
-Skip Airflow on Render and use **Render Cron Jobs** to call your backend’s ETL endpoint on a schedule (e.g. `curl -X POST https://nextgen-backend.onrender.com/api/admin/run-etl` with auth). That way only the backend and DB need to run.
+Skip Airflow on Render and use **Render Cron Jobs** to call your backend's ETL endpoint on a schedule (e.g. `curl -X POST https://nextgen-backend.onrender.com/api/admin/run-etl` with auth). That way only the backend and DB need to run.
 
 ---
 
 ## Step 6: First-Time Setup After Deploy
 
 1. **Backend:**  
-   If you didn’t create DBs manually, trigger a one-off ETL or a setup script so the backend creates `ucu_datawarehouse`, `ucu_rbac`, etc., via `ensure_database()`. You can do this by:
+   If you didn't create DBs manually, trigger a one-off ETL or a setup script so the backend creates `ucu_datawarehouse`, `ucu_rbac`, etc., via `ensure_database()`. You can do this by:
    - Calling your ETL endpoint once (e.g. from Admin UI after login), or
    - Running a **one-off Shell** or **Background Worker** that executes `python -m etl_pipeline` or `python -m setup_databases` with the same env as the Web Service.
 
 2. **Frontend:**  
-   Open the static site URL and log in. Ensure `REACT_APP_API_URL` was set at build time so API calls hit the backend.
+   Open the static site URL and log in. Ensure `REACT_APP_API_URL` was set at **build** time so API calls hit the backend.
 
 3. **Airflow (if used):**  
    Open the Airflow URL, log in (admin user created in Dockerfile or init), and unpause the `etl_auto_scheduler` DAG if you use it.
@@ -214,7 +214,7 @@ You can define services in a **Blueprint** so Render creates them from one place
 - **502 / Backend not responding:** Check Render logs; ensure `gunicorn` starts and listens on `0.0.0.0:5000`. Render assigns `PORT`; you can use `PORT=${PORT:-5000}` in start command if you switch to it.
 - **DB connection refused:** Use the **Internal** Database URL (and correct host/port/user/password). Ensure the Backend and DB are in the same region and the DB is **Available**.
 - **Frontend calls 404:** Confirm `REACT_APP_API_URL` was set at **build** time and matches the backend URL. Rebuild the Static Site after changing it.
-- **ETL / Airflow:** If you don’t deploy Airflow, disable the “Run ETL automatically” or rely on Render Cron calling your backend ETL endpoint; the in-app timer is disabled when not using the Flask scheduler.
+- **ETL / Airflow:** If you don't deploy Airflow, disable the "Run ETL automatically" or rely on Render Cron calling your backend ETL endpoint; the in-app timer is disabled when not using the Flask scheduler.
 
 ---
 

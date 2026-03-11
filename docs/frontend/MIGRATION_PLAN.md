@@ -9,7 +9,7 @@
 
 ### Phase 2 – Dashboard & analytics pages
 - **Role dashboards** (Student, Staff, HOD, Dean, Senate, Finance, HR, Analyst, Sysadmin): Standardize KPI grid (1 col mobile, 2 tablet, 3–4 desktop), reduce card padding, consistent chart container heights (min/max responsive).
-- **Analytics sections** (FEX, High School, attendance/payment): Replace SciChart with ECharts; stack filters on small screens; ensure tables and charts don’t overflow.
+- **Analytics sections** (FEX, High School, attendance/payment): Replace SciChart with ECharts; stack filters on small screens; ensure tables and charts don't overflow.
 - **Why next**: Highest density and responsiveness issues; chart-heavy and filter-heavy.
 
 ### Phase 3 – Components & polish

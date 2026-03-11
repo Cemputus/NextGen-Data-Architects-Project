@@ -65,6 +65,7 @@ models/
 # Logs
 *.log
 logs/
+!backend/logs/.gitkeep
 
 # MySQL
 *.sql.backup
@@ -115,3 +116,14 @@ credentials.json
 # Backend scratch / serialized layer
 backend/__sl__/
 .cursor/
+
+# Root-level temp / debug output (do not commit)
+/stats*.txt
+/ps.txt
+/ps_all.txt
+/images.txt
+/prune*.txt
+
+# Backend ETL trace and run output (use backend/logs/ for persistent logs)
+/backend/etl_*.txt
+/backend/inspection_output.txt

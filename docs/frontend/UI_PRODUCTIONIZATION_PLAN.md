@@ -9,7 +9,7 @@
 | **3** | Reusable PageHeader + PageContent; apply to all 9 role dashboards + shared pages | Consistent page structure and density. |
 | **4** | Component standardization (Button, Input, Card, Select, Modal, Table) | No one-off sizing or spacing. |
 | **5** | ECharts migration: BaseChart + presets (Line, Bar, Area, StackedBar, Donut) + chart theme | Charts aligned to design system; storytelling mix. |
-| **6** | Dashboard storytelling: KPI → trend (line/area) → composition (stacked/donut) → detail | Avoid “all bar charts”; clear narrative. |
+| **6** | Dashboard storytelling: KPI → trend (line/area) → composition (stacked/donut) → detail | Avoid "all bar charts"; clear narrative. |
 | **7** | Login, Auth, and unauthenticated pages | First impression and accessibility. |
 | **8** | Analytics pages (FEX, High School, etc.), Export, Admin (Users, ETL, Audit, Settings) | High-traffic and complex UIs. |
 | **9** | Loading / empty / error states; focus rings and a11y; performance (memo, debounce) | Polish and compliance. |
