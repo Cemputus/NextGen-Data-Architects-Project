@@ -2341,10 +2341,27 @@ class ETLPipeline:
                     ]
             self.logger.info("  -> fact_payment ready (incremental, no in-batch dedupe): %d rows (pre-filter: %d)", len(fact_payment), before)
         if not fact_payment.empty:
+            # Write payments in manageable batches to avoid heavy single writes
+            total_rows = len(fact_payment)
+            batch_size = 50_000
+            written = 0
             try:
-                fact_payment.to_sql('fact_payment', engine, if_exists='append', index=False, method='multi', chunksize=2000)
-                self.logger.info("  -> Loaded %d payments into fact_payment", len(fact_payment))
-                print(f"  -> Loaded {len(fact_payment)} payments into fact_payment")
+                for start in range(0, total_rows, batch_size):
+                    end = min(start + batch_size, total_rows)
+                    batch = fact_payment.iloc[start:end]
+                    if batch.empty:
+                        continue
+                    batch.to_sql(
+                        'fact_payment',
+                        engine,
+                        if_exists='append',
+                        index=False,
+                        method='multi',
+                        chunksize=5000,
+                    )
+                    written += len(batch)
+                self.logger.info("  -> Loaded %d payments into fact_payment (in batches)", written)
+                print(f"  -> Loaded {written} payments into fact_payment (in batches)")
             except Exception as e:
                 self.logger.error("  -> fact_payment load failed: %s", e, exc_info=True)
         else:
@@ -2408,10 +2425,27 @@ class ETLPipeline:
             self.logger.info("  -> fact_grade ready (incremental): %d rows (pre-filter: %d)", len(fact_grade), before)
         
         if not fact_grade.empty:
+            # Write grades in manageable batches to avoid heavy single writes
+            total_rows = len(fact_grade)
+            batch_size = 50_000
+            written = 0
             try:
-                fact_grade.to_sql('fact_grade', engine, if_exists='append', index=False, method='multi', chunksize=2000)
-                self.logger.info("  -> Loaded %d grades into fact_grade", len(fact_grade))
-                print(f"  -> Loaded {len(fact_grade)} grades into fact_grade")
+                for start in range(0, total_rows, batch_size):
+                    end = min(start + batch_size, total_rows)
+                    batch = fact_grade.iloc[start:end]
+                    if batch.empty:
+                        continue
+                    batch.to_sql(
+                        'fact_grade',
+                        engine,
+                        if_exists='append',
+                        index=False,
+                        method='multi',
+                        chunksize=5000,
+                    )
+                    written += len(batch)
+                self.logger.info("  -> Loaded %d grades into fact_grade (in batches)", written)
+                print(f"  -> Loaded {written} grades into fact_grade (in batches)")
             except Exception as e:
                 self.logger.error(f"  → fact_grade load failed: {e}", exc_info=True)
         else:
@@ -2428,9 +2462,27 @@ class ETLPipeline:
                 if out[c].dtype == object:
                     out[c] = out[c].astype(str).replace('nan', '')
             try:
-                # Use smaller chunksize to avoid SQLAlchemy memory blow‑up on very wide, tall tables.
-                out.to_sql(table_name, engine, if_exists='replace', index=False, method='multi', chunksize=2000)
-                self.logger.info(f"  → Loaded {len(out)} rows into {table_name} ({len(out.columns)} columns)")
+                # Write wide synthetic tables in smaller batches:
+                # first batch uses REPLACE, subsequent batches APPEND.
+                total_rows = len(out)
+                batch_size = 100_000
+                written = 0
+                for idx, start in enumerate(range(0, total_rows, batch_size)):
+                    end = min(start + batch_size, total_rows)
+                    batch = out.iloc[start:end]
+                    if batch.empty:
+                        continue
+                    mode = 'replace' if idx == 0 else 'append'
+                    batch.to_sql(
+                        table_name,
+                        engine,
+                        if_exists=mode,
+                        index=False,
+                        method='multi',
+                        chunksize=5000,
+                    )
+                    written += len(batch)
+                self.logger.info(f"  → Loaded {written} rows into {table_name} ({len(out.columns)} columns, in batches)")
             except Exception as e:
                 self.logger.error(f"  → {table_name} load failed: {e}", exc_info=True)
 
