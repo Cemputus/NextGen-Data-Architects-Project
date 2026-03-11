@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Input } from '../components/ui/input';
 import { Users, Search, Loader2 } from 'lucide-react';
 
-const auth = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
 export default function HREmployeesPage() {
   const [employees, setEmployees] = useState([]);

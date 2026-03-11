@@ -155,12 +155,14 @@ export const AuthProvider = ({ children }) => {
     return startActivityListeners();
   }, [resetIdleTimer, startRefreshLoop, startActivityListeners]);
 
-  // ── Axios 401 interceptor ──────────────────────────────────────────────────
+  // ── Axios auth interceptor (401/422) ───────────────────────────────────────
   useEffect(() => {
     const id = axios.interceptors.response.use(
       (res) => res,
       (err) => {
-        if (err.response?.status === 401 && isLoggedInRef.current) {
+        const status = err.response?.status;
+        // Treat both 401 and 422 from the API as "session no longer valid"
+        if ((status === 401 || status === 422) && isLoggedInRef.current) {
           logout('expired');
         }
         return Promise.reject(err);

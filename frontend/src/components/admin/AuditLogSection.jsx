@@ -86,7 +86,7 @@ export default function AuditLogSection({
       }
 
       const response = await axios.get('/api/admin/audit-logs', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params: { limit: requestLimit },
       });
       
@@ -132,7 +132,7 @@ export default function AuditLogSection({
     try {
       setSettingUp(true);
       await axios.post('/api/admin/setup-audit-db', {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` }
       });
       setMessage(null);
       await loadLogs(logsLimit);

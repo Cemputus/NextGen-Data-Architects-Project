@@ -399,7 +399,7 @@ const AdminSettings = () => {
                       setAboutEditMode(false);
                       setEditAbout(null);
                       try {
-                        const token = localStorage.getItem('token');
+                        const token = sessionStorage.getItem('ucu_session_token');
                         const res = await fetch('/api/admin/settings', {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

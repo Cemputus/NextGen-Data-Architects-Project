@@ -263,6 +263,30 @@ CORS(app, supports_credentials=True, origins=['http://localhost:3000', 'http://l
      allow_headers=['Content-Type', 'Authorization'], methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 jwt = JWTManager(app)
 
+# JWT error handlers: always return 401 (not 422) so frontend can treat as "session expired"
+@jwt.unauthorized_loader
+def _jwt_unauthorized(err_str):
+    # No token present in the request
+    return jsonify({'error': 'Auth required', 'detail': err_str}), 401
+
+
+@jwt.invalid_token_loader
+def _jwt_invalid_token(err_str):
+    # Malformed or otherwise invalid token
+    return jsonify({'error': 'Invalid token', 'detail': err_str}), 401
+
+
+@jwt.expired_token_loader
+def _jwt_expired_token(jwt_header, jwt_payload):
+    # Access or refresh token has expired
+    return jsonify({'error': 'Token expired'}), 401
+
+
+@jwt.revoked_token_loader
+def _jwt_revoked_token(jwt_header, jwt_payload):
+    return jsonify({'error': 'Token revoked'}), 401
+
+
 # --- User Management: explicit ping first (no auth), then catch-all ---
 @app.route('/api/user-mgmt/ping', methods=['GET', 'OPTIONS'], strict_slashes=False)
 @app.route('/user-mgmt/ping', methods=['GET', 'OPTIONS'], strict_slashes=False)
