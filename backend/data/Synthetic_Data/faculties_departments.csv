@@ -1,0 +1,92 @@
+faculty_id,faculty_name,department_id,department_name,program_id,program_name
+1,Bishop Tucker School of Divinity and Theology,1,Divinity and Theology,6,Bachelor of Divinity
+1,Bishop Tucker School of Divinity and Theology,1,Divinity and Theology,5,Doctor of Ministry
+1,Bishop Tucker School of Divinity and Theology,1,Divinity and Theology,2,Master of Arts in Theology
+1,Bishop Tucker School of Divinity and Theology,1,Divinity and Theology,3,Master of Divinity
+1,Bishop Tucker School of Divinity and Theology,1,Divinity and Theology,1,Master of Theological Studies
+1,Bishop Tucker School of Divinity and Theology,1,Divinity and Theology,4,PhD in Theology
+5,Faculty of Agricultural Sciences,6,Agricultural Science,39,Bachelor of Science in Agricultural Science and Entrepreneurship
+5,Faculty of Agricultural Sciences,6,Agricultural Science,41,Bachelor of Science in Food Science and Technology
+5,Faculty of Agricultural Sciences,6,Agricultural Science,40,Bachelor of Science in Human Nutrition and Clinical Dietetics
+5,Faculty of Agricultural Sciences,6,Agricultural Science,36,Master of Science in Agribusiness Management and Entrepreneurship
+5,Faculty of Agricultural Sciences,6,Agricultural Science,35,Master of Science in Agricultural Economics
+5,Faculty of Agricultural Sciences,6,Agricultural Science,34,Master of Science in Agriculture (Rural Dev't | Crop Science | Soil Science)
+5,Faculty of Agricultural Sciences,6,Agricultural Science,37,Master of Science in Human Nutrition
+5,Faculty of Agricultural Sciences,6,Agricultural Science,38,PhD in Agricultural Systems and Value Chain Management
+6,"Faculty of Engineering, Design & Technology",7,Computing,45,Bachelor of Science in Computer Science
+6,"Faculty of Engineering, Design & Technology",7,Computing,44,Bachelor of Science in Data Science and Analytics
+6,"Faculty of Engineering, Design & Technology",7,Computing,46,Bachelor of Science in Information Technology
+6,"Faculty of Engineering, Design & Technology",7,Computing,47,Diploma in Information Technology
+6,"Faculty of Engineering, Design & Technology",7,Computing,43,Master of Information Technology
+6,"Faculty of Engineering, Design & Technology",7,Computing,42,Master of Science in Computer Science
+6,"Faculty of Engineering, Design & Technology",9,Engineering,55,Bachelor of Electronics and Communication Science
+6,"Faculty of Engineering, Design & Technology",9,Engineering,54,Bachelor of Science in Civil and Environmental Engineering
+6,"Faculty of Engineering, Design & Technology",9,Engineering,52,Master of Science in Data Science and Analytics
+6,"Faculty of Engineering, Design & Technology",9,Engineering,53,Master of Science in Environmental Science & Management
+6,"Faculty of Engineering, Design & Technology",9,Engineering,51,Master of Science in Water and Sanitation
+6,"Faculty of Engineering, Design & Technology",9,Engineering,56,PGD Water and Sanitation
+6,"Faculty of Engineering, Design & Technology",8,Visual Arts,50,Bachelor of Art in Graphic Design and Animation
+6,"Faculty of Engineering, Design & Technology",8,Visual Arts,49,Bachelor of Visual Art and Design
+6,"Faculty of Engineering, Design & Technology",8,Visual Arts,48,Diploma in Visual Art and Design
+3,"Faculty of Public Health, Nursing & Midwifery",4,"Public Health, Nursing & Midwifery",29,Bachelor of Nursing Science (Diploma Entry)
+3,"Faculty of Public Health, Nursing & Midwifery",4,"Public Health, Nursing & Midwifery",28,Bachelor of Nursing Science (For A' level Applicants)
+3,"Faculty of Public Health, Nursing & Midwifery",4,"Public Health, Nursing & Midwifery",27,Bachelor of Public Health
+3,"Faculty of Public Health, Nursing & Midwifery",4,"Public Health, Nursing & Midwifery",25,Master of Nursing Science
+3,"Faculty of Public Health, Nursing & Midwifery",4,"Public Health, Nursing & Midwifery",26,Master of Public Health
+3,"Faculty of Public Health, Nursing & Midwifery",4,"Public Health, Nursing & Midwifery",24,Master of Public Health Leadership
+10,School of Business,17,Accounting,85,Bachelor of Science in Accounting and Finance
+10,School of Business,17,Accounting,86,Bachelor of Science in Economics and Statistics
+10,School of Business,13,Business,76,Bachelor of Business Administration
+10,School of Business,13,Business,77,Diploma in Business Administration
+10,School of Business,13,Business,75,Master of Arts in Organizational Leadership and Management
+10,School of Business,13,Business,74,Master of Business Administration
+10,School of Business,14,Human Resource,80,Bachelor of Human Resource Management
+10,School of Business,14,Human Resource,79,Master of Human Resource Management
+10,School of Business,14,Human Resource,78,PGD Human Resource Management
+10,School of Business,15,Procurement and Logistics Management,83,Bachelor of Procurement and Logistics Management
+10,School of Business,15,Procurement and Logistics Management,82,Master of Science in Procurement and Supply Chain Management
+10,School of Business,15,Procurement and Logistics Management,81,PGD Sustainable Business and Renewable Energy
+10,School of Business,16,Tourism & Hospitality,84,Bachelor of Tourism and Hospitality Management
+8,School of Dentistry,11,Dentistry,72,Bachelor of Dental Surgery
+2,School of Education,2,Education & Literature,18,BA Education
+2,School of Education,2,Education & Literature,17,Bachelor of Education (Recess) (Upgrading Teachers)
+2,School of Education,2,Education & Literature,16,Bachelor of Science in Education
+2,School of Education,2,Education & Literature,13,Higher Education Certificate (Arts)
+2,School of Education,2,Education & Literature,15,Higher Education Certificate (Blended)
+2,School of Education,2,Education & Literature,14,Higher Education Certificate (Sciences)
+2,School of Education,2,Education & Literature,8,MA Literature
+2,School of Education,2,Education & Literature,7,Master of Education Administration and Management
+2,School of Education,2,Education & Literature,10,Master of Education in Curriculum Studies
+2,School of Education,2,Education & Literature,11,Master of Educational Psychology
+2,School of Education,2,Education & Literature,12,Master of Higher Education Pedagogy and Leadership
+2,School of Education,2,Education & Literature,9,Master of Library and Information Science
+2,School of Education,3,Postgraduate Studies,19,PGD Education
+2,School of Education,3,Postgraduate Studies,20,PGD Higher Education
+2,School of Education,3,Postgraduate Studies,21,PGD Internationalisation of Education
+2,School of Education,3,Postgraduate Studies,23,PhD in Education (Administration & Management)
+2,School of Education,3,Postgraduate Studies,22,PhD in Literature
+4,"School of Journalism, Media and Communication",5,"Journalism, Media & Communication",33,BA Journalism and Communication
+4,"School of Journalism, Media and Communication",5,"Journalism, Media & Communication",30,MA Journalism and Strategic Communication
+4,"School of Journalism, Media and Communication",5,"Journalism, Media & Communication",31,Master of Arts in Strategic Communication
+4,"School of Journalism, Media and Communication",5,"Journalism, Media & Communication",32,"PhD in Journalism, Media and Communication"
+11,School of Law,18,Law,91,Bachelor of Laws (LLB)
+11,School of Law,18,Law,90,Diploma in Law
+11,School of Law,18,Law,89,Master of Laws (Oil & Gas)
+11,School of Law,18,Law,87,Master of Laws in International Business Law
+11,School of Law,18,Law,88,Master of Laws in International Energy Law and Policy
+9,School of Medicine,12,Medicine,73,Bachelor of Medicine and Bachelor of Surgery (MBChB)
+7,School of Social Sciences,10,Social Sciences,69,Bachelor of Governance and International Relations
+7,School of Social Sciences,10,Social Sciences,70,"Bachelor of Human Rights, Peace and Humanitarian Interventions"
+7,School of Social Sciences,10,Social Sciences,68,Bachelor of Public Administration and Management
+7,School of Social Sciences,10,Social Sciences,71,Bachelor of Social Work and Social Administration
+7,School of Social Sciences,10,Social Sciences,67,Diploma in Social Work and Social Administration
+7,School of Social Sciences,10,Social Sciences,65,Master of Arts in African Studies
+7,School of Social Sciences,10,Social Sciences,60,Master of Counseling Psychology
+7,School of Social Sciences,10,Social Sciences,64,Master of Development Monitoring and Evaluation
+7,School of Social Sciences,10,Social Sciences,61,Master of Governance and International Relations
+7,School of Social Sciences,10,Social Sciences,62,Master of Public Administration and Management
+7,School of Social Sciences,10,Social Sciences,63,Master of Research and Public Policy
+7,School of Social Sciences,10,Social Sciences,59,Master of Social Work
+7,School of Social Sciences,10,Social Sciences,58,PGD Development Monitoring and Evaluation
+7,School of Social Sciences,10,Social Sciences,57,PGD Public Administration
+7,School of Social Sciences,10,Social Sciences,66,PhD in Development Studies
