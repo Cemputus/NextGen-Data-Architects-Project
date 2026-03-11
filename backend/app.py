@@ -3132,21 +3132,20 @@ def generate_report():
             'generated_at': datetime.now().isoformat()
         })
 
+# Ensure ucu_rbac DB, app_users table, and default app user (Cemputus / cen123) exist
+try:
+    from sqlalchemy import create_engine
+    _rbac = create_engine(RBAC_CONN_STRING)
+    _ensure_app_users_table(_rbac)
+    _ensure_default_app_user(_rbac)
+    _rbac.dispose()
+    print(f"  - Default app user: {DEFAULT_APP_USER['username']} / {DEFAULT_APP_USER['password']}")
+except Exception as ex:
+    print(f"Warning: Could not ensure RBAC DB (app-user login may fail): {ex}")
+
 if __name__ == '__main__':
-    # Ensure ucu_rbac DB, app_users table, and default app user (Cemputus / cen123) exist
-    try:
-        from sqlalchemy import create_engine
-        _rbac = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(_rbac)
-        _ensure_default_app_user(_rbac)
-        _rbac.dispose()
-        print(f"  - Default app user: {DEFAULT_APP_USER['username']} / {DEFAULT_APP_USER['password']}")
-    except Exception as ex:
-        print(f"Warning: Could not ensure RBAC DB (app-user login may fail): {ex}")
-    # When running via `python app.py` (local dev), keep using Flask's dev server.
-    # In Docker / production we will run via Gunicorn (see Dockerfile CMD),
-    # so debug=True and the reloader are only for local development.
-    print("Starting Flask development server...")
+    # ML models are already initialized above
+    print("Starting Flask server...")
     print("Backend API: http://localhost:5000")
     print("API Documentation:")
     print("  - Auth: /api/auth/login, /api/auth/profile")

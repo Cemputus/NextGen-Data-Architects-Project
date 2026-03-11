@@ -6,6 +6,8 @@ flask==3.0.0
 flask-cors==4.0.0
 flask-jwt-extended==4.6.0
 werkzeug==3.0.1
+gunicorn==21.2.0
+
 
 # Database — PostgreSQL
 sqlalchemy>=1.4.0,<2.1.0

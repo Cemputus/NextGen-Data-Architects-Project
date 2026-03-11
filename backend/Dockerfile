@@ -26,8 +26,10 @@ RUN pip install --no-cache-dir --default-timeout=1000 -r requirements.txt
 # Copy the rest of the backend source code
 COPY . .
 
-# Environment for backend and PostgreSQL connection (overridable via docker-compose / Kubernetes)
+# Environment for Flask and PostgreSQL connection (overridable via docker-compose / Kubernetes)
 ENV FLASK_APP=app.py \
+    FLASK_RUN_HOST=0.0.0.0 \
+    FLASK_RUN_PORT=5000 \
     PG_HOST=postgres \
     PG_PORT=5432 \
     PG_USER=postgres \
@@ -36,6 +38,5 @@ ENV FLASK_APP=app.py \
 # Expose backend HTTP port
 EXPOSE 5000
 
-# Default command: run the API with Gunicorn (production-grade WSGI server).
-# ETL is triggered via the existing /api/admin/run-etl endpoint.
-CMD ["gunicorn", "-w", "4", "-k", "gthread", "-b", "0.0.0.0:5000", "app:app"]
+# Default command: run the Flask API via Gunicorn WSGI for production
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "--timeout", "120", "app:app"]
