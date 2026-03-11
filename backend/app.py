@@ -3143,8 +3143,10 @@ if __name__ == '__main__':
         print(f"  - Default app user: {DEFAULT_APP_USER['username']} / {DEFAULT_APP_USER['password']}")
     except Exception as ex:
         print(f"Warning: Could not ensure RBAC DB (app-user login may fail): {ex}")
-    # ML models are already initialized above
-    print("Starting Flask server...")
+    # When running via `python app.py` (local dev), keep using Flask's dev server.
+    # In Docker / production we will run via Gunicorn (see Dockerfile CMD),
+    # so debug=True and the reloader are only for local development.
+    print("Starting Flask development server...")
     print("Backend API: http://localhost:5000")
     print("API Documentation:")
     print("  - Auth: /api/auth/login, /api/auth/profile")

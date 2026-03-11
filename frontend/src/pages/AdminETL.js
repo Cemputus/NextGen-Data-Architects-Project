@@ -22,20 +22,21 @@ import CountdownTimer from '../components/admin/CountdownTimer';
 const REFRESH_INTERVAL_MS = 5000;
 const REFRESH_AFTER_RUN_COUNT = 12; // 12 * 5s = 60s of polling after Run ETL
 
+// ETL auto-run interval options (in minutes)
 const ETL_AUTO_INTERVAL_OPTIONS = [
-  { value: 1, label: '1 min (test)' },
-  { value: 30, label: '30 minutes' },
-  { value: 60, label: '1 hour' },
-  { value: 120, label: '2 hours' },
   { value: 300, label: '5 hours' },
   { value: 600, label: '10 hours' },
-  { value: 1440, label: '24 hours' },
+  { value: 900, label: '15 hours' },
+  { value: 1440, label: '1 day' },
+  { value: 10080, label: '7 days' },
+  { value: 43200, label: '30 days' },
 ];
 
 const AdminETL = () => {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState(null);
+  const [serverTime, setServerTime] = useState(null); // live ticking server time
   const [error, setError] = useState(null);
   const [etlMessage, setEtlMessage] = useState(null);
   const etlState = adminUIState.getSection('etl');
@@ -175,6 +176,17 @@ const AdminETL = () => {
         params,
       });
       setStatus(response.data);
+      if (response.data?.server_time) {
+        try {
+          const iso = response.data.server_time.replace(' ', 'T');
+          const initial = new Date(iso);
+          if (!Number.isNaN(initial.getTime())) {
+            setServerTime(initial);
+          }
+        } catch {
+          setServerTime(null);
+        }
+      }
     } catch (err) {
       if (err.response?.status === 403) setError('Admin access required');
       else setError(err.response?.data?.error || err.message);
@@ -192,6 +204,15 @@ const AdminETL = () => {
     loadStatus();
     loadSettings();
   }, [etlRunsLimit]);
+
+  // Local ticking server time (updates every second based on last snapshot)
+  useEffect(() => {
+    if (!serverTime) return;
+    const id = setInterval(() => {
+      setServerTime((prev) => (prev ? new Date(prev.getTime() + 1000) : prev));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [serverTime]);
 
   const warehouse = status?.warehouse || {};
   const etlRuns = status?.etl_runs || [];
@@ -317,9 +338,9 @@ const AdminETL = () => {
         description="Track pipeline runs and data warehouse counts"
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            {status?.server_time && (
+            {serverTime && (
               <span className="text-xs text-muted-foreground font-mono tabular-nums border border-border rounded px-2 py-1 bg-muted/50" title="All times on this page use server time">
-                Server time: {status.server_time}
+                Server time: {serverTime.toLocaleString()}
               </span>
             )}
             <Button variant="outline" onClick={handleRefresh} disabled={loading}>

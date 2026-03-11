@@ -520,8 +520,19 @@ def _ensure_app_users_table(engine):
 
 
 def _server_time_str():
-    """Single format for admin timestamps: YYYY-MM-DD HH:mm:ss (server local). Use for ETL, audit, and server_time in responses."""
-    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    """
+    Single format for admin timestamps: YYYY-MM-DD HH:mm:ss in Africa/Kampala timezone.
+    Use for ETL, audit, and server_time in responses so UI matches Uganda local time.
+    """
+    try:
+        # Python 3.9+ zoneinfo (no extra dependency) – container must have tzdata.
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo("Africa/Kampala")
+        now = datetime.now(tz)
+    except Exception:
+        # Fallback to naive local time if zoneinfo/tzdata are unavailable
+        now = datetime.now()
+    return now.strftime('%Y-%m-%d %H:%M:%S')
 
 
 @admin_bp.route('/server-time', methods=['GET'])
