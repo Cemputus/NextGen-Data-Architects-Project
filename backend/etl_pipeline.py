@@ -1723,6 +1723,15 @@ class ETLPipeline:
             if available_cols:
                 faculties_dim = faculties_dim[available_cols].drop_duplicates(subset=['faculty_id'], keep='first')
                 with engine.connect() as conn:
+                    # Ensure table exists before clearing
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS dim_faculty (
+                            faculty_id INT PRIMARY KEY,
+                            faculty_name VARCHAR(200),
+                            dean_name VARCHAR(200)
+                        )
+                    """))
+                    conn.commit()
                     conn.execute(text("DELETE FROM dim_faculty"))
                     conn.commit()
                 faculties_dim.to_sql('dim_faculty', engine, if_exists='append', index=False)
@@ -1747,6 +1756,16 @@ class ETLPipeline:
             if available_cols:
                 departments_dim = departments_dim[available_cols].drop_duplicates(subset=['department_id'], keep='first')
                 with engine.connect() as conn:
+                    # Ensure table exists before clearing
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS dim_department (
+                            department_id INT PRIMARY KEY,
+                            department_name VARCHAR(200),
+                            faculty_id INT,
+                            head_of_department VARCHAR(200)
+                        )
+                    """))
+                    conn.commit()
                     conn.execute(text("DELETE FROM dim_department"))
                     conn.commit()
                 departments_dim.to_sql('dim_department', engine, if_exists='append', index=False)
@@ -1773,6 +1792,17 @@ class ETLPipeline:
             if available_cols:
                 programs_dim = programs_dim[available_cols].drop_duplicates(subset=['program_id'], keep='first')
                 with engine.connect() as conn:
+                    # Ensure table exists before clearing
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS dim_program (
+                            program_id INT PRIMARY KEY,
+                            program_name VARCHAR(200),
+                            degree_level VARCHAR(50),
+                            department_id INT,
+                            duration_years INT
+                        )
+                    """))
+                    conn.commit()
                     conn.execute(text("DELETE FROM dim_program"))
                     conn.commit()
                 programs_dim.to_sql('dim_program', engine, if_exists='append', index=False)
