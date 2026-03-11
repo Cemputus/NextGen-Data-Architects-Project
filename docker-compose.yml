@@ -25,7 +25,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -136,17 +136,14 @@ services:
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
     command: >
-      bash -c "
-      airflow db migrate &&
-      airflow users create
+      bash -c " airflow db migrate && airflow users create
         --username admin
         --firstname Admin
         --lastname User
         --role Admin
         --email admin@example.com
         --password admin || true &&
-      exec airflow webserver
-      "
+      exec airflow webserver "
 
   frontend:
     build:
@@ -159,10 +156,13 @@ services:
     environment:
       # React dev server will proxy API calls to this URL (see package.json "proxy")
       CHOKIDAR_USEPOLLING: "true"
+    tty: true
+    stdin_open: true
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend:/app
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
 
 volumes:
   pg_data:

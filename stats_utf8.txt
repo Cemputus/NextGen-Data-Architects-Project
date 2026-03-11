@@ -1,0 +1,13 @@
+﻿CONTAINER ID   NAME                 CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+205d8ae2316b   nextgen_frontend     4.76%     94.09MiB / 3.746GiB   2.45%     5.61kB / 3.34kB   35.5MB / 10.7MB   30
+e35f1367f900   nextgen_airflow      107.92%   75MiB / 3.746GiB      1.96%     9.12kB / 8.98kB   1.65MB / 0B       4
+fb64a12b87ff   nextgen_backend      5.20%     219.9MiB / 3.746GiB   5.73%     23.6kB / 22.1kB   44.8MB / 76.2MB   37
+baca08051534   nextgen_gold_etl     7.39%     220.4MiB / 3.746GiB   5.74%     19.4kB / 18.1kB   42.5MB / 76MB     37
+e3052f18d25e   nextgen_bronze_etl   2.94%     218.3MiB / 3.746GiB   5.69%     16.4kB / 14.6kB   52.6MB / 77MB     37
+cfe30aca25bc   nextgen_silver_etl   6.08%     218.3MiB / 3.746GiB   5.69%     16.5kB / 15.1kB   43.4MB / 76.8MB   37
+11b1141ae505   nextgen_postgres     16.53%    30.14MiB / 3.746GiB   0.79%     110kB / 103kB     45.2MB / 6.68MB   6
+6bb52c3f97e7   loving_dijkstra      2.07%     152.3MiB / 3.746GiB   3.97%     1.94kB / 1.07kB   3.61MB / 143MB    37
+2a955df800a4   practical_haibt      2.54%     148MiB / 3.746GiB     3.86%     2.11kB / 1.07kB   1.27MB / 147MB    37
+2261e8dd64fa   reverent_napier      2.05%     143.7MiB / 3.746GiB   3.74%     2.36kB / 1.07kB   12.1MB / 153MB    37
+c1ef1f014c9c   confident_banzai     1.04%     143.6MiB / 3.746GiB   3.74%     2.4kB / 1.11kB    11.4MB / 153MB    37
+47a836dc93fd   exciting_curie       0.66%     884.5MiB / 3.746GiB   23.06%    2.44kB / 126B     287MB / 600MB     30

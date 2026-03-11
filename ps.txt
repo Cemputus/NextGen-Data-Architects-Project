@@ -1,0 +1,8 @@
+﻿NAME                 IMAGE                                        COMMAND                  SERVICE      CREATED         STATUS                   PORTS
+nextgen_airflow      apache/airflow:2.10.2                        "/usr/bin/dumb-init ΓÇª"   airflow      2 minutes ago   Up 2 minutes             0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+nextgen_backend      nextgen-data-architects-project-backend      "python app.py"          backend      2 minutes ago   Up 2 minutes             0.0.0.0:5000->5000/tcp, [::]:5000->5000/tcp
+nextgen_bronze_etl   nextgen-data-architects-project-bronze-etl   "python app.py"          bronze-etl   2 minutes ago   Up 2 minutes             5000/tcp
+nextgen_frontend     nextgen-data-architects-project-frontend     "docker-entrypoint.sΓÇª"   frontend     2 minutes ago   Up About a minute        0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+nextgen_gold_etl     nextgen-data-architects-project-gold-etl     "python app.py"          gold-etl     2 minutes ago   Up 2 minutes             5000/tcp
+nextgen_postgres     postgres:16-alpine                           "docker-entrypoint.sΓÇª"   postgres     2 minutes ago   Up 2 minutes (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+nextgen_silver_etl   nextgen-data-architects-project-silver-etl   "python app.py"          silver-etl   2 minutes ago   Up 2 minutes             5000/tcp

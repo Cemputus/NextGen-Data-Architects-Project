@@ -1,0 +1,15 @@
+﻿CONTAINER ID   IMAGE                                               COMMAND                  CREATED              STATUS                    PORTS                    NAMES
+6bb52c3f97e7   nextgen-data-architects-project-bronze-etl:latest   "python app.py"          About a minute ago   Up About a minute         5000/tcp                 loving_dijkstra
+2a955df800a4   nextgen-data-architects-project-silver-etl:latest   "python app.py"          About a minute ago   Up About a minute         5000/tcp                 practical_haibt
+2261e8dd64fa   nextgen-data-architects-project-gold-etl:latest     "python app.py"          3 minutes ago        Up About a minute         5000/tcp                 reverent_napier
+c1ef1f014c9c   nextgen-data-architects-project-backend:latest      "python app.py"          3 minutes ago        Up About a minute         5000/tcp                 confident_banzai
+47a836dc93fd   nextgen-data-architects-project-frontend:latest     "docker-entrypoint.sΓÇª"   3 minutes ago        Up 3 minutes              3000/tcp                 exciting_curie
+a8af926d1e3a   postgres:16-alpine                                  "docker-entrypoint.sΓÇª"   25 minutes ago       Created                                            nextgen_postgres
+21d64e9c2c38   apache/airflow:2.10.2                               "/usr/bin/dumb-init ΓÇª"   12 hours ago         Created                                            nextgen_airflow
+09023b6ef4fc   rpc-chat:latest                                     "sh -c 'python cloudΓÇª"   11 days ago          Exited (255) 7 days ago   5000/tcp                 trusting_bohr
+cd1a4aaf3766   cloud_computing-app:latest                          "sh -c 'python cloudΓÇª"   11 days ago          Exited (255) 7 days ago   5000/tcp                 eager_grothendieck
+10b6c27b0342   cloud_computing-app                                 "sh -c 'python cloudΓÇª"   11 days ago          Exited (255) 7 days ago   0.0.0.0:5000->5000/tcp   cloud_computing-app-1
+50749ed21c3f   b7587f3cb74f                                        "docker-entrypoint.sΓÇª"   11 days ago          Exited (255) 7 days ago   5432/tcp                 cloud_computing-db-1
+d1685dec260c   ucu_data_project-countries_ingestor                 "python assignment/iΓÇª"   2 weeks ago          Exited (2) 7 days ago                              ucu_countries_ingestor
+55272da3061a   postgres:15                                         "docker-entrypoint.sΓÇª"   3 weeks ago          Exited (0) 7 days ago                              ucu_postgres_db
+a7d0226569d4   ucu_data_project-ucu_ingestor                       "python"                 3 weeks ago          Exited (137) 7 days ago                            ucu_python_worker
