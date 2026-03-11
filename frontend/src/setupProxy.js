@@ -8,13 +8,19 @@ module.exports = function (app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://127.0.0.1:5000',
+      // In Docker, talk to the backend service by its Compose service name
+      target: 'http://backend:5000',
       changeOrigin: true,
       secure: false,
       onError: (err, req, res) => {
         console.error('[Proxy] Backend unreachable:', err.message);
         res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Backend not running', message: 'Start backend\\run_backend.bat first.' }));
+        res.end(
+          JSON.stringify({
+            error: 'Backend not running',
+            message: 'Check that the Docker backend service is healthy (docker compose ps).',
+          })
+        );
       },
     })
   );
