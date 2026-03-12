@@ -281,6 +281,107 @@ def get_fex_analytics():
             'error': str(e)
         }), 200  # Return 200 with error in response so frontend can display it
 
+
+@analytics_bp.route('/student/retakes', methods=['GET'])
+@jwt_required()
+def get_student_retakes():
+    """Return retake-related courses for the current student based on FCW/MEX/FEX statuses.
+
+    - Students: see only their own retake list.
+    - Other roles: currently receive 403; aggregate views use existing FEX/high-school analytics.
+    """
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+        if user_scope['role'] != Role.STUDENT:
+            return jsonify({'error': 'Retake details are only available on the student dashboard.'}), 403
+
+        student_id = user_scope.get('student_id')
+        access_number = user_scope.get('access_number')
+        if not student_id and not access_number:
+            return jsonify({'retakes': [], 'summary': {'total_retakes': 0}}), 200
+
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        params = {}
+        where_clauses = ["fg.exam_status IN ('FEX', 'MEX', 'FCW')"]
+
+        if student_id:
+            where_clauses.append("fg.student_id = :student_id")
+            params['student_id'] = student_id
+        elif access_number:
+            where_clauses.append("ds.access_number = :access_number")
+            params['access_number'] = access_number
+
+        query = f"""
+        SELECT
+            ds.student_id,
+            ds.access_number,
+            ds.reg_no,
+            ds.first_name,
+            ds.last_name,
+            dp.program_name,
+            ddept.department_name,
+            df.faculty_name,
+            fg.course_code,
+            dc.course_name,
+            fg.exam_status,
+            fg.grade,
+            fg.coursework_score,
+            fg.exam_score,
+            fg.semester_id,
+            ds.academic_year
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        JOIN dim_course dc ON fg.course_code = dc.course_code
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        WHERE {" AND ".join(where_clauses)}
+        ORDER BY ds.academic_year, fg.semester_id, dc.course_code
+        """
+
+        df = pd.read_sql_query(text(query), engine, params=params)
+        engine.dispose()
+
+        retakes = []
+        for _, row in df.iterrows():
+            status = str(row.get('exam_status') or '').upper()
+            reason = None
+            if status == 'FCW':
+                reason = 'Failed coursework'
+            elif status == 'MEX':
+                reason = 'Missed exam'
+            elif status == 'FEX':
+                reason = 'Failed exam'
+            retakes.append({
+                'course_code': str(row.get('course_code') or ''),
+                'course_name': str(row.get('course_name') or ''),
+                'exam_status': status,
+                'reason': reason,
+                'grade': float(row['grade']) if 'grade' in row and pd.notna(row['grade']) else None,
+                'coursework_score': float(row['coursework_score']) if 'coursework_score' in row and pd.notna(row['coursework_score']) else None,
+                'exam_score': float(row['exam_score']) if 'exam_score' in row and pd.notna(row['exam_score']) else None,
+                'semester_id': int(row['semester_id']) if 'semester_id' in row and pd.notna(row['semester_id']) else None,
+                'academic_year': str(row.get('academic_year') or ''),
+                'status': 'pending',  # progression integration can refine this later
+            })
+
+        return jsonify({
+            'retakes': retakes,
+            'summary': {
+                'total_retakes': len(retakes),
+                'fcw_count': sum(1 for r in retakes if r['exam_status'] == 'FCW'),
+                'mex_count': sum(1 for r in retakes if r['exam_status'] == 'MEX'),
+                'fex_count': sum(1 for r in retakes if r['exam_status'] == 'FEX'),
+            },
+        }), 200
+
+    except Exception as e:
+        import traceback
+        print(f"Error in get_student_retakes: {e}")
+        print(traceback.format_exc())
+        return jsonify({'retakes': [], 'summary': {'total_retakes': 0}, 'error': str(e)}), 200
+
 @analytics_bp.route('/high-school', methods=['GET'])
 @jwt_required()
 def get_high_school_analytics():

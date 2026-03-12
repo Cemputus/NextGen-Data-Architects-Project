@@ -23,6 +23,8 @@ const StudentDashboard = () => {
   const [error, setError] = useState(null);
   const [showWelcome, setShowWelcome] = useState(true);
   const [attendanceTrends, setAttendanceTrends] = useState([]);
+  const [retakes, setRetakes] = useState([]);
+  const [retakeSummary, setRetakeSummary] = useState({ total_retakes: 0, fcw_count: 0, mex_count: 0, fex_count: 0 });
 
   useEffect(() => {
     loadStudentData();
@@ -69,6 +71,18 @@ const StudentDashboard = () => {
         }
       } catch (_err) {
         setAttendanceTrends([]);
+      }
+
+      // Load retake information for this student (FCW / MEX / FEX)
+      try {
+        const retakeRes = await axios.get('/api/analytics/student/retakes', {
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
+        });
+        setRetakes(retakeRes.data?.retakes || []);
+        setRetakeSummary(retakeRes.data?.summary || { total_retakes: 0, fcw_count: 0, mex_count: 0, fex_count: 0 });
+      } catch (_err) {
+        setRetakes([]);
+        setRetakeSummary({ total_retakes: 0, fcw_count: 0, mex_count: 0, fex_count: 0 });
       }
     } catch (err) {
       console.error('Error loading student data:', err);
@@ -127,6 +141,71 @@ const StudentDashboard = () => {
 
       {/* Legacy static KPIs */}
       <ModernStatsCards stats={stats} type="student" />
+
+      {/* Retake & risk section (read-only) */}
+      {retakeSummary.total_retakes > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Retakes &amp; Exam Risk</CardTitle>
+            <CardDescription>
+              Courses where your status is FCW (Failed Coursework), MEX (Missed Exam), or FEX (Failed Exam).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
+              <div>
+                <div className="font-semibold text-foreground text-sm">{retakeSummary.total_retakes}</div>
+                <div>Total retake courses</div>
+              </div>
+              <div>
+                <div className="font-semibold text-foreground text-sm">{retakeSummary.fcw_count}</div>
+                <div>FCW (Failed coursework)</div>
+              </div>
+              <div>
+                <div className="font-semibold text-foreground text-sm">{retakeSummary.mex_count}</div>
+                <div>MEX (Missed exam)</div>
+              </div>
+              <div>
+                <div className="font-semibold text-foreground text-sm">{retakeSummary.fex_count}</div>
+                <div>FEX (Failed exam)</div>
+              </div>
+            </div>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="min-w-full text-xs">
+                <thead className="bg-muted/60">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Course</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Status</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Reason</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Year / Semester</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {retakes.map((r) => (
+                    <tr key={`${r.course_code}-${r.semester_id}-${r.academic_year}`} className="border-t border-border">
+                      <td className="px-3 py-2">
+                        <div className="font-medium text-foreground">{r.course_code}</div>
+                        <div className="text-[11px] text-muted-foreground">{r.course_name}</div>
+                      </td>
+                      <td className="px-3 py-2 text-[11px]">
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 border border-border bg-muted/40">
+                          {r.exam_status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-[11px] text-muted-foreground">
+                        {r.reason || '—'}
+                      </td>
+                      <td className="px-3 py-2 text-[11px] text-muted-foreground">
+                        {r.academic_year || '—'}{r.semester_id != null ? ` / Sem ${r.semester_id}` : ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Dynamic current dashboard for Student role */}
       <RoleDashboardRenderer stats={stats} type="student" />
