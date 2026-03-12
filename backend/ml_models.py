@@ -41,8 +41,8 @@ class MultiModelPredictor:
             ds.nationality,
             ds.high_school,
             ds.high_school_district,
-            YEAR(ds.admission_date) as admission_year,
-            YEAR(CURDATE()) - YEAR(ds.admission_date) as years_at_university,
+            EXTRACT(YEAR FROM ds.admission_date) as admission_year,
+            EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM ds.admission_date) as years_at_university,
             ds.program_id,
             ds.year_of_study
         FROM dim_student ds
@@ -308,8 +308,8 @@ class MultiModelPredictor:
             ds.nationality,
             ds.high_school,
             ds.high_school_district,
-            YEAR(ds.admission_date) as admission_year,
-            YEAR(CURDATE()) - YEAR(ds.admission_date) as years_at_university,
+            EXTRACT(YEAR FROM ds.admission_date) as admission_year,
+            EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM ds.admission_date) as years_at_university,
             ds.program_id,
             ds.year_of_study,
             COALESCE(SUM(fa.total_hours), 0) as total_attendance_hours,

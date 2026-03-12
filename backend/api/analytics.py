@@ -91,7 +91,7 @@ def build_filter_query(filters, base_query, user_scope):
             params['filter_reg_number'] = filters['reg_number']
         
         if filters.get('intake_year'):
-            where_clauses.append("YEAR(ds.admission_date) = :filter_intake_year")
+            where_clauses.append("EXTRACT(YEAR FROM ds.admission_date) = :filter_intake_year")
             params['filter_intake_year'] = filters['intake_year']
         
         if filters.get('semester_id'):
@@ -210,17 +210,23 @@ def get_fex_analytics():
         # Add grouping
         query += f" GROUP BY {group_by_cols}"
         
-        # First, get summary totals (simple query without complex joins)
-        simple_check_query = """
+        # First, get summary totals (scoped by user and filters)
+        summary_query_base = """
         SELECT 
-            COUNT(CASE WHEN exam_status = 'FEX' THEN 1 END) as total_fex,
-            COUNT(CASE WHEN exam_status = 'MEX' THEN 1 END) as total_mex,
-            COUNT(CASE WHEN exam_status = 'FCW' THEN 1 END) as total_fcw,
-            COUNT(CASE WHEN exam_status = 'Completed' THEN 1 END) as total_completed,
+            COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END) as total_fex,
+            COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) as total_mex,
+            COUNT(CASE WHEN fg.exam_status = 'FCW' THEN 1 END) as total_fcw,
+            COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) as total_completed,
             COUNT(*) as total_exams
-        FROM fact_grade
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
-        simple_df = pd.read_sql_query(text(simple_check_query), engine)
+        
+        summary_query, summary_params = build_filter_query(filters, summary_query_base, user_scope)
+        simple_df = pd.read_sql_query(text(summary_query), engine, params=summary_params)
         
         # Get summary from simple query
         summary = {
@@ -702,10 +708,10 @@ def get_academic_risk_dashboard():
         
         # Key categories per status
         stats = {
-            'fcw': int(df[df['exam_status'] == 'FCW']['count'].sum()) if 'FCW' in df['exam_status'].values else 0,
-            'mex': int(df[df['exam_status'] == 'MEX']['count'].sum()) if 'MEX' in df['exam_status'].values else 0,
-            'fex': int(df[df['exam_status'] == 'FEX']['count'].sum()) if 'FEX' in df['exam_status'].values else 0,
-            'completed': int(df[df['exam_status'] == 'Completed']['count'].sum()) if 'Completed' in df['exam_status'].values else 0,
+            'fcw_count': int(df[df['exam_status'] == 'FCW']['count'].sum()) if 'FCW' in df['exam_status'].values else 0,
+            'mex_count': int(df[df['exam_status'] == 'MEX']['count'].sum()) if 'MEX' in df['exam_status'].values else 0,
+            'fex_count': int(df[df['exam_status'] == 'FEX']['count'].sum()) if 'FEX' in df['exam_status'].values else 0,
+            'completed_count': int(df[df['exam_status'] == 'Completed']['count'].sum()) if 'Completed' in df['exam_status'].values else 0,
             'avg_grade': round(float(df['avg_grade'].mean()), 2) if not df.empty else 0
         }
         
@@ -774,14 +780,14 @@ def get_high_school_risk_correlation():
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
-        # Use the analytical view if filters are simple, or base tables for scoped filtering
+        # Use base tables for scoped filtering
         base_query = """
         SELECT 
-            ds.high_school,
+            ds.high_school as school,
             COALESCE(ds.high_school_district, 'Unknown') as district,
             COUNT(DISTINCT ds.student_id) as total_students,
-            AVG(CASE WHEN fg.fcw OR fg.exam_status IN ('FEX', 'MEX') THEN 1.0 ELSE 0.0 END) * 100 as failure_rate,
-            AVG(fg.grade) as avg_grade
+            AVG(CASE WHEN fg.fcw OR fg.exam_status IN ('FEX', 'MEX') THEN 1.0 ELSE 0.0 END) * 100 as fcw_rate,
+            AVG(fg.grade) as avg_gpa
         FROM dim_student ds
         LEFT JOIN fact_grade fg ON ds.student_id = fg.student_id
         LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
@@ -791,10 +797,9 @@ def get_high_school_risk_correlation():
         """
         
         q, params = build_filter_query(filters, base_query, user_scope)
-        # Handle WHERE vs AND in build_filter_query (it appends WHERE if needed)
-        # But we already have a WHERE for high_school.
-        # Let's fix build_filter_query to be smarter or manually handle it here.
         if " WHERE " in q:
+            # build_filter_query might have added WHERE. We need to merge with ours.
+            # Base query already has "WHERE ds.high_school IS NOT NULL"
             q = q.replace(" WHERE ", " AND ")
             q = base_query + q
         
@@ -806,7 +811,7 @@ def get_high_school_risk_correlation():
         district_query = """
         SELECT 
             ds.high_school_district as district,
-            AVG(CASE WHEN fg.fcw OR fg.exam_status IN ('FEX', 'MEX') THEN 1.0 ELSE 0.0 END) * 100 as failure_rate,
+            AVG(CASE WHEN fg.fcw OR fg.exam_status IN ('FEX', 'MEX') THEN 1.0 ELSE 0.0 END) * 100 as avg_fcw_rate,
             AVG(fg.grade) as avg_grade
         FROM dim_student ds
         LEFT JOIN fact_grade fg ON ds.student_id = fg.student_id
@@ -825,8 +830,8 @@ def get_high_school_risk_correlation():
         
         engine.dispose()
         return jsonify({
-            'schools': df.to_dict('records'),
-            'districts': district_df.to_dict('records')
+            'by_school': df.to_dict('records'),
+            'by_district': district_df.to_dict('records')
         }), 200
         
     except Exception as e:
@@ -1157,7 +1162,7 @@ def get_filter_options():
             # Students see their own intake year
             if user_scope.get('student_id'):
                 intake_query = """
-                    SELECT DISTINCT YEAR(admission_date) as year 
+                    SELECT DISTINCT EXTRACT(YEAR FROM admission_date) as year 
                     FROM dim_student 
                     WHERE student_id = :student_id AND admission_date IS NOT NULL
                 """
@@ -1166,12 +1171,12 @@ def get_filter_options():
             else:
                 options['intake_years'] = []
         else:
-            intake_query = "SELECT DISTINCT YEAR(admission_date) as year FROM dim_student WHERE admission_date IS NOT NULL"
+            intake_query = "SELECT DISTINCT EXTRACT(YEAR FROM admission_date) as year FROM dim_student WHERE admission_date IS NOT NULL"
             
             # Apply role-based scoping
             if role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id:
                 intake_query = """
-                    SELECT DISTINCT YEAR(ds.admission_date) as year
+                    SELECT DISTINCT EXTRACT(YEAR FROM ds.admission_date) as year
                     FROM dim_student ds
                     JOIN dim_program p ON ds.program_id = p.program_id
                     JOIN dim_department d ON p.department_id = d.department_id
@@ -1181,7 +1186,7 @@ def get_filter_options():
                 options['intake_years'] = intake_years['year'].tolist() if not intake_years.empty else []
             elif role == Role.HOD and user_scope.get('department_id') and not department_id:
                 intake_query = """
-                    SELECT DISTINCT YEAR(ds.admission_date) as year
+                    SELECT DISTINCT EXTRACT(YEAR FROM ds.admission_date) as year
                     FROM dim_student ds
                     JOIN dim_program p ON ds.program_id = p.program_id
                     WHERE ds.admission_date IS NOT NULL AND p.department_id = :dept_id

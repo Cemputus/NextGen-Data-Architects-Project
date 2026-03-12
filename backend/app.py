@@ -1302,7 +1302,7 @@ def hr_submit_leave_request():
                 active = conn.execute(text("""
                     SELECT id FROM leave_requests
                     WHERE username = :u AND status = 'approved'
-                    AND CURDATE() <= end_date AND start_date <= CURDATE()
+                    AND CURRENT_DATE <= end_date AND start_date <= CURRENT_DATE
                     LIMIT 1
                 """), {'u': username}).mappings().fetchone()
                 if active:
@@ -1400,7 +1400,7 @@ def hr_employees_on_leave():
                 FROM leave_requests lr
                 LEFT JOIN app_users au ON au.username = lr.username
                 WHERE lr.status = 'approved'
-                AND CURDATE() BETWEEN lr.start_date AND lr.end_date
+                AND CURRENT_DATE BETWEEN lr.start_date AND lr.end_date
                 ORDER BY lr.end_date
             """)).mappings().fetchall()
         engine.dispose()
@@ -2668,15 +2668,15 @@ def get_attendance_trends():
             INNER JOIN dim_student ds ON fa.student_id = ds.student_id
             """
         if period == 'monthly':
-            period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS CHAR))"
+            period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS TEXT))"
             group_by = "dt.year, dt.month, dt.month_name"
             order_by = "dt.year ASC, dt.month ASC"
         elif period == 'yearly':
-            period_select = "CAST(dt.year AS CHAR)"
+            period_select = "CAST(dt.year AS TEXT)"
             group_by = "dt.year"
             order_by = "dt.year ASC"
         else:
-            period_select = "CONCAT('Q', CAST(dt.quarter AS CHAR), ' ', CAST(dt.year AS CHAR))"
+            period_select = "CONCAT('Q', CAST(dt.quarter AS TEXT), ' ', CAST(dt.year AS TEXT))"
             group_by = "dt.year, dt.quarter"
             order_by = "dt.year ASC, dt.quarter ASC"
 
@@ -2810,15 +2810,15 @@ def get_payment_trends():
             JOIN dim_student ds ON fp.student_id = ds.student_id
             """
         if period == 'monthly':
-            period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS CHAR))"
+            period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS TEXT))"
             group_by = "dt.year, dt.month, dt.month_name"
             order_by = "dt.year, dt.month"
         elif period == 'yearly':
-            period_select = "CAST(dt.year AS CHAR)"
+            period_select = "CAST(dt.year AS TEXT)"
             group_by = "dt.year"
             order_by = "dt.year"
         else:
-            period_select = "CONCAT('Q', CAST(dt.quarter AS CHAR), ' ', CAST(dt.year AS CHAR))"
+            period_select = "CONCAT('Q', CAST(dt.quarter AS TEXT), ' ', CAST(dt.year AS TEXT))"
             group_by = "dt.year, dt.quarter"
             order_by = "dt.year, dt.quarter"
 

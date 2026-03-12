@@ -4,7 +4,7 @@
  * Includes High School background correlation analysis
  */
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, TrendingDown, School, Users, AlertTriangle, GraduationCap } from 'lucide-react';
+import { ShieldAlert, TrendingDown, School, Users, AlertTriangle, GraduationCap, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
