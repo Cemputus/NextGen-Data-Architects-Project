@@ -279,6 +279,17 @@ const LayoutModern = ({ children }) => {
   const navItems = getNavItems();
   const currentPath = location.pathname;
   const role = (user?.role || '').toString().toLowerCase();
+  const avatarInitials = React.useMemo(() => {
+    const first = (user?.first_name || '').toString();
+    const last = (user?.last_name || '').toString();
+    const base =
+      [first, last]
+        .filter(Boolean)
+        .map((n) => n[0])
+        .join('') ||
+      (user?.username?.[0] || user?.access_number?.[0] || '?');
+    return base.toUpperCase().slice(0, 2);
+  }, [user?.first_name, user?.last_name, user?.username, user?.access_number]);
   const profilePath =
     role === 'student'
       ? '/student/profile'
@@ -425,7 +436,7 @@ const LayoutModern = ({ children }) => {
                 <Avatar className="h-10 w-10 ring-2 ring-primary/30">
                   {profilePhotoUrl && <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />}
                   <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
-                    {user?.first_name?.[0]}{user?.last_name?.[0]}
+                    {avatarInitials}
                   </AvatarFallback>
                 </Avatar>
               </button>

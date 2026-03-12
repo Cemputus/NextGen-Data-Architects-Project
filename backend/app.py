@@ -373,7 +373,10 @@ def user_mgmt_handle_no_api(subpath):
 
 def _require_sysadmin():
     claims = get_jwt()
-    if (claims.get('role') or '').lower() != 'sysadmin':
+    # RBAC: Only sysadmin role is allowed to use Admin → Users and related endpoints.
+    # Be robust to whitespace / capitalization in the JWT claim.
+    role = str(claims.get('role') or '').strip().lower()
+    if role != 'sysadmin':
         return jsonify({'error': 'Admin access required'}), 403
     return None
 
@@ -810,7 +813,12 @@ def admin_reset_app_user_password():
 @app.route('/api/admin/users', methods=['POST'], strict_slashes=False)
 @jwt_required()
 def admin_create_user():
-    """Create user (dean, hod, staff, hr, finance, analyst, sysadmin). Sysadmin only."""
+    """Create user (dean, hod, staff, hr, finance, analyst, sysadmin). Sysadmin only.
+
+    Important: app_users.id is SERIAL; RBAC seeds can insert explicit IDs.
+    Before inserting we always realign the sequence so new users never hit
+    "duplicate key value violates unique constraint app_users_pkey".
+    """
     err = _require_sysadmin()
     if err is not None:
         return err
@@ -852,10 +860,23 @@ def admin_create_user():
         _ensure_app_users_table(rbac_engine)
         password_hash = generate_password_hash(password, method='pbkdf2:sha256')
         with rbac_engine.connect() as conn:
-            conn.execute(
+            # Realign SERIAL sequence to max(id) to avoid duplicate key on insert
+            try:
+                max_id_row = conn.execute(text("SELECT COALESCE(MAX(id), 0) AS max_id FROM app_users")).fetchone()
+                max_id = int(max_id_row[0]) if max_id_row is not None else 0
+                conn.execute(
+                    text("SELECT setval(pg_get_serial_sequence('app_users', 'id'), :next_id, false)"),
+                    {'next_id': max_id + 1},
+                )
+            except Exception:
+                # If this fails, Postgres will still enforce PK; we just skip realign.
+                pass
+
+            r = conn.execute(
                 text("""
                     INSERT INTO app_users (username, password_hash, role, full_name, faculty_id, department_id)
                     VALUES (:username, :password_hash, :role, :full_name, :faculty_id, :department_id)
+                    RETURNING id
                 """),
                 {
                     'username': username,
@@ -864,12 +885,10 @@ def admin_create_user():
                     'full_name': full_name,
                     'faculty_id': faculty_id,
                     'department_id': department_id,
-                }
+                },
             )
-            conn.commit()
-            r = conn.execute(text("SELECT LAST_INSERT_ID() AS id"))
             row = r.fetchone()
-            new_id = int(row[0]) if row and row[0] else None
+            new_id = int(row[0]) if row and row[0] is not None else None
         rbac_engine.dispose()
         if new_id:
             _sync_dim_app_user('insert', new_id, {

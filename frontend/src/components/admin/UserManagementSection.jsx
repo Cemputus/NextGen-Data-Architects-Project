@@ -266,6 +266,24 @@ export default function UserManagementSection({
     setAddError(null);
     const token = getToken();
     if (!token) return;
+    // Client-side guardrails (backend also enforces uniqueness/required scope)
+    if (addForm.role === 'dean' && !addForm.faculty_id) {
+      setAddError('Please select a faculty for the Dean.');
+      setAddSubmitting(false);
+      return;
+    }
+    if (addForm.role === 'hod') {
+      if (!addForm.faculty_id) {
+        setAddError('Please select a faculty first, then pick a department for the HOD.');
+        setAddSubmitting(false);
+        return;
+      }
+      if (!addForm.department_id) {
+        setAddError('Please select a department for the HOD.');
+        setAddSubmitting(false);
+        return;
+      }
+    }
     const payload = {
       username: addForm.username.trim(),
       password: addForm.password,
@@ -344,6 +362,24 @@ export default function UserManagementSection({
     setEditError(null);
     const token = getToken();
     if (!token) return;
+    // Client-side guardrails (backend also enforces uniqueness/required scope)
+    if (editForm.role === 'dean' && !editForm.faculty_id) {
+      setEditError('Please select a faculty for the Dean.');
+      setEditSubmitting(false);
+      return;
+    }
+    if (editForm.role === 'hod') {
+      if (!editForm.faculty_id) {
+        setEditError('Please select a faculty first, then pick a department for the HOD.');
+        setEditSubmitting(false);
+        return;
+      }
+      if (!editForm.department_id) {
+        setEditError('Please select a department for the HOD.');
+        setEditSubmitting(false);
+        return;
+      }
+    }
     const payload = {
       full_name: editForm.full_name.trim(),
       role: editForm.role,
@@ -666,18 +702,35 @@ export default function UserManagementSection({
               )}
               {addForm.role === 'hod' && (
                 <div>
+                  <Label htmlFor="add-faculty-hod">Faculty *</Label>
+                  <Select
+                    id="add-faculty-hod"
+                    value={addForm.faculty_id}
+                    onChange={(e) => setAddForm((f) => ({ ...f, faculty_id: e.target.value, department_id: '' }))}
+                    required
+                    className="mb-2"
+                  >
+                    <option value="">Select faculty</option>
+                    {faculties.map((f) => (
+                      <option key={f.faculty_id} value={f.faculty_id}>{f.faculty_name}</option>
+                    ))}
+                  </Select>
                   <Label htmlFor="add-dept">Department *</Label>
                   <Select
                     id="add-dept"
                     value={addForm.department_id}
                     onChange={(e) => setAddForm((f) => ({ ...f, department_id: e.target.value }))}
                     required
+                    disabled={!addForm.faculty_id}
                   >
                     <option value="">Select department</option>
                     {departments.map((d) => (
                       <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
                     ))}
                   </Select>
+                  {!addForm.faculty_id && (
+                    <p className="mt-1 text-xs text-muted-foreground">Select a faculty first to filter departments.</p>
+                  )}
                 </div>
               )}
               <div className="flex gap-2 pt-2">
@@ -818,11 +871,12 @@ export default function UserManagementSection({
               </div>
               {editForm.role === 'dean' && (
                 <div>
-                  <Label htmlFor="edit-faculty">Faculty</Label>
+                  <Label htmlFor="edit-faculty">Faculty *</Label>
                   <Select
                     id="edit-faculty"
                     value={editForm.faculty_id}
                     onChange={(e) => setEditForm((f) => ({ ...f, faculty_id: e.target.value, department_id: '' }))}
+                    required
                   >
                     <option value="">Select faculty</option>
                     {faculties.map((f) => (
@@ -862,17 +916,35 @@ export default function UserManagementSection({
               )}
               {editForm.role === 'hod' && (
                 <div>
-                  <Label htmlFor="edit-dept">Department</Label>
+                  <Label htmlFor="edit-faculty-hod">Faculty *</Label>
+                  <Select
+                    id="edit-faculty-hod"
+                    value={editForm.faculty_id}
+                    onChange={(e) => setEditForm((f) => ({ ...f, faculty_id: e.target.value, department_id: '' }))}
+                    required
+                    className="mb-2"
+                  >
+                    <option value="">Select faculty</option>
+                    {faculties.map((f) => (
+                      <option key={f.faculty_id} value={f.faculty_id}>{f.faculty_name}</option>
+                    ))}
+                  </Select>
+                  <Label htmlFor="edit-dept">Department *</Label>
                   <Select
                     id="edit-dept"
                     value={editForm.department_id}
                     onChange={(e) => setEditForm((f) => ({ ...f, department_id: e.target.value }))}
+                    required
+                    disabled={!editForm.faculty_id}
                   >
                     <option value="">Select department</option>
                     {departments.map((d) => (
                       <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
                     ))}
                   </Select>
+                  {!editForm.faculty_id && (
+                    <p className="mt-1 text-xs text-muted-foreground">Select a faculty first to filter departments.</p>
+                  )}
                 </div>
               )}
               <div>
