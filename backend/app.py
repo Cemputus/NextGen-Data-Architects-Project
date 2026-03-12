@@ -19,6 +19,7 @@ import os
 
 from config import (
     DATA_WAREHOUSE_CONN_STRING,
+    DATA_WAREHOUSE_NAME,
     SECRET_KEY,
     JWT_SECRET_KEY,
     PG_HOST,
@@ -31,7 +32,7 @@ from werkzeug.exceptions import NotFound
 from ml_models import MultiModelPredictor
 
 # Admin user-management: always available on main app (no blueprint dependency)
-RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace('UCU_DataWarehouse', 'ucu_rbac')
+RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
 
 
 def _ensure_dim_app_user_table(engine):

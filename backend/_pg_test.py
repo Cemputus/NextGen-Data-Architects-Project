@@ -1,7 +1,9 @@
 """Quick PostgreSQL connectivity and functional test."""
 import psycopg2
 
-PG = dict(host='localhost', port=5432, user='postgres', password='postgres')
+from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, DATA_WAREHOUSE_NAME, DB1_NAME, DB2_NAME
+PG = dict(host=PG_HOST, port=int(PG_PORT), user=PG_USER, password=PG_PASSWORD or '')
+PROJECT_DBS = [DATA_WAREHOUSE_NAME, DB1_NAME, DB2_NAME, 'ucu_rbac']
 
 print('=' * 60)
 print('POSTGRESQL CONNECTIVITY TEST')
@@ -24,7 +26,7 @@ print(f'[OK] Databases ({len(dbs)}): {dbs}')
 conn.close()
 
 # 4. Test each project database
-for db in ['UCU_DataWarehouse', 'UCU_SourceDB1', 'UCU_SourceDB2', 'ucu_rbac']:
+for db in PROJECT_DBS:
     try:
         c = psycopg2.connect(dbname=db, **PG)
         c.autocommit = True
@@ -37,7 +39,7 @@ for db in ['UCU_DataWarehouse', 'UCU_SourceDB1', 'UCU_SourceDB2', 'ucu_rbac']:
         print(f'[FAIL] {db}: {e}')
 
 # 5. Test CREATE TABLE + INSERT + SELECT (write test)
-c = psycopg2.connect(dbname='UCU_DataWarehouse', **PG)
+c = psycopg2.connect(dbname=DATA_WAREHOUSE_NAME, **PG)
 c.autocommit = True
 cur3 = c.cursor()
 cur3.execute('DROP TABLE IF EXISTS _migration_test')

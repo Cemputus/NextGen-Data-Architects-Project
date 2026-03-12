@@ -25,6 +25,19 @@ Utility scripts are grouped under `backend`:
 - **verify_Scripts** — Data verification (e.g. `verify_data.py`, `verify_fex_data.py`).  
   Run from backend: `python verify_Scripts/verify_data.py` (or from `verify_Scripts`: `python verify_data.py`).
 
+## ETL pipeline (local with Docker)
+
+When Postgres runs in Docker, run the full ETL **inside** the backend container so it connects to the `postgres` service. From the project root:
+
+```bash
+docker-compose run --rm -e PG_HOST=postgres -e PG_PORT=5432 -e PG_USER=postgres -e PG_PASSWORD=postgres backend python -m etl_pipeline
+```
+
+- **First run** can take 15–25+ minutes (Bronze → Silver → Gold; fact_attendance has ~3M rows).
+- If the terminal disconnects or times out, the container may exit; progress is in `backend/logs/etl_pipeline_*.log`.
+- To let it run without keeping the terminal open (e.g. on Linux):  
+  `docker-compose run --rm -e PG_HOST=postgres ... backend python -m etl_pipeline &` then check the log file for completion.
+
 ## Code quality (format & lint)
 
 Backend uses **Black** (formatting) and **Ruff** (linting); config is in `pyproject.toml`. Optional:

@@ -300,22 +300,21 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
     try:
         rbac_engine = create_engine(_get_rbac_conn_string())
         _ensure_app_users_table(rbac_engine)
-        # Prefer live RBAC app_users; if empty but dim_app_user has rows, use warehouse dim_app_user count as fallback
+        # App users count: prefer warehouse (dim_app_user) when ETL has loaded it, so Total Users reflects ETL data
+        dim_app_users = 0
+        try:
+            r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM dim_app_user"), warehouse_engine)
+            dim_app_users = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
+        except Exception:
+            pass
         try:
             r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM app_users"), rbac_engine)
-            app_users_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
+            rbac_app_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
         except Exception:
-            app_users_count = 0
+            rbac_app_count = 0
             if kpis['system_health'] > 0:
                 kpis['system_health'] = 50
-        if app_users_count == 0:
-            try:
-                r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM dim_app_user"), warehouse_engine)
-                dim_app_users = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
-                if dim_app_users > 0:
-                    app_users_count = dim_app_users
-            except Exception:
-                pass
+        app_users_count = dim_app_users if dim_app_users > 0 else rbac_app_count
         app_staff_role_count = 0
         try:
             r = pd.read_sql_query(text("""
@@ -436,7 +435,7 @@ def _get_etl_run_history(log_dir, max_runs=20):
 
 def _get_audit_logs(limit=200):
     """Fetch audit logs from ucu_rbac.audit_logs if available; else return empty list and message."""
-    rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace('UCU_DataWarehouse', 'ucu_rbac')
+    rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
     try:
         engine = create_engine(rbac_conn)
         # Ensure limit is valid integer between 1 and 500 (safe to use in f-string after validation)
@@ -707,15 +706,28 @@ def list_app_users():
             engine.dispose()
 
 
+def _run_etl_in_background():
+    """Run etl_pipeline in subprocess (fallback when Airflow is not available).
+    Does not run export_user_snapshot first, so the snapshot file (etl_seeds/user_snapshot.json)
+    is used as-is for RBAC seed; this preserves 14 app users when the snapshot has them.
+    """
+    import subprocess
+    import sys
+    try:
+        subprocess.run(
+            [sys.executable, '-m', 'etl_pipeline'],
+            cwd=str(backend_dir),
+            capture_output=False,
+            timeout=3600,
+        )
+    except Exception:
+        pass
+
+
 @admin_bp.route('/run-etl', methods=['POST'])
 @jwt_required()
 def run_etl():
-    """Trigger an Airflow DAG for a manual ETL run and return immediately.
-
-    The actual ETL work is orchestrated entirely by Apache Airflow via the
-    ``etl_manual_run`` DAG. This keeps manual runs and auto runs under the
-    same orchestrator.
-    """
+    """Trigger a manual ETL run: try Airflow DAG first; if that fails, run ETL in background."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -726,32 +738,33 @@ def run_etl():
     if audit_log:
         audit_log('etl_started', 'system', username=username, role_name=role_name, resource_id='etl_pipeline', status='success')
 
-    # Trigger the Airflow DAG for a manual ETL run.
-    # This assumes the Airflow CLI is available in the same environment/container.
+    import subprocess
+    use_fallback = False
+    # Try Airflow first when the CLI is available and (optionally) airflow/ dir exists
     try:
-        import subprocess
-
         run_id = f"manual__{datetime.utcnow().isoformat()}"
-        subprocess.run(
-            [
-                'airflow',
-                'dags',
-                'trigger',
-                'etl_manual_run',
-                '--run-id',
-                run_id,
-            ],
-            cwd=str(backend_dir.parent / 'airflow'),
-            check=True,
-            timeout=30,
+        airflow_dir = backend_dir.parent / 'airflow'
+        kwargs = {'check': True, 'timeout': 30, 'capture_output': True}
+        if airflow_dir.exists() and airflow_dir.is_dir():
+            kwargs['cwd'] = str(airflow_dir.resolve())
+        result = subprocess.run(
+            ['airflow', 'dags', 'trigger', 'etl_manual_run', '--run-id', run_id],
+            **kwargs,
         )
-    except Exception as e:
-        # Surface a clear error back to the UI if we cannot reach Airflow.
+        if result.returncode != 0:
+            use_fallback = True
+    except FileNotFoundError:
+        use_fallback = True
+    except Exception:
+        use_fallback = True
+
+    if use_fallback:
+        threading.Thread(target=_run_etl_in_background, daemon=True).start()
         return jsonify({
-            'error': f'Failed to trigger Airflow DAG etl_manual_run: {str(e)}',
-            'started': False,
-            'in_progress': False,
-        }), 500
+            'message': 'ETL pipeline started in background (Airflow not available). The page will refresh to show progress.',
+            'started': True,
+            'in_progress': True,
+        }), 202
 
     return jsonify({
         'message': 'ETL pipeline triggered via Airflow. The page will refresh in a few seconds to show the new run.',

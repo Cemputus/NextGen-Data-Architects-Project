@@ -14,7 +14,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import create_engine, text
 
-from config import DATA_WAREHOUSE_CONN_STRING
+from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME
 from api.auth import _ensure_ucu_rbac_database, _ensure_app_users_table, RBAC_DB_NAME
 
 nextgen_query_bp = Blueprint("nextgen_query", __name__, url_prefix="/api/query")
@@ -22,7 +22,7 @@ nextgen_query_bp = Blueprint("nextgen_query", __name__, url_prefix="/api/query")
 
 def _get_rbac_engine():
     _ensure_ucu_rbac_database()
-    conn_str = DATA_WAREHOUSE_CONN_STRING.replace("UCU_DataWarehouse", RBAC_DB_NAME)
+    conn_str = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
     return create_engine(conn_str)
 
 

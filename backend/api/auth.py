@@ -31,7 +31,7 @@ except ImportError:
     Resource = None
     Permission = None
 
-from config import DATA_WAREHOUSE_CONN_STRING, PG_HOST, PG_PORT, PG_USER, PG_PASSWORD
+from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME, PG_HOST, PG_PORT, PG_USER, PG_PASSWORD
 
 try:
     from audit_log import log as audit_log
@@ -60,7 +60,7 @@ def _has_profile_photo(identity):
 def _audit_log_login(username, role_name, status='success', error_message=None):
     """Write login event to ucu_rbac.audit_logs if available. Silently skip on failure."""
     try:
-        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace('UCU_DataWarehouse', 'ucu_rbac')
+        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
         engine = create_engine(rbac_conn)
         with engine.connect() as conn:
             conn.execute(text("""
@@ -79,7 +79,7 @@ def _audit_log_login(username, role_name, status='success', error_message=None):
 
 # Database connection for RBAC
 RBAC_DB_NAME = "ucu_rbac"
-RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace("UCU_DataWarehouse", RBAC_DB_NAME)
+RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
 
 
 def _ensure_ucu_rbac_database():

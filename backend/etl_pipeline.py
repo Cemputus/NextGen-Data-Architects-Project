@@ -17,6 +17,11 @@ import random
 import logging
 import json
 import shutil
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None  # Python < 3.9
 from config import (
     DB1_CONN_STRING, DB2_CONN_STRING, CSV1_PATH, CSV2_PATH,
     BRONZE_PATH, SILVER_PATH, GOLD_PATH,
@@ -25,6 +30,34 @@ from config import (
     USE_SYNTHETIC_DATA, SYNTHETIC_DATA_DIR,
 )
 from api.auth import RBAC_CONN_STRING, _ensure_ucu_rbac_database, _ensure_app_users_table, _ensure_user_profiles_table, _ensure_user_state_table
+
+
+def _etl_log_now():
+    """Current time for ETL log file names and log lines. Uses ETL_LOG_TZ if set (e.g. Africa/Kampala), else local time."""
+    tz_name = os.environ.get('ETL_LOG_TZ', '').strip()
+    if tz_name and ZoneInfo is not None:
+        try:
+            return datetime.now(ZoneInfo(tz_name))
+        except Exception:
+            pass
+    return datetime.now()
+
+
+class _ETLLogFormatter(logging.Formatter):
+    """Formatter that uses server time (ETL_LOG_TZ) for asctime."""
+    def formatTime(self, record, datefmt=None):
+        tz_name = os.environ.get('ETL_LOG_TZ', '').strip()
+        if tz_name and ZoneInfo is not None:
+            try:
+                dt = datetime.fromtimestamp(record.created, tz=ZoneInfo(tz_name))
+            except Exception:
+                dt = datetime.fromtimestamp(record.created)
+        else:
+            dt = datetime.fromtimestamp(record.created)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
+
 
 class ETLPipeline:
     def __init__(self):
@@ -41,18 +74,23 @@ class ETLPipeline:
             self.log_dir = (Path(__file__).parent / "logs").resolve()
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
-        # Create log file with timestamp
-        log_filename = f"etl_pipeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        # Create log file with timestamp (server time from ETL_LOG_TZ or local)
+        log_now = _etl_log_now()
+        log_filename = f"etl_pipeline_{log_now.strftime('%Y%m%d_%H%M%S')}.log"
         self.log_file = self.log_dir / log_filename
         
-        # Configure logging
+        # Configure logging with server-time formatter
+        log_format = '%(asctime)s - %(levelname)s - %(message)s'
+        formatter = _ETLLogFormatter(log_format, datefmt='%Y-%m-%d %H:%M:%S')
+        file_handler = logging.FileHandler(self.log_file, encoding='utf-8')
+        file_handler.setFormatter(formatter)
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(self.log_file, encoding='utf-8'),
-                logging.StreamHandler()  # Also print to console
-            ]
+            format=log_format,
+            handlers=[file_handler, stream_handler],
+            force=True,
         )
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"ETL Pipeline initialized. Log file: {self.log_file}")
@@ -105,7 +143,15 @@ class ETLPipeline:
                     # Use snapshot data as-is so admin-set passwords (from last export) are preserved
                     df.to_sql(table_name, engine, if_exists="append", index=False)
 
-                upsert_table("app_users", snapshot.get("app_users", []))
+                # Seed app_users: clear FK-dependent table first so DELETE FROM app_users succeeds
+                app_users_rows = snapshot.get("app_users", [])
+                if app_users_rows:
+                    try:
+                        conn.execute(text("DELETE FROM staff_course_assignments"))
+                        conn.commit()
+                    except Exception:
+                        pass  # table may not exist yet
+                upsert_table("app_users", app_users_rows)
                 upsert_table("user_profiles", snapshot.get("user_profiles", []))
                 upsert_table("user_state", snapshot.get("user_state", []))
 
@@ -1402,7 +1448,7 @@ class ETLPipeline:
         payments_silver.to_parquet(self.silver_path / f"silver_payments_{timestamp}.parquet", index=False)
         # Ensure no object column with mixed types (e.g. EXAM_MARK_40) breaks parquet
         if not grades_silver.empty:
-            for col in grades_silver.select_dtypes(include=['object']).columns:
+            for col in grades_silver.select_dtypes(include=['object', 'str']).columns:
                 grades_silver[col] = grades_silver[col].apply(lambda x: '' if pd.isna(x) else str(x))
         grades_silver.to_parquet(self.silver_path / f"silver_grades_{timestamp}.parquet", index=False)
         
@@ -1675,26 +1721,29 @@ class ETLPipeline:
         semesters.to_sql('dim_semester', engine, if_exists='append', index=False)
         self.logger.info(f"  → Loaded {len(semesters)} semesters into dim_semester")
         
-        # Dim_App_User - load from RBAC app_users so App User data is reproducible on any machine
+        # Dim_App_User - load from RBAC app_users so app users are in the warehouse (ETL is source of truth for Total Users)
         try:
             from api.auth import RBAC_CONN_STRING, _ensure_ucu_rbac_database, _ensure_app_users_table
             _ensure_ucu_rbac_database()
             rbac_engine = create_engine(RBAC_CONN_STRING)
             _ensure_app_users_table(rbac_engine)
-            app_users_df = pd.read_sql_query(
-                text("""
-                    SELECT
-                        id AS app_user_id,
-                        username,
-                        role,
-                        full_name,
-                        faculty_id,
-                        department_id,
-                        created_at
-                    FROM app_users
-                """),
-                rbac_engine,
-            )
+            # Select columns that exist (created_at may be missing on older DBs)
+            try:
+                app_users_df = pd.read_sql_query(
+                    text("""
+                        SELECT id AS app_user_id, username, role, full_name, faculty_id, department_id, created_at
+                        FROM app_users
+                    """),
+                    rbac_engine,
+                )
+            except Exception:
+                app_users_df = pd.read_sql_query(
+                    text("""
+                        SELECT id AS app_user_id, username, role, full_name, faculty_id, department_id, NULL::timestamp AS created_at
+                        FROM app_users
+                    """),
+                    rbac_engine,
+                )
             rbac_engine.dispose()
             if not app_users_df.empty:
                 with engine.connect() as conn:
@@ -1705,7 +1754,12 @@ class ETLPipeline:
             else:
                 self.logger.info("  → No rows in app_users; dim_app_user left empty")
         except Exception as e:
-            self.logger.warning(f"Failed to load dim_app_user from ucu_rbac.app_users: {e}")
+            self.logger.error(
+                "Failed to load dim_app_user from ucu_rbac.app_users: %s. "
+                "Ensure ETL can reach the same Postgres host as the warehouse (e.g. PG_HOST=postgres in Docker).",
+                e,
+                exc_info=True,
+            )
         
         # Dim_Faculty - from source database
         if 'faculties_db1' in silver_data and not silver_data['faculties_db1'].empty:
@@ -2527,7 +2581,7 @@ class ETLPipeline:
     
     def run(self):
         """Run the complete ETL pipeline"""
-        start_time = datetime.now()
+        start_time = _etl_log_now()
         self.logger.info("=" * 60)
         self.logger.info("ETL PIPELINE STARTED")
         self.logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -2544,14 +2598,14 @@ class ETLPipeline:
             silver_data = self.transform(bronze_data)
             self.load_to_warehouse(silver_data)
             
-            end_time = datetime.now()
+            end_time = _etl_log_now()
             duration = end_time - start_time
             self.logger.info(f"ETL Pipeline completed successfully in {duration}")
             print("ETL Pipeline completed successfully!")
             print(f"Duration: {duration}")
             print(f"Log file: {self.log_file}")
         except Exception as e:
-            end_time = datetime.now()
+            end_time = _etl_log_now()
             duration = end_time - start_time
             self.logger.error(f"ETL Pipeline failed after {duration}: {e}", exc_info=True)
             print(f"ETL Pipeline failed: {e}")

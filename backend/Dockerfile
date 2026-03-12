@@ -38,5 +38,6 @@ ENV FLASK_APP=app.py \
 # Expose backend HTTP port
 EXPOSE 5000
 
-# Default command: run the Flask API via Gunicorn WSGI for production
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "--timeout", "120", "app:app"]
+# Default command: run the Flask API via Gunicorn WSGI for production.
+# Use PORT from environment (e.g. Render) when set, else 5000.
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --threads 4 --timeout 120 app:app"]

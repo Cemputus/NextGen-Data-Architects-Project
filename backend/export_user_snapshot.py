@@ -23,7 +23,7 @@ import threading
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-from config import DATA_WAREHOUSE_CONN_STRING
+from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME
 from api.auth import (
     _ensure_ucu_rbac_database,
     _ensure_app_users_table,
@@ -39,7 +39,7 @@ ETL_RUNS_COPY_LIMIT = 30
 
 
 def get_rbac_conn_string():
-    return DATA_WAREHOUSE_CONN_STRING.replace("UCU_DataWarehouse", RBAC_DB_NAME)
+    return DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
 
 
 def export_user_snapshot():

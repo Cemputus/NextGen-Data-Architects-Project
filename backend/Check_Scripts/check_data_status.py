@@ -21,13 +21,13 @@ print("\n" + "=" * 60)
 
 try:
     from sqlalchemy import create_engine, text
-    from config import DATA_WAREHOUSE_CONN_STRING, DB1_CONN_STRING
+    from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME, DB1_CONN_STRING
     import pandas as pd
     
     print("\n✓ Dependencies loaded successfully")
     
     # Check data warehouse
-    print("\n1. Checking Data Warehouse (UCU_DataWarehouse)...")
+    print(f"\n1. Checking Data Warehouse ({DATA_WAREHOUSE_NAME})...")
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         

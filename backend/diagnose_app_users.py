@@ -13,7 +13,7 @@ if str(backend_dir) not in sys.path:
 
 def main():
     try:
-        from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD
+        from config import PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, DATA_WAREHOUSE_NAME
         import psycopg2
     except ImportError as e:
         print(f"ERROR: {e}. Install: pip install psycopg2-binary")
@@ -54,14 +54,14 @@ def main():
     print()
 
     # 2. dim_app_user
-    print("[2] UCU_DataWarehouse.dim_app_user")
+    print(f"[2] {DATA_WAREHOUSE_NAME}.dim_app_user")
     print("-" * 40)
     try:
-        rows = query("UCU_DataWarehouse", "SELECT COUNT(*) FROM dim_app_user")
+        rows = query(DATA_WAREHOUSE_NAME, "SELECT COUNT(*) FROM dim_app_user")
         n = rows[0][0] if rows else 0
         print(f"    Count: {n} user(s)")
         if n > 0:
-            rows = query("UCU_DataWarehouse", "SELECT app_user_id, username, role, full_name FROM dim_app_user ORDER BY username LIMIT 15")
+            rows = query(DATA_WAREHOUSE_NAME, "SELECT app_user_id, username, role, full_name FROM dim_app_user ORDER BY username LIMIT 15")
             for r in rows:
                 print(f"      - app_user_id={r[0]} | {r[1]} | role={r[2]} | {r[3] or '-'}")
     except Exception as e:
@@ -73,7 +73,7 @@ def main():
     print("-" * 40)
     try:
         app_rows = query("ucu_rbac", "SELECT id, username FROM app_users")
-        dim_rows = query("UCU_DataWarehouse", "SELECT app_user_id, username FROM dim_app_user")
+        dim_rows = query(DATA_WAREHOUSE_NAME, "SELECT app_user_id, username FROM dim_app_user")
         app_ids = {r[0]: r[1] for r in app_rows}
         dim_ids = {r[0]: r[1] for r in dim_rows}
         in_both = set(app_ids) & set(dim_ids)

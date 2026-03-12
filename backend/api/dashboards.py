@@ -13,7 +13,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import create_engine, text
 
-from config import DATA_WAREHOUSE_CONN_STRING
+from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME
 from api.auth import _ensure_ucu_rbac_database, RBAC_DB_NAME
 
 
@@ -21,7 +21,7 @@ dashboards_bp = Blueprint("dashboards", __name__, url_prefix="/api/dashboards")
 
 
 def _get_rbac_conn_string() -> str:
-  return DATA_WAREHOUSE_CONN_STRING.replace("UCU_DataWarehouse", RBAC_DB_NAME)
+  return DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
 
 
 def _ensure_dashboard_tables(engine):

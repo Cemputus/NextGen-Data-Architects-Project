@@ -48,6 +48,8 @@ services:
       # Flask secrets – override in production
       SECRET_KEY: "change-me-in-prod"
       JWT_SECRET_KEY: "change-me-in-prod-too"
+      # ETL log timestamps use this timezone (e.g. Africa/Kampala); omit for UTC
+      ETL_LOG_TZ: "Africa/Kampala"
     ports:
       - "5000:5000"
     volumes:
