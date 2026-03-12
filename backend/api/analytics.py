@@ -1961,3 +1961,132 @@ def get_hr_analytics():
         print(f"Error in get_hr_analytics: {e}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
+
+
+@analytics_bp.route('/academic-risk', methods=['GET'])
+@jwt_required()
+def get_academic_risk():
+    """Returns summarized FCW, MEX, FEX analytics institution-wide or scoped."""
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+        role = user_scope['role']
+        
+        # Scope enforcement (Students -> 403, HR/Finance -> 403)
+        if role in [Role.STUDENT, Role.FINANCE, Role.HR]:
+            return jsonify({'error': 'Permission denied'}), 403
+            
+        filters = request.args.to_dict()
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        
+        # Build filter query based on role scope and query params
+        where_clauses = []
+        params = {}
+        
+        if role == Role.HOD and user_scope.get('department_id'):
+            where_clauses.append("dd.department_id = :dept_id")
+            params['dept_id'] = user_scope['department_id']
+        elif role == Role.DEAN and user_scope.get('faculty_id'):
+            where_clauses.append("df.faculty_id = :fac_id")
+            params['fac_id'] = user_scope['faculty_id']
+            
+        if filters.get('faculty_id') and str(filters['faculty_id']) != 'all':
+            where_clauses.append("df.faculty_id = :f_faculty_id")
+            params['f_faculty_id'] = filters['faculty_id']
+        if filters.get('department_id') and str(filters['department_id']) != 'all':
+            where_clauses.append("dd.department_id = :f_dept_id")
+            params['f_dept_id'] = filters['department_id']
+            
+        where_str = ""
+        if where_clauses:
+            where_str = "WHERE " + " AND ".join(where_clauses)
+            
+        # Summary query
+        sql_summary = f"""
+        SELECT 
+            COALESCE(SUM(fcw_count), 0) as fcw_count,
+            COALESCE(SUM(mex_count), 0) as mex_count,
+            COALESCE(SUM(fex_count), 0) as fex_count,
+            COALESCE(SUM(total_courses), 0) as total_courses,
+            AVG(avg_grade) as avg_grade
+        FROM v_student_risk_summary v
+        JOIN dim_student ds ON v.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department dd ON dp.department_id = dd.department_id
+        LEFT JOIN dim_faculty df ON dd.faculty_id = df.faculty_id
+        {where_str}
+        """
+        summary_df = pd.read_sql_query(text(sql_summary), engine, params=params)
+        summary = summary_df.iloc[0].to_dict() if not summary_df.empty else {}
+        for k in summary:
+            if pd.isna(summary[k]): summary[k] = 0
+            else: summary[k] = float(summary[k])
+            
+        # Add a placeholder for now for top courses but these can be expanded later
+        top_courses_fcw = []
+        
+        return jsonify({
+            'summary': summary,
+            'top_courses_fcw': top_courses_fcw
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in get_academic_risk: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+@analytics_bp.route('/high-school-risk-correlation', methods=['GET'])
+@jwt_required()
+def get_high_school_risk_correlation():
+    """Returns correlation between high school background & academic risk statuses"""
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+        role = user_scope['role']
+        
+        if role in [Role.STUDENT, Role.STAFF, Role.FINANCE, Role.HR]:
+            return jsonify({'error': 'Permission denied'}), 403
+            
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        
+        sql = """
+        SELECT high_school as school, 
+               COALESCE(high_school_district, 'Unknown') as district, 
+               COALESCE(fcw_rate, 0) as fcw_rate, 
+               COALESCE(mex_rate, 0) as mex_rate, 
+               COALESCE(fex_rate, 0) as fex_rate, 
+               COALESCE(avg_grade, 0) as avg_gpa 
+        FROM v_highschool_risk
+        ORDER BY fcw_rate DESC
+        """
+        df = pd.read_sql_query(text(sql), engine)
+        by_school = df.to_dict('records') if not df.empty else []
+        
+        # Add basic district aggregation
+        sql_district = """
+        SELECT COALESCE(high_school_district, 'Unknown') as district,
+               AVG(fcw_rate) as avg_fcw_rate,
+               AVG(avg_grade) as avg_grade
+        FROM v_highschool_risk
+        GROUP BY high_school_district
+        ORDER BY avg_fcw_rate DESC
+        """
+        dist_df = pd.read_sql_query(text(sql_district), engine)
+        by_district = dist_df.to_dict('records') if not dist_df.empty else []
+        
+        engine.dispose()
+        
+        return jsonify({
+            'by_school': by_school,
+            'by_district': by_district,
+            'by_tier': [],        # To be populated if tier data is added later
+            'by_ownership': []    # To be populated if ownership data is added later
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in get_high_school_risk_correlation: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500

@@ -1088,14 +1088,22 @@ class ETLPipeline:
             students_silver['first_name'] = names[0].fillna('')
             students_silver['last_name'] = names[1].fillna('') if len(names.columns) > 1 else ''
         # Extract high school information
-        if 'HighSchool' in students_silver.columns:
-            students_silver['high_school'] = students_silver['HighSchool'].astype(str)
+        hs_data = bronze_data.get('student_high_schools_synthetic')
+        if hs_data is not None and not hs_data.empty and 'REG_NO' in hs_data.columns:
+            hs_dedup = hs_data.drop_duplicates(subset=['REG_NO'], keep='first')
+            hs_map = dict(zip(hs_dedup['REG_NO'].astype(str).str.strip(), hs_dedup.get('HIGH_SCHOOL', pd.Series(dtype=str)).astype(str).str.strip()))
+            dist_map = dict(zip(hs_dedup['REG_NO'].astype(str).str.strip(), hs_dedup.get('DISTRICT', pd.Series(dtype=str)).astype(str).str.strip()))
+            s_id = students_silver['student_id'].astype(str).str.strip()
+            
+            # Map from hs_data first, fallback to what's already in students_silver, fallback to empty
+            fetched_hs = s_id.map(hs_map)
+            students_silver['high_school'] = fetched_hs.combine_first(students_silver.get('HighSchool', pd.Series('', index=students_silver.index)).astype(str))
+            
+            fetched_dist = s_id.map(dist_map)
+            students_silver['high_school_district'] = fetched_dist.combine_first(students_silver.get('HighSchoolDistrict', pd.Series('', index=students_silver.index)).astype(str))
         else:
-            students_silver['high_school'] = ''
-        if 'HighSchoolDistrict' in students_silver.columns:
-            students_silver['high_school_district'] = students_silver['HighSchoolDistrict'].astype(str)
-        else:
-            students_silver['high_school_district'] = ''
+            students_silver['high_school'] = students_silver.get('HighSchool', '').astype(str)
+            students_silver['high_school_district'] = students_silver.get('HighSchoolDistrict', '').astype(str)
         # Extract program and status (synthetic extract sets ProgramID; ensure program_id for dim_student)
         if 'ProgramID' in students_silver.columns:
             students_silver['program_id'] = pd.to_numeric(students_silver['ProgramID'], errors='coerce')
@@ -1368,16 +1376,22 @@ class ETLPipeline:
                 grades_silver['grade'] = grades_silver['grade'].fillna(0)  # Ensure numeric score is always present
             if 'GradeLetter' in grades_silver.columns:
                 grades_silver['letter_grade'] = grades_silver['GradeLetter']
-            # Extract FCW flag
-            if 'FCW' in grades_silver.columns:
-                grades_silver['fcw'] = grades_silver['FCW'].astype(bool)
-            else:
-                grades_silver['fcw'] = False
-            # Extract exam status and absence reason
-            if 'ExamStatus' in grades_silver.columns:
-                grades_silver['exam_status'] = grades_silver['ExamStatus']
-            else:
-                grades_silver['exam_status'] = 'Completed'
+            # Extract FCW flag and Exam Status purely based on analytical rules
+            grades_silver['fcw'] = grades_silver['coursework_score'] < 17
+            
+            def _eval_exam_status(row):
+                raw_status = str(row.get('ExamStatus', '')).strip().upper()
+                if raw_status == 'MEX':
+                    return 'MEX'
+                if row['fcw']:
+                    return 'FCW'
+                if pd.notna(row['exam_score']) and row['exam_score'] < 17:
+                    return 'FEX'
+                if raw_status != '' and raw_status != 'COMPLETED' and raw_status != 'NAN':
+                    return raw_status
+                return 'Completed'
+
+            grades_silver['exam_status'] = grades_silver.apply(_eval_exam_status, axis=1)
             if 'AbsenceReason' in grades_silver.columns:
                 grades_silver['absence_reason'] = grades_silver['AbsenceReason']
             else:
@@ -1415,16 +1429,21 @@ class ETLPipeline:
             else:
                 grades_silver['exam_score'] = None
             grades_silver['grade'] = pd.to_numeric(grades_silver.get('grade', 0), errors='coerce').fillna(0)
-            # Extract FCW flag
-            if 'fcw' in grades_silver.columns:
-                grades_silver['fcw'] = grades_silver['fcw'].astype(bool)
-            else:
-                grades_silver['fcw'] = False
-            # Extract exam status and absence reason
-            if 'exam_status' in grades_silver.columns:
-                grades_silver['exam_status'] = grades_silver['exam_status']
-            else:
-                grades_silver['exam_status'] = 'Completed'
+            # Extract FCW flag and Exam Status according to new analytical rules
+            grades_silver['fcw'] = grades_silver['coursework_score'] < 17
+            def _csv_eval_exam_status(row):
+                raw_status = str(row.get('exam_status', '')).strip().upper()
+                if raw_status == 'MEX':
+                    return 'MEX'
+                if row['fcw']:
+                    return 'FCW'
+                if pd.notna(row['exam_score']) and row['exam_score'] < 17:
+                    return 'FEX'
+                if raw_status != '' and raw_status != 'COMPLETED' and raw_status != 'NAN':
+                    return raw_status
+                return 'Completed'
+
+            grades_silver['exam_status'] = grades_silver.apply(_csv_eval_exam_status, axis=1)
             if 'absence_reason' in grades_silver.columns:
                 grades_silver['absence_reason'] = grades_silver['absence_reason']
             else:
