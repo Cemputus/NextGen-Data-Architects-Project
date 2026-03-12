@@ -5,11 +5,14 @@
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 module.exports = function (app) {
+  // Default to localhost for non-Docker dev (Windows/Mac host),
+  // but allow docker-compose to override via env.
+  const target = process.env.PROXY_TARGET || 'http://127.0.0.1:5000';
   app.use(
     '/api',
     createProxyMiddleware({
       // In Docker, talk to the backend service by its Compose service name
-      target: 'http://backend:5000',
+      target,
       changeOrigin: true,
       secure: false,
       onError: (err, req, res) => {

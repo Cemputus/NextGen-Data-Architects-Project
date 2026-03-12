@@ -158,6 +158,8 @@ services:
     environment:
       # React dev server will proxy API calls to this URL (see package.json "proxy")
       CHOKIDAR_USEPOLLING: "true"
+      # Proxy target for /api when running React dev server in Docker
+      PROXY_TARGET: "http://backend:5000"
     tty: true
     stdin_open: true
     ports:
