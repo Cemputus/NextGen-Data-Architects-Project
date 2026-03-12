@@ -18,7 +18,7 @@ import { loadPageState, savePageState } from '../utils/statePersistence';
 const HighSchoolAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
   const [loading, setLoading] = useState(true);
   const [hsData, setHsData] = useState(null);
-  
+
   const savedState = loadPageState('high_school_analytics', { filters: {}, tab: 'enrollment' });
   const [internalFilters, setInternalFilters] = useState(savedState.filters || {});
   const [activeTab, setActiveTab] = useState(savedState.tab || 'enrollment');
@@ -53,13 +53,13 @@ const HighSchoolAnalytics = ({ filters: externalFilters, onFilterChange: externa
     } catch (err) {
       console.error('Error loading high school data:', err);
       console.error('Error details:', err.response?.data || err.message);
-      setHsData({ 
-        data: [], 
-        summary: { 
-          total_high_schools: 0, 
-          total_students: 0, 
-          avg_retention_rate: 0, 
-          avg_graduation_rate: 0 
+      setHsData({
+        data: [],
+        summary: {
+          total_high_schools: 0,
+          total_students: 0,
+          avg_retention_rate: 0,
+          avg_graduation_rate: 0
         },
         error: err.response?.data?.error || err.message
       });
@@ -85,9 +85,9 @@ const HighSchoolAnalytics = ({ filters: externalFilters, onFilterChange: externa
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">High School Analytics</h1>
           <p className="text-sm text-muted-foreground">Enrollment, Retention, Graduation, and Performance Analysis</p>
         </div>
-        <ExportButtons 
-          data={hsData?.data} 
-          filters={filters} 
+        <ExportButtons
+          data={hsData?.data}
+          filters={filters}
           filename="high_school_analytics"
           stats={summary}
           chartSelectors={[
@@ -253,12 +253,25 @@ const HighSchoolAnalytics = ({ filters: externalFilters, onFilterChange: externa
                   <CardDescription className="text-xs">Academic performance metrics by high school</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
-                  <div className="min-h-[200px] max-h-[280px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg">
-                    <div className="text-center">
-                      <School className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                      <p>Performance analysis charts</p>
-                      <p className="text-sm mt-2">Coming soon</p>
-                    </div>
+                  <div className={chartContainerClass} data-chart-title="Performance by High School" data-chart-container="true">
+                    {chartData.length > 0 ? (
+                      <SciBarChart
+                        data={chartData.slice(0, 15)}
+                        xDataKey="high_school"
+                        yDataKeys={[
+                          { key: 'avg_grade', label: 'Avg Grade %', color: '#8B5CF6' },
+                          { key: 'total_fcw', label: 'Financial Retakes', color: '#F59E0B' }
+                        ]}
+                        xAxisLabel="High School"
+                        yAxisLabel="Value"
+                        showLegend={true}
+                        showGrid={true}
+                      />
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
+                        No performance data available
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

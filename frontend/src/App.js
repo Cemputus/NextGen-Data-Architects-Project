@@ -27,6 +27,7 @@ import AnalystDashboard from './pages/AnalystDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import HRDashboard from './pages/HRDashboard';
 import FinanceDashboard from './pages/FinanceDashboard';
+import AcademicRiskDashboard from './pages/AcademicRiskDashboard';
 
 // Shared Pages
 import FEXAnalytics from './pages/FEXAnalytics';
@@ -70,7 +71,7 @@ import HREvaluationPage from './pages/HREvaluationPage';
 
 function PrivateRoute({ children, requiredRole = null }) {
   const { isAuthenticated, loading, user } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -81,26 +82,26 @@ function PrivateRoute({ children, requiredRole = null }) {
       </div>
     );
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
   }
-  
+
   const userRole = (user?.role || '').toString().toLowerCase();
   if (requiredRole && userRole !== requiredRole) {
     return <Navigate to={rbac.getDefaultRoute(userRole)} />;
   }
-  
+
   return <LayoutModern>{children}</LayoutModern>;
 }
 
 function RoleRoute({ children, allowedRoles }) {
   const { user } = useAuth();
-  
+
   if (!allowedRoles.includes(user?.role)) {
     return <Navigate to={rbac.getDefaultRoute(user?.role)} />;
   }
-  
+
   return children;
 }
 
@@ -108,230 +109,234 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-      <PersistentToastProvider>
-      <Router>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            
-            {/* Student Routes */}
-            <Route
-              path="/student/*"
-              element={
-                <PrivateRoute requiredRole="student">
-                  <Routes>
-                    <Route path="dashboard" element={<StudentDashboard />} />
-                    <Route path="grades" element={<StudentGrades />} />
-                    <Route path="attendance" element={<StudentAttendance />} />
-                    <Route path="payments" element={<StudentPayments />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="user-info" element={<UserInfoPage />} />
-                    <Route path="predictions" element={<PredictionPage />} />
-                    <Route path="shared-views" element={<SharedViewsPage />} />
-                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                    <Route path="*" element={<Navigate to="/student/dashboard" />} />
-                  </Routes>
-                </PrivateRoute>
-              }
-            />
-            
-            {/* Staff Routes */}
-            <Route
-              path="/staff/*"
-              element={
-                <PrivateRoute requiredRole="staff">
-                  <Routes>
-                    <Route path="dashboard" element={<StaffDashboard />} />
-                    <Route path="classes" element={<StaffClasses />} />
-                    <Route path="analytics" element={<StaffAnalytics />} />
-                    <Route path="predictions" element={<PredictionPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="user-info" element={<UserInfoPage />} />
-                    <Route path="shared-views" element={<SharedViewsPage />} />
-                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                    <Route path="*" element={<Navigate to="/staff/dashboard" />} />
-                  </Routes>
-                </PrivateRoute>
-              }
-            />
-            
-            {/* HOD Routes */}
-            <Route
-              path="/hod/*"
-              element={
-                <PrivateRoute requiredRole="hod">
-                  <Routes>
-                    <Route path="dashboard" element={<HODDashboard />} />
-                    <Route path="assign-classes" element={<HODAssignClasses />} />
-                    <Route path="analytics" element={<AnalyticsPage type="hod" />} />
-                    <Route path="fex" element={<FEXAnalytics />} />
-                    <Route path="high-school" element={<HighSchoolAnalytics />} />
-                    <Route path="predictions" element={<PredictionPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="user-info" element={<UserInfoPage />} />
-                    <Route path="shared-views" element={<SharedViewsPage />} />
-                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                    <Route path="*" element={<Navigate to="/hod/dashboard" />} />
-                  </Routes>
-                </PrivateRoute>
-              }
-            />
-            
-            {/* Dean Routes */}
-            <Route
-              path="/dean/*"
-              element={
-                <PrivateRoute requiredRole="dean">
-                  <Routes>
-                    <Route path="dashboard" element={<DeanDashboard />} />
-                    <Route path="analytics" element={<AnalyticsPage type="dean" />} />
-                    <Route path="fex" element={<FEXAnalytics />} />
-                    <Route path="high-school" element={<HighSchoolAnalytics />} />
-                    <Route path="predictions" element={<PredictionPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="user-info" element={<UserInfoPage />} />
-                    <Route path="shared-views" element={<SharedViewsPage />} />
-                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                    <Route path="*" element={<Navigate to="/dean/dashboard" />} />
-                  </Routes>
-                </PrivateRoute>
-              }
-            />
-            
-            {/* Senate Routes */}
-            <Route
-              path="/senate/*"
-              element={
-                <PrivateRoute requiredRole="senate">
-                  <Routes>
-                    <Route path="dashboard" element={<SenateDashboard />} />
-                    <Route path="analytics" element={<AnalyticsPage type="senate" />} />
-                    <Route path="fex" element={<FEXAnalytics />} />
-                    <Route path="high-school" element={<HighSchoolAnalytics />} />
-                    <Route path="finance" element={<SenateFinance />} />
-                    <Route path="reports" element={<ReportsPage />} />
-                    <Route path="predictions" element={<PredictionPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="user-info" element={<UserInfoPage />} />
-                    <Route path="shared-views" element={<SharedViewsPage />} />
-                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                    <Route path="*" element={<Navigate to="/senate/dashboard" />} />
-                  </Routes>
-                </PrivateRoute>
-              }
-            />
-            
-            {/* Analyst Routes */}
-            <Route
-              path="/analyst/*"
-              element={
-                <PrivateRoute requiredRole="analyst">
-                  <Routes>
-                    <Route path="dashboard" element={<AnalystDashboard />} />
-                    <Route path="analytics" element={<AnalyticsPage type="analyst" />} />
-                    <Route path="dashboards" element={<AnalystDashboardsPage />} />
-                    <Route path="fex" element={<FEXAnalytics />} />
-                    <Route path="high-school" element={<HighSchoolAnalytics />} />
-                    <Route path="predictions" element={<PredictionPage />} />
-                    <Route path="reports" element={<ReportsPage />} />
-                    <Route path="query" element={<NextGenQueryPage />} />
-                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="user-info" element={<UserInfoPage />} />
-                    <Route path="shared-views" element={<SharedViewsPage />} />
-                    <Route path="*" element={<Navigate to="/analyst/dashboard" />} />
-                  </Routes>
-                </PrivateRoute>
-              }
-            />
-            
-            {/* Admin Routes */}
-            <Route
-              path="/admin/*"
-              element={
-                <PrivateRoute requiredRole="sysadmin">
-                  <Routes>
-                    <Route path="dashboard" element={<AdminDashboard />} />
-                    <Route path="users" element={<AdminUsers />} />
-                    <Route path="settings" element={<AdminSettings />} />
-                    <Route path="etl" element={<AdminETL />} />
-                    <Route path="etl-notifications" element={<AdminETLNotifications />} />
-                    <Route path="audit" element={<AdminAudit />} />
-                    <Route path="shared-views" element={<SharedViewsPage />} />
-                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="user-info" element={<UserInfoPage />} />
-                    <Route path="*" element={<Navigate to="/admin/dashboard" />} />
-                  </Routes>
-                </PrivateRoute>
-              }
-            />
-            
-            {/* HR Routes */}
-            <Route
-              path="/hr/*"
-              element={
-                <PrivateRoute requiredRole="hr">
-                  <Routes>
-                    <Route path="dashboard" element={<HRDashboard />} />
-                    <Route path="analytics" element={<AnalyticsPage type="hr" />} />
-                    <Route path="employees" element={<HREmployeesPage />} />
-                    <Route path="staff" element={<HRStaff />} />
-                    <Route path="leave-requests" element={<HRLeaveRequestsPage />} />
-                    <Route path="payroll" element={<HRPayrollPage />} />
-                    <Route path="evaluation" element={<HREvaluationPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="user-info" element={<UserInfoPage />} />
-                    <Route path="shared-views" element={<SharedViewsPage />} />
-                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                    <Route path="*" element={<Navigate to="/hr/dashboard" />} />
-                  </Routes>
-                </PrivateRoute>
-              }
-            />
-            
-            {/* Finance Routes */}
-            <Route
-              path="/finance/*"
-              element={
-                <PrivateRoute requiredRole="finance">
-                  <Routes>
-                    <Route path="dashboard" element={<FinanceDashboard />} />
-                    <Route path="analytics" element={<AnalyticsPage type="finance" />} />
-                    <Route path="payments" element={<FinancePayments />} />
-                    <Route path="predictions" element={<PredictionPage />} />
-                    <Route path="profile" element={<ProfilePage />} />
-                    <Route path="user-info" element={<UserInfoPage />} />
-                    <Route path="shared-views" element={<SharedViewsPage />} />
-                    <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                    <Route path="*" element={<Navigate to="/finance/dashboard" />} />
-                  </Routes>
-                </PrivateRoute>
-              }
-            />
-            
-            {/* Default Route - Redirect based on role */}
-            <Route
-              path="/"
-              element={
-                <PrivateRoute>
-                  <Navigate to="/dashboard" />
-                </PrivateRoute>
-              }
-            />
-            
-            {/* Legacy dashboard route - redirect to role-specific */}
-            <Route
-              path="/dashboard"
-              element={
-                <PrivateRoute>
-                  <RoleRedirect />
-                </PrivateRoute>
-              }
-            />
-          </Routes>
-        </Router>
-      </PersistentToastProvider>
+        <PersistentToastProvider>
+          <Router>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<Login />} />
+
+              {/* Student Routes */}
+              <Route
+                path="/student/*"
+                element={
+                  <PrivateRoute requiredRole="student">
+                    <Routes>
+                      <Route path="dashboard" element={<StudentDashboard />} />
+                      <Route path="grades" element={<StudentGrades />} />
+                      <Route path="attendance" element={<StudentAttendance />} />
+                      <Route path="payments" element={<StudentPayments />} />
+                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="user-info" element={<UserInfoPage />} />
+                      <Route path="predictions" element={<PredictionPage />} />
+                      <Route path="shared-views" element={<SharedViewsPage />} />
+                      <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
+                      <Route path="*" element={<Navigate to="/student/dashboard" />} />
+                    </Routes>
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Staff Routes */}
+              <Route
+                path="/staff/*"
+                element={
+                  <PrivateRoute requiredRole="staff">
+                    <Routes>
+                      <Route path="dashboard" element={<StaffDashboard />} />
+                      <Route path="classes" element={<StaffClasses />} />
+                      <Route path="analytics" element={<StaffAnalytics />} />
+                      <Route path="predictions" element={<PredictionPage />} />
+                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="user-info" element={<UserInfoPage />} />
+                      <Route path="shared-views" element={<SharedViewsPage />} />
+                      <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
+                      <Route path="*" element={<Navigate to="/staff/dashboard" />} />
+                    </Routes>
+                  </PrivateRoute>
+                }
+              />
+
+              {/* HOD Routes */}
+              <Route
+                path="/hod/*"
+                element={
+                  <PrivateRoute requiredRole="hod">
+                    <Routes>
+                      <Route path="dashboard" element={<HODDashboard />} />
+                      <Route path="assign-classes" element={<HODAssignClasses />} />
+                      <Route path="analytics" element={<AnalyticsPage type="hod" />} />
+                      <Route path="fex" element={<FEXAnalytics />} />
+                      <Route path="high-school" element={<HighSchoolAnalytics />} />
+                      <Route path="risk" element={<AcademicRiskDashboard />} />
+                      <Route path="predictions" element={<PredictionPage />} />
+                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="user-info" element={<UserInfoPage />} />
+                      <Route path="shared-views" element={<SharedViewsPage />} />
+                      <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
+                      <Route path="*" element={<Navigate to="/hod/dashboard" />} />
+                    </Routes>
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Dean Routes */}
+              <Route
+                path="/dean/*"
+                element={
+                  <PrivateRoute requiredRole="dean">
+                    <Routes>
+                      <Route path="dashboard" element={<DeanDashboard />} />
+                      <Route path="analytics" element={<AnalyticsPage type="dean" />} />
+                      <Route path="fex" element={<FEXAnalytics />} />
+                      <Route path="high-school" element={<HighSchoolAnalytics />} />
+                      <Route path="risk" element={<AcademicRiskDashboard />} />
+                      <Route path="predictions" element={<PredictionPage />} />
+                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="user-info" element={<UserInfoPage />} />
+                      <Route path="shared-views" element={<SharedViewsPage />} />
+                      <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
+                      <Route path="*" element={<Navigate to="/dean/dashboard" />} />
+                    </Routes>
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Senate Routes */}
+              <Route
+                path="/senate/*"
+                element={
+                  <PrivateRoute requiredRole="senate">
+                    <Routes>
+                      <Route path="dashboard" element={<SenateDashboard />} />
+                      <Route path="analytics" element={<AnalyticsPage type="senate" />} />
+                      <Route path="fex" element={<FEXAnalytics />} />
+                      <Route path="high-school" element={<HighSchoolAnalytics />} />
+                      <Route path="risk" element={<AcademicRiskDashboard />} />
+                      <Route path="finance" element={<SenateFinance />} />
+                      <Route path="reports" element={<ReportsPage />} />
+                      <Route path="predictions" element={<PredictionPage />} />
+                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="user-info" element={<UserInfoPage />} />
+                      <Route path="shared-views" element={<SharedViewsPage />} />
+                      <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
+                      <Route path="*" element={<Navigate to="/senate/dashboard" />} />
+                    </Routes>
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Analyst Routes */}
+              <Route
+                path="/analyst/*"
+                element={
+                  <PrivateRoute requiredRole="analyst">
+                    <Routes>
+                      <Route path="dashboard" element={<AnalystDashboard />} />
+                      <Route path="analytics" element={<AnalyticsPage type="analyst" />} />
+                      <Route path="dashboards" element={<AnalystDashboardsPage />} />
+                      <Route path="fex" element={<FEXAnalytics />} />
+                      <Route path="high-school" element={<HighSchoolAnalytics />} />
+                      <Route path="risk" element={<AcademicRiskDashboard />} />
+                      <Route path="predictions" element={<PredictionPage />} />
+                      <Route path="reports" element={<ReportsPage />} />
+                      <Route path="query" element={<NextGenQueryPage />} />
+                      <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
+                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="user-info" element={<UserInfoPage />} />
+                      <Route path="shared-views" element={<SharedViewsPage />} />
+                      <Route path="*" element={<Navigate to="/analyst/dashboard" />} />
+                    </Routes>
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Admin Routes */}
+              <Route
+                path="/admin/*"
+                element={
+                  <PrivateRoute requiredRole="sysadmin">
+                    <Routes>
+                      <Route path="dashboard" element={<AdminDashboard />} />
+                      <Route path="users" element={<AdminUsers />} />
+                      <Route path="settings" element={<AdminSettings />} />
+                      <Route path="etl" element={<AdminETL />} />
+                      <Route path="etl-notifications" element={<AdminETLNotifications />} />
+                      <Route path="audit" element={<AdminAudit />} />
+                      <Route path="shared-views" element={<SharedViewsPage />} />
+                      <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
+                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="user-info" element={<UserInfoPage />} />
+                      <Route path="*" element={<Navigate to="/admin/dashboard" />} />
+                    </Routes>
+                  </PrivateRoute>
+                }
+              />
+
+              {/* HR Routes */}
+              <Route
+                path="/hr/*"
+                element={
+                  <PrivateRoute requiredRole="hr">
+                    <Routes>
+                      <Route path="dashboard" element={<HRDashboard />} />
+                      <Route path="analytics" element={<AnalyticsPage type="hr" />} />
+                      <Route path="employees" element={<HREmployeesPage />} />
+                      <Route path="staff" element={<HRStaff />} />
+                      <Route path="leave-requests" element={<HRLeaveRequestsPage />} />
+                      <Route path="payroll" element={<HRPayrollPage />} />
+                      <Route path="evaluation" element={<HREvaluationPage />} />
+                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="user-info" element={<UserInfoPage />} />
+                      <Route path="shared-views" element={<SharedViewsPage />} />
+                      <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
+                      <Route path="*" element={<Navigate to="/hr/dashboard" />} />
+                    </Routes>
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Finance Routes */}
+              <Route
+                path="/finance/*"
+                element={
+                  <PrivateRoute requiredRole="finance">
+                    <Routes>
+                      <Route path="dashboard" element={<FinanceDashboard />} />
+                      <Route path="analytics" element={<AnalyticsPage type="finance" />} />
+                      <Route path="payments" element={<FinancePayments />} />
+                      <Route path="predictions" element={<PredictionPage />} />
+                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="user-info" element={<UserInfoPage />} />
+                      <Route path="shared-views" element={<SharedViewsPage />} />
+                      <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
+                      <Route path="*" element={<Navigate to="/finance/dashboard" />} />
+                    </Routes>
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Default Route - Redirect based on role */}
+              <Route
+                path="/"
+                element={
+                  <PrivateRoute>
+                    <Navigate to="/dashboard" />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Legacy dashboard route - redirect to role-specific */}
+              <Route
+                path="/dashboard"
+                element={
+                  <PrivateRoute>
+                    <RoleRedirect />
+                  </PrivateRoute>
+                }
+              />
+            </Routes>
+          </Router>
+        </PersistentToastProvider>
       </ThemeProvider>
     </AuthProvider>
   );

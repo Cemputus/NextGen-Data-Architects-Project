@@ -214,6 +214,7 @@ def _get_staff_assigned_course_codes(identity):
 # Import blueprints
 from api.auth import auth_bp
 from api.analytics import analytics_bp
+from api.hod import hod_bp
 try:
     from api.dashboards import dashboards_bp, dashboard_manager_bp
 except Exception as e:

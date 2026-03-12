@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingDown, AlertTriangle, FileText, Download, BarChart3 } from 'lucide-react';
+import { TrendingDown, AlertTriangle, FileText, Download, BarChart3, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
@@ -20,10 +20,15 @@ import { EmptyState } from '../components/ui/state-messages';
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState, loadDrilldown, saveDrilldown } from '../utils/statePersistence';
 
+import { useNavigate } from 'react-router-dom';
+import { PageHeader, PageContent } from '../components/ui/page-header';
+
 const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [fexData, setFexData] = useState(null);
-  
+
   const savedState = loadPageState('fex_analytics', { filters: {}, drilldown: 'overall', tab: 'distribution' });
   const [drilldown, setDrilldown] = useState(savedState.drilldown || 'overall');
   const [internalFilters, setInternalFilters] = useState(savedState.filters || {});
@@ -47,12 +52,10 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params: { ...filters, drilldown }
       });
-      
-      // Ensure we have valid data structure
+
       if (response.data && response.data.data) {
         setFexData(response.data);
       } else if (response.data && Array.isArray(response.data)) {
-        // Handle case where API returns array directly
         const summary = {
           total_fex: response.data.reduce((sum, item) => sum + (item.total_fex || 0), 0),
           total_mex: response.data.reduce((sum, item) => sum + (item.total_mex || 0), 0),
@@ -68,7 +71,6 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
       }
     } catch (err) {
       console.error('Error loading FEX data:', err);
-      // Don't set empty data on error, keep previous data or show error
       if (!fexData) {
         setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
       }
@@ -79,8 +81,6 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
 
   const COLORS = ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6', '#10b981', '#06b6d4'];
 
-  // Prepare chart data
-  const chartData = fexData?.data || [];
   const getDataKey = () => {
     if (drilldown === 'faculty') return 'faculty_name';
     if (drilldown === 'department') return 'department';
@@ -97,44 +97,51 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
     fex_rate: 0
   };
 
+  const chartData = fexData?.data || [];
   const chartContainerClass = "min-h-[200px] max-h-[320px] w-full";
+
+  const rolePrefix = user?.role?.toLowerCase() === 'sysadmin' ? 'admin' : user?.role?.toLowerCase() || 'dashboard';
+
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-wrap">
-        <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">FEX Analytics</h1>
-          <p className="text-sm text-muted-foreground">Failed Exam Analysis with Drilldown Capabilities</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-          <Select
-            value={drilldown}
-            onChange={(e) => {
-              const newDrilldown = e.target.value;
-              setDrilldown(newDrilldown);
-              saveDrilldown('fex_analytics', newDrilldown);
-            }}
-            className="w-full sm:w-48"
-          >
-            <option value="overall">Overall</option>
-            <option value="faculty">By Faculty</option>
-            <option value="department">By Department</option>
-            <option value="program">By Program</option>
-            <option value="course">By Course</option>
-          </Select>
-          <ExportButtons 
-            data={fexData?.data} 
-            filters={{ ...filters, drilldown }} 
-            filename="fex_analytics"
-            stats={summary}
-            chartSelectors={[
-              '.recharts-wrapper', // All recharts components
-              '[class*="chart"]',
-              '[data-chart]'
-            ]}
-          />
-        </div>
-      </div>
+    <PageContent>
+      <PageHeader
+        title="FEX Analytics"
+        description="Deep dive into failed exams and performance bottlenecks"
+        actions={
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+            <Select
+              value={drilldown}
+              onChange={(e) => {
+                const newDrilldown = e.target.value;
+                setDrilldown(newDrilldown);
+                saveDrilldown('fex_analytics', newDrilldown);
+              }}
+              className="w-full sm:w-48 h-9"
+            >
+              <option value="overall">Overall</option>
+              <option value="faculty">By Faculty</option>
+              <option value="department">By Department</option>
+              <option value="program">By Program</option>
+              <option value="course">By Course</option>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/${rolePrefix}/risk`)}
+              className="gap-2 border-red-200 text-red-700 hover:bg-red-50"
+            >
+              <ShieldAlert className="h-4 w-4" />
+              Risk Analysis
+            </Button>
+            <ExportButtons
+              data={fexData?.data}
+              filters={{ ...filters, drilldown }}
+              filename="fex_analytics"
+              stats={summary}
+            />
+          </div>
+        }
+      />
 
       {/* Global Filter Panel */}
       {!isControlled && <GlobalFilterPanel onFilterChange={setInternalFilters} pageName="fex_analytics" />}
@@ -304,7 +311,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
           </Tabs>
         </>
       )}
-    </div>
+    </PageContent>
   );
 };
 

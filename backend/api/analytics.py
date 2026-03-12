@@ -8,7 +8,8 @@ from sqlalchemy import create_engine, text
 import pandas as pd
 from rbac import Role, Resource, Permission, has_permission
 from datetime import datetime, timedelta
-from config import DATA_WAREHOUSE_CONN_STRING, DB1_NAME, DB2_NAME
+from config import DATA_WAREHOUSE_CONN_STRING, DB1_NAME, DB2_NAME, get_sqlalchemy_conn_string
+import os
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/api/analytics')
 
@@ -649,6 +650,255 @@ def get_high_school_analytics():
         }), 200
         
     except Exception as e:
+        import traceback
+        print(f"Error in get_high_school_analytics: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+@analytics_bp.route('/academic-risk', methods=['GET'])
+@jwt_required()
+def get_academic_risk_dashboard():
+    """Get high-level academic risk summary for the institution"""
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+        
+        # Check permission (Senate, Analyst, Dean, HOD, Sysadmin)
+        if not has_permission(user_scope['role'], Resource.ANALYTICS, Permission.READ, user_scope):
+            return jsonify({'error': 'Permission denied'}), 403
+            
+        filters = request.args.to_dict()
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        
+        # We use the v_academic_summary view joining with dim_student for scoping
+        # This allows us to see distributions of FCW, MEX, FEX across the institution
+        query = """
+        SELECT 
+            exam_status,
+            COUNT(*) as count,
+            AVG(grade) as avg_grade
+        FROM v_academic_summary
+        """
+        
+        # Re-use build_filter_query logic for scoping
+        # Need to join with dim_student in the summary if we want to filter by faculty/dept
+        base_query = """
+        SELECT 
+            exam_status,
+            COUNT(*) as count,
+            AVG(grade) as avg_grade
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        """
+        
+        q, params = build_filter_query(filters, base_query, user_scope)
+        q += " GROUP BY exam_status"
+        
+        df = pd.read_sql_query(text(q), engine, params=params)
+        
+        # Key categories per status
+        stats = {
+            'fcw': int(df[df['exam_status'] == 'FCW']['count'].sum()) if 'FCW' in df['exam_status'].values else 0,
+            'mex': int(df[df['exam_status'] == 'MEX']['count'].sum()) if 'MEX' in df['exam_status'].values else 0,
+            'fex': int(df[df['exam_status'] == 'FEX']['count'].sum()) if 'FEX' in df['exam_status'].values else 0,
+            'completed': int(df[df['exam_status'] == 'Completed']['count'].sum()) if 'Completed' in df['exam_status'].values else 0,
+            'avg_grade': round(float(df['avg_grade'].mean()), 2) if not df.empty else 0
+        }
+        
+        # Risk distribution over time (by month/year)
+        trend_query = """
+        SELECT 
+            dt.year, dt.month, dt.month_name,
+            COUNT(CASE WHEN fg.fcw THEN 1 END) as fcw,
+            COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) as mex,
+            COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END) as fex
+        FROM fact_grade fg
+        JOIN dim_time dt ON fg.date_key = dt.date_key
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        """
+        tq, tparams = build_filter_query(filters, trend_query, user_scope)
+        tq += " GROUP BY dt.year, dt.month, dt.month_name ORDER BY dt.year DESC, dt.month DESC LIMIT 12"
+        
+        trend_df = pd.read_sql_query(text(tq), engine, params=tparams)
+        trend_records = trend_df.sort_values(['year', 'month']).to_dict('records')
+        
+        # At-risk breakdown (those with 2+ failures)
+        risk_list_query = """
+        SELECT 
+            ds.student_id, ds.access_number, ds.first_name, ds.last_name,
+            COUNT(CASE WHEN fg.exam_status IN ('FEX', 'MEX', 'FCW') THEN 1 END) as risk_points,
+            AVG(fg.grade) as avg_grade
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        """
+        rq, rparams = build_filter_query(filters, risk_list_query, user_scope)
+        rq += " GROUP BY ds.student_id, ds.access_number, ds.first_name, ds.last_name HAVING COUNT(CASE WHEN fg.exam_status IN ('FEX', 'MEX', 'FCW') THEN 1 END) >= 2 ORDER BY risk_points DESC LIMIT 20"
+        
+        risk_list_df = pd.read_sql_query(text(rq), engine, params=rparams)
+        
+        engine.dispose()
+        return jsonify({
+            'summary': stats,
+            'trends': trend_records,
+            'at_risk_students': risk_list_df.to_dict('records')
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in get_academic_risk_dashboard: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+@analytics_bp.route('/high-school-risk-correlation', methods=['GET'])
+@jwt_required()
+def get_high_school_risk_correlation():
+    """Get failure rate correlation with High School background"""
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+        
+        if not has_permission(user_scope['role'], Resource.HIGH_SCHOOL_ANALYTICS, Permission.READ, user_scope):
+            return jsonify({'error': 'Permission denied'}), 403
+            
+        filters = request.args.to_dict()
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        
+        # Use the analytical view if filters are simple, or base tables for scoped filtering
+        base_query = """
+        SELECT 
+            ds.high_school,
+            COALESCE(ds.high_school_district, 'Unknown') as district,
+            COUNT(DISTINCT ds.student_id) as total_students,
+            AVG(CASE WHEN fg.fcw OR fg.exam_status IN ('FEX', 'MEX') THEN 1.0 ELSE 0.0 END) * 100 as failure_rate,
+            AVG(fg.grade) as avg_grade
+        FROM dim_student ds
+        LEFT JOIN fact_grade fg ON ds.student_id = fg.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        WHERE ds.high_school IS NOT NULL AND ds.high_school != ''
+        """
+        
+        q, params = build_filter_query(filters, base_query, user_scope)
+        # Handle WHERE vs AND in build_filter_query (it appends WHERE if needed)
+        # But we already have a WHERE for high_school.
+        # Let's fix build_filter_query to be smarter or manually handle it here.
+        if " WHERE " in q:
+            q = q.replace(" WHERE ", " AND ")
+            q = base_query + q
+        
+        q += " GROUP BY ds.high_school, ds.high_school_district"
+        
+        df = pd.read_sql_query(text(q), engine, params=params)
+        
+        # District level summary
+        district_query = """
+        SELECT 
+            ds.high_school_district as district,
+            AVG(CASE WHEN fg.fcw OR fg.exam_status IN ('FEX', 'MEX') THEN 1.0 ELSE 0.0 END) * 100 as failure_rate,
+            AVG(fg.grade) as avg_grade
+        FROM dim_student ds
+        LEFT JOIN fact_grade fg ON ds.student_id = fg.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        WHERE ds.high_school_district IS NOT NULL AND ds.high_school_district != ''
+        """
+        dq, dparams = build_filter_query(filters, district_query, user_scope)
+        if " WHERE " in dq:
+            dq = dq.replace(" WHERE ", " AND ")
+            dq = district_query + dq
+        dq += " GROUP BY ds.high_school_district"
+        
+        district_df = pd.read_sql_query(text(dq), engine, params=dparams)
+        
+        engine.dispose()
+        return jsonify({
+            'schools': df.to_dict('records'),
+            'districts': district_df.to_dict('records')
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in get_high_school_risk_correlation: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+@analytics_bp.route('/staff/classes', methods=['GET'])
+@jwt_required()
+def get_staff_classes():
+    """Return classes assigned to the current staff member"""
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+        
+        if user_scope['role'] != Role.STAFF:
+             # Deans/HODs might want to see all classes in their dept?
+             # For now, stick to the prompt: staff see their classes.
+             pass
+             
+        username = claims.get('username')
+        rbac_engine = create_engine(get_sqlalchemy_conn_string('ucu_rbac'))
+        
+        # Join staff_course_assignments with dim_course from warehouse
+        # Since they are different DBs, we'll do two queries or use a cross-db join if possible.
+        # Most reliable: get codes from RBAC, then details from DW.
+        codes_df = pd.read_sql_query(
+            text("""
+                SELECT sca.course_code FROM staff_course_assignments sca
+                JOIN app_users u ON u.id = sca.app_user_id
+                WHERE LOWER(u.username) = :uname
+            """),
+            rbac_engine, params={'uname': str(username).lower()}
+        )
+        rbac_engine.dispose()
+        
+        if codes_df.empty:
+            return jsonify({'classes': []}), 200
+            
+        course_codes = codes_df['course_code'].tolist()
+        
+        dw_engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        courses_df = pd.read_sql_query(
+            text("SELECT * FROM dim_course WHERE course_code IN :codes"),
+            dw_engine, params={'codes': tuple(course_codes)}
+        )
+        
+        # Add basic stats per course
+        stats_df = pd.read_sql_query(
+            text("""
+                SELECT 
+                    course_code,
+                    COUNT(DISTINCT student_id) as student_count,
+                    AVG(grade) as avg_grade,
+                    COUNT(CASE WHEN exam_status = 'FEX' THEN 1 END) as fex_count
+                FROM fact_grade
+                WHERE course_code IN :codes
+                GROUP BY course_code
+            """),
+            dw_engine, params={'codes': tuple(course_codes)}
+        )
+        dw_engine.dispose()
+        
+        # Merge stats
+        result_df = pd.merge(courses_df, stats_df, on='course_code', how='left').fillna(0)
+        
+        return jsonify({'classes': result_df.to_dict('records')}), 200
+        
+    except Exception as e:
+        print(f"Error in get_staff_classes: {e}")
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/filter-options', methods=['GET'])
