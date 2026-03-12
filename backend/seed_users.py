@@ -1,7 +1,6 @@
 import os
 import sys
 from sqlalchemy import create_engine, text
-from passlib.hash import pbkdf2_sha256
 from pathlib import Path
 
 # Provide standard bcrypt hash fallback or just passlib hash
@@ -80,6 +79,13 @@ def seed_users():
 
         with rbac_engine.connect() as rbac_conn_db:
             rbac_conn_db = rbac_conn_db.execution_options(autocommit=True)
+            
+            # Reset identity sequence to prevent PK collisions if manual entries exist
+            try:
+                rbac_conn_db.execute(text("SELECT setval('app_users_id_seq', (SELECT COALESCE(MAX(id), 0) FROM app_users) + 1, false)"))
+            except:
+                pass
+
             for username, role, full_name, fac_id, dept_id in users:
                 # Check if exists
                 res = rbac_conn_db.execute(text("SELECT id FROM app_users WHERE username=:u"), {"u": username}).fetchone()
