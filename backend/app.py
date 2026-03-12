@@ -860,6 +860,22 @@ def admin_create_user():
         _ensure_app_users_table(rbac_engine)
         password_hash = generate_password_hash(password, method='pbkdf2:sha256')
         with rbac_engine.connect() as conn:
+            # Enforce unique username (case-insensitive, trimmed) before insert
+            dup = pd.read_sql_query(
+                text(
+                    """
+                    SELECT 1 FROM app_users
+                    WHERE LOWER(TRIM(username)) = LOWER(:uname)
+                    LIMIT 1
+                    """
+                ),
+                conn,
+                params={'uname': username},
+            )
+            if not dup.empty:
+                rbac_engine.dispose()
+                return jsonify({'error': 'Username already exists'}), 409
+
             # Realign SERIAL sequence to max(id) to avoid duplicate key on insert
             try:
                 max_id_row = conn.execute(text("SELECT COALESCE(MAX(id), 0) AS max_id FROM app_users")).fetchone()

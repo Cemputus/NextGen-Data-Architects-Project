@@ -728,9 +728,48 @@ def update_profile():
                 _ensure_user_profiles_table(engine)
                 first_name = data.get('first_name', claims.get('first_name'))
                 last_name = data.get('last_name', claims.get('last_name'))
-                email = data.get('email', claims.get('email'))
-                phone = data.get('phone', claims.get('phone'))
+                email = (data.get('email', claims.get('email')) or '').strip()
+                phone = (data.get('phone', claims.get('phone')) or '').strip()
+
+                # Enforce unique email and phone across all profiles (except current user)
                 with engine.connect() as conn:
+                    if email:
+                        dup_email = pd.read_sql_query(
+                            text(
+                                """
+                                SELECT 1 FROM user_profiles
+                                WHERE LOWER(TRIM(email)) = LOWER(:email)
+                                  AND username <> :uname
+                                LIMIT 1
+                                """
+                            ),
+                            conn,
+                            params={'email': email, 'uname': username},
+                        )
+                        if not dup_email.empty:
+                            engine.dispose()
+                            return jsonify({'error': 'Email address is already in use by another user.'}), 400
+
+                    if phone:
+                        # Normalize phone by stripping non-digits for comparison
+                        norm_phone = ''.join(ch for ch in phone if ch.isdigit())
+                        dup_phone = pd.read_sql_query(
+                            text(
+                                """
+                                SELECT 1 FROM user_profiles
+                                WHERE regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = :p
+                                  AND username <> :uname
+                                LIMIT 1
+                                """
+                            ),
+                            conn,
+                            params={'p': norm_phone, 'uname': username},
+                        )
+                        if not dup_phone.empty:
+                            engine.dispose()
+                            return jsonify({'error': 'Phone number is already in use by another user.'}), 400
+
+                    # Upsert profile row
                     conn.execute(
                         text(
                             """
@@ -749,8 +788,8 @@ def update_profile():
                             'role': role_name,
                             'first_name': first_name,
                             'last_name': last_name,
-                            'email': email,
-                            'phone': phone,
+                            'email': email or None,
+                            'phone': phone or None,
                             'pp': profile_picture_url,
                         },
                     )
