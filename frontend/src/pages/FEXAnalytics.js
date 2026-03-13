@@ -6,11 +6,8 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingDown, AlertTriangle, FileText, Download, BarChart3, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Select } from '../components/ui/select';
-import { KPICard } from '../components/ui/kpi-card';
-import { DashboardGrid } from '../components/ui/dashboard-grid';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
@@ -155,162 +152,42 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
           </div>
         </div>
       ) : (
-        <>
-          {/* Summary KPI Cards */}
-          <DashboardGrid cols={{ default: 2, sm: 2, md: 4 }}>
-            <KPICard
-              title="Total FEX"
-              value={summary.total_fex || 0}
-              icon={AlertTriangle}
-              subtitle="Failed exams"
-              changeType={summary.total_fex > 0 ? 'negative' : 'neutral'}
-            />
-            <KPICard
-              title="FEX Rate"
-              value={`${summary.fex_rate || 0}%`}
-              icon={TrendingDown}
-              subtitle="Failure rate"
-              changeType={summary.fex_rate > 10 ? 'negative' : summary.fex_rate > 5 ? 'neutral' : 'positive'}
-            />
-            <KPICard
-              title="Total MEX"
-              value={summary.total_mex || 0}
-              icon={FileText}
-              subtitle="Missed exams"
-            />
-            <KPICard
-              title="Total FCW"
-              value={summary.total_fcw || 0}
-              icon={BarChart3}
-              subtitle="Failed coursework"
-            />
-          </DashboardGrid>
-
-          {/* Charts */}
-          <Tabs value={activeTab} onValueChange={(value) => {
-            setActiveTab(value);
-            savePageState('fex_analytics', { filters, drilldown, tab: value });
-          }} className="space-y-3">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
-              <TabsTrigger value="distribution" className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Distribution
-              </TabsTrigger>
-              <TabsTrigger value="trends" className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4" />
-                Trends
-              </TabsTrigger>
-              <TabsTrigger value="comparison" className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Comparison
-              </TabsTrigger>
-              <TabsTrigger value="table" className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Details
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="distribution" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold text-red-700">FEX Distribution</CardTitle>
-                  <CardDescription className="text-xs">Failed exam distribution by {drilldown}</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className={chartContainerClass} data-chart-title={`FEX Distribution by ${drilldown}`} data-chart-container="true">
-                    <SciBarChart
-                      data={chartData}
-                      xDataKey={getDataKey()}
-                      yDataKeys={[
-                        { key: 'total_fex', label: 'FEX', color: '#ef4444' },
-                        { key: 'total_mex', label: 'MEX', color: '#f59e0b' },
-                        { key: 'total_fcw', label: 'FCW', color: '#8b5cf6' }
-                      ]}
-                      xAxisLabel={drilldown.charAt(0).toUpperCase() + drilldown.slice(1)}
-                      yAxisLabel="Count"
-                      showLegend={true}
-                      showGrid={true}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="trends" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold text-orange-700">FEX Trends</CardTitle>
-                  <CardDescription className="text-xs">Trend analysis over time</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="min-h-[200px] max-h-[280px] flex items-center justify-center text-muted-foreground text-sm">
-                    Trend analysis charts - Coming soon
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="comparison" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold text-purple-700">Comparison Analysis</CardTitle>
-                  <CardDescription className="text-xs">Compare FEX rates across different dimensions</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="min-h-[200px] max-h-[280px] flex items-center justify-center text-muted-foreground text-sm">
-                    Comparison charts - Coming soon
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="table" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold text-blue-700">Detailed FEX Data</CardTitle>
-                  <CardDescription className="text-xs">Complete breakdown of failed exams</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  {chartData.length > 0 ? (
-                    <TableWrapper>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Faculty/Department</TableHead>
-                            <TableHead className="text-right">FEX</TableHead>
-                            <TableHead className="text-right">MEX</TableHead>
-                            <TableHead className="text-right">FCW</TableHead>
-                            <TableHead className="text-right">Completed</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {chartData.slice(0, 20).map((row, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell>{row[getDataKey()] || 'N/A'}</TableCell>
-                              <TableCell className="text-right text-red-600 font-semibold">{row.total_fex || 0}</TableCell>
-                              <TableCell className="text-right text-orange-600">{row.total_mex || 0}</TableCell>
-                              <TableCell className="text-right text-purple-600">{row.total_fcw || 0}</TableCell>
-                              <TableCell className="text-right text-green-600">{row.total_completed || 0}</TableCell>
-                              <TableCell className="text-right font-medium">{row.total_exams || 0}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableWrapper>
-                  ) : (
-                    <EmptyState
-                      icon={FileText}
-                      message="No data available"
-                      hint={fexData?.debug_info?.message || 'Try adjusting your filters or check if data exists.'}
-                      className="border-2 border-dashed rounded-lg"
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold text-red-700">
+              FEX distribution (chart rebuild in progress)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              KPI cards were removed to avoid duplicate KPI sections. Use the drilldown selector above.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className={chartContainerClass} data-chart-title={`FEX Distribution by ${drilldown}`} data-chart-container="true">
+              {chartData.length > 0 ? (
+                <SciBarChart
+                  data={chartData}
+                  xDataKey={getDataKey()}
+                  yDataKeys={[
+                    { key: 'total_fex', label: 'FEX', color: '#ef4444' },
+                    { key: 'total_mex', label: 'MEX', color: '#f59e0b' },
+                    { key: 'total_fcw', label: 'FCW', color: '#8b5cf6' }
+                  ]}
+                  xAxisLabel={drilldown.charAt(0).toUpperCase() + drilldown.slice(1)}
+                  yAxisLabel="Count"
+                  showLegend={true}
+                  showGrid={true}
+                />
+              ) : (
+                <EmptyState
+                  icon={FileText}
+                  message="No data available"
+                  hint={fexData?.debug_info?.message || 'Try adjusting your drilldown or check if data exists.'}
+                  className="border-2 border-dashed rounded-lg"
+                />
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </PageContent>
   );

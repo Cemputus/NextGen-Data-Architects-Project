@@ -8,8 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
-import { KPICard } from '../components/ui/kpi-card';
-import { DashboardGrid } from '../components/ui/dashboard-grid';
 import axios from 'axios';
 import { SciBarChart, SciLineChart, UCU_COLORS } from '../components/charts/EChartsComponents';
 import { Loader2 } from 'lucide-react';
@@ -111,36 +109,6 @@ const HighSchoolAnalytics = ({ filters: externalFilters, onFilterChange: externa
         </div>
       ) : (
         <>
-          {/* Summary KPI Cards */}
-          <DashboardGrid cols={{ default: 2, sm: 2, md: 4 }}>
-            <KPICard
-              title="Total High Schools"
-              value={summary.total_high_schools || 0}
-              icon={School}
-              subtitle="High schools"
-            />
-            <KPICard
-              title="Total Students"
-              value={summary.total_students || 0}
-              icon={Users}
-              subtitle="Students from high schools"
-            />
-            <KPICard
-              title="Avg Retention Rate"
-              value={`${summary.avg_retention_rate || 0}%`}
-              icon={TrendingUp}
-              subtitle="Average retention"
-              changeType={summary.avg_retention_rate > 80 ? 'positive' : summary.avg_retention_rate > 60 ? 'neutral' : 'negative'}
-            />
-            <KPICard
-              title="Avg Graduation Rate"
-              value={`${summary.avg_graduation_rate || 0}%`}
-              icon={GraduationCap}
-              subtitle="Average graduation"
-              changeType={summary.avg_graduation_rate > 80 ? 'positive' : summary.avg_graduation_rate > 60 ? 'neutral' : 'negative'}
-            />
-          </DashboardGrid>
-
           {/* Charts */}
           <Tabs value={activeTab} onValueChange={(value) => {
             setActiveTab(value);
