@@ -546,11 +546,10 @@ const NextGenQueryPage = () => {
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <Database className="h-4 w-4 text-primary" />
-              SQL Workspace
+              Read-only SQL Workspace
             </CardTitle>
             <CardDescription className="text-xs">
-              Trusted analyst SQL workspace against the data warehouse. All SQL
-              statements are allowed; use with care.
+              Trusted analyst SQL workspace against the data warehouse. Only SELECT/WITH queries are allowed — data changes (INSERT, UPDATE, DELETE, DDL) are blocked here.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">

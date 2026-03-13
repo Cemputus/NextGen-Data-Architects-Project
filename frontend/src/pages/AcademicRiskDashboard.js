@@ -15,6 +15,7 @@ import axios from 'axios';
 import { SciBarChart, SciDonutChart, UCU_COLORS } from '../components/charts/EChartsComponents';
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState } from '../utils/statePersistence';
+import { DataTable } from '../components/shared/DataTable';
 
 const AcademicRiskDashboard = () => {
     const [loading, setLoading] = useState(true);
@@ -60,6 +61,20 @@ const AcademicRiskDashboard = () => {
         { name: 'FCW (Finance)', value: riskSummary.fcw_count },
         { name: 'MEX (Missed Exams)', value: riskSummary.mex_count },
         { name: 'FEX (Failed Exams)', value: riskSummary.fex_count }
+    ];
+
+    const studentColumns = [
+        { key: 'access_number', header: 'Reg No' },
+        { key: 'first_name', header: 'First Name' },
+        { key: 'last_name', header: 'Last Name' },
+        {
+            key: 'risk_points', header: 'Risk Points', render: (val) => (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${val >= 4 ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>
+                    {val} Failures
+                </span>
+            )
+        },
+        { key: 'avg_grade', header: 'Avg Score', render: (val) => `${(val || 0).toFixed(1)}%` }
     ];
 
     const chartContainerClass = "min-h-[300px] w-full";
@@ -250,10 +265,17 @@ const AcademicRiskDashboard = () => {
                                     <CardDescription>Top students needing academic intervention</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="py-12 text-center text-muted-foreground">
-                                        <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                                        <p>Detailed at-risk student list is being consolidated from departmental records.</p>
-                                        <p className="text-xs mt-2">Filter by Faculty/Department to view specific breakdowns.</p>
+                                    <DataTable
+                                        data={riskData?.at_risk_students || []}
+                                        columns={studentColumns}
+                                        itemsPerPage={8}
+                                    />
+                                    <div className="mt-4 text-xs text-muted-foreground bg-amber-50 p-3 rounded-md border border-amber-100 flex items-start gap-2">
+                                        <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5" />
+                                        <span>
+                                            <strong>Intervention Protocol:</strong> Students with 2+ failures are automatically flagged for HOD review.
+                                            Contact departmental counselors to schedule mandatory advising sessions.
+                                        </span>
                                     </div>
                                 </CardContent>
                             </Card>

@@ -24,6 +24,96 @@ def _get_rbac_conn_string() -> str:
   return DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
 
 
+def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
+  """
+  Ensure that each role in all_roles has a current dashboard assigned.
+  If no dashboards exist at all, create a single default analytics dashboard
+  and assign it to all roles as their current dashboard.
+  """
+  total_dashboards = conn.execute(
+    text("SELECT COUNT(*) AS c FROM dashboards")
+  ).scalar() or 0
+
+  default_dashboard_id = None
+
+  if total_dashboards == 0:
+    default_dashboard_id = uuid.uuid4().hex
+    conn.execute(
+      text(
+        """
+        INSERT INTO dashboards (
+          id, name, description, created_by_username, created_by_role, definition, is_active
+        ) VALUES (
+          :id, :name, :description, :created_by_username, :created_by_role, :definition, TRUE
+        )
+        """
+      ),
+      {
+        "id": default_dashboard_id,
+        "name": "Default Analytics Dashboard",
+        "description": "Auto-created default dashboard showing core analytics for all roles.",
+        "created_by_username": updated_by_username or "system",
+        "created_by_role": "sysadmin",
+        "definition": json.dumps(
+          {
+            "template": "analytics_dashboard",
+            "source": "analyst_dashboard",
+            "kpis": [
+              "total_students",
+              "avg_grade",
+              "failed_exams",
+              "missed_exams",
+              "avg_attendance",
+            ],
+            "charts": [
+              "student_distribution",
+              "grades_over_time",
+              "grade_distribution",
+            ],
+          }
+        ),
+      },
+    )
+    for rname in all_roles:
+      conn.execute(
+        text(
+          """
+          INSERT INTO dashboard_role_access (dashboard_id, role_name)
+          VALUES (:dashboard_id, :role_name)
+          ON CONFLICT (dashboard_id, role_name) DO NOTHING
+          """
+        ),
+        {"dashboard_id": default_dashboard_id, "role_name": rname},
+      )
+
+  if default_dashboard_id is not None:
+    for rname in all_roles:
+      exists = conn.execute(
+        text(
+          """
+          SELECT 1 FROM role_current_dashboard
+          WHERE role_name = :role_name
+          """
+        ),
+        {"role_name": rname},
+      ).scalar()
+      if not exists:
+        conn.execute(
+          text(
+            """
+            INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username)
+            VALUES (:role_name, :dashboard_id, :updated_by_username)
+            ON CONFLICT (role_name) DO NOTHING
+            """
+          ),
+          {
+            "role_name": rname,
+            "dashboard_id": default_dashboard_id,
+            "updated_by_username": updated_by_username or "system",
+          },
+        )
+
+
 def _ensure_dashboard_tables(engine):
   """Create dashboards + access tables in ucu_rbac if they don't exist."""
   try:
@@ -232,6 +322,9 @@ def get_current_dashboards():
     engine = _get_engine()
     result_payload = []
     with engine.connect() as conn:
+      # Ensure there is at least one default dashboard assigned for all roles
+      _ensure_default_role_dashboards(conn, all_roles, username)
+
       # Fetch role->dashboard mapping
       rows = conn.execute(
         text(

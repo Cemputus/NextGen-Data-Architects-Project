@@ -22,6 +22,7 @@ import { loadPageState, savePageState, loadDrilldown, saveDrilldown } from '../u
 
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, PageContent } from '../components/ui/page-header';
+import { useAuth } from '../context/AuthContext';
 
 const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
   const navigate = useNavigate();

@@ -290,6 +290,7 @@ def get_fex_analytics():
 
 
 @analytics_bp.route('/student/retakes', methods=['GET'])
+@analytics_bp.route('/my-retakes', methods=['GET'])
 @jwt_required()
 def get_student_retakes():
     """Return retake-related courses for the current student based on FCW/MEX/FEX statuses.
@@ -517,7 +518,7 @@ def get_high_school_analytics():
             if filters.get('intake_year') and not should_ignore_filter(filters.get('intake_year')):
                 try:
                     year_val = int(filters['intake_year'])
-                    where_clauses.append("YEAR(ds.admission_date) = :filter_intake_year")
+                    where_clauses.append("EXTRACT(YEAR FROM ds.admission_date) = :filter_intake_year")
                     params['filter_intake_year'] = year_val
                 except (ValueError, TypeError):
                     print(f"DEBUG: Invalid intake_year filter value: {filters.get('intake_year')}")
@@ -766,10 +767,10 @@ def get_academic_risk_dashboard():
         return jsonify({'error': str(e)}), 500
 
 
-@analytics_bp.route('/high-school-risk-correlation', methods=['GET'])
+@analytics_bp.route('/high-school-risk-correlation-legacy', methods=['GET'])
 @jwt_required()
-def get_high_school_risk_correlation():
-    """Get failure rate correlation with High School background"""
+def get_high_school_risk_correlation_legacy():
+    """Legacy version of high school risk correlation kept for backwards compatibility."""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -780,7 +781,6 @@ def get_high_school_risk_correlation():
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
-        # Use base tables for scoped filtering
         base_query = """
         SELECT 
             ds.high_school as school,
@@ -798,8 +798,6 @@ def get_high_school_risk_correlation():
         
         q, params = build_filter_query(filters, base_query, user_scope)
         if " WHERE " in q:
-            # build_filter_query might have added WHERE. We need to merge with ours.
-            # Base query already has "WHERE ds.high_school IS NOT NULL"
             q = q.replace(" WHERE ", " AND ")
             q = base_query + q
         
@@ -807,7 +805,6 @@ def get_high_school_risk_correlation():
         
         df = pd.read_sql_query(text(q), engine, params=params)
         
-        # District level summary
         district_query = """
         SELECT 
             ds.high_school_district as district,
@@ -836,7 +833,7 @@ def get_high_school_risk_correlation():
         
     except Exception as e:
         import traceback
-        print(f"Error in get_high_school_risk_correlation: {e}")
+        print(f"Error in get_high_school_risk_correlation_legacy: {e}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 

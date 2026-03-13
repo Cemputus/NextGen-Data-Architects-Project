@@ -56,15 +56,16 @@ const Login = () => {
     setLoading(true);
     try {
       try {
-        await axios.get('/api/user-mgmt/ping', { timeout: 3000 });
+        // Allow more time when running via Docker so the proxy/backend have time to respond
+        await axios.get('/api/user-mgmt/ping', { timeout: 10000 });
       } catch (networkErr) {
         if (networkErr.code === 'ECONNABORTED' || networkErr.message?.includes('timeout')) {
-          setError('Network timeout. Ensure the backend is running on http://localhost:5000');
+          setError('Network timeout. Ensure the backend container is healthy (port 5000) and try again.');
           setLoading(false);
           return;
         }
         if (networkErr.message?.includes('Network Error') || networkErr.code === 'ERR_NETWORK') {
-          setError('Cannot connect to server. Ensure the backend is running on http://localhost:5000');
+          setError('Cannot connect to server. Ensure the backend container is running and reachable on port 5000.');
           setLoading(false);
           return;
         }

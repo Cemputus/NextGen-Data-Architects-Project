@@ -51,7 +51,7 @@ class EnhancedPredictor:
             END as payment_completion_rate,
             COUNT(CASE WHEN fp.status = 'Completed' THEN 1 END) as completed_payments,
             COUNT(CASE WHEN fp.status = 'Pending' THEN 1 END) as pending_payments,
-            DATEDIFF(CURDATE(), MAX(CASE WHEN fp.status = 'Completed' THEN fp.date_key ELSE NULL END)) as days_since_last_payment,
+            CURRENT_DATE - MAX(CASE WHEN fp.status = 'Completed' THEN TO_DATE(fp.date_key, 'YYYYMMDD') ELSE NULL END) as days_since_last_payment,
             CASE 
                 WHEN SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END) > 500000 
                 THEN 1 ELSE 0 
