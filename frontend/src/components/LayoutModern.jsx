@@ -183,10 +183,10 @@ const LayoutModern = ({ children }) => {
     return list.filter((r) => !read.has(r.log_file)).length;
   };
 
-  // ETL run list + unread count for sysadmin sidebar badge; listen for read updates
+  // ETL run list + unread count for sysadmin/admin sidebar badge; listen for read updates
   useEffect(() => {
     const role = (user?.role || '').toString().toLowerCase();
-    if (role !== 'sysadmin') {
+    if (role !== 'sysadmin' && role !== 'admin') {
       setEtlRunCount(null);
       setEtlRunsList([]);
       return;
@@ -238,7 +238,7 @@ const LayoutModern = ({ children }) => {
 
   useEffect(() => {
     const role = (user?.role || '').toString().toLowerCase();
-    if (role !== 'sysadmin') {
+    if (role !== 'sysadmin' && role !== 'admin') {
       setAdminSettings({});
       setEtlCountdownSec(null);
       return;
@@ -253,7 +253,7 @@ const LayoutModern = ({ children }) => {
   // Poll admin settings when auto ETL is on so sidebar countdown resets after each run (no page refresh)
   useEffect(() => {
     const role = (user?.role || '').toString().toLowerCase();
-    if (role !== 'sysadmin' || !adminSettings.etl_auto_enabled) return;
+    if ((role !== 'sysadmin' && role !== 'admin') || !adminSettings.etl_auto_enabled) return;
     const interval = setInterval(fetchAdminSettings, 15000);
     return () => clearInterval(interval);
   }, [user?.role, adminSettings.etl_auto_enabled, fetchAdminSettings]);
@@ -408,7 +408,7 @@ const LayoutModern = ({ children }) => {
 
           {/* ETL countdown - admin only, in sidebar; updates every second, no refresh needed.
               Hidden on ETL Jobs page since that page already focuses on ETL timing. */}
-          {role === 'sysadmin' &&
+          {(role === 'sysadmin' || role === 'admin') &&
             adminSettings.etl_auto_enabled &&
             etlCountdownSec != null &&
             sidebarOpen &&

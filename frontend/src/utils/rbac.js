@@ -35,6 +35,7 @@ export const rbac = {
     const routes = {
       senate: '/senate/dashboard',
       sysadmin: '/admin/dashboard',
+      admin: '/admin/dashboard',
       analyst: '/analyst/dashboard',
       student: '/student/dashboard',
       staff: '/staff/dashboard',
