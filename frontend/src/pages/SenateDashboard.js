@@ -2,17 +2,11 @@
  * Senate Dashboard - Smooth, Clean UI
  */
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Building2, FileText, Download, Share2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Button } from '../components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
-import ModernStatsCards from '../components/ModernStatsCards';
-import RoleBasedCharts from '../components/RoleBasedCharts';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
-import { loadPageState, savePageState } from '../utils/statePersistence';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 
@@ -21,15 +15,7 @@ const SenateDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [showWelcome, setShowWelcome] = useState(true);
-  // Load persisted state on mount
-  const savedState = loadPageState('senate_dashboard', { filters: {}, tab: 'overview' });
-  const [filters, setFilters] = useState(savedState.filters || {});
-  const [activeTab, setActiveTab] = useState(savedState.tab || 'overview');
-
-  // Save state whenever it changes
-  useEffect(() => {
-    savePageState('senate_dashboard', { filters, tab: activeTab });
-  }, [filters, activeTab]);
+  const [filters, setFilters] = useState({});
 
   useEffect(() => {
     loadDashboardData();
@@ -119,87 +105,14 @@ const SenateDashboard = () => {
         </div>
       ) : (
         <>
-          {/* KPI Cards */}
-          <ModernStatsCards stats={stats} type="general" />
-
-          {/* Main Analytics */}
-          <Tabs value={activeTab} onValueChange={(value) => {
-            setActiveTab(value);
-            savePageState('senate_dashboard', { filters, tab: value });
-          }} className="space-y-3">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
-              <TabsTrigger value="overview" className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="academics" className="flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                Academics
-              </TabsTrigger>
-              <TabsTrigger value="finance" className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Finance
-              </TabsTrigger>
-              <TabsTrigger value="reports" className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Reports
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Institution Overview</CardTitle>
-                  <CardDescription className="text-xs">Comprehensive analytics across all faculties</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0" data-chart-container="true" data-chart-title="Institution Overview">
-                  <RoleBasedCharts filters={filters} type="institution" />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="academics" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Academic Performance</CardTitle>
-                  <CardDescription className="text-xs">Institution-wide academic metrics and trends</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0" data-chart-container="true" data-chart-title="Academic Performance">
-                  <RoleBasedCharts filters={filters} type="academic" />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="finance" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Financial Overview</CardTitle>
-                  <CardDescription className="text-xs">Revenue, budget, and financial performance</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0" data-chart-container="true" data-chart-title="Financial Overview">
-                  <RoleBasedCharts filters={filters} type="finance" />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="reports" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Generated Reports</CardTitle>
-                  <CardDescription className="text-xs">Access and download comprehensive reports</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm border border-dashed rounded-lg">
-                    <div className="text-center p-4">
-                      <FileText className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-                      <p>No reports generated yet</p>
-                      <p className="text-sm text-muted-foreground mt-2">Use the export buttons above to generate reports</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <Card className="border border-dashed bg-muted/20">
+            <CardHeader>
+              <CardTitle className="text-sm">Analytics under redesign</CardTitle>
+              <CardDescription className="text-xs">
+                Charts and KPIs are being rebuilt to focus on current and previous semester. New institution dashboards coming soon.
+              </CardDescription>
+            </CardHeader>
+          </Card>
         </>
       )}
     </div>

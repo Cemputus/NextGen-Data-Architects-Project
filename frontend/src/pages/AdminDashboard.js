@@ -194,7 +194,7 @@ const AdminDashboard = () => {
         </div>
       ) : (
         <>
-          {/* System KPI Cards - Employees = dim_employee + all app users; Staff = dim_employee (staff/lecturers) + app users with role Staff only */}
+          {/* System KPI Cards */}
           <DashboardGrid cols={{ default: 2, sm: 2, md: 3, lg: 6 }}>
             <KPICard
               title="Total Users"
@@ -235,7 +235,7 @@ const AdminDashboard = () => {
             />
           </DashboardGrid>
 
-          {/* User distribution quick view (based on summary from admin status, if available) */}
+          {/* User distribution by role */}
           {userRoleDistribution.length > 0 && (
             <Card className="border shadow-sm">
               <CardHeader className="p-4 pb-2">
@@ -348,7 +348,6 @@ const AdminDashboard = () => {
                 <CardContent className="p-4 pt-0">
                   {adminStatus ? (
                     <div className="space-y-4">
-                      {/* Visual overview of key warehouse tables only */}
                       <div className="h-[260px] w-full">
                         {(() => {
                           const wh = adminStatus.warehouse || {};
@@ -401,7 +400,6 @@ const AdminDashboard = () => {
                           );
                         })()}
                       </div>
-
                       {adminStatus.etl_runs && adminStatus.etl_runs.length > 0 && (
                         <div className="rounded border p-3 bg-muted/20">
                           <p className="text-sm font-medium text-muted-foreground mb-1">Last ETL run</p>

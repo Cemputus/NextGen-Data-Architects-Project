@@ -8,9 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
-import ModernStatsCards from '../components/ModernStatsCards';
-import RoleBasedCharts from '../components/RoleBasedCharts';
-import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
@@ -85,11 +82,14 @@ const StaffDashboard = () => {
         </div>
       ) : (
         <>
-          {/* Legacy static KPI summary */}
-          {stats && <ModernStatsCards stats={stats} type="general" />}
-
-          {/* Dynamic current dashboard for Staff role */}
-          <RoleDashboardRenderer stats={stats} type="staff" />
+          <Card className="border border-dashed bg-muted/20">
+            <CardHeader>
+              <CardTitle className="text-sm">Analytics under redesign</CardTitle>
+              <CardDescription className="text-xs">
+                Charts and KPIs are being rebuilt to focus on current and previous semester. New staff dashboards coming soon.
+              </CardDescription>
+            </CardHeader>
+          </Card>
         </>
       )}
     </div>

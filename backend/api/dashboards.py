@@ -380,6 +380,10 @@ def get_current_dashboards():
             }
           )
 
+    # Analysts cannot assign dashboards to admin: exclude sysadmin from the list they see
+    if role == "analyst":
+      result_payload = [x for x in result_payload if x.get("role") != "sysadmin"]
+
     return jsonify({"roles": result_payload}), 200
   except Exception as e:
     if engine is not None:
@@ -479,6 +483,10 @@ def swap_dashboard():
   if not target_role or not dashboard_id:
     return jsonify({"error": "Both role and dashboard_id are required."}), 400
 
+  # Analysts cannot assign or swap dashboards for the admin (sysadmin) role
+  if role == "analyst" and target_role == "sysadmin":
+    return jsonify({"error": "Analysts cannot assign dashboards to the Admin role. Admin dashboard is managed separately."}), 403
+
   engine = None
   try:
     engine = _get_engine()
@@ -535,6 +543,10 @@ def remove_current_dashboard():
   if not target_role:
     return jsonify({"error": "role is required."}), 400
 
+  # Analysts cannot remove current dashboard for the admin (sysadmin) role
+  if role == "analyst" and target_role == "sysadmin":
+    return jsonify({"error": "Analysts cannot change the Admin role's dashboard. Admin dashboard is managed separately."}), 403
+
   engine = None
   try:
     engine = _get_engine()
@@ -573,6 +585,10 @@ def create_dashboard():
   # Normalize roles/usernames
   roles = list({(r or "").strip().lower() for r in roles if (r or "").strip()})
   users = list({(u or "").strip() for u in users if (u or "").strip()})
+
+  # Analysts cannot assign dashboards to the admin (sysadmin) role
+  if role == "analyst":
+    roles = [r for r in roles if r != "sysadmin"]
 
   dash_id = str(uuid.uuid4())
   engine = None

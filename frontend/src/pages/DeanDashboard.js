@@ -6,12 +6,7 @@ import { TrendingUp, Users, GraduationCap, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
-import ModernStatsCards from '../components/ModernStatsCards';
-import RoleBasedCharts from '../components/RoleBasedCharts';
-import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
 import ExportButtons from '../components/ExportButtons';
-import { SciBarChart } from '../components/charts/EChartsComponents';
-import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -102,11 +97,14 @@ const DeanDashboard = () => {
         </div>
       ) : (
         <>
-          {/* Legacy static KPIs (optional) */}
-          <ModernStatsCards stats={stats} type="faculty" />
-
-          {/* Dynamic current dashboard for Dean role */}
-          <RoleDashboardRenderer stats={stats} type="dean" />
+          <Card className="border border-dashed bg-muted/20">
+            <CardHeader>
+              <CardTitle className="text-sm">Analytics under redesign</CardTitle>
+              <CardDescription className="text-xs">
+                Charts and KPIs are being rebuilt to focus on current and previous semester. New faculty dashboards coming soon.
+              </CardDescription>
+            </CardHeader>
+          </Card>
         </>
       )}
     </div>

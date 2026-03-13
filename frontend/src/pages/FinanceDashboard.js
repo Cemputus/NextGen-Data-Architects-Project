@@ -2,12 +2,8 @@
  * Finance Dashboard - Smooth, Clean UI
  */
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, CreditCard, AlertCircle, Receipt } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Card, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
-import ModernStatsCards from '../components/ModernStatsCards';
-import RoleBasedCharts from '../components/RoleBasedCharts';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
@@ -88,86 +84,14 @@ const FinanceDashboard = () => {
           </div>
         </div>
       ) : (
-        <>
-          {/* KPI Cards */}
-          <ModernStatsCards stats={stats} type="finance" />
-
-          {/* Main Analytics Tabs */}
-          <Tabs defaultValue="revenue" className="space-y-3">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
-              <TabsTrigger value="revenue" className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Revenue
-              </TabsTrigger>
-              <TabsTrigger value="payments" className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                Payments
-              </TabsTrigger>
-              <TabsTrigger value="outstanding" className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Outstanding
-              </TabsTrigger>
-              <TabsTrigger value="reports" className="flex items-center gap-2">
-                <Receipt className="h-4 w-4" />
-                Reports
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="revenue" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Revenue Analysis</CardTitle>
-                  <CardDescription className="text-xs">Total revenue by period, program, and student type</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <RoleBasedCharts filters={filters} type="finance" />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="payments" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Payment Analytics</CardTitle>
-                  <CardDescription className="text-xs">Payment status, trends, and collection efficiency</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
-                    Payment analytics charts
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="outstanding" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Outstanding Payments</CardTitle>
-                  <CardDescription className="text-xs">Pending payments and collection status</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
-                    Outstanding payments visualization
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="reports" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Financial Reports</CardTitle>
-                  <CardDescription className="text-xs">Generate and export financial reports</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="min-h-[200px] max-h-[320px] flex items-center justify-center text-muted-foreground text-sm">
-                    Financial reports and exports
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </>
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold">Analytics under redesign</CardTitle>
+            <CardDescription className="text-xs">
+              Finance charts and KPIs are being rebuilt. New analytics will appear here soon.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       )}
     </div>
   );
