@@ -199,13 +199,14 @@ const AnalystDashboardsPage = () => {
         }),
       ]);
 
-      // Ensure we always have the 9 roles, even if backend missed some
+      // Backend returns only assignable roles for analyst (no sysadmin); sysadmin gets all roles
       const current = currentResp.data?.roles || [];
       const byRole = {};
       current.forEach((item) => {
         byRole[normalizeRole(item.role)] = item;
       });
-      const merged = ALL_ROLES.map((r) => byRole[r] || { role: r, dashboard: null });
+      const rolesToShow = getAssignableRoles(user?.role);
+      const merged = rolesToShow.map((r) => byRole[r] || { role: r, dashboard: null });
 
       setCurrentByRole(merged);
       setCustomDashboards(customResp.data?.dashboards || []);
