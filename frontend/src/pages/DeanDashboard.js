@@ -2,9 +2,7 @@
  * Dean Dashboard - Smooth, Clean UI
  */
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Users, GraduationCap, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
@@ -18,12 +16,6 @@ const DeanDashboard = () => {
   const [stats, setStats] = useState(null);
   const [filters, setFilters] = useState({});
   const [showWelcome, setShowWelcome] = useState(true);
-  const [staffViewMode, setStaffViewMode] = useState('auto'); // 'auto' | 'custom'
-  const [staffSections, setStaffSections] = useState({
-    overview: true,
-    byDepartment: true,
-    list: true,
-  });
 
   useEffect(() => {
     loadFacultyData();
@@ -55,20 +47,18 @@ const DeanDashboard = () => {
     }
   };
 
-  const staffHasData = stats && typeof stats.total_staff === 'number' && stats.total_staff > 0;
-  const staffByDept = Array.isArray(stats?.staff_by_department) ? stats.staff_by_department : [];
-  const staffList = Array.isArray(stats?.staff_list) ? stats.staff_list : [];
-  const staffHasByDept = staffByDept.length > 0;
-  const staffHasList = staffList.length > 0;
-
-  const autoStaffSections = {
-    overview: staffHasData,
-    byDepartment: staffHasByDept,
-    list: staffHasList,
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '–';
+    if (typeof value === 'number' && value % 1 !== 0) return value.toFixed(1);
+    return value.toLocaleString ? value.toLocaleString(undefined) : String(value);
   };
 
-  const activeStaffSections =
-    staffViewMode === 'auto' ? autoStaffSections : staffSections;
+  const formatPercent = (value) => {
+    if (value === null || value === undefined) return '–';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (Number.isNaN(num)) return '–';
+    return `${num.toFixed(1)}%`;
+  };
 
   return (
     <div className="space-y-4">
@@ -97,14 +87,170 @@ const DeanDashboard = () => {
         </div>
       ) : (
         <>
-          <Card className="border border-dashed bg-muted/20">
-            <CardHeader>
-              <CardTitle className="text-sm">Analytics under redesign</CardTitle>
+          {/* Top faculty KPI strip */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Faculty overview</CardTitle>
               <CardDescription className="text-xs">
-                Charts and KPIs are being rebuilt to focus on current and previous semester. New faculty dashboards coming soon.
+                High-level KPIs for your faculty. Current implementation uses aggregated analytics from
+                the warehouse; semester-focused variants will be wired in next.
               </CardDescription>
             </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Students in faculty
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_students)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Scoped by your dean role and filters.
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Enrollments
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_enrollments)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Course enrollments across the faculty.
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Average grade
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.avg_grade)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Completed exams only, scoped to faculty.
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Retention rate
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatPercent(stats?.retention_rate ?? stats?.avg_retention_rate)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Active vs total students; will be refined to semester windows.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
           </Card>
+
+          {/* Row 1: Enrollment & departments */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Enrollment by department</CardTitle>
+                <CardDescription className="text-xs">
+                  Headcount of students per department in your faculty, aligned with the global enrollment rules.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Department enrollment distribution chart placeholder.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Faculty performance & risk</CardTitle>
+                <CardDescription className="text-xs">
+                  GPA distribution and FCW/MEX/FEX concentration across departments and key courses.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Grade distribution / risk heatmap placeholder.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: Finance & completion */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Payments across faculty</CardTitle>
+                <CardDescription className="text-xs">
+                  High-level tuition picture for your faculty, using payment facts already in the warehouse.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                      Total payments
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(stats?.total_payments)}
+                    </p>
+                  </div>
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                      Outstanding
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(stats?.outstanding_payments)}
+                    </p>
+                  </div>
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                      Tuition-related MEX
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(stats?.tuition_related_missed)}
+                    </p>
+                  </div>
+                </div>
+                <div className="min-h-[180px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Payment trends by department / program chart placeholder.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Graduation & progression</CardTitle>
+                <CardDescription className="text-xs">
+                  Graduation and progression picture across your faculty, aligned with ETL-computed status flags.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                      Graduation rate
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatPercent(stats?.graduation_rate ?? stats?.avg_graduation_rate)}
+                    </p>
+                  </div>
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                      High schools represented
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(stats?.high_schools_count ?? stats?.total_high_schools)}
+                    </p>
+                  </div>
+                </div>
+                <div className="min-h-[180px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Cohort / progression chart placeholder.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
     </div>

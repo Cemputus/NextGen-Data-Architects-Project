@@ -2,7 +2,7 @@
  * HOD Dashboard - Smooth, Clean UI
  */
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
@@ -47,6 +47,19 @@ const HODDashboard = () => {
     }
   };
 
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '–';
+    if (typeof value === 'number' && value % 1 !== 0) return value.toFixed(1);
+    return value.toLocaleString ? value.toLocaleString(undefined) : String(value);
+  };
+
+  const formatPercent = (value) => {
+    if (value === null || value === undefined) return '–';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (Number.isNaN(num)) return '–';
+    return `${num.toFixed(1)}%`;
+  };
+
   return (
     <div className="space-y-4">
       {/* Header with Export */}
@@ -74,14 +87,151 @@ const HODDashboard = () => {
         </div>
       ) : (
         <>
-          <Card className="border border-dashed bg-muted/20">
-            <CardHeader>
-              <CardTitle className="text-sm">Analytics under redesign</CardTitle>
+          {/* Top department KPI strip */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Department overview</CardTitle>
               <CardDescription className="text-xs">
-                Charts and KPIs are being rebuilt to focus on current and previous semester. New department dashboards coming soon.
+                Key KPIs for your department, scoped via the HOD role. Semester-focused analytics will refine these metrics.
               </CardDescription>
             </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Students in department
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_students)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Role- and filter-scoped headcount.
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Enrollments
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_enrollments)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Course enrollments within the department.
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Average grade
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.avg_grade)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Completed exams only for department courses.
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Retention rate
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatPercent(stats?.retention_rate ?? stats?.avg_retention_rate)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Active vs total students in the department.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
           </Card>
+
+          {/* Row 1: Courses & performance */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Courses & class sizes</CardTitle>
+                <CardDescription className="text-xs">
+                  Overview of course enrollments and class sizes within your department.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Course enrollment / class size chart placeholder.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Course difficulty & FCW/MEX/FEX</CardTitle>
+                <CardDescription className="text-xs">
+                  Courses with high FCW/MEX/FEX incidence and lower pass rates, based on `fact_grade`.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Difficult courses / risk heatmap placeholder.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: Attendance & finance */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Attendance patterns</CardTitle>
+                <CardDescription className="text-xs">
+                  Attendance levels and trends across your department&apos;s courses.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Attendance trend chart placeholder.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Payments & tuition-related risk</CardTitle>
+                <CardDescription className="text-xs">
+                  Outstanding balances and tuition-related missed exams (MEX) within the department.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                      Total payments
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(stats?.total_payments)}
+                    </p>
+                  </div>
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                      Outstanding
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(stats?.outstanding_payments)}
+                    </p>
+                  </div>
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                      Tuition-related MEX
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(stats?.tuition_related_missed)}
+                    </p>
+                  </div>
+                </div>
+                <div className="min-h-[180px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Payment & risk segmentation chart placeholder.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
     </div>

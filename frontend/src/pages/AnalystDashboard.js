@@ -9,7 +9,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader } from '../components/ui/page-header';
 import ExportButtons from '../components/ExportButtons';
@@ -60,6 +60,21 @@ const AnalystDashboard = () => {
     user?.username ||
     '';
 
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '–';
+    if (typeof value === 'number' && value % 1 !== 0) return value.toFixed(1);
+    return value.toLocaleString
+      ? value.toLocaleString(undefined)
+      : String(value);
+  };
+
+  const formatPercent = (value) => {
+    if (value === null || value === undefined) return '–';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (Number.isNaN(num)) return '–';
+    return `${num.toFixed(1)}%`;
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -67,7 +82,7 @@ const AnalystDashboard = () => {
         subtitle={
           showWelcome && lastName
             ? `Welcome back ${lastName} 🤗!`
-            : 'Workspace under redesign (new analytics coming soon)'
+            : 'Institution-wide analytics workspace focused on current and previous semesters'
         }
         actions={
           <>
@@ -88,22 +103,186 @@ const AnalystDashboard = () => {
         }
       />
 
-      {/* Legacy KPI grid removed – new semester-focused analytics will be added here */}
-      {loadingStats && !stats ? (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <Card className="border border-dashed bg-muted/20">
-          <CardHeader>
-            <CardTitle className="text-sm">Analytics under redesign</CardTitle>
+      {/* Top KPI strip */}
+      <Card className="border shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">Executive overview</CardTitle>
+          <CardDescription className="text-xs">
+            High-level KPIs scoped by your analyst role. Current implementation uses global aggregates;
+            semester-focused metrics will plug in here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {loadingStats && !stats ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="border rounded-md px-3 py-2 bg-muted/40">
+                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                  Total students (scoped)
+                </p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatNumber(stats?.total_students)}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  From `dim_student` with role-based scope.
+                </p>
+              </div>
+              <div className="border rounded-md px-3 py-2 bg-muted/40">
+                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                  Total enrollments
+                </p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatNumber(stats?.total_enrollments)}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Count of `fact_enrollment` records in scope.
+                </p>
+              </div>
+              <div className="border rounded-md px-3 py-2 bg-muted/40">
+                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                  Average grade (completed)
+                </p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatNumber(stats?.avg_grade)}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  AVG(`fact_grade.grade`) where exam_status = Completed.
+                </p>
+              </div>
+              <div className="border rounded-md px-3 py-2 bg-muted/40">
+                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                  Retention rate (all-time)
+                </p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatPercent(stats?.retention_rate ?? stats?.avg_retention_rate)}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Active vs total students (will be refined to semester windows).
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Section A – Enrollment & pipeline */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="border shadow-sm h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Enrollment pipeline</CardTitle>
             <CardDescription className="text-xs">
-              All legacy charts, KPIs, and filters have been removed. We are rebuilding the analyst
-              experience to focus on current and previous semester analytics and new BI-grade visuals.
+              Funnel from applications to enrolled students by semester/year. Powered by enrollment
+              and admissions facts (to be wired to dedicated endpoints).
             </CardDescription>
           </CardHeader>
+          <CardContent className="pt-0">
+            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+              Enrollment funnel visual placeholder (bar / funnel chart).
+            </div>
+          </CardContent>
         </Card>
-      )}
+
+        <Card className="border shadow-sm h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Enrollment by faculty/program</CardTitle>
+            <CardDescription className="text-xs">
+              Distribution of enrolled students by faculty and program. This will use
+              `/api/dashboard/students-by-department` and related views.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+              Stacked / grouped bar chart placeholder for faculty & program mix.
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Section B – Performance & risk */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="border shadow-sm h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Performance & grade distribution</CardTitle>
+            <CardDescription className="text-xs">
+              GPA/grade distribution and pass/fail ratios across faculties, departments and programs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+              Grade distribution / box or stacked bar chart placeholder.
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border shadow-sm h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Risk & FCW/MEX/FEX segments</CardTitle>
+            <CardDescription className="text-xs">
+              Concentration of FCW/MEX/FEX across courses and programs. Driven by FCW/MEX/FEX
+              flags in `fact_grade` and risk endpoints.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+              Risk segmentation heatmap / cohort visual placeholder.
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Section C – Payments & finance (analyst scope) */}
+      <Card className="border shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">Payments & outstanding balances</CardTitle>
+          <CardDescription className="text-xs">
+            High-level finance view for analysts. Full finance dashboards remain in the dedicated
+            Finance role area.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <div className="border rounded-md px-3 py-2 bg-muted/40">
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                Total payments
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                {formatNumber(stats?.total_payments)}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Completed payments in `fact_payment`.
+              </p>
+            </div>
+            <div className="border rounded-md px-3 py-2 bg-muted/40">
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                Outstanding payments
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                {formatNumber(stats?.outstanding_payments)}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Pending balances in `fact_payment`.
+              </p>
+            </div>
+            <div className="border rounded-md px-3 py-2 bg-muted/40">
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                Tuition-related missed exams
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                {formatNumber(stats?.tuition_related_missed)}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                MEX exams with tuition/financial absence reasons.
+              </p>
+            </div>
+          </div>
+          <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+            Payment trends and mix chart placeholder (line + stacked bar).
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
