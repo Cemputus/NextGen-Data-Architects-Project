@@ -2,7 +2,7 @@
  * Senate Dashboard - Smooth, Clean UI
  */
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
@@ -45,6 +45,19 @@ const SenateDashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '–';
+    if (typeof value === 'number' && value % 1 !== 0) return value.toFixed(1);
+    return value.toLocaleString ? value.toLocaleString(undefined) : String(value);
+  };
+
+  const formatPercent = (value) => {
+    if (value === null || value === undefined) return '–';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (Number.isNaN(num)) return '–';
+    return `${num.toFixed(1)}%`;
   };
 
   const exportReport = async (format) => {
@@ -105,14 +118,129 @@ const SenateDashboard = () => {
         </div>
       ) : (
         <>
-          <Card className="border border-dashed bg-muted/20">
-            <CardHeader>
-              <CardTitle className="text-sm">Analytics under redesign</CardTitle>
+          {/* Top institution KPI strip */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Institution overview</CardTitle>
               <CardDescription className="text-xs">
-                Charts and KPIs are being rebuilt to focus on current and previous semester. New institution dashboards coming soon.
+                Institution-wide KPIs from the warehouse, scoped by your Senate role and global filters.
               </CardDescription>
             </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Total students
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_students)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Enrollments
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_enrollments)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Average grade
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.avg_grade)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Retention rate
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatPercent(stats?.retention_rate ?? stats?.avg_retention_rate)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Graduation rate
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatPercent(stats?.graduation_rate ?? stats?.avg_graduation_rate)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Total revenue
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_payments)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
           </Card>
+
+          {/* Row 1: Enrollment & faculty comparison */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Enrollment by faculty</CardTitle>
+                <CardDescription className="text-xs">
+                  Distribution of students and enrollments across faculties, respecting RBAC scope for Senate.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Stacked / grouped bar chart placeholder for faculty enrollment.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">FCW/MEX/FEX by faculty</CardTitle>
+                <CardDescription className="text-xs">
+                  High-level view of risk segments (FCW, MEX, FEX) by faculty, built on FCW/MEX/FEX facts.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Heatmap / stacked bar chart placeholder for risk by faculty.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: Finance & recruitment */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Payment status mix</CardTitle>
+                <CardDescription className="text-xs">
+                  Completed vs pending payments at institution level, from `fact_payment`.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Donut chart placeholder for payment status distribution.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Feeder schools & outcomes</CardTitle>
+                <CardDescription className="text-xs">
+                  Role-ready container for high-school recruitment and performance analytics (FCW/MEX/FEX by school).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Matrix / heatmap placeholder for high school vs outcomes.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
     </div>

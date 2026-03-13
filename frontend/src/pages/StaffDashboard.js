@@ -2,9 +2,7 @@
  * Staff Dashboard - Smooth, Clean UI
  */
 import React, { useState, useEffect } from 'react';
-import { GraduationCap, Users, BookOpen, Search } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
@@ -55,6 +53,12 @@ const StaffDashboard = () => {
     }
   };
 
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '–';
+    if (typeof value === 'number' && value % 1 !== 0) return value.toFixed(1);
+    return value.toLocaleString ? value.toLocaleString(undefined) : String(value);
+  };
+
   return (
     <div className="space-y-4">
       {/* Header with Export */}
@@ -82,14 +86,113 @@ const StaffDashboard = () => {
         </div>
       ) : (
         <>
-          <Card className="border border-dashed bg-muted/20">
-            <CardHeader>
-              <CardTitle className="text-sm">Analytics under redesign</CardTitle>
+          {/* Top staff KPI strip */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">My teaching overview</CardTitle>
               <CardDescription className="text-xs">
-                Charts and KPIs are being rebuilt to focus on current and previous semester. New staff dashboards coming soon.
+                KPIs computed from your assigned classes only, via the staff analytics endpoint.
               </CardDescription>
             </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Classes taught
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_classes || classes.length)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Students taught
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_students)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Average class grade
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.avg_grade)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    FCW/MEX/FEX cases
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.risk_cases || stats?.total_fcw_mex_fex)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
           </Card>
+
+          {/* Row 1: Classes & performance */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Classes & enrollment</CardTitle>
+                <CardDescription className="text-xs">
+                  Overview of the classes you teach and their enrollment sizes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Bar chart placeholder for class sizes per course.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Course performance</CardTitle>
+                <CardDescription className="text-xs">
+                  Average grades and pass/fail breakdown for your courses only.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Mixed bar / stacked chart placeholder for pass vs fail per course.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: Risk & students list */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Risk in my classes</CardTitle>
+                <CardDescription className="text-xs">
+                  FCW/MEX/FEX incidence by course and class, constrained to your teaching scope.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Stacked bar / heatmap placeholder for risk per course.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Students in my classes</CardTitle>
+                <CardDescription className="text-xs">
+                  Search and filter students within the classes you teach (future enhancement).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Table / list placeholder for scoped student view (no cross-department visibility).
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
     </div>

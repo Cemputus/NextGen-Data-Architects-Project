@@ -2,7 +2,7 @@
  * HR Dashboard - Smooth, Clean UI
  */
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
@@ -70,6 +70,19 @@ const HRDashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '–';
+    if (typeof value === 'number' && value % 1 !== 0) return value.toFixed(1);
+    return value.toLocaleString ? value.toLocaleString(undefined) : String(value);
+  };
+
+  const formatPercent = (value) => {
+    if (value === null || value === undefined) return '–';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (Number.isNaN(num)) return '–';
+    return `${num.toFixed(1)}%`;
   };
 
   return (
@@ -150,14 +163,130 @@ const HRDashboard = () => {
           </div>
         </div>
       ) : (
-        <Card className="border shadow-sm">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-base font-semibold">Analytics under redesign</CardTitle>
-            <CardDescription className="text-xs">
-              HR charts and KPIs are being rebuilt. New analytics will appear here soon.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <>
+          {/* Top HR KPI strip */}
+          <Card className="border shadow-sm">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-base font-semibold">Workforce overview</CardTitle>
+              <CardDescription className="text-xs">
+                HR KPIs computed from the HR analytics endpoint, scoped by faculty/department filters where applied.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 pb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Total employees
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_employees)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Departments
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_departments)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Attendance rate
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatPercent(stats?.attendance_rate)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Total payroll
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatNumber(stats?.total_payroll)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Row 1: Headcount distribution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Employees by faculty</CardTitle>
+                <CardDescription className="text-xs">
+                  Headcount per faculty, built from `employees_by_faculty` and scoped via filters.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Bar chart placeholder for employees by faculty.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Employees by department</CardTitle>
+                <CardDescription className="text-xs">
+                  Department distribution, using `employees_by_department` filtered by current faculty where set.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Bar chart placeholder for employees by department.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: Role mix & attendance */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Role mix</CardTitle>
+                <CardDescription className="text-xs">
+                  Lecturers, assistant lecturers, HR/finance/admin and other roles, summarised from HR analytics.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Donut / stacked bar chart placeholder for role mix.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold">Attendance trend</CardTitle>
+                <CardDescription className="text-xs">
+                  Employee attendance trend over time from `employee_attendance_trend`.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                  Line / area chart placeholder for attendance trend.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 3: Payroll analysis */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Payroll by role</CardTitle>
+              <CardDescription className="text-xs">
+                High-level view of payroll distribution by role group, based on `payroll_by_role`.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                Stacked column / bar chart placeholder for payroll by role.
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );

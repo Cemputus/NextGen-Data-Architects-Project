@@ -2,15 +2,9 @@
  * Student Dashboard - Smooth, Clean UI
  */
 import React, { useState, useEffect } from 'react';
-import { Award, BookOpen, Calendar, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { PageHeader } from '../components/ui/page-header';
-import ModernStatsCards from '../components/ModernStatsCards';
-import RoleBasedCharts from '../components/RoleBasedCharts';
-import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
 import ExportButtons from '../components/ExportButtons';
-import { SciBarChart, SciLineChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import axios from 'axios';
@@ -127,6 +121,19 @@ const StudentDashboard = () => {
   const paidPercentage = totalRequired > 0 ? (totalPaid / totalRequired) * 100 : 0;
   const pendingPercentage = totalRequired > 0 ? (totalPending / totalRequired) * 100 : 0;
 
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '–';
+    if (typeof value === 'number' && value % 1 !== 0) return value.toFixed(1);
+    return value.toLocaleString ? value.toLocaleString(undefined) : String(value);
+  };
+
+  const formatPercent = (value) => {
+    if (value === null || value === undefined) return '–';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (Number.isNaN(num)) return '–';
+    return `${num.toFixed(1)}%`;
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -204,22 +211,86 @@ const StudentDashboard = () => {
         </Card>
       )}
 
-      {/* Legacy role-based charts and KPI dashboards have been removed.
-          New semester-focused analytics will be plugged in here. */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Analytics under redesign</CardTitle>
-          <CardDescription>
-            Detailed charts and KPI cards are being rebuilt to focus on the current and previous
-            semester. You can still view your retake status above.
+      {/* Top student KPI strip */}
+      <Card className="border shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">My academic overview</CardTitle>
+          <CardDescription className="text-xs">
+            KPIs are computed strictly from your own records via student analytics and dashboard stats.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Historical analytics and visuals have been cleared as part of the platform upgrade.
-          </p>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="border rounded-md px-3 py-2 bg-muted/40">
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                Courses registered
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                {formatNumber(stats?.total_courses || stats?.courses_registered)}
+              </p>
+            </div>
+            <div className="border rounded-md px-3 py-2 bg-muted/40">
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                Average grade
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                {formatNumber(stats?.avg_grade)}
+              </p>
+            </div>
+            <div className="border rounded-md px-3 py-2 bg-muted/40">
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                Attendance
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                {formatPercent(stats?.avg_attendance)}
+              </p>
+            </div>
+            <div className="border rounded-md px-3 py-2 bg-muted/40">
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                Fees paid vs pending
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                {formatPercent(paidPercentage)} paid
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {formatNumber(totalPaid)} paid / {formatNumber(totalPending)} pending
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Academic performance & attendance (placeholders) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="border shadow-sm h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Attendance over time</CardTitle>
+            <CardDescription className="text-xs">
+              Trend of your attendance across weeks/semesters, powered by the attendance trends
+              endpoint filtered to your access number.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+              Line / area chart placeholder for attendance trend.
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border shadow-sm h-full">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Grades by course</CardTitle>
+            <CardDescription className="text-xs">
+              Distribution of your grades per course and semester based on your `fact_grade` records.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+              Bar / donut chart placeholder for grade distribution by course.
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
