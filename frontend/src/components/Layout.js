@@ -65,14 +65,14 @@ const Layout = ({ children }) => {
         { path: '/student/attendance', label: 'My Attendance', icon: FaHome },
         { path: '/student/payments', label: 'My Payments', icon: FaHome },
         { path: '/student/predictions', label: 'Predictions', icon: FaHome },
-        { path: '/student/profile', label: 'My Profile', icon: FaUser },
+        { path: '/student/user-info', label: 'User Info', icon: FaUser },
       ],
       staff: [
         { path: '/staff/dashboard', label: 'Dashboard', icon: FaHome },
         { path: '/staff/classes', label: 'My Classes', icon: FaHome },
         { path: '/staff/analytics', label: 'Class Analytics', icon: FaHome },
         { path: '/staff/predictions', label: 'Predictions', icon: FaHome },
-        { path: '/staff/profile', label: 'Profile', icon: FaUser },
+        { path: '/staff/user-info', label: 'User Info', icon: FaUser },
       ],
       hod: [
         { path: '/hod/dashboard', label: 'Department Dashboard', icon: FaHome },
@@ -80,14 +80,14 @@ const Layout = ({ children }) => {
         { path: '/hod/analytics', label: 'Department Analytics', icon: FaHome },
         { path: '/hod/fex', label: 'FEX Analysis', icon: FaHome },
         { path: '/hod/high-school', label: 'High School Analysis', icon: FaHome },
-        { path: '/hod/profile', label: 'Profile', icon: FaUser },
+        { path: '/hod/user-info', label: 'User Info', icon: FaUser },
       ],
       dean: [
         { path: '/dean/dashboard', label: 'Faculty Dashboard', icon: FaHome },
         { path: '/dean/analytics', label: 'Faculty Analytics', icon: FaHome },
         { path: '/dean/fex', label: 'FEX Analysis', icon: FaHome },
         { path: '/dean/high-school', label: 'High School Analysis', icon: FaHome },
-        { path: '/dean/profile', label: 'Profile', icon: FaUser },
+        { path: '/dean/user-info', label: 'User Info', icon: FaUser },
       ],
       senate: [
         { path: '/senate/dashboard', label: 'Institution Dashboard', icon: FaHome },
@@ -96,7 +96,7 @@ const Layout = ({ children }) => {
         { path: '/senate/high-school', label: 'High School Analysis', icon: FaHome },
         { path: '/senate/predictions', label: 'Predictions', icon: FaHome },
         { path: '/senate/reports', label: 'Reports', icon: FaHome },
-        { path: '/senate/profile', label: 'Profile', icon: FaUser },
+        { path: '/senate/user-info', label: 'User Info', icon: FaUser },
       ],
       analyst: [
         { path: '/analyst/dashboard', label: 'Analyst Workspace', icon: FaHome },
@@ -106,7 +106,7 @@ const Layout = ({ children }) => {
         { path: '/analyst/high-school', label: 'High School Analysis', icon: FaHome },
         { path: '/analyst/predictions', label: 'Predictions', icon: FaHome },
         { path: '/analyst/reports', label: 'Reports', icon: FaHome },
-        { path: '/analyst/profile', label: 'Profile', icon: FaUser },
+        { path: '/analyst/user-info', label: 'User Info', icon: FaUser },
       ],
       sysadmin: [
         { path: '/admin/dashboard', label: 'Admin Console', icon: FaHome },
@@ -114,19 +114,19 @@ const Layout = ({ children }) => {
         { path: '/admin/settings', label: 'System Settings', icon: FaHome },
         { path: '/admin/etl', label: 'ETL Jobs', icon: FaHome },
         { path: '/admin/audit', label: 'Audit Logs', icon: FaHome },
-        { path: '/admin/profile', label: 'Profile', icon: FaUser },
+        { path: '/admin/user-info', label: 'User Info', icon: FaUser },
       ],
       hr: [
         { path: '/hr/dashboard', label: 'HR Dashboard', icon: FaHome },
         { path: '/hr/analytics', label: 'HR Analytics', icon: FaHome },
         { path: '/hr/staff', label: 'Staff Management', icon: FaHome },
-        { path: '/hr/profile', label: 'Profile', icon: FaUser },
+        { path: '/hr/user-info', label: 'User Info', icon: FaUser },
       ],
       finance: [
         { path: '/finance/dashboard', label: 'Finance Dashboard', icon: FaHome },
         { path: '/finance/analytics', label: 'Finance Analytics', icon: FaHome },
         { path: '/finance/payments', label: 'Payments', icon: FaHome },
-        { path: '/finance/profile', label: 'Profile', icon: FaUser },
+        { path: '/finance/user-info', label: 'User Info', icon: FaUser },
       ],
     };
 
@@ -205,8 +205,8 @@ const Layout = ({ children }) => {
                   <Avatar size="sm" name={`${user?.first_name} ${user?.last_name}`} />
                 </MenuButton>
                 <MenuList>
-                  <MenuItem icon={<FaUser />} onClick={() => navigate(`/${user?.role}/profile`)}>
-                    Profile
+                  <MenuItem icon={<FaUser />} onClick={() => navigate(`/${user?.role}/user-info`)}>
+                    User Info
                   </MenuItem>
                   <MenuItem icon={<FaCog />}>Settings</MenuItem>
                   <MenuItem icon={<FaSignOutAlt />} onClick={handleLogout}>

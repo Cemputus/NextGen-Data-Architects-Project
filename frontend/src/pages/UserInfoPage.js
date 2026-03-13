@@ -1,18 +1,23 @@
 /**
- * User Info – Employment status, leave requests, payroll (HR-managed).
- * Available to all authenticated users.
+ * User Info – Profile picture, employment status, leave requests, payroll (HR-managed).
+ * Available to all authenticated users. Merged with profile picture for all roles including student.
  */
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
+import { useProfilePhoto } from '../hooks/useProfilePhoto';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import { Loader2, User, Calendar, DollarSign } from 'lucide-react';
 
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
 export default function UserInfoPage() {
+  const { user } = useAuth();
+  const profilePhotoUrl = useProfilePhoto(user?.profile_picture_url);
   const [employment, setEmployment] = useState(null);
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [payroll, setPayroll] = useState(null);
@@ -85,16 +90,38 @@ export default function UserInfoPage() {
     );
   }
 
+  const isStudent = (user?.role || '').toString().toLowerCase() === 'student';
+  const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || 'User';
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
-          <User className="h-6 w-6 text-muted-foreground" />
-          User Info
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Your employment status, leave requests, and payroll (managed by HR).
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <Avatar className="h-20 w-20 shrink-0">
+          {profilePhotoUrl ? (
+            <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />
+          ) : (
+            <AvatarFallback className="text-lg font-semibold text-muted-foreground">
+              {displayName.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          )}
+        </Avatar>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            <User className="h-6 w-6 text-muted-foreground" />
+            User Info
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isStudent
+              ? 'Your account and academic info.'
+              : 'Your employment status, leave requests, and payroll (managed by HR).'}
+          </p>
+          <p className="text-sm font-medium text-foreground mt-1">{displayName}</p>
+          {user?.role && (
+            <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">
+              {user.role}
+            </span>
+          )}
+        </div>
       </div>
 
       <Card className="border shadow-sm">

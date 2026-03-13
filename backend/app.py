@@ -216,13 +216,14 @@ from api.auth import auth_bp
 from api.analytics import analytics_bp
 from api.hod import hod_bp
 try:
-    from api.dashboards import dashboards_bp, dashboard_manager_bp
+    from api.dashboards import dashboards_bp, dashboard_manager_bp, page_config_bp
 except Exception as e:
     import traceback
     print("Dashboards blueprint failed to load:", e)
     traceback.print_exc()
     dashboards_bp = None
     dashboard_manager_bp = None
+    page_config_bp = None
 
 # Import predictions blueprint
 try:
@@ -373,11 +374,10 @@ def user_mgmt_handle_no_api(subpath):
 
 
 def _require_sysadmin():
+    """Allow sysadmin or admin role so Admin Console, User Management, and KPIs work for both."""
     claims = get_jwt()
-    # RBAC: Only sysadmin role is allowed to use Admin → Users and related endpoints.
-    # Be robust to whitespace / capitalization in the JWT claim.
     role = str(claims.get('role') or '').strip().lower()
-    if role != 'sysadmin':
+    if role not in ('sysadmin', 'admin'):
         return jsonify({'error': 'Admin access required'}), 403
     return None
 
@@ -1493,6 +1493,8 @@ if dashboards_bp:
     app.register_blueprint(dashboards_bp)
 if dashboard_manager_bp:
     app.register_blueprint(dashboard_manager_bp)
+if page_config_bp:
+    app.register_blueprint(page_config_bp)
 if predictions_bp:
     app.register_blueprint(predictions_bp)
 if export_bp:

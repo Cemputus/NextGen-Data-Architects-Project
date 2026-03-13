@@ -8,7 +8,6 @@ import { TrendingDown, AlertTriangle, FileText, Download, BarChart3, ShieldAlert
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Select } from '../components/ui/select';
-import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { SciBarChart, UCU_COLORS } from '../components/charts/EChartsComponents';
@@ -140,9 +139,6 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
           </div>
         }
       />
-
-      {/* Global Filter Panel */}
-      {!isControlled && <GlobalFilterPanel onFilterChange={setInternalFilters} pageName="fex_analytics" />}
 
       {loading ? (
         <div className="flex items-center justify-center py-8">

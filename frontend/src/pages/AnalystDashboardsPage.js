@@ -61,6 +61,35 @@ const ALL_ROLES = [
   'sysadmin',
 ];
 
+/** Page keys for analytics and role pages that analysts can edit (KPIs/charts). */
+const PAGE_CONFIG_KEYS = [
+  'fex_analytics',
+  'high_school_analytics',
+  'risk_analytics',
+  'analyst_dashboard',
+  'dean_dashboard',
+  'hod_dashboard',
+  'senate_dashboard',
+  'staff_dashboard',
+  'student_dashboard',
+  'finance_dashboard',
+  'hr_dashboard',
+];
+
+const PAGE_CONFIG_LABELS = {
+  fex_analytics: 'FEX Analytics',
+  high_school_analytics: 'High School Analytics',
+  risk_analytics: 'Risk Analytics',
+  analyst_dashboard: 'Analyst Dashboard',
+  dean_dashboard: 'Dean Dashboard',
+  hod_dashboard: 'HoD Dashboard',
+  senate_dashboard: 'Senate Dashboard',
+  staff_dashboard: 'Staff Dashboard',
+  student_dashboard: 'Student Dashboard',
+  finance_dashboard: 'Finance Dashboard',
+  hr_dashboard: 'HR Dashboard',
+};
+
 /** Roles that analysts can assign dashboards to (excludes Admin). Sysadmin sees all roles. */
 const getAssignableRoles = (userRole) => {
   const r = (userRole || '').toString().toLowerCase();
@@ -84,6 +113,12 @@ const AnalystDashboardsPage = () => {
   const [removingRole, setRemovingRole] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [contentDashboard, setContentDashboard] = useState(null);
+  const [contentPageKey, setContentPageKey] = useState(null);
+  const [contentPageViewOnly, setContentPageViewOnly] = useState(false);
+  const [pageConfigs, setPageConfigs] = useState([]);
+  const [resetPageConfirm, setResetPageConfirm] = useState({ open: false, pageKey: null, label: '' });
+  const [resettingPageKey, setResettingPageKey] = useState(null);
+  const [copyingPageKey, setCopyingPageKey] = useState(null);
   const [previewDashboard, setPreviewDashboard] = useState(null);
   const [contentForm, setContentForm] = useState({
     kpis: ['total_students', 'avg_grade', 'failed_exams'],
@@ -189,7 +224,7 @@ const AnalystDashboardsPage = () => {
       if (filterRole) params.role = filterRole;
       if (createdByFilter === 'me') params.created_by = 'me';
 
-      const [currentResp, customResp] = await Promise.all([
+      const requests = [
         axios.get('/api/dashboard-manager/current', {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -197,7 +232,16 @@ const AnalystDashboardsPage = () => {
           headers: { Authorization: `Bearer ${token}` },
           params,
         }),
-      ]);
+      ];
+      if (canManage) {
+        requests.push(
+          axios.get('/api/page-config', { headers: { Authorization: `Bearer ${token}` } })
+        );
+      }
+      const results = await Promise.all(requests);
+      const currentResp = results[0];
+      const customResp = results[1];
+      const pageConfigResp = canManage && results[2] ? results[2] : null;
 
       // Backend returns only assignable roles for analyst (no sysadmin); sysadmin gets all roles
       const current = currentResp.data?.roles || [];
@@ -210,6 +254,19 @@ const AnalystDashboardsPage = () => {
 
       setCurrentByRole(merged);
       setCustomDashboards(customResp.data?.dashboards || []);
+
+      if (pageConfigResp?.data?.pages) {
+        setPageConfigs(pageConfigResp.data.pages);
+      } else if (canManage) {
+        setPageConfigs(
+          PAGE_CONFIG_KEYS.map((key) => ({
+            page_key: key,
+            definition: null,
+            updated_at: null,
+            updated_by_username: null,
+          }))
+        );
+      }
     } catch (err) {
       console.error('Error loading dashboard manager data:', err);
       setCurrentByRole([]);
@@ -268,6 +325,7 @@ const AnalystDashboardsPage = () => {
   };
 
   const openContentEditor = (dash, previewOnly = false) => {
+    setContentPageKey(null);
     const def = parseDefinition(dash);
     const kpis =
       def && Array.isArray(def.kpis) && def.kpis.length > 0
@@ -277,8 +335,84 @@ const AnalystDashboardsPage = () => {
       def && Array.isArray(def.charts) && def.charts.length > 0
         ? def.charts
         : CHART_OPTIONS;
+    const rolesOnDashboard = Array.isArray(dash.roles) ? dash.roles.map(normalizeRole) : [];
+    const editForRole = filterRole || rolesOnDashboard[0] || 'analyst';
     setContentDashboard({ ...dash, previewOnly });
-    setContentForm({ kpis, charts });
+    setContentForm({ kpis, charts, editForRole });
+  };
+
+  const openPageContentEditor = (pageKey, viewOnly = false) => {
+    setContentDashboard(null);
+    setContentPageKey(pageKey);
+    setContentPageViewOnly(!!viewOnly);
+    const page = pageConfigs.find((p) => p.page_key === pageKey);
+    const def = page?.definition && typeof page.definition === 'object' ? page.definition : {};
+    const kpis =
+      Array.isArray(def.kpis) && def.kpis.length > 0 ? def.kpis : [...KPI_OPTIONS];
+    const charts =
+      Array.isArray(def.charts) && def.charts.length > 0 ? def.charts : [...CHART_OPTIONS];
+    setContentForm({ kpis, charts, editForRole: 'analyst' });
+  };
+
+  const handleResetPageConfig = (pageKey) => {
+    setResetPageConfirm({
+      open: true,
+      pageKey,
+      label: PAGE_CONFIG_LABELS[pageKey] || pageKey.replace(/_/g, ' '),
+    });
+  };
+
+  const handleResetPageConfirm = async () => {
+    const { pageKey } = resetPageConfirm;
+    if (!pageKey) return;
+    setResetPageConfirm((prev) => ({ ...prev, open: false }));
+    setResettingPageKey(pageKey);
+    try {
+      await axios.delete(`/api/page-config/${pageKey}`, {
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
+      });
+      await loadData();
+      setMessageModal({ open: true, message: 'Page reset to default. It will use default KPIs and charts.' });
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to reset page.';
+      setMessageModal({ open: true, message: msg });
+    } finally {
+      setResettingPageKey(null);
+    }
+  };
+
+  const handleCopyPageConfigFrom = async (fromPageKey, toPageKey) => {
+    if (fromPageKey === toPageKey) return;
+    setCopyingPageKey(toPageKey);
+    try {
+      const token = sessionStorage.getItem('ucu_session_token');
+      let def = pageConfigs.find((p) => p.page_key === fromPageKey)?.definition;
+      if (!def || typeof def !== 'object') {
+        const r = await axios.get(`/api/page-config/${fromPageKey}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        def = r.data?.definition || {};
+      }
+      const definition = {
+        kpis: Array.isArray(def.kpis) ? def.kpis : [],
+        charts: Array.isArray(def.charts) ? def.charts : [],
+      };
+      await axios.put(
+        `/api/page-config/${toPageKey}`,
+        { definition },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      await loadData();
+      setMessageModal({
+        open: true,
+        message: `Content copied from ${PAGE_CONFIG_LABELS[fromPageKey] || fromPageKey} to ${PAGE_CONFIG_LABELS[toPageKey] || toPageKey}.`,
+      });
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to copy page content.';
+      setMessageModal({ open: true, message: msg });
+    } finally {
+      setCopyingPageKey(null);
+    }
   };
 
   const handleSwapFromCustom = (dash) => {
@@ -365,6 +499,33 @@ const AnalystDashboardsPage = () => {
   };
 
   const handleSaveContent = async () => {
+    if (contentPageKey) {
+      try {
+        setSavingContent(true);
+        await axios.put(
+          `/api/page-config/${contentPageKey}`,
+          {
+            definition: {
+              kpis: contentForm.kpis,
+              charts: contentForm.charts,
+            },
+          },
+          { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
+        );
+        setContentPageKey(null);
+        await loadData();
+      } catch (err) {
+        console.error('Error updating page config:', err);
+        const msg =
+          err?.response?.data?.error ||
+          err?.message ||
+          'Unknown error while updating page content.';
+        setMessageModal({ open: true, message: `Failed to update page content: ${msg}` });
+      } finally {
+        setSavingContent(false);
+      }
+      return;
+    }
     if (!contentDashboard) return;
     try {
       setSavingContent(true);
@@ -446,7 +607,7 @@ const AnalystDashboardsPage = () => {
     <div className="space-y-4">
       <PageHeader
         title="Dashboard Manager"
-        subtitle="Review and manage dashboards across roles. Analysts can preview, edit content, and swap current dashboards per role."
+        subtitle="Edit the current dashboard and KPIs/charts for every role. You can edit any page with visuals (all role dashboards), swap with custom dashboards, and change which KPIs and charts each role sees."
         actions={
           <div className="flex items-center gap-2">
             {canManage && (
@@ -546,7 +707,7 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            One card per role showing the dashboard currently deployed. Use Custom Dashboards to swap.
+            One card per role. Use &quot;Edit content&quot; to change KPIs and charts for that role&apos;s dashboard page; use &quot;Make current&quot; from Custom to swap; &quot;Remove current&quot; to unassign.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -664,7 +825,7 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Custom Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            Dashboards available for assignment or swap. Preview and tweak content before making them current.
+            Create or edit dashboards, then use &quot;Edit content&quot; to change KPIs and charts. Use &quot;Make current&quot; to assign a dashboard to a role (edits apply to that role&apos;s dashboard page).
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -771,6 +932,131 @@ const AnalystDashboardsPage = () => {
         </CardContent>
       </Card>
 
+      {/* Pages with visuals – view, edit, reset, copy for analytics and role pages */}
+      {canManage && (
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold">Pages with visuals</CardTitle>
+            <CardDescription className="text-xs">
+              View, edit, reset, or copy content for analytics pages (FEX, High School, Risk) and every role dashboard. Changes apply to what users see on that page.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(pageConfigs.length > 0 ? pageConfigs : PAGE_CONFIG_KEYS.map((k) => ({ page_key: k }))).map((page) => {
+                const key = page.page_key || page;
+                const label = PAGE_CONFIG_LABELS[key] || key.replace(/_/g, ' ');
+                const hasCustom = page.definition && typeof page.definition === 'object' && (Array.isArray(page.definition.kpis) || Array.isArray(page.definition.charts));
+                const isResetting = resettingPageKey === key;
+                const isCopying = copyingPageKey === key;
+                const otherPages = PAGE_CONFIG_KEYS.filter((k2) => k2 !== key);
+                return (
+                  <div
+                    key={key}
+                    className="border rounded-md px-3 py-2 flex flex-col justify-between text-[11px] min-h-[120px]"
+                  >
+                    <div>
+                      <div className="font-semibold text-xs">{label}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {hasCustom ? (
+                          <>Custom{page.updated_by_username ? ` · by ${page.updated_by_username}` : ''}</>
+                        ) : (
+                          'Default'
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1 mt-2">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => openPageContentEditor(key, true)}
+                      >
+                        View
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => openPageContentEditor(key, false)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleResetPageConfig(key)}
+                        disabled={!!resettingPageKey || !!copyingPageKey}
+                      >
+                        {isResetting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reset'}
+                      </Button>
+                      {otherPages.length > 0 && (
+                        <select
+                          className="h-6 px-2 text-[10px] border rounded-md bg-background"
+                          value=""
+                          disabled={!!copyingPageKey}
+                          onChange={(e) => {
+                            const from = e.target.value;
+                            if (from) {
+                              handleCopyPageConfigFrom(from, key);
+                              e.target.value = '';
+                            }
+                          }}
+                        >
+                          <option value="">Copy from…</option>
+                          {otherPages.map((other) => (
+                            <option key={other} value={other}>
+                              {PAGE_CONFIG_LABELS[other] || other}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    {(isResetting || isCopying) && (
+                      <div className="mt-1 text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {isResetting ? 'Resetting…' : 'Copying…'}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reset page config confirm */}
+      {resetPageConfirm.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-background rounded-lg shadow-xl w-full max-w-sm border p-4">
+            <p className="text-sm font-medium mb-2">
+              Reset &quot;{resetPageConfirm.label}&quot; to default?
+            </p>
+            <p className="text-xs text-muted-foreground mb-4">
+              This removes your custom KPIs and charts for this page. The page will use default content.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setResetPageConfirm({ open: false, pageKey: null, label: '' })}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleResetPageConfirm}
+              >
+                Reset to default
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Full preview below Custom Dashboards – behaves like Open/Hide */}
       {previewDashboard && (
         <Card className="border shadow-sm">
@@ -835,18 +1121,26 @@ const AnalystDashboardsPage = () => {
         </Card>
       )}
 
-      {/* Content editor / preview modal */}
-      {contentDashboard && (
+      {/* Content editor / preview modal – dashboard or page config */}
+      {(contentDashboard || contentPageKey) && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="bg-background rounded-lg shadow-xl w-full max-w-md border">
+          <div className="bg-background rounded-lg shadow-xl w-full max-w-md border max-h-[90vh] overflow-y-auto">
             <div className="px-4 py-3 border-b flex items-center justify-between">
               <h2 className="text-sm font-semibold">
-                {contentDashboard.previewOnly ? 'Preview Dashboard Content' : 'Edit Dashboard Content'}
+                {contentPageKey
+                  ? (contentPageViewOnly ? 'View Page Content' : 'Edit Page Content')
+                  : contentDashboard.previewOnly
+                    ? 'Preview Dashboard Content'
+                    : 'Edit Dashboard Content'}
               </h2>
               <button
                 type="button"
                 className="text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => setContentDashboard(null)}
+                onClick={() => {
+                  setContentDashboard(null);
+                  setContentPageKey(null);
+                  setContentPageViewOnly(false);
+                }}
               >
                 Close
               </button>
@@ -854,33 +1148,70 @@ const AnalystDashboardsPage = () => {
             <div className="px-4 py-3 space-y-3 text-xs">
               <div>
                 <div className="font-semibold text-[11px] mb-1">
-                  {contentDashboard.name || 'Untitled dashboard'}
+                  {contentPageKey
+                    ? PAGE_CONFIG_LABELS[contentPageKey] || contentPageKey.replace(/_/g, ' ')
+                    : contentDashboard.name || 'Untitled dashboard'}
                 </div>
-                {contentDashboard.description && (
+                {contentDashboard && !contentPageKey && contentDashboard.description && (
                   <div className="text-[11px] text-muted-foreground">
                     {contentDashboard.description}
                   </div>
                 )}
+                {contentDashboard && !contentPageKey && !contentDashboard.previewOnly && getRolesWhereCurrent(contentDashboard.id).length > 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    This dashboard is current for: <strong className="text-foreground">{getRolesWhereCurrent(contentDashboard.id).join(', ')}</strong>. Edits apply to what those roles see on their dashboard page.
+                  </p>
+                )}
+                {contentPageKey && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Choose which KPIs and charts appear on this page for users who can access it.
+                  </p>
+                )}
               </div>
               {(() => {
-                const firstRole =
-                  filterRole ||
-                  (Array.isArray(contentDashboard.roles) && contentDashboard.roles[0]) ||
-                  'analyst';
-                const allowedKpis = KPI_OPTIONS.filter((k) =>
-                  isKpiAllowedForRole(k, firstRole)
-                );
-                const allowedCharts = CHART_OPTIONS.filter((c) =>
-                  isChartAllowedForRole(c, firstRole)
-                );
+                const isPageConfig = !!contentPageKey;
+                const isPageViewOnly = isPageConfig && contentPageViewOnly;
+                const firstRole = (contentForm.editForRole != null && contentForm.editForRole !== '')
+                  ? contentForm.editForRole
+                  : (filterRole || (contentDashboard && Array.isArray(contentDashboard.roles) && contentDashboard.roles[0]) || 'analyst');
+                const allowedKpis = isPageConfig
+                  ? KPI_OPTIONS
+                  : KPI_OPTIONS.filter((k) => isKpiAllowedForRole(k, firstRole));
+                const allowedCharts = isPageConfig
+                  ? CHART_OPTIONS
+                  : CHART_OPTIONS.filter((c) => isChartAllowedForRole(c, firstRole));
+                const rolesForDropdown = contentDashboard && Array.isArray(contentDashboard.roles) && contentDashboard.roles.length > 0
+                  ? contentDashboard.roles.filter((r) => assignableRoles.includes(normalizeRole(r)))
+                  : assignableRoles;
+                const previewOnly = contentDashboard?.previewOnly ?? false;
+                const readOnly = previewOnly || isPageViewOnly;
                 return (
                   <>
+                    {!isPageConfig && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium">Editing for role (KPI/chart rules)</p>
+                        <select
+                          className="border rounded-md px-2 py-1.5 text-xs bg-background w-full"
+                          value={firstRole}
+                          onChange={(e) => setContentForm((prev) => ({ ...prev, editForRole: e.target.value }))}
+                          disabled={readOnly}
+                        >
+                          {rolesForDropdown.map((r) => (
+                            <option key={r} value={r}>
+                              {r.charAt(0).toUpperCase() + r.slice(1)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       <p className="text-xs font-medium">
-                        KPIs to show{' '}
-                        <span className="text-[10px] text-muted-foreground">
-                          (filtered for role {firstRole})
-                        </span>
+                        KPIs to show
+                        {!isPageConfig && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {' '}(for role {firstRole})
+                          </span>
+                        )}
                       </p>
                       <div className="grid grid-cols-2 gap-1">
                         {allowedKpis.map((key) => (
@@ -891,10 +1222,10 @@ const AnalystDashboardsPage = () => {
                             <input
                               type="checkbox"
                               className="h-3 w-3"
-                              disabled={contentDashboard.previewOnly}
+                              disabled={readOnly}
                               checked={contentForm.kpis.includes(key)}
                               onChange={(e) => {
-                                if (contentDashboard.previewOnly) return;
+                                if (readOnly) return;
                                 const checkedNow = e.target.checked;
                                 setContentForm((prev) => {
                                   const setVals = new Set(prev.kpis);
@@ -914,10 +1245,12 @@ const AnalystDashboardsPage = () => {
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs font-medium">
-                        Charts to show{' '}
-                        <span className="text-[10px] text-muted-foreground">
-                          (RBAC charts for role {firstRole})
-                        </span>
+                        Charts to show
+                        {!isPageConfig && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {' '}(RBAC charts for role {firstRole})
+                          </span>
+                        )}
                       </p>
                       <div className="grid grid-cols-2 gap-1">
                         {allowedCharts.map((key) => (
@@ -928,10 +1261,10 @@ const AnalystDashboardsPage = () => {
                             <input
                               type="checkbox"
                               className="h-3 w-3"
-                              disabled={contentDashboard.previewOnly}
+                              disabled={readOnly}
                               checked={contentForm.charts.includes(key)}
                               onChange={(e) => {
-                                if (contentDashboard.previewOnly) return;
+                                if (readOnly) return;
                                 const checkedNow = e.target.checked;
                                 setContentForm((prev) => {
                                   const setVals = new Set(prev.charts);
@@ -991,12 +1324,16 @@ const AnalystDashboardsPage = () => {
                 );
               })()}
             </div>
-            {!contentDashboard.previewOnly && (
+            {!contentDashboard?.previewOnly && !contentPageViewOnly && (
               <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setContentDashboard(null)}
+                  onClick={() => {
+                    setContentDashboard(null);
+                    setContentPageKey(null);
+                    setContentPageViewOnly(false);
+                  }}
                   disabled={savingContent}
                 >
                   Cancel

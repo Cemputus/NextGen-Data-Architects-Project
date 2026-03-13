@@ -152,6 +152,8 @@ const LayoutModern = ({ children }) => {
       ],
     };
 
+    // Admin and sysadmin share the same Admin Console nav (Users, KPIs, ETL, etc.)
+    if (role === 'admin') return navItems['sysadmin'] || [];
     return navItems[role] || [];
   };
 
@@ -307,7 +309,7 @@ const LayoutModern = ({ children }) => {
               ? '/senate/profile'
               : role === 'analyst'
                 ? '/analyst/profile'
-                : role === 'sysadmin'
+                : (role === 'sysadmin' || role === 'admin')
                   ? '/admin/profile'
                   : role === 'hr'
                     ? '/hr/profile'

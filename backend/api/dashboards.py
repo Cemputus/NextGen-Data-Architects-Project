@@ -182,6 +182,19 @@ def _ensure_dashboard_tables(engine):
         )
       )
       conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rcd_role_name ON role_current_dashboard(role_name)"))
+      # Page config: per-page (analytics, role dashboards) content editable by analyst
+      conn.execute(
+        text(
+          """
+          CREATE TABLE IF NOT EXISTS page_config (
+            page_key VARCHAR(120) PRIMARY KEY,
+            definition TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_by_username VARCHAR(100)
+          )
+          """
+        )
+      )
       conn.commit()
   except Exception:
     # Any failure will be surfaced by the calling handler
@@ -851,6 +864,168 @@ def delete_dashboard(dash_id):
       )
       conn.commit()
     return jsonify({"ok": True}), 200
+  except Exception as e:
+    if engine is not None:
+      engine.dispose()
+    return jsonify({"error": str(e)}), 500
+
+
+# ─── Page config (analytics pages + any page with visuals) ───────────────────
+# Analysts can edit KPIs/charts for FEX, High School, Risk, and every role dashboard.
+
+page_config_bp = Blueprint("page_config", __name__, url_prefix="/api/page-config")
+
+PAGE_KEYS = [
+  "fex_analytics",
+  "high_school_analytics",
+  "risk_analytics",
+  "analyst_dashboard",
+  "dean_dashboard",
+  "hod_dashboard",
+  "senate_dashboard",
+  "staff_dashboard",
+  "student_dashboard",
+  "finance_dashboard",
+  "hr_dashboard",
+]
+
+
+@page_config_bp.route("", methods=["GET"])
+@jwt_required()
+def list_page_configs():
+  """List all page configs (keys + definition). Analyst or Sysadmin only."""
+  username, role = _current_user()
+  if role not in ("analyst", "sysadmin"):
+    return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can list page configs."}), 403
+  engine = None
+  try:
+    engine = _get_engine()
+    with engine.connect() as conn:
+      rows = conn.execute(
+        text(
+          "SELECT page_key, definition, updated_at, updated_by_username FROM page_config ORDER BY page_key"
+        )
+      ).mappings()
+      pages = []
+      seen = set()
+      for row in rows:
+        seen.add(row["page_key"])
+        defn = row["definition"]
+        if isinstance(defn, str):
+          try:
+            defn = json.loads(defn) if defn else None
+          except Exception:
+            defn = None
+        pages.append({
+          "page_key": row["page_key"],
+          "definition": defn,
+          "updated_at": str(row["updated_at"]) if row.get("updated_at") else None,
+          "updated_by_username": row.get("updated_by_username"),
+        })
+      for key in PAGE_KEYS:
+        if key not in seen:
+          pages.append({"page_key": key, "definition": None, "updated_at": None, "updated_by_username": None})
+      pages.sort(key=lambda x: x["page_key"])
+    return jsonify({"pages": pages}), 200
+  except Exception as e:
+    if engine is not None:
+      engine.dispose()
+    return jsonify({"error": str(e)}), 500
+
+
+@page_config_bp.route("/<page_key>", methods=["GET"])
+@jwt_required()
+def get_page_config(page_key):
+  """Get config for one page. Any authenticated user (pages need it to render)."""
+  page_key = (page_key or "").strip().lower()
+  if not page_key or page_key not in PAGE_KEYS:
+    return jsonify({"error": "Unknown page key."}), 400
+  engine = None
+  try:
+    engine = _get_engine()
+    with engine.connect() as conn:
+      row = conn.execute(
+        text(
+          "SELECT page_key, definition, updated_at, updated_by_username FROM page_config WHERE page_key = :k"
+        ),
+        {"k": page_key},
+      ).mappings().fetchone()
+      if not row:
+        return jsonify({"page_key": page_key, "definition": None}), 200
+      defn = row["definition"]
+      if isinstance(defn, str):
+        try:
+          defn = json.loads(defn) if defn else None
+        except Exception:
+          defn = None
+      return jsonify({
+        "page_key": row["page_key"],
+        "definition": defn,
+        "updated_at": str(row["updated_at"]) if row.get("updated_at") else None,
+        "updated_by_username": row.get("updated_by_username"),
+      }), 200
+  except Exception as e:
+    if engine is not None:
+      engine.dispose()
+    return jsonify({"error": str(e)}), 500
+
+
+@page_config_bp.route("/<page_key>", methods=["PUT"])
+@jwt_required()
+def update_page_config(page_key):
+  """Create or update page config. Analyst or Sysadmin only."""
+  username, role = _current_user()
+  if role not in ("analyst", "sysadmin"):
+    return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can edit page configs."}), 403
+  page_key = (page_key or "").strip().lower()
+  if not page_key or page_key not in PAGE_KEYS:
+    return jsonify({"error": "Unknown page key."}), 400
+  data = request.get_json(silent=True) or {}
+  definition = data.get("definition")
+  if definition is not None and not isinstance(definition, dict):
+    definition = None
+  engine = None
+  try:
+    engine = _get_engine()
+    with engine.connect() as conn:
+      conn.execute(
+        text(
+          """
+          INSERT INTO page_config (page_key, definition, updated_at, updated_by_username)
+          VALUES (:k, :def, CURRENT_TIMESTAMP, :by)
+          ON CONFLICT (page_key) DO UPDATE SET
+            definition = EXCLUDED.definition,
+            updated_at = CURRENT_TIMESTAMP,
+            updated_by_username = EXCLUDED.updated_by_username
+          """
+        ),
+        {"k": page_key, "def": json.dumps(definition) if definition is not None else None, "by": username},
+      )
+      conn.commit()
+    return jsonify({"page_key": page_key, "ok": True}), 200
+  except Exception as e:
+    if engine is not None:
+      engine.dispose()
+    return jsonify({"error": str(e)}), 500
+
+
+@page_config_bp.route("/<page_key>", methods=["DELETE"])
+@jwt_required()
+def delete_page_config(page_key):
+  """Delete (reset) a page config so the page uses defaults. Analyst or Sysadmin only."""
+  username, role = _current_user()
+  if role not in ("analyst", "sysadmin"):
+    return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can delete page configs."}), 403
+  page_key = (page_key or "").strip().lower()
+  if not page_key or page_key not in PAGE_KEYS:
+    return jsonify({"error": "Unknown page key."}), 400
+  engine = None
+  try:
+    engine = _get_engine()
+    with engine.connect() as conn:
+      conn.execute(text("DELETE FROM page_config WHERE page_key = :k"), {"k": page_key})
+      conn.commit()
+    return jsonify({"page_key": page_key, "ok": True}), 200
   except Exception as e:
     if engine is not None:
       engine.dispose()

@@ -184,10 +184,10 @@ def put_settings():
 
 
 def _require_sysadmin():
-    """Ensure current user has sysadmin role. Returns (None, None) if ok, else (error_response, status_code)."""
+    """Ensure current user has sysadmin or admin role. Returns (None, None) if ok, else (error_response, status_code)."""
     claims = get_jwt()
-    role = (claims.get('role') or '').lower()
-    if role != 'sysadmin':
+    role = (claims.get('role') or '').strip().lower()
+    if role not in ('sysadmin', 'admin'):
         return jsonify({'error': 'Admin access required'}), 403
     return None, None
 

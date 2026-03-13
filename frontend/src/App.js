@@ -69,7 +69,7 @@ import HRLeaveRequestsPage from './pages/HRLeaveRequestsPage';
 import HRPayrollPage from './pages/HRPayrollPage';
 import HREvaluationPage from './pages/HREvaluationPage';
 
-function PrivateRoute({ children, requiredRole = null }) {
+function PrivateRoute({ children, requiredRole = null, allowedRoles = null }) {
   const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
@@ -88,7 +88,12 @@ function PrivateRoute({ children, requiredRole = null }) {
   }
 
   const userRole = (user?.role || '').toString().toLowerCase();
-  if (requiredRole && userRole !== requiredRole) {
+  if (allowedRoles && Array.isArray(allowedRoles)) {
+    const allowed = allowedRoles.map((r) => (r || '').toString().toLowerCase());
+    if (!allowed.includes(userRole)) {
+      return <Navigate to={rbac.getDefaultRoute(userRole)} />;
+    }
+  } else if (requiredRole && userRole !== requiredRole) {
     return <Navigate to={rbac.getDefaultRoute(userRole)} />;
   }
 
@@ -125,7 +130,7 @@ function App() {
                       <Route path="grades" element={<StudentGrades />} />
                       <Route path="attendance" element={<StudentAttendance />} />
                       <Route path="payments" element={<StudentPayments />} />
-                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="profile" element={<Navigate to="user-info" replace />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="predictions" element={<PredictionPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
@@ -146,7 +151,7 @@ function App() {
                       <Route path="classes" element={<StaffClasses />} />
                       <Route path="analytics" element={<StaffAnalytics />} />
                       <Route path="predictions" element={<PredictionPage />} />
-                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="profile" element={<Navigate to="user-info" replace />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
@@ -169,7 +174,7 @@ function App() {
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
                       <Route path="predictions" element={<PredictionPage />} />
-                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="profile" element={<Navigate to="user-info" replace />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
@@ -191,7 +196,7 @@ function App() {
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
                       <Route path="predictions" element={<PredictionPage />} />
-                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="profile" element={<Navigate to="user-info" replace />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
@@ -215,7 +220,7 @@ function App() {
                       <Route path="finance" element={<SenateFinance />} />
                       <Route path="reports" element={<ReportsPage />} />
                       <Route path="predictions" element={<PredictionPage />} />
-                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="profile" element={<Navigate to="user-info" replace />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
@@ -241,7 +246,7 @@ function App() {
                       <Route path="reports" element={<ReportsPage />} />
                       <Route path="query" element={<NextGenQueryPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="profile" element={<Navigate to="user-info" replace />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="*" element={<Navigate to="/analyst/dashboard" />} />
@@ -250,11 +255,11 @@ function App() {
                 }
               />
 
-              {/* Admin Routes */}
+              {/* Admin Routes – sysadmin or admin role */}
               <Route
                 path="/admin/*"
                 element={
-                  <PrivateRoute requiredRole="sysadmin">
+                  <PrivateRoute allowedRoles={['sysadmin', 'admin']}>
                     <Routes>
                       <Route path="dashboard" element={<AdminDashboard />} />
                       <Route path="users" element={<AdminUsers />} />
@@ -264,7 +269,7 @@ function App() {
                       <Route path="audit" element={<AdminAudit />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="profile" element={<Navigate to="user-info" replace />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="*" element={<Navigate to="/admin/dashboard" />} />
                     </Routes>
@@ -285,7 +290,7 @@ function App() {
                       <Route path="leave-requests" element={<HRLeaveRequestsPage />} />
                       <Route path="payroll" element={<HRPayrollPage />} />
                       <Route path="evaluation" element={<HREvaluationPage />} />
-                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="profile" element={<Navigate to="user-info" replace />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
@@ -305,7 +310,7 @@ function App() {
                       <Route path="analytics" element={<AnalyticsPage type="finance" />} />
                       <Route path="payments" element={<FinancePayments />} />
                       <Route path="predictions" element={<PredictionPage />} />
-                      <Route path="profile" element={<ProfilePage />} />
+                      <Route path="profile" element={<Navigate to="user-info" replace />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />

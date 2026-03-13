@@ -181,7 +181,6 @@ const GlobalFilterPanel = ({
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-foreground">Filters</h3>
-                  <p className="text-sm text-muted-foreground">Synced filters - selections cascade automatically</p>
                 </div>
               </div>
               {activeFiltersCount > 0 && (
