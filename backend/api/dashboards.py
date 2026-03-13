@@ -701,6 +701,9 @@ def update_dashboard(dash_id):
 
       if roles is not None:
         roles_norm = list({(r or "").strip().lower() for r in roles if (r or "").strip()})
+        # Analysts cannot assign dashboards to the admin (sysadmin) role
+        if role == "analyst":
+          roles_norm = [r for r in roles_norm if r != "sysadmin"]
         conn.execute(text("DELETE FROM dashboard_role_access WHERE dashboard_id = :id"), {"id": dash_id})
         for r in roles_norm:
           conn.execute(

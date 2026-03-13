@@ -61,6 +61,13 @@ const ALL_ROLES = [
   'sysadmin',
 ];
 
+/** Roles that analysts can assign dashboards to (excludes Admin). Sysadmin sees all roles. */
+const getAssignableRoles = (userRole) => {
+  const r = (userRole || '').toString().toLowerCase();
+  if (r === 'analyst') return ALL_ROLES.filter((role) => role !== 'sysadmin');
+  return ALL_ROLES;
+};
+
 const AnalystDashboardsPage = () => {
   const { user } = useAuth();
   const [currentByRole, setCurrentByRole] = useState([]);
@@ -92,6 +99,7 @@ const AnalystDashboardsPage = () => {
   });
 
   const canManage = (user?.role || '').toString().toLowerCase() === 'analyst';
+  const assignableRoles = getAssignableRoles(user?.role);
 
   const normalizeRole = (role) => (role || '').toString().toLowerCase();
 
@@ -274,9 +282,10 @@ const AnalystDashboardsPage = () => {
 
   const handleSwapFromCustom = (dash) => {
     const roles = Array.isArray(dash.roles) ? dash.roles.map(normalizeRole) : [];
-    const targetRole = filterRole || roles[0] || 'analyst';
-    if (!targetRole) {
-      setMessageModal({ open: true, message: 'Select a role filter or assign at least one role to this dashboard first.' });
+    const allowed = roles.filter((r) => assignableRoles.includes(r));
+    const targetRole = filterRole || allowed[0] || assignableRoles[0] || 'analyst';
+    if (!targetRole || !assignableRoles.includes(targetRole)) {
+      setMessageModal({ open: true, message: 'Select a role filter or assign at least one role (other than Admin) to this dashboard first.' });
       return;
     }
     setSwapConfirm({ open: true, dash, targetRole });
@@ -486,7 +495,7 @@ const AnalystDashboardsPage = () => {
                 onChange={(e) => setFilterRole(e.target.value)}
               >
                 <option value="">All roles</option>
-                {ROLE_FILTER_OPTIONS.map((r) => (
+                {assignableRoles.map((r) => (
                   <option key={r} value={r}>
                     {r.charAt(0).toUpperCase() + r.slice(1)}
                   </option>
@@ -1055,7 +1064,7 @@ const AnalystDashboardsPage = () => {
               <div className="space-y-1">
                 <p className="text-xs font-medium">Assign to roles *</p>
                 <div className="grid grid-cols-2 gap-1">
-                  {ROLE_FILTER_OPTIONS.map((r) => {
+                  {assignableRoles.map((r) => {
                     const checked = createForm.roles.includes(r);
                     return (
                       <label
