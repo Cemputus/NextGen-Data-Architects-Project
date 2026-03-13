@@ -99,6 +99,10 @@ Upgrade the platform into a **production-grade institutional analytics system** 
   - APIs and views for FCW, MEX, FEX counts and rates by:
     - Semester, academic year, faculty, department, program, course.
   - Derived metrics: retake rate, course difficulty, at‑risk student counts.
+- **5.1.1 Semester focus rules**:
+  - Treat the **current semester** and the **previous semester** as the primary analysis windows for all new student analytics.
+  - Older semesters are considered **historical background** and are only pulled into long‑term trend views when explicitly needed.
+  - Students with data in **only one semester** are treated as **new students** in analytics.
 - **5.2 High‑school correlation**:
   - Extend high‑school analytics to show FCW/MEX/FEX incidence by:
     - High school, district, school tier, ownership.
@@ -109,6 +113,14 @@ Upgrade the platform into a **production-grade institutional analytics system** 
   - Use existing grades, transcript, progression/performance facts—no new business rules.
 - **5.4 Scoped retake & risk views**:
   - Staff/HOD/Dean/Senate/Analyst get scoped summaries of retakes and FCW/MEX/FEX trends within their allowed visibility.
+
+---
+
+### Global Analytics Rule — Enrollment Rate
+
+- **E.1 Enrollment evaluation by year**:
+  - When computing **enrollment rate by academic year**, restrict the population to students in **Year 1, Semester 1** for that year.
+  - Use this rule consistently across dashboards and SQL/views that report “enrollment rate” or “new intake size”.
 
 ---
 

@@ -134,13 +134,10 @@ const StudentDashboard = () => {
         subtitle={
           showWelcome && lastName
             ? `Welcome back ${lastName} 🤗!`
-            : 'Your academic performance and progress'
+            : 'Your academic performance and progress (new analytics coming soon)'
         }
         actions={<ExportButtons stats={stats} filename="student_dashboard" />}
       />
-
-      {/* Legacy static KPIs */}
-      <ModernStatsCards stats={stats} type="student" />
 
       {/* Retake & risk section (read-only) */}
       {retakeSummary.total_retakes > 0 && (
@@ -207,8 +204,22 @@ const StudentDashboard = () => {
         </Card>
       )}
 
-      {/* Dynamic current dashboard for Student role */}
-      <RoleDashboardRenderer stats={stats} type="student" />
+      {/* Legacy role-based charts and KPI dashboards have been removed.
+          New semester-focused analytics will be plugged in here. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Analytics under redesign</CardTitle>
+          <CardDescription>
+            Detailed charts and KPI cards are being rebuilt to focus on the current and previous
+            semester. You can still view your retake status above.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Historical analytics and visuals have been cleared as part of the platform upgrade.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 };
