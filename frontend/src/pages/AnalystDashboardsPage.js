@@ -124,6 +124,7 @@ const AnalystDashboardsPage = () => {
   const [contentForm, setContentForm] = useState({
     kpis: ['total_students', 'avg_grade', 'failed_exams'],
     charts: ['student_distribution', 'grades_over_time'],
+    visualizationIds: [],
   });
   const [savingContent, setSavingContent] = useState(false);
 
@@ -137,6 +138,11 @@ const AnalystDashboardsPage = () => {
   const userRole = (user?.role || '').toString().toLowerCase();
   const canManage = userRole === 'analyst' || userRole === 'sysadmin' || userRole === 'admin';
   const assignableRoles = getAssignableRoles(user?.role);
+
+  // NextGen Query visualizations created by the current analyst (for pinning into dashboards/pages)
+  const [availableVisualizations, setAvailableVisualizations] = useState([]);
+  const [loadingVisualizations, setLoadingVisualizations] = useState(false);
+  const [visualizationsError, setVisualizationsError] = useState(null);
 
   const normalizeRole = (role) => (role || '').toString().toLowerCase();
 
@@ -287,6 +293,42 @@ const AnalystDashboardsPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterRole, createdByFilter]);
 
+  // Load NextGen Query visualizations created by this analyst/sysadmin (for pinning into dashboards/pages)
+  useEffect(() => {
+    if (!canManage) return;
+    let cancelled = false;
+    const loadVisualizations = async () => {
+      try {
+        setLoadingVisualizations(true);
+        setVisualizationsError(null);
+        const token = sessionStorage.getItem('ucu_session_token');
+        const res = await axios.get('/api/query/assigned-visualizations', {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { created_by: 'me' },
+        });
+        if (cancelled) return;
+        setAvailableVisualizations(res.data?.visualizations || []);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Error loading NextGen Query visualizations for dashboard manager:', err);
+        setAvailableVisualizations([]);
+        setVisualizationsError(
+          err?.response?.data?.error ||
+            err?.message ||
+            'Failed to load your NextGen Query visualizations.'
+        );
+      } finally {
+        if (!cancelled) {
+          setLoadingVisualizations(false);
+        }
+      }
+    };
+    loadVisualizations();
+    return () => {
+      cancelled = true;
+    };
+  }, [canManage]);
+
   // Filtering helpers
   const matchesSearch = (text) => {
     if (!search.trim()) return true;
@@ -343,8 +385,10 @@ const AnalystDashboardsPage = () => {
         : CHART_OPTIONS;
     const rolesOnDashboard = Array.isArray(dash.roles) ? dash.roles.map(normalizeRole) : [];
     const editForRole = filterRole || rolesOnDashboard[0] || 'analyst';
+    const visualizationIds =
+      def && Array.isArray(def.visualization_ids) ? def.visualization_ids : [];
     setContentDashboard({ ...dash, previewOnly });
-    setContentForm({ kpis, charts, editForRole });
+    setContentForm({ kpis, charts, editForRole, visualizationIds });
   };
 
   const openPageContentEditor = (pageKey, viewOnly = false) => {
@@ -357,7 +401,9 @@ const AnalystDashboardsPage = () => {
       Array.isArray(def.kpis) && def.kpis.length > 0 ? def.kpis : [...KPI_OPTIONS];
     const charts =
       Array.isArray(def.charts) && def.charts.length > 0 ? def.charts : [...CHART_OPTIONS];
-    setContentForm({ kpis, charts, editForRole: 'analyst' });
+    const visualizationIds =
+      def && Array.isArray(def.visualization_ids) ? def.visualization_ids : [];
+    setContentForm({ kpis, charts, editForRole: 'analyst', visualizationIds });
   };
 
   const handleResetPageConfig = (pageKey) => {
@@ -514,6 +560,9 @@ const AnalystDashboardsPage = () => {
             definition: {
               kpis: contentForm.kpis,
               charts: contentForm.charts,
+              visualization_ids: Array.isArray(contentForm.visualizationIds)
+                ? contentForm.visualizationIds
+                : [],
             },
           },
           { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
@@ -549,6 +598,9 @@ const AnalystDashboardsPage = () => {
             source: 'analyst_dashboard',
             kpis: contentForm.kpis,
             charts: contentForm.charts,
+            visualization_ids: Array.isArray(contentForm.visualizationIds)
+              ? contentForm.visualizationIds
+              : [],
           },
         },
         {
@@ -1294,6 +1346,71 @@ const AnalystDashboardsPage = () => {
                         ))}
                       </div>
                     </div>
+                    {/* NextGen Query visualizations (optional) */}
+                    {canManage && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium">
+                          NextGen Query visualizations
+                          <span className="text-[10px] text-muted-foreground"> (optional)</span>
+                        </p>
+                        {visualizationsError && (
+                          <p className="text-[11px] text-destructive">
+                            {visualizationsError}
+                          </p>
+                        )}
+                        {loadingVisualizations ? (
+                          <p className="text-[11px] text-muted-foreground">
+                            Loading your visualizations…
+                          </p>
+                        ) : availableVisualizations.length === 0 ? (
+                          <p className="text-[11px] text-muted-foreground">
+                            No visualizations found. Create one in NextGen Query and assign it.
+                          </p>
+                        ) : (
+                          <div className="space-y-1 max-h-40 overflow-auto border border-border rounded-md px-2 py-1">
+                            {availableVisualizations.map((viz) => (
+                              <label
+                                key={viz.id}
+                                className="flex items-center gap-1 text-[11px] cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="h-3 w-3"
+                                  disabled={readOnly}
+                                  checked={
+                                    Array.isArray(contentForm.visualizationIds) &&
+                                    contentForm.visualizationIds.includes(viz.id)
+                                  }
+                                  onChange={(e) => {
+                                    if (readOnly) return;
+                                    const checkedNow = e.target.checked;
+                                    setContentForm((prev) => {
+                                      const current = new Set(prev.visualizationIds || []);
+                                      if (checkedNow) {
+                                        current.add(viz.id);
+                                      } else {
+                                        current.delete(viz.id);
+                                      }
+                                      return {
+                                        ...prev,
+                                        visualizationIds: Array.from(current),
+                                      };
+                                    });
+                                  }}
+                                />
+                                <span className="truncate">
+                                  {viz.title || 'Untitled'}{' '}
+                                  <span className="text-[10px] text-muted-foreground">
+                                    ({(viz.chartType || 'bar').toLowerCase()} ·{' '}
+                                    {viz.yColumn || '?'} by {viz.xColumn || '?'})
+                                  </span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {/* Simple visual preview of layout */}
                     <div className="mt-3 space-y-2">
                       <p className="text-xs font-medium">Preview layout</p>
@@ -1355,7 +1472,10 @@ const AnalystDashboardsPage = () => {
                   className="gap-2"
                   disabled={
                     savingContent ||
-                    (contentForm.kpis.length === 0 && contentForm.charts.length === 0)
+                    (contentForm.kpis.length === 0 &&
+                      contentForm.charts.length === 0 &&
+                      (!Array.isArray(contentForm.visualizationIds) ||
+                        contentForm.visualizationIds.length === 0))
                   }
                   onClick={handleSaveContent}
                 >

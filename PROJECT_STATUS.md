@@ -154,6 +154,10 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 - **7.4 Dashboard builder UX**:
   - Left: saved chart list; center: grid/canvas; right: properties + assignment.
   - Preview mode and validation before publishing/updating.
+ - **7.5 NextGen Query visualizations in dashboards/pages**:
+   - In Dashboard Manager’s **Edit content** modal (for current dashboards and page configs), add a section to attach **visualizations created in NextGen Query**.
+   - Allow analysts to browse/select from their **assigned/saved visualizations** (via `/api/query/assigned-visualizations`) and pin them into role dashboards and any page with visuals.
+   - Page/dash definitions should store lightweight **references** to these visualizations (id, title, chart type) so `RoleDashboardRenderer` can render them alongside built-in KPIs/charts.
 
 ---
 

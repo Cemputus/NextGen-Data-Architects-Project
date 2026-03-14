@@ -5,6 +5,7 @@ import { DashboardGrid } from './ui/dashboard-grid';
 import { KPICard } from './ui/kpi-card';
 import RoleBasedCharts from './RoleBasedCharts';
 import { Loader2 } from 'lucide-react';
+import { VizCard } from './AssignedViewsSection';
 
 const KPI_DEFINITIONS = [
   { key: 'total_students', label: 'Total Students', subtitle: 'Scoped by applied filters', valuePath: 'total_students' },
@@ -29,6 +30,8 @@ const KPI_DEFINITIONS = [
 const RoleDashboardRenderer = ({ stats, type }) => {
   const [definition, setDefinition] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pinnedVisualizations, setPinnedVisualizations] = useState([]);
+  const [loadingVisualizations, setLoadingVisualizations] = useState(false);
 
   useEffect(() => {
     const loadCurrentDefinition = async () => {
@@ -62,6 +65,35 @@ const RoleDashboardRenderer = ({ stats, type }) => {
     loadCurrentDefinition();
   }, []);
 
+  // Load pinned NextGen Query visualizations for this dashboard (if any are configured)
+  useEffect(() => {
+    const loadPinned = async () => {
+      if (
+        !definition ||
+        !Array.isArray(definition.visualization_ids) ||
+        definition.visualization_ids.length === 0
+      ) {
+        setPinnedVisualizations([]);
+        return;
+      }
+      try {
+        setLoadingVisualizations(true);
+        const resp = await axios.get('/api/query/assigned-visualizations/for-me', {
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
+        });
+        const all = resp.data?.visualizations || [];
+        const idSet = new Set(definition.visualization_ids);
+        setPinnedVisualizations(all.filter((v) => idSet.has(v.id)));
+      } catch (err) {
+        console.error('Error loading pinned visualizations for dashboard:', err);
+        setPinnedVisualizations([]);
+      } finally {
+        setLoadingVisualizations(false);
+      }
+    };
+    loadPinned();
+  }, [definition]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-6">
@@ -90,6 +122,8 @@ const RoleDashboardRenderer = ({ stats, type }) => {
     : KPI_DEFINITIONS.map((k) => k.key);
 
   const showCharts = Array.isArray(definition.charts) && definition.charts.length > 0;
+  const hasPinnedVisualizations =
+    Array.isArray(definition.visualization_ids) && definition.visualization_ids.length > 0;
 
   return (
     <div className="space-y-4">
@@ -125,6 +159,35 @@ const RoleDashboardRenderer = ({ stats, type }) => {
           <CardContent className="p-4 pt-0">
             {/* RoleBasedCharts already understands the role and uses filters & type to scope */}
             <RoleBasedCharts filters={{}} type={type} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* NextGen Query visualizations pinned into this dashboard definition */}
+      {hasPinnedVisualizations && (
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold">NextGen Query visualizations</CardTitle>
+            <CardDescription className="text-xs">
+              Visualizations created in NextGen Query and pinned into this dashboard.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            {loadingVisualizations ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : pinnedVisualizations.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No pinned visualizations are currently assigned to you for this dashboard.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {pinnedVisualizations.map((viz) => (
+                  <VizCard key={viz.id} viz={viz} />
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
