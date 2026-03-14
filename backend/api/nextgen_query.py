@@ -221,7 +221,10 @@ def execute_query():
     except Exception as e:
         if engine is not None:
             engine.dispose()
-        return jsonify({"error": str(e)}), 400
+        err_msg = str(e)
+        if "timeout" in err_msg.lower() or "statement_timeout" in err_msg.lower() or "canceling statement" in err_msg.lower():
+            err_msg = "Query timed out after 8 seconds. Try narrowing your query or adding a LIMIT."
+        return jsonify({"error": err_msg}), 400
     finally:
         elapsed = int((time.time() - start) * 1000)
         if engine is not None:

@@ -351,10 +351,13 @@ const NextGenQueryPage = () => {
           .catch(() => {});
       }
     } catch (err) {
-      const msg =
+      let msg =
         err.response?.data?.error ||
         err.message ||
         'Failed to execute query. Please try again.';
+      if (typeof msg === 'string' && (msg.toLowerCase().includes('timeout') || msg.includes('statement_timeout'))) {
+        msg = 'Query timed out after 8 seconds. Try narrowing your query or adding a LIMIT.';
+      }
       setError(msg);
       setResult(null);
     } finally {
@@ -517,19 +520,22 @@ const NextGenQueryPage = () => {
         actions={
           <div className="flex items-center gap-2">
             {history.length > 0 && (
-              <Select
-                value=""
-                onChange={(e) => handleHistorySelect(e.target.value)}
-                className="h-9 w-48 border border-input bg-background text-xs rounded-md"
-              >
-                <option value="">Query history…</option>
-                {history.map((q, idx) => (
-                  <option value={idx} key={idx}>
-                    {q.slice(0, 60).replace(/\s+/g, ' ')}
-                    {q.length > 60 ? '…' : ''}
-                  </option>
-                ))}
-              </Select>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Query history</span>
+                <Select
+                  value=""
+                  onChange={(e) => handleHistorySelect(e.target.value)}
+                  className="h-9 w-48 border border-input bg-background text-xs rounded-md"
+                >
+                  <option value="">Select…</option>
+                  {history.map((q, idx) => (
+                    <option value={idx} key={idx}>
+                      {q.slice(0, 60).replace(/\s+/g, ' ')}
+                      {q.length > 60 ? '…' : ''}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             )}
           </div>
         }
@@ -550,6 +556,7 @@ const NextGenQueryPage = () => {
             </CardTitle>
             <CardDescription className="text-xs">
               Trusted analyst SQL workspace against the data warehouse. Only SELECT/WITH queries are allowed — data changes (INSERT, UPDATE, DELETE, DDL) are blocked here.
+              To pin visualizations into role dashboards: Analyst → Dashboards → Edit content → NextGen Query visualizations.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -613,17 +620,21 @@ const NextGenQueryPage = () => {
               onChange={(value) => setQuery(value ?? '')}
             />
           </div>
-          {error && (
-            <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive flex items-start gap-2">
-              <AlertTriangle className="h-3 w-3 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-          {result && !error && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              {result.row_count ?? 0} row(s) returned in {result.elapsed_ms ?? 0} ms.
-            </p>
-          )}
+          <div className="mt-3">
+            <p className="text-[11px] font-medium text-muted-foreground mb-1">Validation / errors</p>
+            {error ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive flex items-start gap-2">
+                <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            ) : result ? (
+              <p className="text-[11px] text-muted-foreground">
+                {result.row_count ?? 0} row(s) returned in {result.elapsed_ms ?? 0} ms.
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">No errors. Run a query to see results.</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 

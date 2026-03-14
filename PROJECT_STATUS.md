@@ -151,9 +151,9 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 - **7.3 Dashboard Manager**:
   - Separate **Current Dashboards by Role** from **Custom Dashboards**.
   - Swapping, assigning, previewing, and editing workflows for analysts/sysadmins.
-- **7.4 Dashboard builder UX**:
-  - Left: saved chart list; center: grid/canvas; right: properties + assignment.
-  - Preview mode and validation before publishing/updating.
+- **7.4 Dashboard builder UX** ✅:
+  - Left: saved chart list; center: grid/canvas; right: properties + assignment. *(Implemented: Edit content modal is three-panel; center shows canvas preview.)*
+  - Preview mode and validation before publishing/updating. *(Implemented: Preview shows banner "This is a preview. No changes will be saved."; validation message when nothing selected; Save disabled until at least one asset chosen.)*
  - **7.5 NextGen Query visualizations in dashboards/pages**:
    - In Dashboard Manager’s **Edit content** modal (for current dashboards and page configs), add a section to attach **visualizations created in NextGen Query**.
    - Allow analysts to browse/select from their **assigned/saved visualizations** (via `/api/query/assigned-visualizations`) and pin them into role dashboards and any page with visuals.
@@ -163,15 +163,15 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 
 ### Phase 8 — NextGen Query Workspace (Read‑Only SQL Studio)
 
-- **8.1 Safety & access**:
+- **8.1 Safety & access** ✅:
   - Analyst/sysadmin only.
   - Backend enforces **read‑only queries**: only `SELECT`/`WITH` allowed; destructive or DDL statements blocked.
-  - Limits and timeouts applied; clear, user‑friendly error messages returned.
-- **8.2 Layout**:
-  - SQL editor, result grid, visualization preview, chart configuration, save/share controls, query history, validation/error panel.
-- **8.3 Chart lifecycle**:
+  - Limits and timeouts applied; clear, user‑friendly error messages returned. *(Timeout errors surfaced as "Query timed out after 8 seconds…" in API and frontend.)*
+- **8.2 Layout** ✅:
+  - SQL editor, result grid, visualization preview, chart configuration, save/share controls, query history *(labeled in header)*, validation/error panel *(labeled "Validation / errors" below editor)*.
+- **8.3 Chart lifecycle** ✅:
   - From query → chart → **Saved Chart asset** with metadata and visibility.
-  - Saved Charts available to dashboard builder and Manage Charts.
+  - Saved Charts available to dashboard builder and Manage Charts. *(In-app note on NextGen Query page: "To pin visualizations into role dashboards: Analyst → Dashboards → Edit content → NextGen Query visualizations.")*
 
 ---
 

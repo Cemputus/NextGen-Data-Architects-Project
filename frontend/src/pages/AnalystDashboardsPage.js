@@ -1185,11 +1185,11 @@ const AnalystDashboardsPage = () => {
         </Card>
       )}
 
-      {/* Content editor / preview modal – dashboard or page config */}
+      {/* Content editor / preview modal – three-panel: left = assets, center = canvas, right = properties */}
       {(contentDashboard || contentPageKey) && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="bg-background rounded-lg shadow-xl w-full max-w-md border max-h-[90vh] overflow-y-auto">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-background rounded-lg shadow-xl w-full max-w-5xl border max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
               <h2 className="text-sm font-semibold">
                 {contentPageKey
                   ? (contentPageViewOnly ? 'View Page Content' : 'Edit Page Content')
@@ -1209,29 +1209,12 @@ const AnalystDashboardsPage = () => {
                 Close
               </button>
             </div>
-            <div className="px-4 py-3 space-y-3 text-xs">
-              <div>
-                <div className="font-semibold text-[11px] mb-1">
-                  {contentPageKey
-                    ? PAGE_CONFIG_LABELS[contentPageKey] || contentPageKey.replace(/_/g, ' ')
-                    : contentDashboard.name || 'Untitled dashboard'}
-                </div>
-                {contentDashboard && !contentPageKey && contentDashboard.description && (
-                  <div className="text-[11px] text-muted-foreground">
-                    {contentDashboard.description}
-                  </div>
-                )}
-                {contentDashboard && !contentPageKey && !contentDashboard.previewOnly && getRolesWhereCurrent(contentDashboard.id).length > 0 && (
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    This dashboard is current for: <strong className="text-foreground">{getRolesWhereCurrent(contentDashboard.id).join(', ')}</strong>. Edits apply to what those roles see on their dashboard page.
-                  </p>
-                )}
-                {contentPageKey && (
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Choose which KPIs and charts appear on this page for users who can access it.
-                  </p>
-                )}
+            {(contentDashboard?.previewOnly || (contentPageKey && contentPageViewOnly)) && (
+              <div className="px-4 py-2 bg-muted/50 border-b text-xs text-muted-foreground shrink-0">
+                This is a preview. No changes will be saved.
               </div>
+            )}
+            <div className="flex-1 min-h-0 overflow-auto">
               {(() => {
                 const isPageConfig = !!contentPageKey;
                 const isPageViewOnly = isPageConfig && contentPageViewOnly;
@@ -1249,241 +1232,228 @@ const AnalystDashboardsPage = () => {
                   : assignableRoles;
                 const previewOnly = contentDashboard?.previewOnly ?? false;
                 const readOnly = previewOnly || isPageViewOnly;
+                const hasContent =
+                  contentForm.kpis.length > 0 ||
+                  contentForm.charts.length > 0 ||
+                  (Array.isArray(contentForm.visualizationIds) && contentForm.visualizationIds.length > 0);
                 return (
-                  <>
-                    {!isPageConfig && (
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium">Editing for role (KPI/chart rules)</p>
-                        <select
-                          className="border rounded-md px-2 py-1.5 text-xs bg-background w-full"
-                          value={firstRole}
-                          onChange={(e) => setContentForm((prev) => ({ ...prev, editForRole: e.target.value }))}
-                          disabled={readOnly}
-                        >
-                          {rolesForDropdown.map((r) => (
-                            <option key={r} value={r}>
-                              {r.charAt(0).toUpperCase() + r.slice(1)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium">
-                        KPIs to show
-                        {!isPageConfig && (
-                          <span className="text-[10px] text-muted-foreground">
-                            {' '}(for role {firstRole})
-                          </span>
-                        )}
-                      </p>
-                      <div className="grid grid-cols-2 gap-1">
-                        {allowedKpis.map((key) => (
-                          <label
-                            key={key}
-                            className="flex items-center gap-1 text-[11px] cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              className="h-3 w-3"
-                              disabled={readOnly}
-                              checked={contentForm.kpis.includes(key)}
-                              onChange={(e) => {
-                                if (readOnly) return;
-                                const checkedNow = e.target.checked;
-                                setContentForm((prev) => {
-                                  const setVals = new Set(prev.kpis);
-                                  if (checkedNow) {
-                                    setVals.add(key);
-                                  } else {
-                                    setVals.delete(key);
-                                  }
-                                  return { ...prev, kpis: Array.from(setVals) };
-                                });
-                              }}
-                            />
-                            <span>{labelForKpi(key)}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium">
-                        Charts to show
-                        {!isPageConfig && (
-                          <span className="text-[10px] text-muted-foreground">
-                            {' '}(RBAC charts for role {firstRole})
-                          </span>
-                        )}
-                      </p>
-                      <div className="grid grid-cols-2 gap-1">
-                        {allowedCharts.map((key) => (
-                          <label
-                            key={key}
-                            className="flex items-center gap-1 text-[11px] cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              className="h-3 w-3"
-                              disabled={readOnly}
-                              checked={contentForm.charts.includes(key)}
-                              onChange={(e) => {
-                                if (readOnly) return;
-                                const checkedNow = e.target.checked;
-                                setContentForm((prev) => {
-                                  const setVals = new Set(prev.charts);
-                                  if (checkedNow) {
-                                    setVals.add(key);
-                                  } else {
-                                    setVals.delete(key);
-                                  }
-                                  return { ...prev, charts: Array.from(setVals) };
-                                });
-                              }}
-                            />
-                            <span>{labelForChart(key)}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    {/* NextGen Query visualizations (optional) */}
-                    {canManage && (
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium">
-                          NextGen Query visualizations
-                          <span className="text-[10px] text-muted-foreground"> (optional)</span>
-                        </p>
-                        {visualizationsError && (
-                          <p className="text-[11px] text-destructive">
-                            {visualizationsError}
-                          </p>
-                        )}
-                        {loadingVisualizations ? (
-                          <p className="text-[11px] text-muted-foreground">
-                            Loading your visualizations…
-                          </p>
-                        ) : availableVisualizations.length === 0 ? (
-                          <p className="text-[11px] text-muted-foreground">
-                            No visualizations found. Create one in NextGen Query and assign it.
-                          </p>
-                        ) : (
-                          <div className="space-y-1 max-h-40 overflow-auto border border-border rounded-md px-2 py-1">
-                            {availableVisualizations.map((viz) => (
-                              <label
-                                key={viz.id}
-                                className="flex items-center gap-1 text-[11px] cursor-pointer"
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="h-3 w-3"
-                                  disabled={readOnly}
-                                  checked={
-                                    Array.isArray(contentForm.visualizationIds) &&
-                                    contentForm.visualizationIds.includes(viz.id)
-                                  }
-                                  onChange={(e) => {
-                                    if (readOnly) return;
-                                    const checkedNow = e.target.checked;
-                                    setContentForm((prev) => {
-                                      const current = new Set(prev.visualizationIds || []);
-                                      if (checkedNow) {
-                                        current.add(viz.id);
-                                      } else {
-                                        current.delete(viz.id);
-                                      }
-                                      return {
-                                        ...prev,
-                                        visualizationIds: Array.from(current),
-                                      };
-                                    });
-                                  }}
-                                />
-                                <span className="truncate">
-                                  {viz.title || 'Untitled'}{' '}
-                                  <span className="text-[10px] text-muted-foreground">
-                                    ({(viz.chartType || 'bar').toLowerCase()} ·{' '}
-                                    {viz.yColumn || '?'} by {viz.xColumn || '?'})
-                                  </span>
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {/* Simple visual preview of layout */}
-                    <div className="mt-3 space-y-2">
-                      <p className="text-xs font-medium">Preview layout</p>
-                      <div className="space-y-1">
-                        <p className="text-[10px] uppercase text-muted-foreground font-semibold">
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr_1fr] gap-4 p-4 text-xs">
+                    {/* Left: Content to show (asset lists) */}
+                    <div className="space-y-3 min-w-0">
+                      <p className="text-[11px] uppercase text-muted-foreground font-semibold">Content to show</p>
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-medium">
                           KPIs
+                          {!isPageConfig && <span className="text-[10px] text-muted-foreground"> (role: {firstRole})</span>}
                         </p>
-                        <div className="grid grid-cols-2 gap-1">
-                          {contentForm.kpis
-                            .filter((k) => allowedKpis.includes(k))
-                            .map((k) => (
-                              <div
-                                key={k}
-                                className="rounded-md border px-2 py-1.5 text-[11px] bg-muted/40"
-                              >
+                        <div className="grid grid-cols-1 gap-1 max-h-32 overflow-auto border border-border rounded-md px-2 py-1.5">
+                          {allowedKpis.map((key) => (
+                            <label key={key} className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="h-3 w-3"
+                                disabled={readOnly}
+                                checked={contentForm.kpis.includes(key)}
+                                onChange={(e) => {
+                                  if (readOnly) return;
+                                  const checkedNow = e.target.checked;
+                                  setContentForm((prev) => {
+                                    const setVals = new Set(prev.kpis);
+                                    if (checkedNow) setVals.add(key);
+                                    else setVals.delete(key);
+                                    return { ...prev, kpis: Array.from(setVals) };
+                                  });
+                                }}
+                              />
+                              <span>{labelForKpi(key)}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-medium">
+                          Charts
+                          {!isPageConfig && <span className="text-[10px] text-muted-foreground"> (role: {firstRole})</span>}
+                        </p>
+                        <div className="grid grid-cols-1 gap-1 max-h-32 overflow-auto border border-border rounded-md px-2 py-1.5">
+                          {allowedCharts.map((key) => (
+                            <label key={key} className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="h-3 w-3"
+                                disabled={readOnly}
+                                checked={contentForm.charts.includes(key)}
+                                onChange={(e) => {
+                                  if (readOnly) return;
+                                  const checkedNow = e.target.checked;
+                                  setContentForm((prev) => {
+                                    const setVals = new Set(prev.charts);
+                                    if (checkedNow) setVals.add(key);
+                                    else setVals.delete(key);
+                                    return { ...prev, charts: Array.from(setVals) };
+                                  });
+                                }}
+                              />
+                              <span>{labelForChart(key)}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      {canManage && (
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-medium">NextGen Query visualizations</p>
+                          {visualizationsError && <p className="text-[11px] text-destructive">{visualizationsError}</p>}
+                          {loadingVisualizations ? (
+                            <p className="text-[11px] text-muted-foreground">Loading…</p>
+                          ) : availableVisualizations.length === 0 ? (
+                            <p className="text-[11px] text-muted-foreground">None. Create one in NextGen Query and assign it.</p>
+                          ) : (
+                            <div className="space-y-1 max-h-28 overflow-auto border border-border rounded-md px-2 py-1.5">
+                              {availableVisualizations.map((viz) => (
+                                <label key={viz.id} className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    className="h-3 w-3 shrink-0"
+                                    disabled={readOnly}
+                                    checked={Array.isArray(contentForm.visualizationIds) && contentForm.visualizationIds.includes(viz.id)}
+                                    onChange={(e) => {
+                                      if (readOnly) return;
+                                      const checkedNow = e.target.checked;
+                                      setContentForm((prev) => {
+                                        const current = new Set(prev.visualizationIds || []);
+                                        if (checkedNow) current.add(viz.id);
+                                        else current.delete(viz.id);
+                                        return { ...prev, visualizationIds: Array.from(current) };
+                                      });
+                                    }}
+                                  />
+                                  <span className="truncate">{viz.title || 'Untitled'}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Center: Canvas preview */}
+                    <div className="space-y-2 min-w-0">
+                      <p className="text-[11px] uppercase text-muted-foreground font-semibold">Preview layout</p>
+                      <div className="border border-border rounded-lg bg-muted/20 p-3 min-h-[200px] space-y-3">
+                        <div>
+                          <p className="text-[10px] uppercase text-muted-foreground mb-1">KPIs</p>
+                          <div className="grid grid-cols-2 gap-1">
+                            {contentForm.kpis.filter((k) => allowedKpis.includes(k)).map((k) => (
+                              <div key={k} className="rounded-md border px-2 py-1.5 text-[11px] bg-muted/40">
                                 {labelForKpi(k)}
                               </div>
                             ))}
+                          </div>
                         </div>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-[10px] uppercase text-muted-foreground font-semibold">
-                          Charts
-                        </p>
-                        <div className="space-y-1">
-                          {contentForm.charts
-                            .filter((c) => allowedCharts.includes(c))
-                            .map((c) => (
-                              <div
-                                key={c}
-                                className="rounded-md border px-2 py-2 text-[11px] bg-muted/20"
-                              >
+                        <div>
+                          <p className="text-[10px] uppercase text-muted-foreground mb-1">Charts</p>
+                          <div className="space-y-1">
+                            {contentForm.charts.filter((c) => allowedCharts.includes(c)).map((c) => (
+                              <div key={c} className="rounded-md border px-2 py-2 text-[11px] bg-muted/30">
                                 {labelForChart(c)} (chart area)
                               </div>
                             ))}
+                          </div>
                         </div>
+                        {Array.isArray(contentForm.visualizationIds) && contentForm.visualizationIds.length > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase text-muted-foreground mb-1">NextGen Query visualizations</p>
+                            <div className="flex flex-wrap gap-1">
+                              {contentForm.visualizationIds.map((id) => {
+                                const viz = availableVisualizations.find((v) => v.id === id);
+                                return (
+                                  <div key={id} className="rounded-md border px-2 py-1.5 text-[11px] bg-muted/30">
+                                    {viz ? (viz.title || 'Untitled') : id}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </>
+
+                    {/* Right: Properties and actions */}
+                    <div className="space-y-3 min-w-0">
+                      <p className="text-[11px] uppercase text-muted-foreground font-semibold">Properties</p>
+                      <div className="space-y-2">
+                        <div className="font-semibold text-[11px]">
+                          {contentPageKey
+                            ? PAGE_CONFIG_LABELS[contentPageKey] || contentPageKey.replace(/_/g, ' ')
+                            : contentDashboard?.name || 'Untitled dashboard'}
+                        </div>
+                        {contentDashboard && !contentPageKey && contentDashboard.description && (
+                          <div className="text-[11px] text-muted-foreground">{contentDashboard.description}</div>
+                        )}
+                        {contentDashboard && !contentPageKey && !previewOnly && getRolesWhereCurrent(contentDashboard.id).length > 0 && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Current for: <strong className="text-foreground">{getRolesWhereCurrent(contentDashboard.id).join(', ')}</strong>
+                          </p>
+                        )}
+                        {contentPageKey && (
+                          <p className="text-[11px] text-muted-foreground">Choose KPIs and charts for this page.</p>
+                        )}
+                      </div>
+                      {!isPageConfig && (
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-medium">Editing for role</p>
+                          <select
+                            className="border rounded-md px-2 py-1.5 text-xs bg-background w-full"
+                            value={firstRole}
+                            onChange={(e) => setContentForm((prev) => ({ ...prev, editForRole: e.target.value }))}
+                            disabled={readOnly}
+                          >
+                            {rolesForDropdown.map((r) => (
+                              <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {!readOnly && (
+                        <>
+                          {!hasContent && (
+                            <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                              Select at least one KPI, chart, or NextGen Query visualization.
+                            </p>
+                          )}
+                          <div className="pt-2 flex flex-col gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                              onClick={() => {
+                                setContentDashboard(null);
+                                setContentPageKey(null);
+                                setContentPageViewOnly(false);
+                              }}
+                              disabled={savingContent}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="w-full gap-2"
+                              disabled={
+                                savingContent || !hasContent
+                              }
+                              onClick={handleSaveContent}
+                            >
+                              {savingContent && <Loader2 className="h-3 w-3 animate-spin" />}
+                              Save content
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 );
               })()}
             </div>
-            {!contentDashboard?.previewOnly && !contentPageViewOnly && (
-              <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setContentDashboard(null);
-                    setContentPageKey(null);
-                    setContentPageViewOnly(false);
-                  }}
-                  disabled={savingContent}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  className="gap-2"
-                  disabled={
-                    savingContent ||
-                    (contentForm.kpis.length === 0 &&
-                      contentForm.charts.length === 0 &&
-                      (!Array.isArray(contentForm.visualizationIds) ||
-                        contentForm.visualizationIds.length === 0))
-                  }
-                  onClick={handleSaveContent}
-                >
-                  {savingContent && <Loader2 className="h-3 w-3 animate-spin" />}
-                  Save content
-                </Button>
-              </div>
-            )}
           </div>
         </div>
       )}
