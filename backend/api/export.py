@@ -47,6 +47,7 @@ export_bp = Blueprint('export', __name__, url_prefix='/api/export')
 @jwt_required()
 def export_excel():
     """Export data to Excel format"""
+    engine = None
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -169,12 +170,22 @@ def export_excel():
             )
         
         else:
+            if engine is not None:
+                try:
+                    engine.dispose()
+                except Exception:
+                    pass
             return jsonify({'error': 'Invalid export type'}), 400
             
     except Exception as e:
         import traceback
         print(f"Error exporting to Excel: {e}")
         print(traceback.format_exc())
+        if engine is not None:
+            try:
+                engine.dispose()
+            except Exception:
+                pass
         return jsonify({'error': str(e)}), 500
 
 @export_bp.route('/pdf', methods=['GET', 'POST'])

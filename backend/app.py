@@ -396,9 +396,57 @@ def admin_list_users():
     # Allow up to 10,000 users in one response so all synthetic students are visible in User Management.
     limit = min(max(request.args.get('limit', type=int) or 500, 1), 10000)
     offset = max(request.args.get('offset', type=int) or 0, 0)
-    users = []
+    users_app = []
+    users_demo = []
+    users_students = []
     warning = None
     try:
+        # 1) App users first (staff, dean, hod, etc.) so they always show in the table when limit is used
+        try:
+            rbac_engine = create_engine(RBAC_CONN_STRING)
+            _ensure_app_users_table(rbac_engine)
+            app_df = pd.read_sql_query(
+                "SELECT id, username, role, full_name, faculty_id, department_id FROM app_users",
+                rbac_engine
+            )
+            rbac_engine.dispose()
+            demo_usernames = {a['username'].lower() for a in DEMO_ACCOUNTS_FOR_LIST}
+            for _, row in app_df.iterrows():
+                uname = str(row['username']) if pd.notna(row['username']) else ''
+                if not uname or uname.lower() in demo_usernames:
+                    continue
+                if role_filter and (str(row['role']) if pd.notna(row['role']) else '').lower() != role_filter:
+                    continue
+                if search and search not in uname.lower() and search not in (str(row['full_name']) if pd.notna(row['full_name']) else '').lower():
+                    continue
+                users_app.append({
+                    'id': str(row['id']), 'username': uname,
+                    'access_number': None, 'reg_number': None,
+                    'first_name': str(row['full_name']) if pd.notna(row['full_name']) else uname,
+                    'last_name': '',
+                    'full_name': str(row['full_name']) if pd.notna(row['full_name']) else uname,
+                    'role': str(row['role']) if pd.notna(row['role']) else 'staff',
+                    'type': 'app_user',
+                    'faculty_id': int(row['faculty_id']) if pd.notna(row['faculty_id']) else None,
+                    'department_id': int(row['department_id']) if pd.notna(row['department_id']) else None,
+                })
+        except Exception as e:
+            warning = str(e)
+        # 2) Demo accounts
+        if not role_filter or role_filter != 'student':
+            for acc in DEMO_ACCOUNTS_FOR_LIST:
+                if role_filter and acc['role'] != role_filter:
+                    continue
+                if search and search not in acc['username'].lower() and search not in (acc.get('full_name') or '').lower():
+                    continue
+                users_demo.append({
+                    'id': acc['username'], 'username': acc['username'],
+                    'access_number': None, 'reg_number': None,
+                    'first_name': acc.get('full_name') or acc['username'], 'last_name': '',
+                    'full_name': acc.get('full_name') or acc['username'],
+                    'role': acc['role'], 'type': 'demo',
+                })
+        # 3) Students (often many, so they come last so app users aren't pushed off by limit)
         if not role_filter or role_filter == 'student':
             try:
                 engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
@@ -428,7 +476,7 @@ def admin_list_users():
                     last = str(row['last_name']) if pd.notna(row['last_name']) else ''
                     adm = row.get('admission_date')
                     year_of_admission = int(adm.year) if adm is not None and pd.notna(adm) and hasattr(adm, 'year') else None
-                    users.append({
+                    users_students.append({
                         'id': str(row['student_id']),
                         'username': str(row['access_number']) if pd.notna(row['access_number']) else '',
                         'access_number': str(row['access_number']) if pd.notna(row['access_number']) else '',
@@ -442,52 +490,10 @@ def admin_list_users():
                     })
             except Exception:
                 pass
-        if not role_filter or role_filter != 'student':
-            for acc in DEMO_ACCOUNTS_FOR_LIST:
-                if role_filter and acc['role'] != role_filter:
-                    continue
-                if search and search not in acc['username'].lower() and search not in (acc.get('full_name') or '').lower():
-                    continue
-                users.append({
-                    'id': acc['username'], 'username': acc['username'],
-                    'access_number': None, 'reg_number': None,
-                    'first_name': acc.get('full_name') or acc['username'], 'last_name': '',
-                    'full_name': acc.get('full_name') or acc['username'],
-                    'role': acc['role'], 'type': 'demo',
-                })
-        try:
-            rbac_engine = create_engine(RBAC_CONN_STRING)
-            _ensure_app_users_table(rbac_engine)
-            app_df = pd.read_sql_query(
-                "SELECT id, username, role, full_name, faculty_id, department_id FROM app_users",
-                rbac_engine
-            )
-            rbac_engine.dispose()
-            demo_usernames = {a['username'].lower() for a in DEMO_ACCOUNTS_FOR_LIST}
-            for _, row in app_df.iterrows():
-                uname = str(row['username']) if pd.notna(row['username']) else ''
-                if not uname or uname.lower() in demo_usernames:
-                    continue
-                if role_filter and (str(row['role']) if pd.notna(row['role']) else '').lower() != role_filter:
-                    continue
-                if search and search not in uname.lower() and search not in (str(row['full_name']) if pd.notna(row['full_name']) else '').lower():
-                    continue
-                users.append({
-                    'id': str(row['id']), 'username': uname,
-                    'access_number': None, 'reg_number': None,
-                    'first_name': str(row['full_name']) if pd.notna(row['full_name']) else uname,
-                    'last_name': '',
-                    'full_name': str(row['full_name']) if pd.notna(row['full_name']) else uname,
-                    'role': str(row['role']) if pd.notna(row['role']) else 'staff',
-                    'type': 'app_user',
-                    'faculty_id': int(row['faculty_id']) if pd.notna(row['faculty_id']) else None,
-                    'department_id': int(row['department_id']) if pd.notna(row['department_id']) else None,
-                })
-        except Exception as e:
-            warning = str(e)
     except Exception as e:
         warning = str(e)
-    # Apply limit to combined list: return at most `limit` users total (not per source)
+    # Combine: app users first, then demo, then students — so staff/dean/hod always appear when limit is used
+    users = users_app + users_demo + users_students
     total = len(users)
     users = users[offset:offset + limit]
     out = {'users': users, 'total': total}

@@ -108,11 +108,14 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
   return (
     <div className="space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        {/* Students by Department */}
+        {/* Student Distribution by Department */}
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-base font-semibold text-blue-700">Students by Department</CardTitle>
-            <CardDescription className="text-xs">Student distribution across departments {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
+            <CardTitle className="text-base font-semibold text-blue-700">Student Distribution by Department</CardTitle>
+            <CardDescription className="text-xs">
+              Institution-wide distribution with drill-down using the global Filters panel{' '}
+              {Object.keys(filters).length > 0 && '(Filtered)'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
@@ -130,11 +133,14 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
           </CardContent>
         </Card>
 
-        {/* Average Grades Over Time */}
+        {/* Trend Analysis of Grades Over Time */}
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-base font-semibold text-purple-700">Average Grades Over Time</CardTitle>
-            <CardDescription className="text-xs">Grade trends across periods {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
+            <CardTitle className="text-base font-semibold text-purple-700">Trend Analysis of Grades Over Time</CardTitle>
+            <CardDescription className="text-xs">
+              Average performance across recent periods (semesterly aggregates){' '}
+              {Object.keys(filters).length > 0 && '(Filtered)'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">

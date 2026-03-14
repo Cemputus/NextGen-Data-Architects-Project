@@ -62,7 +62,7 @@ const SenateDashboard = () => {
 
   const exportReport = async (format) => {
     try {
-      const response = await axios.get(`/api/analytics/export/${format}`, {
+      const response = await axios.get(`/api/export/${format}`, {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params: filters,
         responseType: 'blob'

@@ -804,9 +804,12 @@ def predict_enrollment_trend():
         
         # Get historical data for lag features
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        # Implementation would fetch historical data and create lag features
-        # Then use the model to predict
-        
+        try:
+            # Implementation would fetch historical data and create lag features
+            # Then use the model to predict
+            pass
+        finally:
+            engine.dispose()
         return jsonify({
             'message': 'Enrollment trend prediction',
             'year': year,

@@ -16,8 +16,13 @@ import { SciBarChart, SciDonutChart, UCU_COLORS } from '../components/charts/ECh
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState } from '../utils/statePersistence';
 import { DataTable } from '../components/shared/DataTable';
+import { useAuth } from '../context/AuthContext';
 
 const AcademicRiskDashboard = () => {
+    const { user } = useAuth();
+    const role = (user?.role || '').toString().toLowerCase();
+    const isDean = role === 'dean';
+    const isHod = role === 'hod';
     const [loading, setLoading] = useState(true);
     const [riskData, setRiskData] = useState(null);
     const [correlationData, setCorrelationData] = useState(null);
@@ -98,8 +103,13 @@ const AcademicRiskDashboard = () => {
                 />
             </div>
 
-            {/* Filters */}
-            <GlobalFilterPanel onFilterChange={setFilters} pageName="academic_risk_dashboard" />
+            {/* Filters - role-based: Dean starts at Department, HOD at Program */}
+            <GlobalFilterPanel
+                onFilterChange={setFilters}
+                pageName="academic_risk_dashboard"
+                hideFaculty={isDean || isHod}
+                hideDepartment={isHod}
+            />
 
             {loading ? (
                 <div className="flex items-center justify-center py-16">

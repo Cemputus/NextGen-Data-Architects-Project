@@ -8,6 +8,8 @@ import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import RoleBasedCharts from '../components/RoleBasedCharts';
 import ModernStatsCards from '../components/ModernStatsCards';
 import ExportButtons from '../components/ExportButtons';
+import Charts from '../components/Charts';
+import PageShell from '../components/shared/PageShell';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
@@ -68,12 +70,18 @@ const AnalyticsPage = ({ type = 'general' }) => {
     return titles[type] || 'Analytics';
   };
 
-  return (
+  const isWorkspace = type === 'analyst';
+
+  const headerSection = (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">{getTitle()}</h1>
-          <p className="text-sm text-muted-foreground">Comprehensive analytics and insights</p>
+          <p className="text-sm text-muted-foreground">
+            {isWorkspace
+              ? 'Comprehensive analytics workspace with cascading filters and rich visualizations'
+              : 'Comprehensive analytics and insights'}
+          </p>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
           {(type === 'hr' || type === 'senate') && (
@@ -156,7 +164,11 @@ const AnalyticsPage = ({ type = 'general' }) => {
         hideHighSchool={type === 'hr'}
         hideAcademic={type === 'hr'}
       />
+    </div>
+  );
 
+  const bodySection = (
+    <>
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -173,8 +185,51 @@ const AnalyticsPage = ({ type = 'general' }) => {
               <RoleBasedCharts filters={filters} type={type} />
             </CardContent>
           </Card>
+          {isWorkspace && (
+            <Card className="border shadow-sm">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  Analytics Workspace Charts
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Student distribution, grade trends, payments, and attendance — all driven by the global cascading Filters panel.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-3 sm:space-y-4">
+                <Charts data={stats} filters={filters} type={type} />
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
+    </>
+  );
+
+  if (isWorkspace) {
+    return (
+      <PageShell
+        title="Analytics Workspace"
+        breadcrumbs={[{ label: 'Analytics' }, { label: 'Workspace' }]}
+        actions={
+          <ExportButtons
+            stats={stats}
+            filters={filters}
+            filename={`${type}_analytics`}
+            chartSelectors={['.recharts-wrapper', '[class*="chart"]', '[data-chart]']}
+          />
+        }
+      >
+        {headerSection}
+        {bodySection}
+      </PageShell>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {headerSection}
+      {bodySection}
     </div>
   );
 };

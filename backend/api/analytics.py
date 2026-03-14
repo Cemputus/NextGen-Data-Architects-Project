@@ -87,8 +87,8 @@ def build_filter_query(filters, base_query, user_scope):
             params['filter_access_number'] = filters['access_number']
         
         if filters.get('reg_number'):
-            where_clauses.append("ds.student_id = :filter_reg_number")
-            params['filter_reg_number'] = filters['reg_number']
+            where_clauses.append("ds.reg_no = :filter_reg_number")
+            params['filter_reg_number'] = str(filters['reg_number']).strip().upper()
         
         if filters.get('intake_year'):
             where_clauses.append("EXTRACT(YEAR FROM ds.admission_date) = :filter_intake_year")
@@ -1252,11 +1252,39 @@ def get_faculty_analytics():
                 where_clauses.append("dp.program_id = :filter_program_id")
             except (ValueError, TypeError):
                 pass
+        if filters.get('access_number'):
+            params['filter_access_number'] = str(filters['access_number']).strip().upper()
+            where_clauses.append("ds.access_number = :filter_access_number")
+        if filters.get('reg_number'):
+            params['filter_reg_no'] = str(filters['reg_number']).strip().upper()
+            where_clauses.append("ds.reg_no = :filter_reg_no")
+        if filters.get('student_name'):
+            params['filter_student_name'] = "%" + str(filters['student_name']).strip() + "%"
+            where_clauses.append("(ds.first_name ILIKE :filter_student_name OR ds.last_name ILIKE :filter_student_name OR (ds.first_name || ' ' || ds.last_name) ILIKE :filter_student_name)")
+        if filters.get('high_school'):
+            params['filter_high_school'] = "%" + str(filters['high_school']).strip() + "%"
+            where_clauses.append("ds.high_school ILIKE :filter_high_school")
+        if filters.get('intake_year'):
+            try:
+                params['filter_intake_year'] = int(filters['intake_year'])
+                where_clauses.append("EXTRACT(YEAR FROM ds.admission_date) = :filter_intake_year")
+            except (ValueError, TypeError):
+                pass
 
         student_where = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
         grade_where = "WHERE fg.exam_status = 'Completed'"
         if where_clauses:
             grade_where += " AND " + " AND ".join(where_clauses)
+        if filters.get('course_code'):
+            params['filter_course_code'] = str(filters['course_code']).strip()
+            grade_where += " AND fg.course_code = :filter_course_code"
+        if filters.get('semester_id'):
+            try:
+                params['filter_semester_id'] = int(filters['semester_id'])
+                grade_where += " AND fg.semester_id = :filter_semester_id"
+            except (ValueError, TypeError):
+                pass
+        params_student = {k: v for k, v in params.items() if k not in ('filter_course_code', 'filter_semester_id')}
 
         # 1) Total students in scope (faculty / department)
         total_students_q = f"""
@@ -1267,7 +1295,7 @@ def get_faculty_analytics():
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         {student_where}
         """
-        ts_df = pd.read_sql_query(text(total_students_q), engine, params=params)
+        ts_df = pd.read_sql_query(text(total_students_q), engine, params=params_student)
         total_students = int(ts_df['total_students'][0]) if not ts_df.empty and pd.notna(ts_df['total_students'][0]) else 0
 
         # 2) Average grade for students in scope
@@ -1296,7 +1324,7 @@ def get_faculty_analytics():
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
             {student_where}
             """
-            courses_df = pd.read_sql_query(text(courses_q), engine, params=params)
+            courses_df = pd.read_sql_query(text(courses_q), engine, params=params_student)
             total_courses = int(courses_df['total_courses'][0]) if not courses_df.empty and pd.notna(courses_df['total_courses'][0]) else 0
         except Exception as e:
             print(f"Error getting faculty total_courses: {e}")
@@ -1314,7 +1342,7 @@ def get_faculty_analytics():
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
             {student_where}
             """
-            enroll_df = pd.read_sql_query(text(enroll_q), engine, params=params)
+            enroll_df = pd.read_sql_query(text(enroll_q), engine, params=params_student)
             total_enrollments = int(enroll_df['total_enrollments'][0]) if not enroll_df.empty and pd.notna(enroll_df['total_enrollments'][0]) else 0
         except Exception as e:
             print(f"Error getting faculty total_enrollments: {e}")
@@ -1332,7 +1360,7 @@ def get_faculty_analytics():
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
             {student_where}
             """
-            att_df = pd.read_sql_query(text(att_q), engine, params=params)
+            att_df = pd.read_sql_query(text(att_q), engine, params=params_student)
             avg_attendance = float(att_df['avg_attendance'][0]) if not att_df.empty and pd.notna(att_df['avg_attendance'][0]) else 0.0
         except Exception as e:
             print(f"Error getting faculty avg_attendance: {e}")
@@ -1351,7 +1379,7 @@ def get_faculty_analytics():
         GROUP BY ddept.department_name
         ORDER BY student_count DESC
         """
-        by_dept_df = pd.read_sql_query(text(by_dept_q), engine, params=params)
+        by_dept_df = pd.read_sql_query(text(by_dept_q), engine, params=params_student)
         students_by_department = by_dept_df.to_dict('records') if not by_dept_df.empty else []
 
         # 5) Students by program
@@ -1368,7 +1396,7 @@ def get_faculty_analytics():
         GROUP BY dp.program_name, ddept.department_name
         ORDER BY student_count DESC
         """
-        by_prog_df = pd.read_sql_query(text(by_prog_q), engine, params=params)
+        by_prog_df = pd.read_sql_query(text(by_prog_q), engine, params=params_student)
         students_by_program = by_prog_df.to_dict('records') if not by_prog_df.empty else []
 
         # 6) Student demographics (gender + high school)
@@ -1383,7 +1411,7 @@ def get_faculty_analytics():
         {student_where}
         GROUP BY ds.gender
         """
-        by_gender_df = pd.read_sql_query(text(by_gender_q), engine, params=params)
+        by_gender_df = pd.read_sql_query(text(by_gender_q), engine, params=params_student)
         students_by_gender = by_gender_df.to_dict('records') if not by_gender_df.empty else []
 
         by_hs_q = f"""
@@ -1400,7 +1428,7 @@ def get_faculty_analytics():
         ORDER BY student_count DESC
         LIMIT 20
         """
-        by_hs_df = pd.read_sql_query(text(by_hs_q), engine, params=params)
+        by_hs_df = pd.read_sql_query(text(by_hs_q), engine, params=params_student)
 
         # 7) Grade distribution within scope
         grade_dist_q = f"""
@@ -1498,7 +1526,7 @@ def get_faculty_analytics():
         {payment_where}
         GROUP BY fp.status
         """
-        pay_status_df = pd.read_sql_query(text(payment_status_q), engine, params=params)
+        pay_status_df = pd.read_sql_query(text(payment_status_q), engine, params=params_student)
         payment_status = pay_status_df.to_dict('records') if not pay_status_df.empty else []
 
         payment_trend_q = f"""
@@ -1515,7 +1543,7 @@ def get_faculty_analytics():
         GROUP BY fp.year, fp.semester_id
         ORDER BY fp.year, fp.semester_id
         """
-        pay_trend_df = pd.read_sql_query(text(payment_trend_q), engine, params=params)
+        pay_trend_df = pd.read_sql_query(text(payment_trend_q), engine, params=params_student)
         payment_trends = pay_trend_df.to_dict('records') if not pay_trend_df.empty else []
 
         # 12) Staff summary for this faculty from dim_employee
@@ -1618,13 +1646,15 @@ def get_faculty_analytics():
             'grade_distribution': [],
             'performance_by_department': [],
             'performance_by_program': [],
-            'top_students': [],
-            'payment_status': [],
-            'payment_trends': [],
-            'total_staff': 0,
-            'staff_by_department': [],
-            'staff_list': [],
         }), 500
+
+
+@analytics_bp.route('/department', methods=['GET'])
+@jwt_required()
+def get_department_analytics():
+    """Department-level analytics for HOD. Same as faculty analytics but scoped by HOD's department (role-based).
+    Filters (program, course, semester, search, high school) affect the data."""
+    return get_faculty_analytics()
 
 @analytics_bp.route('/student', methods=['GET'])
 @jwt_required()
@@ -2215,10 +2245,11 @@ def get_hr_analytics():
         return jsonify({'error': str(e)}), 500
 
 
-@analytics_bp.route('/academic-risk', methods=['GET'])
+@analytics_bp.route('/academic-risk-summary', methods=['GET'])
 @jwt_required()
 def get_academic_risk():
-    """Returns summarized FCW, MEX, FEX analytics institution-wide or scoped."""
+    """Returns summarized FCW, MEX, FEX (summary + top_courses_fcw). Use /academic-risk for full dashboard."""
+    engine = None
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -2276,7 +2307,7 @@ def get_academic_risk():
             
         # Add a placeholder for now for top courses but these can be expanded later
         top_courses_fcw = []
-        
+        engine.dispose()
         return jsonify({
             'summary': summary,
             'top_courses_fcw': top_courses_fcw
@@ -2286,13 +2317,18 @@ def get_academic_risk():
         import traceback
         print(f"Error in get_academic_risk: {e}")
         print(traceback.format_exc())
+        if engine is not None:
+            try:
+                engine.dispose()
+            except Exception:
+                pass
         return jsonify({'error': str(e)}), 500
 
 
 @analytics_bp.route('/high-school-risk-correlation', methods=['GET'])
 @jwt_required()
 def get_high_school_risk_correlation():
-    """Returns correlation between high school background & academic risk statuses"""
+    """Returns correlation between high school background & academic risk statuses. Respects global filters and role scope."""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -2300,43 +2336,72 @@ def get_high_school_risk_correlation():
         
         if role in [Role.STUDENT, Role.STAFF, Role.FINANCE, Role.HR]:
             return jsonify({'error': 'Permission denied'}), 403
-            
+
+        filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        
-        sql = """
-        SELECT high_school as school, 
-               COALESCE(high_school_district, 'Unknown') as district, 
-               COALESCE(fcw_rate, 0) as fcw_rate, 
-               COALESCE(mex_rate, 0) as mex_rate, 
-               COALESCE(fex_rate, 0) as fex_rate, 
-               COALESCE(avg_grade, 0) as avg_gpa 
-        FROM v_highschool_risk
-        ORDER BY fcw_rate DESC
-        """
-        df = pd.read_sql_query(text(sql), engine)
-        by_school = df.to_dict('records') if not df.empty else []
-        
-        # Add basic district aggregation
-        sql_district = """
-        SELECT COALESCE(high_school_district, 'Unknown') as district,
-               AVG(fcw_rate) as avg_fcw_rate,
-               AVG(avg_grade) as avg_grade
-        FROM v_highschool_risk
-        GROUP BY high_school_district
-        ORDER BY avg_fcw_rate DESC
-        """
-        dist_df = pd.read_sql_query(text(sql_district), engine)
-        by_district = dist_df.to_dict('records') if not dist_df.empty else []
-        
+        has_scope = (role == Role.HOD and user_scope.get('department_id')) or (role == Role.DEAN and user_scope.get('faculty_id'))
+        filter_keys = ['faculty_id', 'department_id', 'program_id', 'course_code', 'semester_id', 'high_school', 'access_number', 'reg_number', 'student_name', 'intake_year']
+        has_filters = any(filters.get(k) for k in filter_keys)
+
+        if has_scope or has_filters:
+            # Filtered path: same metrics from fact_grade + dims with role/filters applied
+            base_school = """
+            SELECT ds.high_school as school,
+                   COALESCE(ds.high_school_district, 'Unknown') as district,
+                   AVG(CASE WHEN fg.fcw THEN 1.0 ELSE 0.0 END) as fcw_rate,
+                   AVG(CASE WHEN fg.exam_status = 'MEX' THEN 1.0 ELSE 0.0 END) as mex_rate,
+                   AVG(CASE WHEN fg.exam_status = 'FEX' THEN 1.0 ELSE 0.0 END) as fex_rate,
+                   AVG(fg.grade) as avg_gpa
+            FROM fact_grade fg
+            JOIN dim_student ds ON fg.student_id = ds.student_id
+            LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+            LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+            LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            LEFT JOIN dim_course dc ON fg.course_code = dc.course_code
+            """
+            q, params = build_filter_query(filters, base_school, user_scope)
+            q += " AND ds.high_school IS NOT NULL AND ds.high_school != ''"
+            q += " GROUP BY ds.high_school, ds.high_school_district ORDER BY fcw_rate DESC"
+            df = pd.read_sql_query(text(q), engine, params=params)
+            by_school = df.to_dict('records') if not df.empty else []
+            if not df.empty and 'district' in df.columns:
+                dist_df = df.groupby('district').agg({'fcw_rate': 'mean', 'avg_gpa': 'mean'}).reset_index()
+                dist_df.columns = ['district', 'avg_fcw_rate', 'avg_grade']
+                by_district = dist_df.sort_values('avg_fcw_rate', ascending=False).to_dict('records')
+            else:
+                by_district = []
+        else:
+            sql = """
+            SELECT high_school as school,
+                   COALESCE(high_school_district, 'Unknown') as district,
+                   COALESCE(fcw_rate, 0) as fcw_rate,
+                   COALESCE(mex_rate, 0) as mex_rate,
+                   COALESCE(fex_rate, 0) as fex_rate,
+                   COALESCE(avg_grade, 0) as avg_gpa
+            FROM v_highschool_risk
+            ORDER BY fcw_rate DESC
+            """
+            df = pd.read_sql_query(text(sql), engine)
+            by_school = df.to_dict('records') if not df.empty else []
+            sql_district = """
+            SELECT COALESCE(high_school_district, 'Unknown') as district,
+                   AVG(fcw_rate) as avg_fcw_rate,
+                   AVG(avg_grade) as avg_grade
+            FROM v_highschool_risk
+            GROUP BY high_school_district
+            ORDER BY avg_fcw_rate DESC
+            """
+            dist_df = pd.read_sql_query(text(sql_district), engine)
+            by_district = dist_df.to_dict('records') if not dist_df.empty else []
+
         engine.dispose()
-        
         return jsonify({
             'by_school': by_school,
             'by_district': by_district,
-            'by_tier': [],        # To be populated if tier data is added later
-            'by_ownership': []    # To be populated if ownership data is added later
+            'by_tier': [],
+            'by_ownership': []
         }), 200
-        
+
     except Exception as e:
         import traceback
         print(f"Error in get_high_school_risk_correlation: {e}")

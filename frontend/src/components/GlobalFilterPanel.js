@@ -181,6 +181,11 @@ const GlobalFilterPanel = ({
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-foreground">Filters</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isDean && 'Scoped to your faculty. Start from Department, then Program, Course, Semester, High School.'}
+                    {isHod && 'Scoped to your department. Start from Program, then Course, Semester, High School.'}
+                    {!isDean && !isHod && 'Search by Access Number, Reg No, or Name. Filter by Faculty → Department → Program → Course → Semester → High School.'}
+                  </p>
                 </div>
               </div>
               {activeFiltersCount > 0 && (
@@ -260,7 +265,7 @@ const GlobalFilterPanel = ({
                 }`}
               >
                 <option value="">
-                  {filters.faculty_id || hideFaculty ? 'All Programs' : 'Select Faculty First'}
+                  {effectiveHideDepartment ? 'All Programs' : (filters.faculty_id || effectiveHideFaculty ? 'All Programs' : 'Select Faculty First')}
                 </option>
                 {filterOptions.programs?.map((p, idx) => (
                   <option key={`prog-${p.program_id || idx}`} value={p.program_id}>

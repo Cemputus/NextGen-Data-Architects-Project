@@ -181,7 +181,7 @@ export default function UserManagementSection({
       } else if (err.response.status === 401) {
         setError('Session expired. Please log in again.');
       } else if (err.response.status === 403) {
-        setError('You do not have permission to view users.');
+        setError('You do not have permission to view or add users. Log in with an Admin or Sysadmin account.');
       } else if (err.response.status === 404) {
         setError(
           <>User Management API not found (404). Start the backend (<code>backend\run_backend.bat</code>), then <a href="http://127.0.0.1:5000/api/user-mgmt/ping" target="_blank" rel="noopener noreferrer">test ping</a>. If you see {`{"ok":true}`}, click Refresh here.</>
@@ -265,7 +265,11 @@ export default function UserManagementSection({
     setAddSubmitting(true);
     setAddError(null);
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      setAddError('Please log in again.');
+      setAddSubmitting(false);
+      return;
+    }
     // Client-side guardrails (backend also enforces uniqueness/required scope)
     if (addForm.role === 'dean' && !addForm.faculty_id) {
       setAddError('Please select a faculty for the Dean.');
@@ -280,6 +284,13 @@ export default function UserManagementSection({
       }
       if (!addForm.department_id) {
         setAddError('Please select a department for the HOD.');
+        setAddSubmitting(false);
+        return;
+      }
+    }
+    if (addForm.role === 'staff') {
+      if (!addForm.faculty_id || !addForm.department_id) {
+        setAddError('Please select a faculty and a department for Staff. If the lists are empty, run ETL to populate the warehouse.');
         setAddSubmitting(false);
         return;
       }
@@ -308,7 +319,15 @@ export default function UserManagementSection({
       await loadUsers();
       onUsersChanged?.();
     } catch (err) {
-      setAddError(err.response?.data?.error || 'Failed to create user.');
+      const status = err.response?.status;
+      const msg = err.response?.data?.error || err.message;
+      if (status === 403) {
+        setAddError('You don\'t have permission to add users. Log in with an Admin or Sysadmin account.');
+      } else if (status === 401) {
+        setAddError('Session expired. Please log in again.');
+      } else {
+        setAddError(msg || 'Failed to create user.');
+      }
     } finally {
       setAddSubmitting(false);
     }

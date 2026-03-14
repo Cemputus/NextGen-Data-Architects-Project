@@ -18,6 +18,7 @@ import { loadPageState, savePageState, loadDrilldown, saveDrilldown } from '../u
 
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, PageContent } from '../components/ui/page-header';
+import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { useAuth } from '../context/AuthContext';
 
 const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
@@ -139,6 +140,13 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
           </div>
         }
       />
+
+      {!isControlled && (
+        <GlobalFilterPanel
+          onFilterChange={setInternalFilters}
+          pageName="fex_analytics"
+        />
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
