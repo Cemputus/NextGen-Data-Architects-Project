@@ -108,6 +108,22 @@
   html {
     scroll-behavior: smooth;
   }
+
+  /* Responsive: prevent overflow and word stacking on small screens */
+  .responsive-container {
+    @apply w-full max-w-full min-w-0;
+  }
+  .chart-container {
+    @apply w-full min-w-0 min-h-[200px] sm:min-h-[240px];
+  }
+  .break-words-safe {
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  /* Prevent grid children from overflowing on small screens */
+  [class*="grid"] > * {
+    min-width: 0;
+  }
 }
 
 @layer utilities {

@@ -492,8 +492,8 @@ def admin_list_users():
                 pass
     except Exception as e:
         warning = str(e)
-    # Combine: app users first, then demo, then students — so staff/dean/hod always appear when limit is used
-    users = users_app + users_demo + users_students
+    # Combine: students first, then app users, then demo (user-requested order for table)
+    users = users_students + users_app + users_demo
     total = len(users)
     users = users[offset:offset + limit]
     out = {'users': users, 'total': total}
@@ -912,6 +912,7 @@ def admin_create_user():
             )
             row = r.fetchone()
             new_id = int(row[0]) if row and row[0] is not None else None
+            conn.commit()
         rbac_engine.dispose()
         if new_id:
             _sync_dim_app_user('insert', new_id, {

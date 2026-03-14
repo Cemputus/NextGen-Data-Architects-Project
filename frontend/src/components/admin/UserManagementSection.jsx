@@ -510,7 +510,7 @@ export default function UserManagementSection({
   };
 
   return (
-    <Card className={compact ? '' : 'overflow-hidden'}>
+    <Card className={cn('min-w-0', compact ? '' : 'overflow-hidden')}>
       {showHeader && (
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
           <div>
@@ -1198,7 +1198,10 @@ export default function UserManagementSection({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    users.map((u) => (
+                    (usersLimit === 'all'
+                      ? users
+                      : users.slice(0, Number(usersLimit) || users.length)
+                    ).map((u) => (
                       <TableRow
                         key={u.type === 'student' ? `student-${u.id}` : u.type === 'demo' ? `demo-${u.id}` : `app-${u.id}`}
                       >
@@ -1284,7 +1287,10 @@ export default function UserManagementSection({
           </TableWrapper>
             {users.length > 0 && (
               <div className="px-3 py-2 border-t border-border bg-muted/30 text-xs text-muted-foreground">
-                Showing {users.length} user{users.length !== 1 ? 's' : ''}
+                Showing {Math.min(
+                  usersLimit === 'all' ? users.length : Number(usersLimit) || users.length,
+                  users.length
+                )} user{users.length !== 1 ? 's' : ''}
               </div>
             )}
           </div>

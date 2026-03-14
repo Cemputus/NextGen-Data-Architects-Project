@@ -98,10 +98,11 @@ const getAssignableRoles = (userRole) => {
 };
 
 const AnalystDashboardsPage = () => {
-  const { user } = useAuth();
+  const { user, token: authToken } = useAuth();
   const [currentByRole, setCurrentByRole] = useState([]);
   const [customDashboards, setCustomDashboards] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [apiForbidden, setApiForbidden] = useState(false);
   const [filterRole, setFilterRole] = useState('');
   const [search, setSearch] = useState('');
   const [createdByFilter, setCreatedByFilter] = useState('all'); // all | me
@@ -133,7 +134,8 @@ const AnalystDashboardsPage = () => {
     roles: ['analyst'],
   });
 
-  const canManage = (user?.role || '').toString().toLowerCase() === 'analyst';
+  const userRole = (user?.role || '').toString().toLowerCase();
+  const canManage = userRole === 'analyst' || userRole === 'sysadmin' || userRole === 'admin';
   const assignableRoles = getAssignableRoles(user?.role);
 
   const normalizeRole = (role) => (role || '').toString().toLowerCase();
@@ -218,7 +220,8 @@ const AnalystDashboardsPage = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const token = sessionStorage.getItem('ucu_session_token');
+      setApiForbidden(false);
+      const token = authToken || sessionStorage.getItem('ucu_session_token');
 
       const params = {};
       if (filterRole) params.role = filterRole;
@@ -269,7 +272,10 @@ const AnalystDashboardsPage = () => {
       }
     } catch (err) {
       console.error('Error loading dashboard manager data:', err);
-      setCurrentByRole([]);
+      setApiForbidden(err.response?.status === 403);
+      // Keep Current Dashboards section populated with one card per role even when API fails
+      const fallbackRoles = getAssignableRoles(user?.role);
+      setCurrentByRole(fallbackRoles.map((r) => ({ role: r, dashboard: null })));
       setCustomDashboards([]);
     } finally {
       setLoading(false);
@@ -639,6 +645,12 @@ const AnalystDashboardsPage = () => {
         }
       />
 
+      {apiForbidden && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-sm text-amber-800 dark:text-amber-200">
+          You don&apos;t have permission to load dashboard manager data (requires Analyst or Admin role). If you just logged in as Analyst or Admin, try refreshing the page or re-logging in.
+        </div>
+      )}
+
       {/* Global filters + view toggle */}
       <Card className="border shadow-sm">
         <CardHeader className="p-4 pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -707,7 +719,7 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            One card per role. Use &quot;Edit content&quot; to change KPIs and charts for that role&apos;s dashboard page; use &quot;Make current&quot; from Custom to swap; &quot;Remove current&quot; to unassign.
+            One card per role. All roles with dashboard pages are listed here. Use &quot;Edit content&quot; to change KPIs and charts; &quot;Make current&quot; from Custom to swap; &quot;Remove current&quot; to unassign.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -724,7 +736,7 @@ const AnalystDashboardsPage = () => {
                   : 'space-y-2'
               }
             >
-              {filteredCurrent.map((entry) => {
+              {currentByRole.map((entry) => {
                 const rname = entry.role;
                 const dash = entry.dashboard;
                 return (

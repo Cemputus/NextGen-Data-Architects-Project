@@ -149,7 +149,7 @@ function App() {
                     <Routes>
                       <Route path="dashboard" element={<StaffDashboard />} />
                       <Route path="classes" element={<StaffClasses />} />
-                      <Route path="analytics" element={<StaffAnalytics />} />
+                      <Route path="analytics" element={<Navigate to="/staff/dashboard" replace />} />
                       <Route path="predictions" element={<PredictionPage />} />
                       <Route path="profile" element={<Navigate to="user-info" replace />} />
                       <Route path="user-info" element={<UserInfoPage />} />
@@ -169,7 +169,7 @@ function App() {
                     <Routes>
                       <Route path="dashboard" element={<HODDashboard />} />
                       <Route path="assign-classes" element={<HODAssignClasses />} />
-                      <Route path="analytics" element={<AnalyticsPage type="hod" />} />
+                      <Route path="analytics" element={<Navigate to="/hod/dashboard" replace />} />
                       <Route path="fex" element={<FEXAnalytics />} />
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
@@ -191,7 +191,7 @@ function App() {
                   <PrivateRoute requiredRole="dean">
                     <Routes>
                       <Route path="dashboard" element={<DeanDashboard />} />
-                      <Route path="analytics" element={<AnalyticsPage type="dean" />} />
+                      <Route path="analytics" element={<Navigate to="/dean/dashboard" replace />} />
                       <Route path="fex" element={<FEXAnalytics />} />
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
@@ -213,7 +213,7 @@ function App() {
                   <PrivateRoute requiredRole="senate">
                     <Routes>
                       <Route path="dashboard" element={<SenateDashboard />} />
-                      <Route path="analytics" element={<AnalyticsPage type="senate" />} />
+                      <Route path="analytics" element={<Navigate to="/senate/dashboard" replace />} />
                       <Route path="fex" element={<FEXAnalytics />} />
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
@@ -230,14 +230,14 @@ function App() {
                 }
               />
 
-              {/* Analyst Routes */}
+              {/* Analyst Routes — analyst and sysadmin can access dashboard manager */}
               <Route
                 path="/analyst/*"
                 element={
-                  <PrivateRoute requiredRole="analyst">
+                  <PrivateRoute allowedRoles={['analyst', 'sysadmin']}>
                     <Routes>
                       <Route path="dashboard" element={<AnalystDashboard />} />
-                      <Route path="analytics" element={<AnalyticsPage type="analyst" />} />
+                      <Route path="analytics" element={<Navigate to="/analyst/dashboard" replace />} />
                       <Route path="dashboards" element={<AnalystDashboardsPage />} />
                       <Route path="fex" element={<FEXAnalytics />} />
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
@@ -284,7 +284,7 @@ function App() {
                   <PrivateRoute requiredRole="hr">
                     <Routes>
                       <Route path="dashboard" element={<HRDashboard />} />
-                      <Route path="analytics" element={<AnalyticsPage type="hr" />} />
+                      <Route path="analytics" element={<Navigate to="/hr/dashboard" replace />} />
                       <Route path="employees" element={<HREmployeesPage />} />
                       <Route path="staff" element={<HRStaff />} />
                       <Route path="leave-requests" element={<HRLeaveRequestsPage />} />
@@ -307,7 +307,7 @@ function App() {
                   <PrivateRoute requiredRole="finance">
                     <Routes>
                       <Route path="dashboard" element={<FinanceDashboard />} />
-                      <Route path="analytics" element={<AnalyticsPage type="finance" />} />
+                      <Route path="analytics" element={<Navigate to="/finance/dashboard" replace />} />
                       <Route path="payments" element={<FinancePayments />} />
                       <Route path="predictions" element={<PredictionPage />} />
                       <Route path="profile" element={<Navigate to="user-info" replace />} />

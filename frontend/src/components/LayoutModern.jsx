@@ -77,7 +77,6 @@ const LayoutModern = ({ children }) => {
         { path: '/dean/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/dean/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/dean/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
-        { path: '/dean/analytics', label: 'Analytics', icon: Database },
         { path: '/dean/risk', label: 'Risk Analysis', icon: ShieldAlert },
         { path: '/dean/fex', label: 'FEX Analysis', icon: Shield },
         { path: '/dean/high-school', label: 'High School BI', icon: Building2 },
@@ -89,7 +88,6 @@ const LayoutModern = ({ children }) => {
         { path: '/senate/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/senate/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/senate/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
-        { path: '/senate/analytics', label: 'Analytics', icon: Database },
         { path: '/senate/risk', label: 'Risk Analysis', icon: ShieldAlert },
         { path: '/senate/fex', label: 'FEX Analysis', icon: Shield },
         { path: '/senate/high-school', label: 'High School BI', icon: Building2 },
@@ -103,8 +101,6 @@ const LayoutModern = ({ children }) => {
         { path: '/analyst/dashboard', label: 'Workspace', icon: Home },
         { path: '/analyst/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/analyst/managed-shared-charts', label: 'Managed shared Charts', icon: BarChart3 },
-        // Swapped icons: Analytics now uses the LineChart icon, NextGen Query uses the Database icon.
-        { path: '/analyst/analytics', label: 'Analytics', icon: LineChart },
         { path: '/analyst/dashboards', label: 'Dashboards', icon: LayoutDashboard },
         { path: '/analyst/query', label: 'NextGen Query', icon: Database },
         { path: '/analyst/risk', label: 'Risk Analysis', icon: ShieldAlert },
@@ -131,7 +127,6 @@ const LayoutModern = ({ children }) => {
         { path: '/hr/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/hr/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/hr/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
-        { path: '/hr/analytics', label: 'Analytics', icon: Database },
         { path: '/hr/employees', label: 'Employees', icon: Users },
         { path: '/hr/staff', label: 'Staff', icon: User },
         { path: '/hr/leave-requests', label: 'Leave Requests', icon: Clock },
@@ -144,7 +139,6 @@ const LayoutModern = ({ children }) => {
         { path: '/finance/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/finance/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/finance/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
-        { path: '/finance/analytics', label: 'Analytics', icon: Database },
         { path: '/finance/payments', label: 'Payments', icon: DollarSign },
         { path: '/finance/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/finance/user-info', label: 'User Info', icon: FileText },
@@ -609,25 +603,25 @@ const LayoutModern = ({ children }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="bg-card/80 backdrop-blur-xl border-b border-border px-4 md:px-6 py-4 sticky top-0 z-30 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+        <header className="bg-card/80 backdrop-blur-xl border-b border-border px-3 sm:px-4 md:px-6 py-3 sm:py-4 sticky top-0 z-30 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden h-10 w-10 hover:bg-muted rounded-lg"
+                className="md:hidden h-9 w-9 shrink-0 hover:bg-muted rounded-lg"
                 onClick={() => setMobileMenuOpen(true)}
               >
                 <Menu className="h-5 w-5" />
               </Button>
-              <h2 className="text-base sm:text-lg md:text-xl font-bold text-foreground truncate">
+              <h2 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-foreground truncate min-w-0">
                 {navItems.find(item => item.path === currentPath)?.label || 'Dashboard'}
               </h2>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <ThemeSwitcher className="hidden sm:block" />
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold text-foreground">
+              <div className="text-right hidden sm:block min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate max-w-[120px] md:max-w-[180px]">
                   {user?.first_name} {user?.last_name}
                 </p>
                 <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>

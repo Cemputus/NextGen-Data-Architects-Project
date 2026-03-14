@@ -55,7 +55,17 @@ const GlobalFilterPanel = ({
   const [searchTerm, setSearchTerm] = useState(savedSearch);
   const [loading, setLoading] = useState(false);
 
-  // Load filter options with current filter values for syncing
+  const emptyOptions = {
+    faculties: [],
+    departments: [],
+    programs: [],
+    courses: [],
+    semesters: [],
+    high_schools: [],
+    intake_years: [],
+  };
+
+  // Load filter options with current filter values for cascading (faculties -> departments -> programs -> courses)
   const loadFilterOptions = async (currentFilters = {}) => {
     setLoading(true);
     try {
@@ -63,14 +73,34 @@ const GlobalFilterPanel = ({
       if (currentFilters.faculty_id) params.faculty_id = currentFilters.faculty_id;
       if (currentFilters.department_id) params.department_id = currentFilters.department_id;
       if (currentFilters.program_id) params.program_id = currentFilters.program_id;
-      
+
       const res = await axios.get('/api/analytics/filter-options', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params
+        params,
       });
-      setFilterOptions(res.data);
+      const data = res?.data || {};
+      setFilterOptions({
+        faculties: Array.isArray(data.faculties) ? data.faculties : emptyOptions.faculties,
+        departments: Array.isArray(data.departments) ? data.departments : emptyOptions.departments,
+        programs: Array.isArray(data.programs) ? data.programs : emptyOptions.programs,
+        courses: Array.isArray(data.courses) ? data.courses : emptyOptions.courses,
+        semesters: Array.isArray(data.semesters) ? data.semesters : emptyOptions.semesters,
+        high_schools: Array.isArray(data.high_schools) ? data.high_schools : emptyOptions.high_schools,
+        intake_years: Array.isArray(data.intake_years) ? data.intake_years : emptyOptions.intake_years,
+      });
     } catch (err) {
       console.error('Error loading filter options:', err);
+      setFilterOptions((prev) => ({
+        ...emptyOptions,
+        ...prev,
+        faculties: Array.isArray(prev?.faculties) ? prev.faculties : [],
+        departments: Array.isArray(prev?.departments) ? prev.departments : [],
+        programs: Array.isArray(prev?.programs) ? prev.programs : [],
+        courses: Array.isArray(prev?.courses) ? prev.courses : [],
+        semesters: Array.isArray(prev?.semesters) ? prev.semesters : [],
+        high_schools: Array.isArray(prev?.high_schools) ? prev.high_schools : [],
+        intake_years: Array.isArray(prev?.intake_years) ? prev.intake_years : [],
+      }));
     } finally {
       setLoading(false);
     }

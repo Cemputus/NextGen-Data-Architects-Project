@@ -106,10 +106,10 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-3 sm:space-y-4 min-w-0">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         {/* Student Distribution by Department */}
-        <Card className="border shadow-sm">
+        <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-blue-700">Student Distribution by Department</CardTitle>
             <CardDescription className="text-xs">
@@ -118,7 +118,7 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
+            <div className="chart-container min-h-[200px] max-h-[300px] w-full min-w-0" data-chart-container="true">
               <SciBarChart
                 data={chartData.departments}
                 xDataKey="name"
@@ -134,7 +134,7 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
         </Card>
 
         {/* Trend Analysis of Grades Over Time */}
-        <Card className="border shadow-sm">
+        <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-purple-700">Trend Analysis of Grades Over Time</CardTitle>
             <CardDescription className="text-xs">
@@ -143,7 +143,7 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
+            <div className="chart-container min-h-[200px] max-h-[300px] w-full min-w-0" data-chart-container="true">
               <SciLineChart
                 data={chartData.gradesOverTime}
                 xDataKey="period"
@@ -162,13 +162,13 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         {/* Payment Status Distribution */}
-        <Card className="border shadow-sm">
+        <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-green-700">Payment Status Distribution</CardTitle>
             <CardDescription className="text-xs">Payment status breakdown {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
+            <div className="chart-container min-h-[200px] max-h-[300px] w-full min-w-0" data-chart-container="true">
               <SciStackedColumnChart
                 data={chartData.paymentStatus}
                 xDataKey="name"
@@ -185,13 +185,13 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
         </Card>
 
         {/* Grade Distribution */}
-        <Card className="border shadow-sm">
+        <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-orange-700">Grade Distribution</CardTitle>
             <CardDescription className="text-xs">Distribution of letter grades {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
+            <div className="chart-container min-h-[200px] max-h-[300px] w-full min-w-0" data-chart-container="true">
               <SciStackedColumnChart
                 data={chartData.gradeDistribution}
                 xDataKey="name"
@@ -210,13 +210,13 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         {/* Top Students */}
-        <Card className="border shadow-sm">
+        <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-red-700">Top 10 Students</CardTitle>
             <CardDescription className="text-xs">Highest performing students {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
+            <div className="chart-container min-h-[200px] max-h-[300px] w-full min-w-0" data-chart-container="true">
               <SciBarChart
                 data={chartData.topStudents}
                 xDataKey="name"
@@ -232,13 +232,13 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
         </Card>
 
         {/* Attendance Trends */}
-        <Card className="border shadow-sm">
+        <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-yellow-700">Attendance Trends</CardTitle>
             <CardDescription className="text-xs">Attendance over time {Object.keys(filters).length > 0 && '(Filtered)'}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="min-h-[200px] max-h-[300px] w-full" data-chart-container="true">
+            <div className="chart-container min-h-[200px] max-h-[300px] w-full min-w-0" data-chart-container="true">
               <SciAreaChart
                 data={chartData.attendance}
                 xDataKey="period"

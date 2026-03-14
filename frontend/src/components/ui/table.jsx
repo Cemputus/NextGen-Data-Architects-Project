@@ -5,7 +5,7 @@ import * as React from 'react';
 import { cn } from '../../lib/utils';
 
 const TableWrapper = ({ children, className, ...props }) => (
-  <div className={cn('overflow-x-auto rounded-lg border border-border', className)} {...props}>
+  <div className={cn('overflow-x-auto rounded-lg border border-border min-w-0 w-full', className)} {...props}>
     {children}
   </div>
 );
@@ -33,7 +33,7 @@ const TableHead = ({ className, ...props }) => (
 );
 
 const TableCell = ({ className, ...props }) => (
-  <td className={cn('p-3 text-muted-foreground', className)} {...props} />
+  <td className={cn('p-2 sm:p-3 text-muted-foreground break-words-safe', className)} {...props} />
 );
 
 export { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell };

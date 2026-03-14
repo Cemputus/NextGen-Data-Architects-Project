@@ -28,10 +28,11 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
   """
   Ensure that each role in all_roles has a current dashboard assigned.
   If no dashboards exist at all, create a single default analytics dashboard
-  and assign it to all roles as their current dashboard.
+  and assign it to all roles. If dashboards exist but some roles have no
+  current assignment, assign the first active dashboard to those roles.
   """
   total_dashboards = conn.execute(
-    text("SELECT COUNT(*) AS c FROM dashboards")
+    text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active = 1")
   ).scalar() or 0
 
   default_dashboard_id = None
@@ -86,7 +87,16 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
         {"dashboard_id": default_dashboard_id, "role_name": rname},
       )
 
-  if default_dashboard_id is not None:
+  # Resolve dashboard to assign: use newly created default, or first active dashboard
+  dashboard_to_assign = default_dashboard_id
+  if dashboard_to_assign is None and total_dashboards > 0:
+    row = conn.execute(
+      text("SELECT id FROM dashboards WHERE is_active = 1 ORDER BY created_at ASC LIMIT 1")
+    ).fetchone()
+    if row:
+      dashboard_to_assign = row[0]
+
+  if dashboard_to_assign is not None:
     for rname in all_roles:
       exists = conn.execute(
         text(
@@ -103,15 +113,18 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
             """
             INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username)
             VALUES (:role_name, :dashboard_id, :updated_by_username)
-            ON CONFLICT (role_name) DO NOTHING
+            ON CONFLICT (role_name) DO UPDATE SET
+              dashboard_id = EXCLUDED.dashboard_id,
+              updated_by_username = EXCLUDED.updated_by_username
             """
           ),
           {
             "role_name": rname,
-            "dashboard_id": default_dashboard_id,
+            "dashboard_id": dashboard_to_assign,
             "updated_by_username": updated_by_username or "system",
           },
         )
+    conn.commit()
 
 
 def _ensure_dashboard_tables(engine):
@@ -215,8 +228,13 @@ def _current_user():
   return username, role
 
 
+def _is_analyst_or_admin(role: str):
+  """Allow analyst, sysadmin, or admin (some clients send 'admin')."""
+  return (role or "").strip().lower() in ("analyst", "sysadmin", "admin")
+
+
 def _require_analyst_or_sysadmin(role: str):
-  if role not in ("analyst", "sysadmin"):
+  if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can manage dashboards."}), 403
   return None
 
@@ -326,10 +344,17 @@ def get_current_dashboards():
   Only analyst/sysadmin can read this view.
   """
   username, role = _current_user()
-  if role not in ("analyst", "sysadmin"):
+  if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can view dashboard manager."}), 403
 
   all_roles = ["student", "staff", "hod", "dean", "senate", "finance", "hr", "analyst", "sysadmin"]
+
+  def _safe_payload(roles_list):
+    out = [{"role": rname, "dashboard": None, "pointer_updated_at": None, "pointer_updated_by_username": None} for rname in roles_list]
+    if role == "analyst":
+      out = [x for x in out if x.get("role") != "sysadmin"]
+    return out
+
   engine = None
   try:
     engine = _get_engine()
@@ -401,7 +426,8 @@ def get_current_dashboards():
   except Exception as e:
     if engine is not None:
       engine.dispose()
-    return jsonify({"error": str(e)}), 500
+    # Return 200 with one card per role (no dashboard) so Current Dashboards section is never empty
+    return jsonify({"roles": _safe_payload(all_roles), "error": str(e)}), 200
 
 
 @dashboard_manager_bp.route("/custom", methods=["GET"])
@@ -417,7 +443,7 @@ def get_custom_dashboards():
   - created_by: 'me' to limit to dashboards created by current analyst
   """
   username, role = _current_user()
-  if role not in ("analyst", "sysadmin"):
+  if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can view dashboard manager."}), 403
 
   filter_role = (request.args.get("role") or "").strip().lower()
@@ -486,7 +512,7 @@ def swap_dashboard():
   - Operation is atomic: updates role_current_dashboard.
   """
   username, role = _current_user()
-  if role not in ("analyst", "sysadmin"):
+  if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can swap dashboards."}), 403
 
   data = request.get_json(silent=True) or {}
@@ -548,7 +574,7 @@ def remove_current_dashboard():
   Body: { "role": "<role_name>" }. Only analyst/sysadmin.
   """
   username, role = _current_user()
-  if role not in ("analyst", "sysadmin"):
+  if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can remove current dashboard."}), 403
 
   data = request.get_json(silent=True) or {}
@@ -895,7 +921,7 @@ PAGE_KEYS = [
 def list_page_configs():
   """List all page configs (keys + definition). Analyst or Sysadmin only."""
   username, role = _current_user()
-  if role not in ("analyst", "sysadmin"):
+  if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can list page configs."}), 403
   engine = None
   try:
@@ -975,7 +1001,7 @@ def get_page_config(page_key):
 def update_page_config(page_key):
   """Create or update page config. Analyst or Sysadmin only."""
   username, role = _current_user()
-  if role not in ("analyst", "sysadmin"):
+  if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can edit page configs."}), 403
   page_key = (page_key or "").strip().lower()
   if not page_key or page_key not in PAGE_KEYS:
@@ -1014,7 +1040,7 @@ def update_page_config(page_key):
 def delete_page_config(page_key):
   """Delete (reset) a page config so the page uses defaults. Analyst or Sysadmin only."""
   username, role = _current_user()
-  if role not in ("analyst", "sysadmin"):
+  if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can delete page configs."}), 403
   page_key = (page_key or "").strip().lower()
   if not page_key or page_key not in PAGE_KEYS:
