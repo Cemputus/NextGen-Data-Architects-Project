@@ -6,7 +6,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Editor } from '@monaco-editor/react';
-import { Database, Play, Trash2, History, Loader2, BarChart3, LineChart, PieChart, AreaChart, Download, AlertTriangle, RefreshCw, Share2, Settings2 } from 'lucide-react';
+import { Database, Play, Trash2, History, Loader2, BarChart3, LineChart, PieChart, AreaChart, Download, AlertTriangle, RefreshCw, Share2, Settings2, Edit3, Save } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader, PageContent } from '../components/ui/page-header';
@@ -76,6 +76,11 @@ const NextGenQueryPage = () => {
   const [manageAssignedLoading, setManageAssignedLoading] = useState(false);
   const [manageAssignedError, setManageAssignedError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveTitle, setSaveTitle] = useState('');
+  const [saveSaving, setSaveSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const columns = result?.columns || [];
   const rows = result?.rows || [];
@@ -218,6 +223,62 @@ const NextGenQueryPage = () => {
       })
       .catch(() => setTargetOptions({ roles: [], users: [] }))
       .finally(() => setTargetOptionsLoading(false));
+  };
+
+  const openSaveModal = () => {
+    setSaveError('');
+    setSaveModalOpen(true);
+    const suggested = [yColumn, xColumn].filter(Boolean).length === 2 ? `${yColumn} by ${xColumn}` : '';
+    if (!saveTitle.trim()) setSaveTitle(suggested);
+  };
+
+  const handleSaveChart = async () => {
+    const title = saveTitle.trim();
+    if (!title) {
+      setSaveError('Enter a title for this chart.');
+      return;
+    }
+    if (!query.trim()) {
+      setSaveError('Run a query first.');
+      return;
+    }
+    setSaveSaving(true);
+    setSaveError('');
+    try {
+      const resultSnapshot = result
+        ? { columns: result.columns, rows: (result.rows || []).slice(0, 200), row_count: result.row_count }
+        : null;
+      const res = await axios.post(
+        '/api/query/assigned-visualizations',
+        {
+          title,
+          targetType: 'dashboard',
+          targetValue: '',
+          query,
+          chartType,
+          xColumn,
+          yColumn,
+          resultSnapshot,
+        },
+        {
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
+          timeout: 30000,
+        }
+      );
+      setSaveModalOpen(false);
+      setSaveTitle('');
+      const displayTitle = res?.data?.title || title;
+      addToast(`Chart Saved: ${displayTitle}`, 'success');
+    } catch (err) {
+      setSaveError(
+        err.response?.data?.error ||
+          err.code === 'ECONNABORTED'
+            ? 'Request timed out. Try again.'
+            : err.message || 'Failed to save chart.'
+      );
+    } finally {
+      setSaveSaving(false);
+    }
   };
 
   const openManageAssigned = () => {
@@ -577,6 +638,12 @@ const NextGenQueryPage = () => {
           </div>
         }
       />
+      {editingVizId && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-800 dark:text-amber-200 mb-4 flex items-center gap-2">
+          <Edit3 className="h-4 w-4 shrink-0" />
+          <span><strong>Editing shared chart.</strong> Run your SQL, then click <strong>Assign to role or user</strong> and choose <strong>Update chart</strong> to replace the shared visualization with your new query and results.</span>
+        </div>
+      )}
       {assignSuccessBanner && (
         <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/40 px-4 py-3 text-sm text-green-800 dark:text-green-200 flex items-center justify-between gap-4 mb-4">
           <span>{assignSuccessBanner}</span>
@@ -896,8 +963,20 @@ const NextGenQueryPage = () => {
                 size="sm"
                 className="gap-1 text-xs"
                 disabled={!result || !rows.length || !xColumn || !yColumn}
+                onClick={openSaveModal}
+                title="Save chart for use in dashboards (not shared with users)"
+              >
+                <Save className="h-3.5 w-3.5" />
+                Save chart
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1 text-xs"
+                disabled={!result || !rows.length || !xColumn || !yColumn}
                 onClick={openAssignModal}
-                title="Assign this visualization to a role or user"
+                title="Share this visualization with a role or user"
               >
                 <Share2 className="h-3.5 w-3.5" />
                 Assign to role or user
@@ -1131,9 +1210,45 @@ const NextGenQueryPage = () => {
           <Button variant="secondary" onClick={() => !assignSaving && setAssignModalOpen(false)} disabled={assignSaving}>
             Cancel
           </Button>
-          <Button onClick={handleAssignSubmit} disabled={assignSaving || !assignTitle.trim() || !assignTargetValue.trim()}>
+          <Button onClick={handleAssignSubmit} disabled={assignSaving || !assignTitle.trim() || (!editingVizId && !assignTargetValue.trim())}>
             {assignSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Share2 className="h-4 w-4 mr-2" />}
             {editingVizId ? 'Update chart' : 'Assign visualization'}
+          </Button>
+        </ModalFooter>
+      </Modal>
+
+      <Modal open={saveModalOpen} onClose={() => !saveSaving && setSaveModalOpen(false)} className="max-w-md">
+        <ModalHeader onClose={() => !saveSaving && setSaveModalOpen(false)}>
+          Save chart
+        </ModalHeader>
+        <ModalBody className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Save this chart for use in dashboards only. It will appear under <strong>Saved Charts</strong> in Manage Charts and can be pinned in Dashboard Manager. It is not shared with any user or role until you use &quot;Assign to role or user&quot;.
+          </p>
+          <div>
+            <label htmlFor="save-viz-title" className="block text-sm font-medium mb-1.5">Title</label>
+            <Input
+              id="save-viz-title"
+              value={saveTitle}
+              onChange={(e) => setSaveTitle(e.target.value)}
+              placeholder="e.g. Program performance by department"
+              className="w-full"
+            />
+          </div>
+          {saveError && (
+            <p className="text-sm text-destructive flex items-center gap-1.5" role="alert">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {saveError}
+            </p>
+          )}
+        </ModalBody>
+        <ModalFooter className="shrink-0 gap-2">
+          <Button variant="secondary" onClick={() => !saveSaving && setSaveModalOpen(false)} disabled={saveSaving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSaveChart} disabled={saveSaving || !saveTitle.trim()}>
+            {saveSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+            Save chart
           </Button>
         </ModalFooter>
       </Modal>

@@ -50,7 +50,7 @@ export default function ManagedSharedChartsPage() {
   const loadSaved = () => {
     setLoadingSaved(true);
     axios
-      .get('/api/query/assigned-visualizations?created_by=me', auth())
+      .get('/api/query/assigned-visualizations/saved', auth())
       .then((r) => setSavedList(r.data?.visualizations || []))
       .catch((e) => setError(e.response?.data?.error || 'Failed to load saved charts.'))
       .finally(() => setLoadingSaved(false));
@@ -103,11 +103,11 @@ export default function ManagedSharedChartsPage() {
       state: {
         editViz: {
           id: viz.id,
-          queryText: viz.queryText,
-          chartType: viz.chartType,
-          xColumn: viz.xColumn,
-          yColumn: viz.yColumn,
-          title: viz.title,
+          queryText: viz.queryText ?? viz.query_text ?? '',
+          chartType: viz.chartType ?? viz.chart_type ?? 'bar',
+          xColumn: viz.xColumn ?? viz.x_column ?? '',
+          yColumn: viz.yColumn ?? viz.y_column ?? '',
+          title: viz.title ?? '',
         },
       },
     });
@@ -130,7 +130,9 @@ export default function ManagedSharedChartsPage() {
   const filteredShared = useMemo(() => filterList(sharedList, filterTerm), [sharedList, filterTerm]);
   const loading = loadingSaved || loadingShared;
 
-  const renderChartCard = (viz, showSharedActions = true) => (
+  const isSavedOnly = (v) => (v.targetType || '').toLowerCase() === 'dashboard' || !(v.targetType || '').trim();
+
+  const renderChartCard = (viz, showSharedActions = true, isSavedSection = false) => (
     <div key={viz.id} className="border rounded-lg overflow-hidden bg-card flex flex-col">
       <div className="p-3 border-b bg-muted/30 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
@@ -142,16 +144,18 @@ export default function ManagedSharedChartsPage() {
           )}
         </div>
         <span className="text-xs text-muted-foreground shrink-0">
-          {viz.updatedAt || viz.createdAt} · {viz.targetType}: {viz.targetValue}
+          {viz.updatedAt || viz.createdAt}
+          {isSavedSection ? ' · For dashboards only' : ` · ${viz.targetType}: ${viz.targetValue}`}
         </span>
         <div className="flex items-center gap-2 shrink-0">
-          {showSharedActions && viz.queryText != null && (
+          {showSharedActions && (
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="gap-1 h-8 text-xs"
               onClick={() => handleEdit(viz)}
+              title="Edit in NextGen Query and update this chart"
             >
               <Edit3 className="h-3 w-3" /> Edit
             </Button>
@@ -167,7 +171,7 @@ export default function ManagedSharedChartsPage() {
               <Trash2 className="h-3 w-3" /> Delete
             </Button>
           )}
-          {showSharedActions && (
+          {showSharedActions && !isSavedOnly(viz) && (
             <Button
               type="button"
               variant="outline"
@@ -232,7 +236,7 @@ export default function ManagedSharedChartsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Manage Charts"
-        description="Saved Charts: all charts you've created from NextGen Query. Shared: those actively shared with roles or users. Filter, edit in SQL, manage feedback, or unshare (delete)."
+        description="Saved Charts: charts saved for dashboards only (not shared with anyone). Manage Charts | Shared: charts you have shared with a role or user. No chart appears in both sections."
       />
 
       {error && (
@@ -259,30 +263,30 @@ export default function ManagedSharedChartsPage() {
         </div>
       ) : (
         <>
-          {/* Saved Charts — all created by you */}
+          {/* Saved Charts — dashboard-only, not shared with any user/role */}
           <section className="space-y-3">
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
               Saved Charts
             </h2>
             <p className="text-xs text-muted-foreground">
-              All charts you have created and saved from NextGen Query. Pin them into dashboards via Analyst → Dashboards → Edit content.
+              Charts saved for dashboards only. They are not shared with any user or role. Use NextGen Query → Save chart to add here; pin into dashboards via Analyst → Dashboards → Edit content.
             </p>
             {filteredSaved.length === 0 ? (
               <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-6 text-center">
                 <BarChart3 className="h-8 w-8 mx-auto text-muted-foreground/60 mb-2" />
                 <p className="text-sm font-medium text-foreground">
-                  {savedList.length === 0 ? 'No saved charts yet' : 'No matches for this filter'}
+                  {savedList.length === 0 ? 'No saved charts' : 'No matches for this filter'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {savedList.length === 0
-                    ? 'Create and assign a visualization in NextGen Query to see it here.'
+                    ? 'In NextGen Query, run a query and click Save chart to add one here.'
                     : 'Try a different filter term.'}
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {filteredSaved.map((viz) => renderChartCard(viz, true))}
+                {filteredSaved.map((viz) => renderChartCard(viz, true, true))}
               </div>
             )}
           </section>

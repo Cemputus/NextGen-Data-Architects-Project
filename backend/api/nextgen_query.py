@@ -315,10 +315,12 @@ def create_assigned_visualization():
 
         if not title:
             return jsonify({"error": "Title is required."}), 400
-        if target_type not in ("role", "user"):
-            return jsonify({"error": "Target must be 'role' or 'user'."}), 400
-        if not target_value:
-            return jsonify({"error": "Target value is required (role name or username)."}), 400
+        if target_type not in ("role", "user", "dashboard"):
+            return jsonify({"error": "Target must be 'role', 'user', or 'dashboard' (save for dashboards only)."}), 400
+        if target_type in ("role", "user") and not target_value:
+            return jsonify({"error": "Target value is required (role name or username) when sharing."}), 400
+        if target_type == "dashboard":
+            target_value = ""
         if not query_text:
             return jsonify({"error": "Query text is required."}), 400
 
@@ -373,6 +375,8 @@ def create_assigned_visualization():
                     pass
             return jsonify({"error": str(e)}), 500
 
+        if target_type == "dashboard":
+            return jsonify({"id": vid, "message": "Chart saved.", "title": title}), 201
         return jsonify({"id": vid, "message": "Visualization assigned successfully."}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -557,6 +561,64 @@ def get_assigned_visualizations_for_me():
             item["isReshared"] = False
             item["originalCreatorUsername"] = r["created_by_username"]
         out.append(item)
+    return jsonify({"visualizations": out}), 200
+
+
+@nextgen_query_bp.route("/assigned-visualizations/saved", methods=["GET"])
+@jwt_required()
+def list_saved_visualizations():
+    """List visualizations saved for dashboards only (not shared with any role/user). Created by current user, target_type='dashboard'."""
+    username, role = _current_user()
+    err = _require_analyst_or_sysadmin(role)
+    if err is not None:
+        return err
+    engine = _get_rbac_engine()
+    _ensure_assigned_viz_table(engine)
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text(
+                    """
+                    SELECT id, created_by_username, created_at, title, description, tags, updated_at,
+                           target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot
+                    FROM assigned_query_visualizations
+                    WHERE created_by_username = :username AND LOWER(TRIM(COALESCE(target_type, ''))) = 'dashboard'
+                    ORDER BY COALESCE(updated_at, created_at) DESC
+                    """
+                ),
+                {"username": username},
+            )
+            rows = result.mappings().fetchall()
+        engine.dispose()
+    except Exception as e:
+        if engine:
+            engine.dispose()
+        return jsonify({"error": str(e), "visualizations": []}), 500
+    out = []
+    for r in rows:
+        updated_at = r.get("updated_at") or r["created_at"]
+        snap = r.get("result_snapshot")
+        if isinstance(snap, str):
+            try:
+                snap = json.loads(snap)
+            except Exception:
+                snap = None
+        out.append({
+            "id": r["id"],
+            "createdByUsername": r["created_by_username"],
+            "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+            "updatedAt": updated_at.isoformat() if hasattr(updated_at, "isoformat") else str(updated_at),
+            "title": r["title"],
+            "description": r.get("description"),
+            "tags": r.get("tags"),
+            "targetType": r["target_type"],
+            "targetValue": r.get("target_value") or "",
+            "chartType": r.get("chart_type") or "bar",
+            "xColumn": r.get("x_column"),
+            "yColumn": r.get("y_column"),
+            "queryText": r.get("query_text"),
+            "resultSnapshot": snap,
+        })
     return jsonify({"visualizations": out}), 200
 
 
@@ -979,7 +1041,8 @@ def get_my_shared_visualizations():
                            target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot,
                            parent_viz_id, reshared_by_username, reshare_description, original_creator_username
                     FROM assigned_query_visualizations
-                    WHERE created_by_username = :username OR reshared_by_username = :username
+                    WHERE (created_by_username = :username OR reshared_by_username = :username)
+                      AND LOWER(TRIM(COALESCE(target_type, ''))) IN ('role', 'user')
                     ORDER BY COALESCE(updated_at, created_at) DESC
                     """
                 ),
