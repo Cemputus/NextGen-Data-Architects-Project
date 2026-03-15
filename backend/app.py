@@ -258,9 +258,9 @@ except Exception as e:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
-# Security: short-lived access tokens (15 min), refresh tokens last 8 hours (one working day).
-# The frontend will silently refresh the access token before it expires using /api/auth/refresh.
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=15)
+# Security: access token 25 minutes (per product requirement), refresh tokens 8 hours.
+# Frontend should refresh the access token before it expires via /api/auth/refresh.
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=25)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=8)
 
 # CORS: allow frontend (localhost:3000) to call backend (localhost:5000); preflight must get 2xx + headers
@@ -406,7 +406,7 @@ def admin_list_users():
             rbac_engine = create_engine(RBAC_CONN_STRING)
             _ensure_app_users_table(rbac_engine)
             app_df = pd.read_sql_query(
-                "SELECT id, username, role, full_name, faculty_id, department_id FROM app_users",
+                "SELECT id, username, role, full_name, faculty_id, department_id, created_by_username FROM app_users",
                 rbac_engine
             )
             rbac_engine.dispose()
@@ -429,6 +429,7 @@ def admin_list_users():
                     'type': 'app_user',
                     'faculty_id': int(row['faculty_id']) if pd.notna(row['faculty_id']) else None,
                     'department_id': int(row['department_id']) if pd.notna(row['department_id']) else None,
+                    'created_by_username': str(row['created_by_username']) if pd.notna(row.get('created_by_username')) else None,
                 })
         except Exception as e:
             warning = str(e)
@@ -581,14 +582,14 @@ def admin_get_user(user_type, user_id):
         try:
             uid_int = int(user_id)
             df = pd.read_sql_query(
-                text("SELECT id, username, role, full_name, faculty_id, department_id FROM app_users WHERE id = :uid"),
+                text("SELECT id, username, role, full_name, faculty_id, department_id, created_by_username FROM app_users WHERE id = :uid"),
                 rbac_engine, params={'uid': uid_int}
             )
         except (ValueError, TypeError):
             df = pd.DataFrame()
         if df.empty and str(user_id).strip():
             df = pd.read_sql_query(
-                text("SELECT id, username, role, full_name, faculty_id, department_id FROM app_users WHERE LOWER(username) = :uname"),
+                text("SELECT id, username, role, full_name, faculty_id, department_id, created_by_username FROM app_users WHERE LOWER(username) = :uname"),
                 rbac_engine, params={'uname': str(user_id).strip().lower()}
             )
         rbac_engine.dispose()
@@ -606,6 +607,7 @@ def admin_get_user(user_type, user_id):
             'type': 'app_user',
             'faculty_id': int(row['faculty_id']) if pd.notna(row['faculty_id']) else None,
             'department_id': int(row['department_id']) if pd.notna(row['department_id']) else None,
+            'created_by_username': str(row['created_by_username']) if pd.notna(row.get('created_by_username')) else None,
         }
         # Resolve faculty/department names
         try:
@@ -895,10 +897,11 @@ def admin_create_user():
                 # If this fails, Postgres will still enforce PK; we just skip realign.
                 pass
 
+            creator = (get_jwt().get('username') or '').strip() or None
             r = conn.execute(
                 text("""
-                    INSERT INTO app_users (username, password_hash, role, full_name, faculty_id, department_id)
-                    VALUES (:username, :password_hash, :role, :full_name, :faculty_id, :department_id)
+                    INSERT INTO app_users (username, password_hash, role, full_name, faculty_id, department_id, created_by_username)
+                    VALUES (:username, :password_hash, :role, :full_name, :faculty_id, :department_id, :created_by_username)
                     RETURNING id
                 """),
                 {
@@ -908,6 +911,7 @@ def admin_create_user():
                     'full_name': full_name,
                     'faculty_id': faculty_id,
                     'department_id': department_id,
+                    'created_by_username': creator,
                 },
             )
             row = r.fetchone()

@@ -1,18 +1,10 @@
 /**
- * Frontend RBAC utilities
+ * Frontend RBAC utilities (Phase 1: uses central config for roles and default route).
  */
+import { ROLES, getDefaultRoute } from '../config';
+
 export const rbac = {
-  roles: {
-    SENATE: 'senate',
-    SYSADMIN: 'sysadmin',
-    ANALYST: 'analyst',
-    STUDENT: 'student',
-    STAFF: 'staff',
-    DEAN: 'dean',
-    HOD: 'hod',
-    HR: 'hr',
-    FINANCE: 'finance',
-  },
+  roles: ROLES,
 
   canAccess: (userRole, resource, permission = 'read') => {
     // Simplified frontend check - full validation on backend
@@ -31,22 +23,5 @@ export const rbac = {
     return permissions[userRole]?.includes(resource) || false;
   },
 
-  getDefaultRoute: (role) => {
-    const routes = {
-      senate: '/senate/dashboard',
-      sysadmin: '/admin/dashboard',
-      admin: '/admin/dashboard',
-      analyst: '/analyst/dashboard',
-      student: '/student/dashboard',
-      staff: '/staff/dashboard',
-      dean: '/dean/dashboard',
-      hod: '/hod/dashboard',
-      hr: '/hr/dashboard',
-      finance: '/finance/dashboard',
-    };
-    const key = (role || '').toString().toLowerCase();
-    return routes[key] || '/dashboard';
-  },
+  getDefaultRoute,
 };
-
-

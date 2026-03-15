@@ -196,6 +196,12 @@ def _ensure_app_users_table(engine):
                 )
             """))
             conn.commit()
+            # Add created_by_username for audit (who created this app user)
+            try:
+                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS created_by_username VARCHAR(100)"))
+                conn.commit()
+            except Exception:
+                pass
     except Exception:
         pass
 

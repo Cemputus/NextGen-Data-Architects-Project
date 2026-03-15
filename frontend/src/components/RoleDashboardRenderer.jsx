@@ -6,16 +6,7 @@ import { KPICard } from './ui/kpi-card';
 import RoleBasedCharts from './RoleBasedCharts';
 import { Loader2 } from 'lucide-react';
 import { VizCard } from './AssignedViewsSection';
-
-const KPI_DEFINITIONS = [
-  { key: 'total_students', label: 'Total Students', subtitle: 'Scoped by applied filters', valuePath: 'total_students' },
-  { key: 'avg_grade', label: 'Average Grade', subtitle: 'Completed exams only', valuePath: 'avg_grade' },
-  { key: 'failed_exams', label: 'Failed Exams (FEX)', subtitle: 'Total failed exam records', valuePath: 'failed_exams' },
-  { key: 'missed_exams', label: 'Missed Exams (MEX)', subtitle: 'Total missed exam records', valuePath: 'missed_exams' },
-  { key: 'avg_attendance', label: 'Avg Attendance', subtitle: 'Average total hours attended', valuePath: 'avg_attendance' },
-  { key: 'retention_rate', label: 'Retention Rate', subtitle: 'Active students / total', valuePath: 'retention_rate', isPercent: true },
-  { key: 'graduation_rate', label: 'Graduation Rate', subtitle: 'Graduated / total', valuePath: 'graduation_rate', isPercent: true },
-];
+import { KPI_DEFINITIONS } from '../config';
 
 /**
  * RoleDashboardRenderer

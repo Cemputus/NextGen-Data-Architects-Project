@@ -2,8 +2,8 @@
  * AuthContext — Enterprise-grade session security
  *
  * Security features implemented:
- *  1. Short-lived JWT (15 min) with silent background refresh (every 10 min)
- *  2. Idle/inactivity timeout — auto-logout after 30 minutes of no user activity
+ *  1. Access token (25 min) with silent background refresh (every 10 min)
+ *  2. Idle/inactivity timeout — auto-logout after configured minutes of no user activity
  *  3. Browser-close logout — sessionStorage for the token; localStorage only holds
  *     a non-sensitive flag so the tab-close clears the session automatically.
  *  4. Visibility-change detection — when user returns to tab after a long absence,
@@ -16,8 +16,8 @@ import axios from 'axios';
 const AuthContext = createContext();
 
 // ─── Security Constants ────────────────────────────────────────────────────────
-const IDLE_TIMEOUT_MS   = 30 * 60 * 1000;  // 30 minutes of inactivity → logout
-const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // Refresh token every 10 minutes (before 15-min JWT expires)
+const IDLE_TIMEOUT_MS   = 25 * 60 * 1000;  // fallback; actual timeout is role-based (25 min or 3h)
+const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // Refresh access token every 10 min (before 25-min expiry)
 const ACTIVITY_EVENTS   = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'pointerdown'];
 
 // We store the token in sessionStorage (cleared on tab/browser close) NOT localStorage.
@@ -94,12 +94,12 @@ export const AuthProvider = ({ children }) => {
   const resetIdleTimer = useCallback(() => {
     if (!isLoggedInRef.current) return;
 
-    // Role-based idle timeout:
+    // Role-based idle timeout (product requirement: session at least 25 min):
     // - sysadmin + analyst: 3 hours of inactivity
-    // - all other roles: 15 minutes of inactivity
+    // - all other roles: 25 minutes of inactivity (aligned with access token expiry)
     const role = (currentRoleRef.current || '').toString().toLowerCase();
     const isLongLived = role === 'sysadmin' || role === 'analyst';
-    const timeoutMs = isLongLived ? 3 * 60 * 60 * 1000 : 15 * 60 * 1000;
+    const timeoutMs = isLongLived ? 3 * 60 * 60 * 1000 : 25 * 60 * 1000;
 
     clearTimeout(idleTimerRef.current);
     clearTimeout(warningTimerRef.current);

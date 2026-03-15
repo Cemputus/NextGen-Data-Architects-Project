@@ -13,7 +13,7 @@ import { PageHeader, PageContent } from '../components/ui/page-header';
 import { Select } from '../components/ui/select';
 import { Input } from '../components/ui/input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
-import { SciBarChart, SciLineChart, SciAreaChart, SciDonutChart } from '../components/charts/EChartsComponents';
+import { SciBarChart, SciLineChart, SciAreaChart, SciDonutChart, SciStackedColumnChart } from '../components/charts/EChartsComponents';
 import { useTheme } from '../context/ThemeContext';
 import { usePersistentToast } from '../context/PersistentToastContext';
 import { usePersistedState } from '../hooks/usePersistedState';
@@ -587,10 +587,11 @@ const NextGenQueryPage = () => {
     link.remove();
   };
 
+  // Single shape { category, value } used by all chart types: Bar, Line, Area, Pie/Donut, Stacked bar.
+  // category = xColumn (label/category axis), value = yColumn (numeric). All ECharts components consume this.
   const chartData = useMemo(() => {
     if (!result || !rows.length || !xColumn || !yColumn) return [];
 
-    // Build data for charts and defensively filter out bad values
     const mapped = rows.map((row, index) => {
       const rawVal = row[yColumn];
       const numVal = Number(rawVal);
@@ -663,7 +664,7 @@ const NextGenQueryPage = () => {
               To pin visualizations into role dashboards: Analyst → Dashboards → Edit content → NextGen Query visualizations.
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="outline"
@@ -926,12 +927,13 @@ const NextGenQueryPage = () => {
               <Select
                 value={chartType}
                 onChange={(e) => setChartType(e.target.value)}
-                className="h-8 w-28 text-xs border border-input rounded-md bg-background"
+                className="h-8 min-w-[140px] text-xs border border-input rounded-md bg-background"
               >
                 <option value="bar">Bar</option>
                 <option value="line">Line</option>
                 <option value="area">Area</option>
-                <option value="pie">Pie</option>
+                <option value="pie">Pie / Donut</option>
+                <option value="stacked">Stacked bar</option>
               </Select>
               <Select
                 value={xColumn || ''}
@@ -1037,6 +1039,24 @@ const NextGenQueryPage = () => {
                     title={`${yColumn} by ${xColumn}`}
                   />
                 )}
+                {chartType === 'stacked' && (
+                  <SciStackedColumnChart
+                    data={chartData}
+                    xDataKey="category"
+                    yDataKey="value"
+                    xAxisLabel={xColumn}
+                    yAxisLabel={yColumn}
+                  />
+                )}
+                {!['bar', 'line', 'area', 'pie', 'stacked'].includes(chartType) && (
+                  <SciBarChart
+                    data={chartData}
+                    xDataKey="category"
+                    yDataKey="value"
+                    xAxisLabel={xColumn}
+                    yAxisLabel={yColumn}
+                  />
+                )}
               </div>
             )}
           </CardContent>
@@ -1059,7 +1079,7 @@ const NextGenQueryPage = () => {
           {result && xColumn && yColumn && (
             <div className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground mb-4 border border-border">
               <span className="font-medium text-foreground">This visualization:</span>{' '}
-              {chartType === 'pie' ? 'Pie' : chartType === 'line' ? 'Line' : chartType === 'area' ? 'Area' : 'Bar'} chart — <span className="font-mono">{yColumn}</span> by <span className="font-mono">{xColumn}</span>
+              {chartType === 'pie' ? 'Pie' : chartType === 'line' ? 'Line' : chartType === 'area' ? 'Area' : chartType === 'stacked' ? 'Stacked bar' : 'Bar'} chart — <span className="font-mono">{yColumn}</span> by <span className="font-mono">{xColumn}</span>
             </div>
           )}
           <div className="space-y-4">
@@ -1222,19 +1242,27 @@ const NextGenQueryPage = () => {
           Save chart
         </ModalHeader>
         <ModalBody className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Save this chart for use in dashboards only. It will appear under <strong>Saved Charts</strong> in Manage Charts and can be pinned in Dashboard Manager. It is not shared with any user or role until you use &quot;Assign to role or user&quot;.
-          </p>
-          <div>
-            <label htmlFor="save-viz-title" className="block text-sm font-medium mb-1.5">Title</label>
-            <Input
-              id="save-viz-title"
-              value={saveTitle}
-              onChange={(e) => setSaveTitle(e.target.value)}
-              placeholder="e.g. Program performance by department"
-              className="w-full"
-            />
-          </div>
+          {!(result && rows.length && xColumn && yColumn) ? (
+            <p className="text-sm text-amber-600 dark:text-amber-400 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2">
+              Run a query and select X and Y columns in the Visualization section below, then open Save chart again.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Save this chart for use in dashboards only. It will appear under <strong>Saved Charts</strong> in Manage Charts and can be pinned in Dashboard Manager. It is not shared with any user or role until you use &quot;Assign to role or user&quot;.
+              </p>
+              <div>
+                <label htmlFor="save-viz-title" className="block text-sm font-medium mb-1.5">Title</label>
+                <Input
+                  id="save-viz-title"
+                  value={saveTitle}
+                  onChange={(e) => setSaveTitle(e.target.value)}
+                  placeholder="e.g. Program performance by department"
+                  className="w-full"
+                />
+              </div>
+            </>
+          )}
           {saveError && (
             <p className="text-sm text-destructive flex items-center gap-1.5" role="alert">
               <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -1246,7 +1274,10 @@ const NextGenQueryPage = () => {
           <Button variant="secondary" onClick={() => !saveSaving && setSaveModalOpen(false)} disabled={saveSaving}>
             Cancel
           </Button>
-          <Button onClick={handleSaveChart} disabled={saveSaving || !saveTitle.trim()}>
+          <Button
+            onClick={handleSaveChart}
+            disabled={saveSaving || !saveTitle.trim() || !result || !rows.length || !xColumn || !yColumn}
+          >
             {saveSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
             Save chart
           </Button>

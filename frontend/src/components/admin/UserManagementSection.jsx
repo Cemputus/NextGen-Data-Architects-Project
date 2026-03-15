@@ -800,6 +800,12 @@ export default function UserManagementSection({
                   <dt className="text-muted-foreground">Type</dt>
                   <dd>{viewUser.type === 'app_user' ? 'App user' : viewUser.type === 'demo' ? 'Demo' : viewUser.type || '—'}</dd>
                 </div>
+                {viewUser.type === 'app_user' && (viewUser.created_by_username != null && viewUser.created_by_username !== '') && (
+                  <div>
+                    <dt className="text-muted-foreground">Created by</dt>
+                    <dd>{viewUser.created_by_username}</dd>
+                  </div>
+                )}
                 {viewUser.type === 'student' && (
                   <>
                     {viewUser.program_name != null && (
@@ -1186,13 +1192,14 @@ export default function UserManagementSection({
                     <TableHead>Year</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Type</TableHead>
+                    <TableHead>Created by</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="p-8 text-center">
+                      <TableCell colSpan={9} className="p-8 text-center">
                         <UserCircle className="h-10 w-10 mx-auto mb-2 opacity-50" aria-hidden />
                         <p className="text-sm text-muted-foreground">No users match your filters.</p>
                       </TableCell>
@@ -1230,6 +1237,9 @@ export default function UserManagementSection({
                         </TableCell>
                         <TableCell>
                           {u.type === 'app_user' ? 'App user' : u.type === 'demo' ? 'Demo' : (u.type || '—')}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs">
+                          {u.type === 'app_user' && (u.created_by_username != null && u.created_by_username !== '') ? u.created_by_username : '—'}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">

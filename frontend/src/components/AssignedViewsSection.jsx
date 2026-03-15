@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { SciBarChart, SciLineChart, SciAreaChart, SciDonutChart } from './charts/EChartsComponents';
+import { SciBarChart, SciLineChart, SciAreaChart, SciDonutChart, SciStackedColumnChart } from './charts/EChartsComponents';
 import { Loader2, BarChart3 } from 'lucide-react';
 
 function buildChartData(snapshot, xColumn, yColumn) {
@@ -26,7 +26,8 @@ export function VizCard({ viz, chartHeight = 220 }) {
     () => buildChartData(snapshot, viz.xColumn, viz.yColumn),
     [snapshot, viz.xColumn, viz.yColumn]
   );
-  const chartType = (viz.chartType || 'bar').toLowerCase();
+  const rawType = (viz.chartType || 'bar').toLowerCase();
+  const chartType = rawType === 'donut' ? 'pie' : rawType;
   const chartContainerStyle = typeof chartHeight === 'number' ? { height: chartHeight } : undefined;
   const chartContainerClass = typeof chartHeight === 'number' ? 'w-full' : 'h-[220px] w-full';
 
@@ -91,7 +92,16 @@ export function VizCard({ viz, chartHeight = 220 }) {
               title={viz.title}
             />
           )}
-          {!['bar', 'line', 'area', 'pie'].includes(chartType) && (
+          {chartType === 'stacked' && (
+            <SciStackedColumnChart
+              data={chartData}
+              xDataKey="category"
+              yDataKey="value"
+              xAxisLabel={viz.xColumn}
+              yAxisLabel={viz.yColumn}
+            />
+          )}
+          {!['bar', 'line', 'area', 'pie', 'stacked'].includes(chartType) && (
             <SciBarChart
               data={chartData}
               xDataKey="category"

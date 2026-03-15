@@ -291,30 +291,30 @@ export default function ManagedSharedChartsPage() {
             )}
           </section>
 
-          {/* Manage Charts | Shared — actively shared with roles/users */}
+          {/* Manage Charts | Shared — shared with a role or user only */}
           <section className="space-y-3">
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
               <Share2 className="h-4 w-4 text-muted-foreground" />
               Manage Charts | Shared
             </h2>
             <p className="text-xs text-muted-foreground">
-              Charts you have shared with roles or users. View feedback, reply, edit in SQL workspace, or unshare (delete).
+              Charts you have shared with a role or user. Recipients see them under &quot;Views shared with you&quot;. View feedback, reply, edit in SQL, or unshare (delete).
             </p>
             {filteredShared.length === 0 ? (
               <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-6 text-center">
                 <Share2 className="h-8 w-8 mx-auto text-muted-foreground/60 mb-2" />
                 <p className="text-sm font-medium text-foreground">
-                  {sharedList.length === 0 ? 'No shared charts yet' : 'No matches for this filter'}
+                  {sharedList.length === 0 ? 'No shared charts' : 'No matches for this filter'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {sharedList.length === 0
-                    ? 'Assign a visualization to a role or user in NextGen Query to see it here.'
+                    ? 'In NextGen Query, use Assign to role or user to share a chart here.'
                     : 'Try a different filter term.'}
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {filteredShared.map((viz) => renderChartCard(viz, true))}
+                {filteredShared.map((viz) => renderChartCard(viz, true, false))}
               </div>
             )}
           </section>

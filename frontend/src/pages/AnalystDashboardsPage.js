@@ -16,85 +16,19 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
 import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2, XCircle } from 'lucide-react';
-
-const KPI_OPTIONS = [
-  'total_students',
-  'avg_grade',
-  'failed_exams',
-  'missed_exams',
-  'avg_attendance',
-  'retention_rate',
-  'graduation_rate',
-];
-
-const CHART_OPTIONS = [
-  'student_distribution',
-  'grades_over_time',
-  'payment_status',
-  'grade_distribution',
-  'top_students',
-  'payment_trends',
-  'attendance_trends',
-];
-
-const ROLE_FILTER_OPTIONS = [
-  'student',
-  'staff',
-  'analyst',
-  'sysadmin',
-  'dean',
-  'hod',
-  'finance',
-  'hr',
-  'senate',
-];
-
-const ALL_ROLES = [
-  'student',
-  'staff',
-  'hod',
-  'dean',
-  'senate',
-  'finance',
-  'hr',
-  'analyst',
-  'sysadmin',
-];
-
-/** Page keys for analytics and role pages that analysts can edit (KPIs/charts). */
-const PAGE_CONFIG_KEYS = [
-  'fex_analytics',
-  'high_school_analytics',
-  'risk_analytics',
-  'analyst_dashboard',
-  'dean_dashboard',
-  'hod_dashboard',
-  'senate_dashboard',
-  'staff_dashboard',
-  'student_dashboard',
-  'finance_dashboard',
-  'hr_dashboard',
-];
-
-const PAGE_CONFIG_LABELS = {
-  fex_analytics: 'FEX Analytics',
-  high_school_analytics: 'High School Analytics',
-  risk_analytics: 'Risk Analytics',
-  analyst_dashboard: 'Analyst Dashboard',
-  dean_dashboard: 'Dean Dashboard',
-  hod_dashboard: 'HoD Dashboard',
-  senate_dashboard: 'Senate Dashboard',
-  staff_dashboard: 'Staff Dashboard',
-  student_dashboard: 'Student Dashboard',
-  finance_dashboard: 'Finance Dashboard',
-  hr_dashboard: 'HR Dashboard',
-};
+import {
+  KPI_OPTIONS,
+  CHART_OPTIONS,
+  PAGE_CONFIG_KEYS,
+  PAGE_CONFIG_LABELS,
+  ROLE_LIST,
+} from '../config';
 
 /** Roles that analysts can assign dashboards to (excludes Admin). Sysadmin sees all roles. */
 const getAssignableRoles = (userRole) => {
   const r = (userRole || '').toString().toLowerCase();
-  if (r === 'analyst') return ALL_ROLES.filter((role) => role !== 'sysadmin');
-  return ALL_ROLES;
+  if (r === 'analyst') return ROLE_LIST.filter((role) => role !== 'sysadmin');
+  return ROLE_LIST;
 };
 
 const AnalystDashboardsPage = () => {
@@ -279,10 +213,9 @@ const AnalystDashboardsPage = () => {
     } catch (err) {
       console.error('Error loading dashboard manager data:', err);
       setApiForbidden(err.response?.status === 403);
-      // Keep Current Dashboards section populated with one card per role even when API fails
       const fallbackRoles = getAssignableRoles(user?.role);
       setCurrentByRole(fallbackRoles.map((r) => ({ role: r, dashboard: null })));
-      setCustomDashboards([]);
+      // Do not clear customDashboards on error so recently created dashboard is not lost
     } finally {
       setLoading(false);
     }
@@ -632,6 +565,7 @@ const AnalystDashboardsPage = () => {
         isChartAllowedForRole(c, primaryRole)
       );
 
+      const token = authToken || sessionStorage.getItem('ucu_session_token');
       const res = await axios.post(
         '/api/dashboards',
         {
@@ -645,16 +579,25 @@ const AnalystDashboardsPage = () => {
             charts: defaultCharts,
           },
         },
-        {
-          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       setShowCreate(false);
       const created = res?.data?.dashboard;
       if (created && created.id) {
         setCustomDashboards((prev) => [created, ...prev]);
       }
-      await loadData();
+      try {
+        await loadData();
+      } finally {
+        // Keep created dashboard in list if GET /custom didn't return it (timing/filter)
+        if (created && created.id) {
+          setCustomDashboards((prev) => {
+            const has = prev.some((d) => d.id === created.id);
+            if (has) return prev;
+            return [created, ...prev];
+          });
+        }
+      }
     } catch (err) {
       console.error('Error creating dashboard:', err);
       const msg =

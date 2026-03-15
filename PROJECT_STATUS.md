@@ -28,19 +28,22 @@ Upgrade the platform into a **production-grade institutional analytics system** 
 
 ---
 
-### Phase 1 — Architecture & Modularisation
+### Phase 1 — Architecture & Modularisation ✅
 
 - **1.1 Define feature modules** (files/folders and imports):
   - `auth`, `rbac`, `users`, `admin`, `etl`, `audit`
   - `dashboard-core`, `dashboard-builder`, `chart-library`
   - `nextgen-query`, `analytics-academic`, `analytics-finance`, `analytics-attendance`, `analytics-recruitment`, `analytics-risk`
   - `shared-ui`, `shared-types`, `shared-utils`, `database`, `services`
+  - *Implemented:* Module map and locations documented in `docs/ARCHITECTURE.md`; frontend `config/` and `services/api.js`; backend `config/` (constants, academic).
 - **1.2 Enforce separation of concerns**:
   - Presentation vs. containers vs. reusable UI vs. chart components.
   - Service/API layer vs. repository/PostgreSQL query layer.
   - ETL/settings/admin isolated from user‑facing analytics UIs.
+  - *Implemented:* Boundaries documented in `docs/ARCHITECTURE.md`; frontend API service layer in `services/api.js` (auth, dashboards, user-mgmt).
 - **1.3 Central configuration**:
   - Single source for env/config, RBAC role constants and route maps, KPI IDs, academic calendar/time logic.
+  - *Implemented:* Backend `config/constants.py` (RBAC_ROLES, KPI_IDS, CHART_IDS, PAGE_CONFIG_*), `config/academic.py` (ACADEMIC_YEARS, SEMESTERS, SEMESTER_START_RULES); frontend `config/roles.js`, `config/routes.js`, `config/kpis.js`, `config/index.js`. `utils/rbac.js` and `AnalystDashboardsPage` / `RoleDashboardRenderer` use config.
 
 ---
 
