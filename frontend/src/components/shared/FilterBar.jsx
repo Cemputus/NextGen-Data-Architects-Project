@@ -47,8 +47,9 @@ export const FilterBar = ({
 
             {showFaculty && (
                 <div className="flex flex-col gap-1.5 min-w-[200px]">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Faculty</label>
+                    <label htmlFor="filter-faculty" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Faculty</label>
                     <select
+                        id="filter-faculty"
                         className="h-9 px-3 py-1 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring text-sm"
                         value={localFilters.faculty_id || 'all'}
                         onChange={(e) => handleChange('faculty_id', e.target.value)}
@@ -64,8 +65,9 @@ export const FilterBar = ({
 
             {showDepartment && (
                 <div className="flex flex-col gap-1.5 min-w-[200px]">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</label>
+                    <label htmlFor="filter-department" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</label>
                     <select
+                        id="filter-department"
                         className="h-9 px-3 py-1 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring text-sm"
                         value={localFilters.department_id || 'all'}
                         onChange={(e) => handleChange('department_id', e.target.value)}
@@ -83,8 +85,9 @@ export const FilterBar = ({
 
             {showProgram && (
                 <div className="flex flex-col gap-1.5 min-w-[200px]">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Program</label>
+                    <label htmlFor="filter-program" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Program</label>
                     <select
+                        id="filter-program"
                         className="h-9 px-3 py-1 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring text-sm"
                         value={localFilters.program_id || 'all'}
                         onChange={(e) => handleChange('program_id', e.target.value)}
@@ -101,8 +104,9 @@ export const FilterBar = ({
 
             {showSemester && (
                 <div className="flex flex-col gap-1.5 min-w-[150px]">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Semester</label>
+                    <label htmlFor="filter-semester" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Semester</label>
                     <select
+                        id="filter-semester"
                         className="h-9 px-3 py-1 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring text-sm"
                         value={localFilters.semester_id || 'all'}
                         onChange={(e) => handleChange('semester_id', e.target.value)}
@@ -117,9 +121,10 @@ export const FilterBar = ({
 
             {showDateRange && (
                 <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Date Range</label>
+                    <label htmlFor="filter-start-date" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Date Range</label>
                     <div className="flex items-center gap-2">
                         <input
+                            id="filter-start-date"
                             type="date"
                             className="h-9 px-3 py-1 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring text-sm text-foreground"
                             value={localFilters.start_date || ''}

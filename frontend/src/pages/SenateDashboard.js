@@ -6,9 +6,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
-import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
+import { SkeletonCard, Skeleton } from '../components/ui/skeleton';
 
 const SenateDashboard = () => {
   const { user } = useAuth();
@@ -110,11 +110,13 @@ const SenateDashboard = () => {
       <GlobalFilterPanel onFilterChange={setFilters} pageName="senate_dashboard" />
 
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Loading institution data...</p>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
+          <Skeleton className="h-[320px] w-full rounded-lg" />
         </div>
       ) : (
         <>

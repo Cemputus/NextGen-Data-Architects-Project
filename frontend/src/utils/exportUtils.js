@@ -284,6 +284,43 @@ export const exportToExcel = async (data = null, filename = 'export', filters = 
 };
 
 /**
+ * Export table data to Excel (for DataTable onExport).
+ * @param {Array<Object>} data - Rows (objects keyed by column keys)
+ * @param {Array<{ key: string, header: string }>} columns - Column definitions
+ * @param {string} filename - Base filename (no extension)
+ */
+export const exportTableToExcel = async (data, columns, filename = 'table_export') => {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    alert('No data to export.');
+    return;
+  }
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Data');
+    const cols = columns && columns.length > 0
+      ? columns
+      : Object.keys(data[0]).map((k) => ({ key: k, header: k }));
+    const headers = cols.map((c) => (c.header != null ? c.header : c.key));
+    const keys = cols.map((c) => c.key);
+    sheet.addRow(headers);
+    data.forEach((row) => {
+      sheet.addRow(keys.map((k) => row[k] ?? ''));
+    });
+    sheet.columns.forEach((col, i) => {
+      col.width = Math.min(20, Math.max(10, (headers[i] || '').length + 2));
+    });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    return true;
+  } catch (err) {
+    console.error('Export table failed:', err);
+    alert('Failed to export table. Please try again.');
+    throw err;
+  }
+};
+
+/**
  * Enhanced PDF export with chart images
  */
 export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartImages = [], data = null, stats = null) => {

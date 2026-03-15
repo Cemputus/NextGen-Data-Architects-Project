@@ -20,6 +20,9 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader, PageContent } from '../components/ui/page-header';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { useAuth } from '../context/AuthContext';
+import { CHART_PALETTE } from '../config/designTokens';
+import { AlertBanner } from '../components/ui/alert-banner';
+import { Skeleton } from '../components/ui/skeleton';
 
 const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
   const navigate = useNavigate();
@@ -77,7 +80,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
     }
   };
 
-  const COLORS = ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6', '#10b981', '#06b6d4'];
+  const COLORS = CHART_PALETTE;
 
   const getDataKey = () => {
     if (drilldown === 'faculty') return 'faculty_name';
@@ -148,12 +151,15 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
         />
       )}
 
+      <AlertBanner variant="info" title="FEX data by drilldown" className="mb-4">
+        Select Overall or by Faculty, Department, Program, or Course. Metrics update with your filter selection.
+      </AlertBanner>
+
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Loading FEX analytics...</p>
-          </div>
+        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-4 w-full max-w-md" />
+          <Skeleton className="h-[280px] w-full rounded-md" />
         </div>
       ) : (
         <Card className="border shadow-sm">

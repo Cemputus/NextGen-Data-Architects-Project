@@ -16,6 +16,10 @@ import { SciBarChart, SciDonutChart, UCU_COLORS } from '../components/charts/ECh
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState } from '../utils/statePersistence';
 import { DataTable } from '../components/shared/DataTable';
+import { FilterChips } from '../components/shared/FilterChips';
+import { SkeletonTable } from '../components/ui/skeleton';
+import { AlertBanner } from '../components/ui/alert-banner';
+import { exportTableToExcel } from '../utils/exportUtils';
 import { useAuth } from '../context/AuthContext';
 
 const AcademicRiskDashboard = () => {
@@ -86,6 +90,10 @@ const AcademicRiskDashboard = () => {
 
     return (
         <div className="space-y-4">
+            <AlertBanner variant="info" title="Filters apply to all metrics and the student list." className="mb-4">
+                Change filters above to scope by faculty, department, or program. Use the Export button in the At-Risk Student List tab to download the table.
+            </AlertBanner>
+
             {/* Header */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-wrap">
                 <div className="min-w-0">
@@ -111,12 +119,20 @@ const AcademicRiskDashboard = () => {
                 hideDepartment={isHod}
             />
 
+            <FilterChips
+                filters={filters}
+                onRemove={(key) => setFilters((prev) => ({ ...prev, [key]: 'all' }))}
+                onClearAll={() => setFilters({})}
+            />
+
             {loading ? (
-                <div className="flex items-center justify-center py-16">
-                    <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="h-8 w-8 animate-spin text-red-600" />
-                        <p className="text-sm text-muted-foreground font-medium">Analyzing institutional risk factors...</p>
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="h-24 rounded-xl border border-border bg-card animate-pulse bg-muted/30" />
+                        ))}
                     </div>
+                    <SkeletonTable rows={6} cols={5} />
                 </div>
             ) : (
                 <>
@@ -279,6 +295,9 @@ const AcademicRiskDashboard = () => {
                                         data={riskData?.at_risk_students || []}
                                         columns={studentColumns}
                                         itemsPerPage={8}
+                                        searchable
+                                        searchPlaceholder="Search students..."
+                                        onExport={(data) => exportTableToExcel(data, studentColumns, 'academic_risk_students')}
                                     />
                                     <div className="mt-4 text-xs text-muted-foreground bg-amber-50 p-3 rounded-md border border-amber-100 flex items-start gap-2">
                                         <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5" />

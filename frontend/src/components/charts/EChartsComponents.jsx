@@ -4,7 +4,7 @@
  */
 import React, { useMemo } from 'react';
 import { BaseChart } from './BaseChart';
-import { UCU_COLORS, defaultGrid, defaultTooltip, defaultTextStyle, defaultTitleTextStyle, formatTooltipValue } from '../../lib/chartTheme';
+import { UCU_COLORS, CHART_PALETTE_THEME, defaultGrid, defaultTooltip, defaultTextStyle, defaultTitleTextStyle, formatTooltipValue } from '../../lib/chartTheme';
 
 const chartHeight = 280;
 const chartMinHeight = 200;
@@ -92,11 +92,11 @@ export function SciBarChart({
     const categories = data.map((d) => String(d[xDataKey] ?? ''));
     const hasMultiple = yDataKeys && Array.isArray(yDataKeys) && yDataKeys.length > 0;
     const series = hasMultiple
-      ? yDataKeys.map((s) => ({
+      ? yDataKeys.map((s, i) => ({
           name: s.label || s.key,
           type: 'bar',
           data: data.map((d) => d[s.key] ?? 0),
-          itemStyle: { color: s.color || fillColor },
+          itemStyle: { color: s.color || CHART_PALETTE_THEME[i % CHART_PALETTE_THEME.length] },
         }))
       : [
           {
@@ -220,7 +220,7 @@ export function SciStackedColumnChart({
   height = chartHeight,
   xAxisLabel = 'Category',
   yAxisLabel = 'Value',
-  colors = [UCU_COLORS.blue, UCU_COLORS.gold, UCU_COLORS['blue-light'], '#10b981', '#f59e0b'],
+  colors = CHART_PALETTE_THEME,
   showLegend = true,
   showGrid = true,
   showPercentages = true,
@@ -295,7 +295,7 @@ export function SciDonutChart({
   nameKey = 'name',
   valueKey = 'value',
   title = '',
-  colors = [UCU_COLORS.blue, UCU_COLORS.gold, UCU_COLORS['blue-light'], UCU_COLORS.green, UCU_COLORS.maroon],
+  colors = CHART_PALETTE_THEME,
   innerRadius = '55%',
   minHeight = chartMinHeight,
   maxHeight = chartMaxHeight,
