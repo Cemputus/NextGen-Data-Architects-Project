@@ -102,9 +102,11 @@ function PrivateRoute({ children, requiredRole = null, allowedRoles = null }) {
 
 function RoleRoute({ children, allowedRoles }) {
   const { user } = useAuth();
+  const userRole = (user?.role || '').toString().toLowerCase();
+  const allowed = Array.isArray(allowedRoles) ? allowedRoles.map((r) => (r || '').toString().toLowerCase()) : [];
 
-  if (!allowedRoles.includes(user?.role)) {
-    return <Navigate to={rbac.getDefaultRoute(user?.role)} />;
+  if (!allowed.includes(userRole)) {
+    return <Navigate to={rbac.getDefaultRoute(userRole)} />;
   }
 
   return children;

@@ -10,3 +10,9 @@ export {
   PAGE_CONFIG_LABELS,
   KPI_DEFINITIONS,
 } from './kpis';
+export {
+  SPACING,
+  CHART_PALETTE,
+  CHART_PALETTE_SEQUENTIAL,
+  SEMANTIC_COLORS,
+} from './designTokens';

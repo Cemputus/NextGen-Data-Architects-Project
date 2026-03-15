@@ -841,16 +841,13 @@ def get_high_school_risk_correlation_legacy():
 @analytics_bp.route('/staff/classes', methods=['GET'])
 @jwt_required()
 def get_staff_classes():
-    """Return classes assigned to the current staff member"""
+    """Return classes assigned to the current staff member. Staff role only (Phase 3 scope)."""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
-        
         if user_scope['role'] != Role.STAFF:
-             # Deans/HODs might want to see all classes in their dept?
-             # For now, stick to the prompt: staff see their classes.
-             pass
-             
+            return jsonify({'error': 'Permission denied. Staff role required for class assignments.'}), 403
+
         username = claims.get('username')
         rbac_engine = create_engine(get_sqlalchemy_conn_string('ucu_rbac'))
         

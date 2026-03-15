@@ -62,18 +62,28 @@ Upgrade the platform into a **production-grade institutional analytics system** 
   - Ensure FCW/MEX/FEX flags, grade points, GPA/CGPA and progression/retake markers are computed in ETL and stored in facts.
   - *Implemented:* FCW/MEX/FEX computed in Silver and stored in fact_grade (fcw, exam_status); grade_points computed in Silver and loaded into fact_grade. **Verification script:** `scripts/verify_etl_phase2.py` — checks Gold row counts, unique reg_no/access_number, exam_status distribution, grade_points populated, faculty/department/program coverage, and analyst views exist. Run: `python scripts/verify_etl_phase2.py` from backend/.
 
+**Phase 2 completion checklist (code complete; DB aligned after one ETL run):**
+- [x] 2.1 fact_grade.grade_points in DDL + ETL Silver/Gold; analyst_views.sql (view_analyst_grade, view_fcw_mex_fex_summary, view_fcw_mex_fex_by_faculty); ETL runs views after load.
+- [x] 2.2 Indexes on fact_grade (exam_status, student_id+semester_id) in create_data_warehouse.sql and etl_pipeline.py.
+- [x] 2.3 FCW/MEX/FEX in Silver → fact_grade; grade_points in Silver → fact_grade; verify_etl_phase2.py. *To get all checks green:* run full ETL once (adds grade_points column and creates views) or apply ALTER + sql/analyst_views.sql manually.
+
 ---
 
-### Phase 3 — RBAC & Scope Enforcement Everywhere
+### Phase 3 — RBAC & Scope Enforcement Everywhere ✅
 
-- **3.1 Roles enforced exactly**:
+- **3.1 Roles enforced exactly** ✅:
   - Student, Staff, HOD, Dean, Senate, Analyst, HR, Finance, Sysadmin.
-- **3.2 Enforcement layers**:
+  - *Implemented:* Canonical list in `backend/rbac.py` (Role enum), `backend/config/constants.py` (RBAC_ROLES), `frontend/src/config/roles.js`. Documented in `docs/PHASE3_SCOPE_RULES.md`. Admin is UI alias for sysadmin.
+- **3.2 Enforcement layers** ✅:
   - **Routes/pages**: Navigation and routing gated by role.
+  - *Implemented:* All paths under `frontend/src/App.js` use `PrivateRoute` with `requiredRole` or `allowedRoles`; redirect to default route when unauthorised. `RoleRoute` compares roles in lower case.
   - **APIs**: Every analytics, admin, dashboard, and NextGen Query endpoint checks role and scope.
+  - *Implemented:* Analytics: `get_user_scope(claims)` + `has_permission(role, resource, READ)` on FEX, high-school, academic-risk, retakes, staff/classes; HR/Finance get 403 on FEX and high-school (domain-specific only). Dashboards: `@jwt_required()` + `_dashboard_role_scope()` in `app.py`. NextGen Query: `_require_analyst_or_sysadmin`. User management: `_require_sysadmin()` (analyst cannot access).
   - **Queries**: SQL adds WHERE clauses for department/faculty/self scope as per role.
+  - *Implemented:* `backend/api/analytics.py` `build_filter_query` and scope logic; `app.py` `_dashboard_role_scope()` (student = self, staff = assigned courses, HOD = department_id, Dean = faculty_id, Senate/Analyst/Sysadmin = no scope).
   - **Dashboards/charts/actions**: Buttons, filters, and visualisations hidden or disabled if role is not allowed.
-- **3.3 Scope rules**:
+  - *Implemented:* Dashboard Manager uses `canManage` (analyst/sysadmin); role-specific pages only reachable via role routes.
+- **3.3 Scope rules** ✅:
   - Student → self only (profile, FCW/MEX/FEX, retakes, fees, attendance).
   - Staff → teaching / department scope only.
   - HOD → department‑wide analytics; no global admin.
@@ -82,22 +92,34 @@ Upgrade the platform into a **production-grade institutional analytics system** 
   - Analyst → broad analytics across views, but no RBAC/admin powers.
   - HR/Finance → domain‑specific analytics only.
   - Sysadmin → full system/admin access.
+  - *Implemented:* Documented in `docs/PHASE3_SCOPE_RULES.md`. JWT claims set on login (student_id, access_number for students; faculty_id, department_id for app_users). Scope applied in analytics and dashboard SQL.
+
+**Phase 3 completion checklist:**
+- [x] 3.1 Canonical roles (9) in rbac.py, config, frontend config; PHASE3_SCOPE_RULES.md.
+- [x] 3.2 Routes gated by PrivateRoute/RoleRoute; APIs use jwt_required + role/scope or has_permission; queries use get_user_scope / _dashboard_role_scope; UI uses canManage/canAccess.
+- [x] 3.3 Scope rules documented; Student=self, Staff=classes, HOD=dept, Dean=faculty, Senate/Analyst=institution, HR/Finance=domain-only, Sysadmin=full.
 
 ---
 
-### Phase 4 — Enterprise UI/UX & Design System
+### Phase 4 — Enterprise UI/UX & Design System ✅
 
-- **4.1 Design system**:
+- **4.1 Design system** ✅:
   - Unified typography, spacing scale, color tokens and chart palette.
-  - Reusable components: page shell, metric card, analytic section header, filter bar, date/semester selector, faculty/department/program selectors, chart card, badges/chips, modals/drawers, tabs, alert banners, skeleton loaders, empty/unauthorised states.
-- **4.2 Layouts & navigation**:
+  - *Implemented:* Typography in `frontend/src/index.css` (`.text-page-title`, `.text-section-title`, etc.). Color tokens in `:root`/`.dark`. **Design tokens:** `frontend/src/config/designTokens.js` — SPACING, CHART_PALETTE, CHART_PALETTE_SEQUENTIAL, SEMANTIC_COLORS; exported from `config/index.js`. **Reusable components:** PageShell, MetricCard, AnalyticSection, FilterBar (with date/semester and faculty/department/program selectors), ChartCard, Badge, Modal, Tabs (ui/), **AlertBanner** (`components/ui/alert-banner.jsx`), **Skeleton** (`components/ui/skeleton.jsx` — SkeletonLine, SkeletonCard, SkeletonTable), EmptyState, UnauthorizedState, state-messages (LoadingState, ErrorState). **Design system doc:** `docs/DESIGN_SYSTEM.md`.
+- **4.2 Layouts & navigation** ✅:
   - Consistent, responsive page shells for all roles.
-  - Clear hierarchy: page title, sections (summary, trends, distributions, details, risk/alerts).
-  - Sidebar, breadcrumbs, and header actions aligned across dashboards.
-- **4.3 Tables and filters**:
+  - *Implemented:* `LayoutModern.jsx` used for all authenticated routes; `PageShell` and `PageHeader`/`PageContent` (with Breadcrumbs) available for pages. Hierarchy (page title → sections) and sidebar/breadcrumbs/header alignment documented in `docs/DESIGN_SYSTEM.md`.
+- **4.3 Tables and filters** ✅:
   - Tables with sticky headers (where useful), sorting, search, pagination, filter chips, visible active filters and export‑ready patterns.
+  - *Implemented:* **DataTable** (`components/shared/DataTable.jsx`): sticky header, column sort, pagination, optional **search** (`searchable` prop), optional **onExport** (Export button), optional **toolbar** slot. **FilterChips** (`components/shared/FilterChips.jsx`): active filters as chips with remove-one and clear-all. Use FilterBar + FilterChips + DataTable for full filter/table/export pattern; `utils/exportUtils.js` for CSV/Excel/PDF.
 - **4.4 Profile route** ✅:
   - Each role’s `/profile` route renders **ProfilePage** (account and profile picture). User-info (employment, leave, payroll) remains at `/user-info`.
+
+**Phase 4 completion checklist:**
+- [x] 4.1 Design tokens (spacing, chart palette) in config/designTokens.js; typography/colors in index.css and tailwind; AlertBanner, Skeleton; DESIGN_SYSTEM.md.
+- [x] 4.2 PageShell, PageHeader/Breadcrumbs; LayoutModern; hierarchy and navigation documented.
+- [x] 4.3 DataTable: sticky header, sort, pagination, search, onExport, toolbar; FilterChips; FilterBar; exportUtils.
+- [x] 4.4 Profile route and ProfilePage (pre-existing).
 
 ---
 
