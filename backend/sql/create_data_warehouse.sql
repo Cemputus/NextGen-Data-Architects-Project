@@ -158,9 +158,9 @@ CREATE INDEX IF NOT EXISTS idx_fact_payment_timestamp ON fact_payment(payment_ti
 CREATE INDEX IF NOT EXISTS idx_fact_payment_deadline_met ON fact_payment(deadline_met);
 CREATE INDEX IF NOT EXISTS idx_fact_payment_deadline_type ON fact_payment(deadline_type);
 
--- Fact: Grade
+-- Fact: Grade (Phase 2: grade_points for GPA/CGPA; indexes for risk/retake queries)
 CREATE TABLE IF NOT EXISTS fact_grade (
-    grade_id VARCHAR(20) PRIMARY KEY,
+    grade_id VARCHAR(64) PRIMARY KEY,
     student_id VARCHAR(20),
     course_code VARCHAR(20),
     date_key VARCHAR(8),
@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS fact_grade (
     exam_score DECIMAL(5,2),
     grade DECIMAL(5,2) NOT NULL,
     letter_grade VARCHAR(5) NOT NULL,
+    grade_points DECIMAL(3,2),
     fcw BOOLEAN DEFAULT FALSE,
     exam_status VARCHAR(10),
     absence_reason VARCHAR(200),
@@ -182,6 +183,9 @@ CREATE INDEX IF NOT EXISTS idx_fact_grade_course ON fact_grade(course_code);
 CREATE INDEX IF NOT EXISTS idx_fact_grade_date ON fact_grade(date_key);
 CREATE INDEX IF NOT EXISTS idx_fact_grade_semester ON fact_grade(semester_id);
 CREATE INDEX IF NOT EXISTS idx_fact_grade_grade ON fact_grade(grade);
+CREATE INDEX IF NOT EXISTS idx_fact_grade_exam_status ON fact_grade(exam_status);
+CREATE INDEX IF NOT EXISTS idx_fact_grade_student_semester ON fact_grade(student_id, semester_id);
+ALTER TABLE fact_grade ADD COLUMN IF NOT EXISTS grade_points DECIMAL(3,2);
 
 -- Insert default semester data
 INSERT INTO dim_semester (semester_id, semester_name, academic_year) VALUES

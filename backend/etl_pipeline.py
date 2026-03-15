@@ -2646,6 +2646,21 @@ class ETLPipeline:
 
         dim_date_df = silver_data.get('dim_date_synthetic', pd.DataFrame())
         _load_synthetic_table('dim_date_synthetic', dim_date_df, 'dim_date')
+
+        # Phase 2: Create analyst-safe views (if SQL file present)
+        _analyst_views_sql = Path(__file__).resolve().parent / 'sql' / 'analyst_views.sql'
+        if _analyst_views_sql.exists():
+            try:
+                sql_text = _analyst_views_sql.read_text(encoding='utf-8')
+                with engine.connect() as conn:
+                    for stmt in sql_text.split(';'):
+                        stmt = stmt.strip()
+                        if stmt and not stmt.startswith('--'):
+                            conn.execute(text(stmt))
+                    conn.commit()
+                self.logger.info("  → Analyst views (view_analyst_grade, view_fcw_mex_fex_*) created/updated")
+            except Exception as e:
+                self.logger.warning("  → Analyst views SQL failed (non-fatal): %s", e)
     
     def run(self):
         """Run the complete ETL pipeline"""

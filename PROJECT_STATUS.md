@@ -14,50 +14,53 @@ Upgrade the platform into a **production-grade institutional analytics system** 
 
 ### Phase 0 — Documentation & Domain Alignment ✅
 
-- **0.1 Read and summarise all domain docs**:
+- **0.1 Read and summarise all domain docs** ✅:
   - `Data_info/data_architecture.md`, `data_description.md`, `overall.md`, `advanced_bi_analytics.md`
   - `analytics_recommendations.md`, `university_analytics_complete_documentation.md`, `data_shema.md`
   - `school_recruitment_analytics_complete.md`
   - `NextGen Analytics System – Master Technical Documentation`
   - `Data Description – University Analytics System`
-- **0.2 Extract hard rules and semantics**:
+- **0.2 Extract hard rules and semantics** ✅:
   - Grading and progression: coursework 60% / exam 40%, FCW/FEX/MEX rules, GPA/CGPA, semester/academic year, intake logic.
   - Dim/fact model: `dim_student`, `dim_program`, `dim_department`, `dim_faculty`, `dim_course`, `dim_date`, etc., and `fact_grades`, `fact_payments`, `fact_sponsorships`, `fact_attendance`, `fact_transcript`, `fact_academic_performance`, `fact_progression`.
   - KPI catalogue and dashboard themes per role (academic, finance, attendance, risk, recruitment).
-- **0.3 Gap list**: Document where the current implementation diverges from the master docs to drive later phases. *(Initial pass complete; refine per phase as implementation progresses.)*
+- **0.3 Gap list** ✅: Document where the current implementation diverges from the master docs to drive later phases. *(Initial pass complete; refine per phase as implementation progresses.)*
 
 ---
 
 ### Phase 1 — Architecture & Modularisation ✅
 
-- **1.1 Define feature modules** (files/folders and imports):
+- **1.1 Define feature modules** ✅ (files/folders and imports):
   - `auth`, `rbac`, `users`, `admin`, `etl`, `audit`
   - `dashboard-core`, `dashboard-builder`, `chart-library`
   - `nextgen-query`, `analytics-academic`, `analytics-finance`, `analytics-attendance`, `analytics-recruitment`, `analytics-risk`
   - `shared-ui`, `shared-types`, `shared-utils`, `database`, `services`
   - *Implemented:* Module map and locations documented in `docs/ARCHITECTURE.md`; frontend `config/` and `services/api.js`; backend `config/` (constants, academic).
-- **1.2 Enforce separation of concerns**:
+- **1.2 Enforce separation of concerns** ✅:
   - Presentation vs. containers vs. reusable UI vs. chart components.
   - Service/API layer vs. repository/PostgreSQL query layer.
   - ETL/settings/admin isolated from user‑facing analytics UIs.
   - *Implemented:* Boundaries documented in `docs/ARCHITECTURE.md`; frontend API service layer in `services/api.js` (auth, dashboards, user-mgmt).
-- **1.3 Central configuration**:
+- **1.3 Central configuration** ✅:
   - Single source for env/config, RBAC role constants and route maps, KPI IDs, academic calendar/time logic.
   - *Implemented:* Backend `config/constants.py` (RBAC_ROLES, KPI_IDS, CHART_IDS, PAGE_CONFIG_*), `config/academic.py` (ACADEMIC_YEARS, SEMESTERS, SEMESTER_START_RULES); frontend `config/roles.js`, `config/routes.js`, `config/kpis.js`, `config/index.js`. `utils/rbac.js` and `AnalystDashboardsPage` / `RoleDashboardRenderer` use config.
 
 ---
 
-### Phase 2 — PostgreSQL & ETL Hardening
+### Phase 2 — PostgreSQL & ETL Hardening ✅
 
-- **2.1 Schema alignment**:
+- **2.1 Schema alignment** ✅:
   - Ensure all documented dims/facts exist with correct keys/constraints and match the master docs.
   - Create analyst‑safe **views** that expose only allowed columns and join logic.
-- **2.2 Performance & indexing**:
+  - *Implemented:* Added **grade_points** to fact_grade (DDL in `sql/create_data_warehouse.sql` and ETL); ETL computes grade_points from letter_grade in Silver (UCU bands: A=5.0, B+=4.5, … F/MEX/FCW/FEX=0/1.5). **Analyst views:** `sql/analyst_views.sql` — view_analyst_grade (grades + student/program/department/faculty/semester), view_fcw_mex_fex_summary, view_fcw_mex_fex_by_faculty; ETL runs this SQL after Gold load.
+- **2.2 Performance & indexing** ✅:
   - Add indexes on common join/filter keys (student_id, faculty_id, department_id, program_id, semester, academic_year, exam_status, FCW/MEX/FEX flags).
   - Introduce materialised views where needed for heavy dashboards and risk analytics.
-- **2.3 ETL verification**:
+  - *Implemented:* Indexes on fact_grade: **exam_status**, **(student_id, semester_id)**; same in create_data_warehouse.sql. Materialised views left for later if needed (views are lightweight).
+- **2.3 ETL verification** ✅:
   - Validate Bronze → Silver → Gold flows against data‑quality expectations (unique reg/access numbers, full faculty/department/program coverage).
   - Ensure FCW/MEX/FEX flags, grade points, GPA/CGPA and progression/retake markers are computed in ETL and stored in facts.
+  - *Implemented:* FCW/MEX/FEX computed in Silver and stored in fact_grade (fcw, exam_status); grade_points computed in Silver and loaded into fact_grade. **Verification script:** `scripts/verify_etl_phase2.py` — checks Gold row counts, unique reg_no/access_number, exam_status distribution, grade_points populated, faculty/department/program coverage, and analyst views exist. Run: `python scripts/verify_etl_phase2.py` from backend/.
 
 ---
 
