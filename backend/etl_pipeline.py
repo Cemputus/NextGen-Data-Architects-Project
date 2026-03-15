@@ -1465,6 +1465,31 @@ class ETLPipeline:
         enrollments_silver.to_parquet(self.silver_path / f"silver_enrollments_{timestamp}.parquet", index=False)
         attendance_silver.to_parquet(self.silver_path / f"silver_attendance_{timestamp}.parquet", index=False)
         payments_silver.to_parquet(self.silver_path / f"silver_payments_{timestamp}.parquet", index=False)
+        # Grade points from letter grade (UCU: A=5.0, B+=4.5, B=4, C+=3.5, C=3, D=2, E/F=1.5; MEX/FCW/FEX=0)
+        if not grades_silver.empty:
+            if 'letter_grade' not in grades_silver.columns:
+                grades_silver['letter_grade'] = 'F'
+            grades_silver['letter_grade'] = grades_silver['letter_grade'].fillna('F').astype(str).str.strip().str[:5]
+            def _letter_grade_to_points(lg):
+                if pd.isna(lg):
+                    return 1.5
+                s = str(lg).strip().upper()
+                if 'MEX' in s or 'FCW' in s or 'FEX' in s:
+                    return 0.0
+                if s.startswith('A'):
+                    return 5.0
+                if s.startswith('B+'):
+                    return 4.5
+                if s.startswith('B'):
+                    return 4.0
+                if s.startswith('C+'):
+                    return 3.5
+                if s.startswith('C'):
+                    return 3.0
+                if s.startswith('D'):
+                    return 2.0
+                return 1.5
+            grades_silver['grade_points'] = grades_silver['letter_grade'].apply(_letter_grade_to_points)
         # Ensure no object column with mixed types (e.g. EXAM_MARK_40) breaks parquet
         if not grades_silver.empty:
             for col in grades_silver.select_dtypes(include=['object', 'str']).columns:
@@ -2058,7 +2083,7 @@ class ETLPipeline:
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fp_deadline_met ON fact_payment(deadline_met)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fp_deadline_type ON fact_payment(deadline_type)"))
             
-            # Fact_Grade
+            # Fact_Grade (Phase 2: grade_points for GPA/CGPA alignment with master docs)
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS fact_grade (
                     grade_id VARCHAR(64) PRIMARY KEY,
@@ -2070,6 +2095,7 @@ class ETLPipeline:
                     exam_score DECIMAL(5,2),
                     grade DECIMAL(5,2) NOT NULL,
                     letter_grade VARCHAR(5) NOT NULL,
+                    grade_points DECIMAL(3,2),
                     fcw BOOLEAN DEFAULT FALSE,
                     exam_status VARCHAR(10),
                     absence_reason VARCHAR(200)
@@ -2080,12 +2106,18 @@ class ETLPipeline:
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fg_date ON fact_grade(date_key)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fg_semester ON fact_grade(semester_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fg_grade ON fact_grade(grade)"))
-            # Ensure existing deployments have a wide enough grade_id column
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fg_exam_status ON fact_grade(exam_status)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fg_student_semester ON fact_grade(student_id, semester_id)"))
+            # Ensure existing deployments have a wide enough grade_id column and have grade_points (Phase 2)
             try:
                 conn.execute(text("ALTER TABLE fact_grade ALTER COLUMN grade_id TYPE VARCHAR(64)"))
                 conn.commit()
             except Exception:
-                # Ignore if ALTER is not needed or fails (e.g. column already wide)
+                pass
+            try:
+                conn.execute(text("ALTER TABLE fact_grade ADD COLUMN IF NOT EXISTS grade_points DECIMAL(3,2)"))
+                conn.commit()
+            except Exception:
                 pass
         
         # Load valid keys once for all fact tables (FKs)
@@ -2472,10 +2504,27 @@ class ETLPipeline:
             grades['exam_status'] = 'Completed'
         if 'absence_reason' not in grades.columns:
             grades['absence_reason'] = ''
+        if 'grade_points' not in grades.columns and 'letter_grade' in grades.columns:
+            def _lg_to_pts(lg):
+                if pd.isna(lg):
+                    return 1.5
+                s = str(lg).strip().upper()
+                if 'MEX' in s or 'FCW' in s or 'FEX' in s:
+                    return 0.0
+                if s.startswith('A'): return 5.0
+                if s.startswith('B+'): return 4.5
+                if s.startswith('B'): return 4.0
+                if s.startswith('C+'): return 3.5
+                if s.startswith('C'): return 3.0
+                if s.startswith('D'): return 2.0
+                return 1.5
+            grades['grade_points'] = grades['letter_grade'].apply(_lg_to_pts)
+        elif 'grade_points' not in grades.columns:
+            grades['grade_points'] = 1.5
         
         grade_cols = ['grade_id', 'student_id', 'course_code', 'date_key',
                      'semester_id', 'coursework_score', 'exam_score', 'grade',
-                     'letter_grade', 'fcw', 'exam_status', 'absence_reason']
+                     'letter_grade', 'grade_points', 'fcw', 'exam_status', 'absence_reason']
         missing_grade_cols = [c for c in grade_cols if c not in grades.columns]
         if missing_grade_cols:
             self.logger.warning("  -> Grades missing columns %s; skipping fact_grade", missing_grade_cols)
