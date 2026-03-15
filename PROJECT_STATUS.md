@@ -90,6 +90,8 @@ Upgrade the platform into a **production-grade institutional analytics system** 
   - Sidebar, breadcrumbs, and header actions aligned across dashboards.
 - **4.3 Tables and filters**:
   - Tables with sticky headers (where useful), sorting, search, pagination, filter chips, visible active filters and export‑ready patterns.
+- **4.4 Profile route** ✅:
+  - Each role’s `/profile` route renders **ProfilePage** (account and profile picture). User-info (employment, leave, payroll) remains at `/user-info`.
 
 ---
 
@@ -142,22 +144,22 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 
 ### Phase 7 — Custom Dashboards & Chart Library
 
-- **7.1 Chart asset model**:
-  - Each chart has id, title, description, owner, source query/metric definition, chart type, allowed scopes, visibility (roles/users), tags, last updated timestamp.
-- **7.2 Manage Charts refactor**:
-  - **Saved Charts**: All created charts.
-  - **Manage Charts | Shared**: Subset actively shared with roles/users.
-  - Clear list, filter, edit, and unshare workflows.
-- **7.3 Dashboard Manager**:
+- **7.1 Chart asset model** ✅:
+  - Each chart has id, title, description, owner, source query/metric definition, chart type, allowed scopes, visibility (roles/users), tags, last updated timestamp. *(Implemented: `assigned_query_visualizations` has description, tags, updated_at; API returns them; PATCH for metadata; visibility = target_type/target_value.)*
+- **7.2 Manage Charts refactor** ✅:
+  - **Saved Charts**: All created charts. *(Section loads `?created_by=me`; shows description, tags, updatedAt.)*
+  - **Manage Charts | Shared**: Subset actively shared with roles/users. *(Section loads `/my-shared`.)*
+  - Clear list, filter, edit, and unshare workflows. *(Filter by title/description/tags/target; Edit opens NextGen Query; Delete unshares.)*
+- **7.3 Dashboard Manager** ✅:
   - Separate **Current Dashboards by Role** from **Custom Dashboards**.
   - Swapping, assigning, previewing, and editing workflows for analysts/sysadmins.
 - **7.4 Dashboard builder UX** ✅:
   - Left: saved chart list; center: grid/canvas; right: properties + assignment. *(Implemented: Edit content modal is three-panel; center shows canvas preview.)*
   - Preview mode and validation before publishing/updating. *(Implemented: Preview shows banner "This is a preview. No changes will be saved."; validation message when nothing selected; Save disabled until at least one asset chosen.)*
- - **7.5 NextGen Query visualizations in dashboards/pages**:
-   - In Dashboard Manager’s **Edit content** modal (for current dashboards and page configs), add a section to attach **visualizations created in NextGen Query**.
-   - Allow analysts to browse/select from their **assigned/saved visualizations** (via `/api/query/assigned-visualizations`) and pin them into role dashboards and any page with visuals.
-   - Page/dash definitions should store lightweight **references** to these visualizations (id, title, chart type) so `RoleDashboardRenderer` can render them alongside built-in KPIs/charts.
+- **7.5 NextGen Query visualizations in dashboards/pages** ✅:
+  - In Dashboard Manager’s **Edit content** modal (for current dashboards and page configs), add a section to attach **visualizations created in NextGen Query**.
+  - Allow analysts to browse/select from their **assigned/saved visualizations** (via `/api/query/assigned-visualizations`) and pin them into role dashboards and any page with visuals.
+  - Page/dash definitions store **visualization_ids**; `RoleDashboardRenderer` renders them alongside built-in KPIs/charts.
 
 ---
 

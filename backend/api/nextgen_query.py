@@ -63,12 +63,15 @@ def _ensure_assigned_viz_table(engine):
 
 
 def _add_assigned_viz_columns_if_missing(conn):
-    """Add reshare columns if table existed without them."""
+    """Add reshare and chart-asset columns if table existed without them."""
     for col, defn in [
         ("parent_viz_id", "VARCHAR(64) NULL"),
         ("reshared_by_username", "VARCHAR(100) NULL"),
         ("reshare_description", "TEXT NULL"),
         ("original_creator_username", "VARCHAR(100) NULL"),
+        ("description", "TEXT NULL"),
+        ("tags", "TEXT NULL"),
+        ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
     ]:
         try:
             conn.execute(text(f"ALTER TABLE assigned_query_visualizations ADD COLUMN IF NOT EXISTS {col} {defn}"))
@@ -296,6 +299,12 @@ def create_assigned_visualization():
 
         body = request.get_json(silent=True) or {}
         title = (body.get("title") or "").strip()
+        description = (body.get("description") or "").strip() or None
+        tags_raw = body.get("tags")
+        if isinstance(tags_raw, list):
+            tags = ",".join(str(t).strip() for t in tags_raw if str(t).strip()) or None
+        else:
+            tags = (tags_raw or "").strip() or None if isinstance(tags_raw, str) else None
         target_type = (body.get("targetType") or "").strip().lower()
         target_value = (body.get("targetValue") or "").strip()
         query_text = (body.get("query") or "").strip()
@@ -329,9 +338,9 @@ def create_assigned_visualization():
                     text(
                         """
                         INSERT INTO assigned_query_visualizations
-                        (id, created_by_username, title, target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot,
+                        (id, created_by_username, title, description, tags, target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot,
                          parent_viz_id, reshared_by_username, reshare_description, original_creator_username)
-                        VALUES (:id, :created_by, :title, :target_type, :target_value, :query_text, :chart_type, :x_column, :y_column, :result_snapshot,
+                        VALUES (:id, :created_by, :title, :description, :tags, :target_type, :target_value, :query_text, :chart_type, :x_column, :y_column, :result_snapshot,
                                 :parent_viz_id, :reshared_by_username, :reshare_description, :original_creator_username)
                         """
                     ),
@@ -339,6 +348,8 @@ def create_assigned_visualization():
                         "id": vid,
                         "created_by": username,
                         "title": title,
+                        "description": description,
+                        "tags": tags,
                         "target_type": target_type,
                         "target_value": target_value,
                         "query_text": query_text,
@@ -567,11 +578,11 @@ def list_assigned_visualizations():
                 result = conn.execute(
                     text(
                         """
-                        SELECT id, created_by_username, created_at, title, target_type, target_value,
-                               chart_type, x_column, y_column
+                        SELECT id, created_by_username, created_at, title, description, tags, updated_at,
+                               target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot
                         FROM assigned_query_visualizations
                         WHERE created_by_username = :username
-                        ORDER BY created_at DESC
+                        ORDER BY COALESCE(updated_at, created_at) DESC
                         """
                     ),
                     {"username": username},
@@ -580,10 +591,10 @@ def list_assigned_visualizations():
                 result = conn.execute(
                     text(
                         """
-                        SELECT id, created_by_username, created_at, title, target_type, target_value,
-                               chart_type, x_column, y_column
+                        SELECT id, created_by_username, created_at, title, description, tags, updated_at,
+                               target_type, target_value, chart_type, x_column, y_column
                         FROM assigned_query_visualizations
-                        ORDER BY created_at DESC
+                        ORDER BY COALESCE(updated_at, created_at) DESC
                         """
                     ),
                 )
@@ -596,17 +607,32 @@ def list_assigned_visualizations():
 
     out = []
     for r in rows:
-        out.append({
+        updated_at = r.get("updated_at") or r["created_at"]
+        item = {
             "id": r["id"],
             "createdByUsername": r["created_by_username"],
             "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+            "updatedAt": updated_at.isoformat() if hasattr(updated_at, "isoformat") else str(updated_at),
             "title": r["title"],
+            "description": r.get("description"),
+            "tags": r.get("tags"),
             "targetType": r["target_type"],
             "targetValue": r["target_value"],
             "chartType": r.get("chart_type") or "bar",
             "xColumn": r.get("x_column"),
             "yColumn": r.get("y_column"),
-        })
+        }
+        if created_by_me:
+            if "query_text" in r:
+                item["queryText"] = r.get("query_text")
+            snap = r.get("result_snapshot")
+            if isinstance(snap, str):
+                try:
+                    snap = json.loads(snap)
+                except Exception:
+                    snap = None
+            item["resultSnapshot"] = snap
+        out.append(item)
     return jsonify({"visualizations": out}), 200
 
 
@@ -653,6 +679,141 @@ def delete_assigned_visualization(viz_id):
     if deleted == 0:
         return jsonify({"error": "Visualization not found."}), 404
     return jsonify({"message": "Visualization removed."}), 200
+
+
+@nextgen_query_bp.route("/assigned-visualizations/<viz_id>", methods=["PUT"])
+@jwt_required()
+def update_assigned_visualization_content(viz_id):
+    """Replace visualization content (query, chart config, result snapshot). Creator or reshared_by only."""
+    username, role = _current_user()
+    if not viz_id or len(viz_id) > 64:
+        return jsonify({"error": "Invalid visualization id."}), 400
+    body = request.get_json(silent=True) or {}
+    query_text = (body.get("query") or body.get("queryText") or "").strip()
+    chart_type = (body.get("chartType") or "bar").strip()
+    x_column = (body.get("xColumn") or "").strip()
+    y_column = (body.get("yColumn") or "").strip()
+    result_snapshot = body.get("resultSnapshot")
+    title = (body.get("title") or "").strip() or None
+
+    engine = _get_rbac_engine()
+    _ensure_assigned_viz_table(engine)
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT created_by_username, reshared_by_username FROM assigned_query_visualizations WHERE id = :id"),
+                {"id": viz_id},
+            ).mappings().fetchone()
+            if not row:
+                engine.dispose()
+                return jsonify({"error": "Visualization not found."}), 404
+            creator = (row.get("created_by_username") or "").strip()
+            reshared_by = (row.get("reshared_by_username") or "").strip()
+            if creator != username and reshared_by != username and role not in ("analyst", "sysadmin"):
+                engine.dispose()
+                return jsonify({"error": "You can only update visualizations you created or reshared."}), 403
+
+            snapshot_json = None
+            if result_snapshot is not None:
+                try:
+                    snapshot_json = json.dumps(result_snapshot)
+                except Exception:
+                    pass
+
+            conn.execute(
+                text(
+                    """
+                    UPDATE assigned_query_visualizations
+                    SET query_text = COALESCE(:query_text, query_text),
+                        chart_type = COALESCE(:chart_type, chart_type),
+                        x_column = COALESCE(:x_column, x_column),
+                        y_column = COALESCE(:y_column, y_column),
+                        result_snapshot = COALESCE(:result_snapshot, result_snapshot),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :id
+                    """
+                ),
+                {
+                    "id": viz_id,
+                    "query_text": query_text or None,
+                    "chart_type": chart_type or None,
+                    "x_column": x_column or None,
+                    "y_column": y_column or None,
+                    "result_snapshot": snapshot_json,
+                },
+            )
+            if title:
+                conn.execute(
+                    text("UPDATE assigned_query_visualizations SET title = :title, updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
+                    {"id": viz_id, "title": title},
+                )
+            conn.commit()
+        engine.dispose()
+        return jsonify({"message": "Visualization updated.", "id": viz_id}), 200
+    except Exception as e:
+        if engine:
+            engine.dispose()
+        return jsonify({"error": str(e)}), 500
+
+
+@nextgen_query_bp.route("/assigned-visualizations/<viz_id>", methods=["PATCH"])
+@jwt_required()
+def update_assigned_visualization_metadata(viz_id):
+    """Update chart asset metadata (title, description, tags). Allowed: creator or reshared_by."""
+    username, role = _current_user()
+    if not viz_id or len(viz_id) > 64:
+        return jsonify({"error": "Invalid visualization id."}), 400
+    body = request.get_json(silent=True) or {}
+    title = (body.get("title") or "").strip() or None
+    description = (body.get("description") or "").strip() or None
+    tags_raw = body.get("tags")
+    if isinstance(tags_raw, list):
+        tags = ",".join(str(t).strip() for t in tags_raw if str(t).strip()) if tags_raw else None
+    else:
+        tags = (tags_raw or "").strip() or None if isinstance(tags_raw, str) else None
+
+    engine = _get_rbac_engine()
+    _ensure_assigned_viz_table(engine)
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT created_by_username, reshared_by_username FROM assigned_query_visualizations WHERE id = :id"),
+                {"id": viz_id},
+            ).mappings().fetchone()
+            if not row:
+                engine.dispose()
+                return jsonify({"error": "Visualization not found."}), 404
+            creator = (row.get("created_by_username") or "").strip()
+            reshared_by = (row.get("reshared_by_username") or "").strip()
+            if creator != username and reshared_by != username and role not in ("analyst", "sysadmin"):
+                engine.dispose()
+                return jsonify({"error": "You can only update visualizations you created or reshared."}), 403
+            updates = []
+            params = {"id": viz_id}
+            if title is not None:
+                updates.append("title = :title")
+                params["title"] = title
+            if description is not None:
+                updates.append("description = :description")
+                params["description"] = description
+            if tags is not None:
+                updates.append("tags = :tags")
+                params["tags"] = tags
+            if not updates:
+                engine.dispose()
+                return jsonify({"message": "Nothing to update."}), 200
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            conn.execute(
+                text(f"UPDATE assigned_query_visualizations SET {', '.join(updates)} WHERE id = :id"),
+                params,
+            )
+            conn.commit()
+        engine.dispose()
+        return jsonify({"message": "Visualization metadata updated."}), 200
+    except Exception as e:
+        if engine:
+            engine.dispose()
+        return jsonify({"error": str(e)}), 500
 
 
 def _can_reply_to_feedback(conn, viz_id: str, username: str) -> bool:
@@ -814,12 +975,12 @@ def get_my_shared_visualizations():
             rows = conn.execute(
                 text(
                     """
-                    SELECT id, created_by_username, created_at, title, target_type, target_value,
-                           query_text, chart_type, x_column, y_column, result_snapshot,
+                    SELECT id, created_by_username, created_at, title, description, tags, updated_at,
+                           target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot,
                            parent_viz_id, reshared_by_username, reshare_description, original_creator_username
                     FROM assigned_query_visualizations
                     WHERE created_by_username = :username OR reshared_by_username = :username
-                    ORDER BY created_at DESC
+                    ORDER BY COALESCE(updated_at, created_at) DESC
                     """
                 ),
                 {"username": username},
@@ -833,11 +994,15 @@ def get_my_shared_visualizations():
                     except Exception:
                         snap = None
                 reshared_by_me = (r.get("reshared_by_username") or "").strip() == username
+                updated_at = r.get("updated_at") or r["created_at"]
                 out.append({
                     "id": r["id"],
                     "createdByUsername": r["created_by_username"],
                     "createdAt": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+                    "updatedAt": updated_at.isoformat() if hasattr(updated_at, "isoformat") else str(updated_at),
                     "title": r["title"],
+                    "description": r.get("description"),
+                    "tags": r.get("tags"),
                     "targetType": r["target_type"],
                     "targetValue": r["target_value"],
                     "queryText": r.get("query_text"),

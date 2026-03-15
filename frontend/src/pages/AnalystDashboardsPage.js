@@ -632,7 +632,7 @@ const AnalystDashboardsPage = () => {
         isChartAllowedForRole(c, primaryRole)
       );
 
-      await axios.post(
+      const res = await axios.post(
         '/api/dashboards',
         {
           name: createForm.name.trim(),
@@ -650,6 +650,10 @@ const AnalystDashboardsPage = () => {
         }
       );
       setShowCreate(false);
+      const created = res?.data?.dashboard;
+      if (created && created.id) {
+        setCustomDashboards((prev) => [created, ...prev]);
+      }
       await loadData();
     } catch (err) {
       console.error('Error creating dashboard:', err);

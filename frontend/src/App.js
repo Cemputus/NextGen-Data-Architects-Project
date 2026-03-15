@@ -130,7 +130,7 @@ function App() {
                       <Route path="grades" element={<StudentGrades />} />
                       <Route path="attendance" element={<StudentAttendance />} />
                       <Route path="payments" element={<StudentPayments />} />
-                      <Route path="profile" element={<Navigate to="user-info" replace />} />
+                      <Route path="profile" element={<ProfilePage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="predictions" element={<PredictionPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
@@ -151,7 +151,7 @@ function App() {
                       <Route path="classes" element={<StaffClasses />} />
                       <Route path="analytics" element={<Navigate to="/staff/dashboard" replace />} />
                       <Route path="predictions" element={<PredictionPage />} />
-                      <Route path="profile" element={<Navigate to="user-info" replace />} />
+                      <Route path="profile" element={<ProfilePage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
@@ -174,7 +174,7 @@ function App() {
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
                       <Route path="predictions" element={<PredictionPage />} />
-                      <Route path="profile" element={<Navigate to="user-info" replace />} />
+                      <Route path="profile" element={<ProfilePage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
@@ -196,7 +196,7 @@ function App() {
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
                       <Route path="predictions" element={<PredictionPage />} />
-                      <Route path="profile" element={<Navigate to="user-info" replace />} />
+                      <Route path="profile" element={<ProfilePage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
@@ -220,7 +220,7 @@ function App() {
                       <Route path="finance" element={<SenateFinance />} />
                       <Route path="reports" element={<ReportsPage />} />
                       <Route path="predictions" element={<PredictionPage />} />
-                      <Route path="profile" element={<Navigate to="user-info" replace />} />
+                      <Route path="profile" element={<ProfilePage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
@@ -246,7 +246,7 @@ function App() {
                       <Route path="reports" element={<ReportsPage />} />
                       <Route path="query" element={<NextGenQueryPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                      <Route path="profile" element={<Navigate to="user-info" replace />} />
+                      <Route path="profile" element={<ProfilePage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="*" element={<Navigate to="/analyst/dashboard" />} />
@@ -269,7 +269,7 @@ function App() {
                       <Route path="audit" element={<AdminAudit />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
-                      <Route path="profile" element={<Navigate to="user-info" replace />} />
+                      <Route path="profile" element={<ProfilePage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="*" element={<Navigate to="/admin/dashboard" />} />
                     </Routes>
@@ -290,7 +290,7 @@ function App() {
                       <Route path="leave-requests" element={<HRLeaveRequestsPage />} />
                       <Route path="payroll" element={<HRPayrollPage />} />
                       <Route path="evaluation" element={<HREvaluationPage />} />
-                      <Route path="profile" element={<Navigate to="user-info" replace />} />
+                      <Route path="profile" element={<ProfilePage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
@@ -310,7 +310,7 @@ function App() {
                       <Route path="analytics" element={<Navigate to="/finance/dashboard" replace />} />
                       <Route path="payments" element={<FinancePayments />} />
                       <Route path="predictions" element={<PredictionPage />} />
-                      <Route path="profile" element={<Navigate to="user-info" replace />} />
+                      <Route path="profile" element={<ProfilePage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />

@@ -69,6 +69,8 @@ const NextGenQueryPage = () => {
   const [targetOptionsLoading, setTargetOptionsLoading] = useState(false);
   const [assignUserSearch, setAssignUserSearch] = usePersistedState('nextgen_assign_userSearch', '');
   const hasRestoredRef = useRef(false);
+  const editingVizIdRef = useRef(null);
+  const [editingVizId, setEditingVizId] = useState(null);
   const [manageAssignedOpen, setManageAssignedOpen] = useState(false);
   const [myAssignedList, setMyAssignedList] = useState([]);
   const [manageAssignedLoading, setManageAssignedLoading] = useState(false);
@@ -105,14 +107,19 @@ const NextGenQueryPage = () => {
     [columns]
   );
 
-  // When navigating from Managed shared Charts (Edit), prefill SQL and chart settings
+  // When navigating from Managed shared Charts (Edit), prefill SQL and chart settings; keep viz id for update-in-place
   useEffect(() => {
     const editViz = location.state?.editViz;
-    if (editViz && typeof editViz.queryText === 'string' && editViz.queryText.trim()) {
-      setQuery(editViz.queryText.trim());
-      if (editViz.chartType) setChartType(editViz.chartType);
-      if (editViz.xColumn) setXColumn(editViz.xColumn);
-      if (editViz.yColumn) setYColumn(editViz.yColumn);
+    if (editViz && editViz.id) {
+      editingVizIdRef.current = editViz.id;
+      setEditingVizId(editViz.id);
+      if (typeof editViz.queryText === 'string' && editViz.queryText.trim()) {
+        setQuery(editViz.queryText.trim());
+        if (editViz.chartType) setChartType(editViz.chartType);
+        if (editViz.xColumn) setXColumn(editViz.xColumn);
+        if (editViz.yColumn) setYColumn(editViz.yColumn);
+      }
+      if (editViz.title) setAssignTitle(editViz.title);
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state?.editViz]);
@@ -244,11 +251,13 @@ const NextGenQueryPage = () => {
   const handleAssignSubmit = async () => {
     const title = assignTitle.trim();
     const targetValue = assignTargetValue.trim();
-    if (!title) {
+    const isUpdatingExisting = editingVizIdRef.current;
+
+    if (!isUpdatingExisting && !title) {
       setAssignError('Enter a title for this visualization.');
       return;
     }
-    if (!targetValue) {
+    if (!isUpdatingExisting && !targetValue) {
       setAssignError('Select a role or an app user.');
       return;
     }
@@ -258,6 +267,34 @@ const NextGenQueryPage = () => {
       const resultSnapshot = result
         ? { columns: result.columns, rows: (result.rows || []).slice(0, 200), row_count: result.row_count }
         : null;
+
+      if (isUpdatingExisting) {
+        await axios.put(
+          `/api/query/assigned-visualizations/${editingVizIdRef.current}`,
+          {
+            title: title || undefined,
+            query,
+            chartType,
+            xColumn,
+            yColumn,
+            resultSnapshot,
+          },
+          {
+            headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
+            timeout: 30000,
+          }
+        );
+        editingVizIdRef.current = null;
+        setEditingVizId(null);
+        setAssignModalOpen(false);
+        setAssignTitle('');
+        const msg = 'Chart updated. The shared visualization now shows your latest query and results.';
+        setAssignSuccessBanner(msg);
+        addToast(msg, 'success');
+        setTimeout(() => setAssignSuccessBanner(''), 5000);
+        return;
+      }
+
       await axios.post(
         '/api/query/assigned-visualizations',
         {
@@ -292,7 +329,7 @@ const NextGenQueryPage = () => {
           ? 'Request timed out. Try again.'
           : err.message === 'Network Error' || !err.response
             ? 'Cannot reach server. Ensure the backend is running and try again.'
-            : err.message || 'Failed to assign visualization.';
+            : err.message || (editingVizIdRef.current ? 'Failed to update chart.' : 'Failed to assign visualization.');
       setAssignError(msg);
     } finally {
       setAssignSaving(false);
@@ -929,9 +966,14 @@ const NextGenQueryPage = () => {
 
       <Modal open={assignModalOpen} onClose={() => !assignSaving && setAssignModalOpen(false)} className="flex flex-col overflow-hidden max-w-2xl min-w-0">
         <ModalHeader onClose={() => !assignSaving && setAssignModalOpen(false)} className="shrink-0">
-          Share visualization
+          {editingVizId ? 'Update shared chart' : 'Share visualization'}
         </ModalHeader>
         <ModalBody className="flex-1 min-h-0 overflow-auto p-3 sm:p-4">
+          {editingVizId && (
+            <p className="text-sm text-amber-600 dark:text-amber-400 mb-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2">
+              Updating existing chart. Run your SQL, then save here to replace the shared visualization with the new query and results.
+            </p>
+          )}
           <p className="text-sm text-muted-foreground mb-3">
             Choose who should see this visualization under <strong>&quot;Views shared with you&quot;</strong> on their dashboard. You can share it with an entire <strong>role</strong> or a specific <strong>app user</strong>.
           </p>
@@ -1091,7 +1133,7 @@ const NextGenQueryPage = () => {
           </Button>
           <Button onClick={handleAssignSubmit} disabled={assignSaving || !assignTitle.trim() || !assignTargetValue.trim()}>
             {assignSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Share2 className="h-4 w-4 mr-2" />}
-            Assign visualization
+            {editingVizId ? 'Update chart' : 'Assign visualization'}
           </Button>
         </ModalFooter>
       </Modal>
