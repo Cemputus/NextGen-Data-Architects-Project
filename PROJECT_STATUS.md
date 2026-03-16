@@ -169,7 +169,7 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 - **6.7 Finance**: Tuition expected vs paid, outstanding balances, payment trends, revenue by faculty/program, sponsorship coverage.
 - **6.8 HR**: Staff counts, distribution, staffing structure per department/faculty.
 - **6.9 Sysadmin**: System health, user/role distribution, ETL status, audit logs, admin shortcuts.
-
+- *Important*: work on other pages also forexample the payment management page , financial BI, high school BI, FEX Analysis- make sure this they use the previous semester,Riak Analysis(Risk summary, high School Correlation , District Analysis, At-Risk student List - this cater for students financial constraints in the previous or crrent semester , and student with 2 or more  retakes in the current semester )prediction,reports page --- plus other pages from other users ,, make sure that you work on other pages too
 ---
 
 ### Phase 7 — Custom Dashboards & Chart Library
