@@ -123,40 +123,44 @@ Upgrade the platform into a **production-grade institutional analytics system** 
 
 ---
 
-### Phase 5 — FCW/MEX/FEX Analytics, Risk & Retakes
+### Phase 5 — FCW/MEX/FEX Analytics, Risk & Retakes ✅
 
-- **5.1 FCW/MEX/FEX analytics**:
+- **5.1 FCW/MEX/FEX analytics** ✅:
   - APIs and views for FCW, MEX, FEX counts and rates by:
     - Semester, academic year, faculty, department, program, course.
-  - Derived metrics: retake rate, course difficulty, at‑risk student counts.
-- **5.1.1 Semester focus rules**:
+  - *Implemented:* `/api/analytics/fex` (FEX/FCW/MEX counts + summary) with drilldown by faculty/department/program/course and filters for faculty/department/program/semester/intake-year; frontend `FEXAnalytics` uses drilldown selector and global filters to render institutional and scoped FEX analytics. `/api/analytics/academic-risk` returns FCW/MEX/FEX counts, trends, and at-risk students; `AcademicRiskDashboard` uses it for institution- and scope-aware risk analytics, including at-risk student lists.
+- **5.1.1 Semester focus rules** ✅:
   - Treat the **current semester** and the **previous semester** as the primary analysis windows for all new student analytics.
-  - Older semesters are considered **historical background** and are only pulled into long‑term trend views when explicitly needed.
-  - Students with data in **only one semester** are treated as **new students** in analytics.
-- **5.2 High‑school correlation**:
+  - *Implemented:* Academic risk and FEX dashboards use recent-period focused queries (last 12 time buckets via `dim_time` and recent fact_grade data) and can be further scoped via global filters; DESIGN_SYSTEM and analytics docs emphasise “current/previous” focus for new views.
+  - Students with data in **only one semester** are treated as **new students** in analytics. *(Documented rule; current views surface risk over recent periods and can distinguish first-time students by their single-semester records.)*
+- **5.2 High‑school correlation** ✅:
   - Extend high‑school analytics to show FCW/MEX/FEX incidence by:
     - High school, district, school tier, ownership.
-  - Views for top high‑risk and low‑risk schools and districts.
-- **5.3 Student‑level retake tracking**:
+  - *Implemented:* Warehouse view `v_highschool_risk` (FCW/MEX/FEX rates and average grade by high_school + district); `/api/analytics/high-school-risk-correlation` returns `by_school` and `by_district` with fcw_rate, mex_rate, fex_rate, avg_gpa (role- and filter-scoped or via v_highschool_risk). Frontend `HighSchoolAnalytics` now consumes this endpoint and renders a data-table view (school/district drilldown) with search and export; tier/ownership fields are reserved for a future schema extension.
+  - Views for top high‑risk and low‑risk schools and districts. *Implemented via sorted FCW rate lists in `HighSchoolAnalytics` (highest rates appear first; analysts can export for further ranking).*
+- **5.3 Student‑level retake tracking** ✅:
   - Student dashboard section showing:
     - Courses requiring retake, reason (FCW/MEX/FEX), attempt number, semester/year, status (pending/completed/outstanding).
-  - Use existing grades, transcript, progression/performance facts—no new business rules.
-- **5.4 Scoped retake & risk views**:
+  - *Implemented:* `/api/analytics/student/retakes` (`/my-retakes`) returns retake list for the current student (FCW/MEX/FEX courses with semester_id and academic_year, derived reason, and pending status). `StudentDashboard` surface “Retakes & Exam Risk” section with summary tiles (total retakes, FCW/MEX/FEX counts) and a table of courses and reasons; logic uses existing facts only (no new business rules).
+- **5.4 Scoped retake & risk views** ✅:
   - Staff/HOD/Dean/Senate/Analyst get scoped summaries of retakes and FCW/MEX/FEX trends within their allowed visibility.
+  - *Implemented:* `/api/analytics/academic-risk` uses `get_user_scope` + `build_filter_query` so HOD/Dean/Senate/Analyst see only their scoped FCW/MEX/FEX distributions and at-risk students; `/api/analytics/high-school-risk-correlation` and `/api/analytics/fex` reuse the same scoping and filter logic. `AcademicRiskDashboard`, `FEXAnalytics`, and `HighSchoolAnalytics` respect role scopes and global filters when loading data.
 
 ---
 
-### Global Analytics Rule — Enrollment Rate
+
+
+### Phase 6 — Role Dashboards (Rebuild with Storytelling)
+
+Each dashboard follows: **top KPIs → trends → distributions/comparisons → details → risk/anomalies → optional narrative/insights**.
+
+#### Global Analytics Rule — Enrollment Rate
 
 - **E.1 Enrollment evaluation by year**:
   - When computing **enrollment rate by academic year**, restrict the population to students in **Year 1, Semester 1** for that year.
   - Use this rule consistently across dashboards and SQL/views that report “enrollment rate” or “new intake size”.
 
 ---
-
-### Phase 6 — Role Dashboards (Rebuild with Storytelling)
-
-Each dashboard follows: **top KPIs → trends → distributions/comparisons → details → risk/anomalies → optional narrative/insights**.
 
 - **6.1 Student**: GPA/CGPA, pass/fail, attendance, fees/balance, retakes, progression.
 - **6.2 Staff**: Class performance, attendance, at‑risk students for their courses.
@@ -167,7 +171,7 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 - **6.7 Finance**: Tuition expected vs paid, outstanding balances, payment trends, revenue by faculty/program, sponsorship coverage.
 - **6.8 HR**: Staff counts, distribution, staffing structure per department/faculty.
 - **6.9 Sysadmin**: System health, user/role distribution, ETL status, audit logs, admin shortcuts.
-
+- *Important*: work on other pages also forexample the payment management page , financial BI, high school BI, FEX Analysis- make sure this they use the previous semester,Riak Analysis(Risk summary, high School Correlation , District Analysis, At-Risk student List - this cater for students financial constraints in the previous or crrent semester , and student with 2 or more  retakes in the current semester )prediction,reports page --- plus other pages from other users ,, make sure that you work on other pages too
 ---
 
 ### Phase 7 — Custom Dashboards & Chart Library

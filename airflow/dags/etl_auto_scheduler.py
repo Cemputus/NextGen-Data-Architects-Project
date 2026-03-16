@@ -67,18 +67,50 @@ def check_and_run_etl():
     if not settings.get("etl_auto_enabled"):
         return "Auto ETL disabled; skipping."
 
-    interval_min = float(settings.get("etl_auto_interval_minutes") or 60)
-    # Keep the same semantics as the legacy scheduler: minimum 1 minute for safety/tests.
-    interval_sec = max(60, int(interval_min * 60))
+    interval_min = float(settings.get("etl_auto_interval_minutes") or 300)
+    # Enforce a minimum interval of 5 hours for automatic ETL.
+    min_interval_sec = 5 * 60 * 60  # 5 hours
+    interval_sec = max(min_interval_sec, int(interval_min * 60))
 
     last_run = settings.get("last_etl_auto_run")
     now_sec = time.time()
 
-    # First time auto is enabled: set anchor so first run happens after one full interval.
+    # First time auto is enabled: run ETL immediately, then set anchor for next interval.
     if last_run is None:
+        # Run the same commands the backend uses so logs and behavior stay consistent.
+        env = os.environ.copy()
+        env.setdefault("PYTHONPATH", str(BACKEND_DIR))
+
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "export_user_snapshot"],
+                cwd=str(BACKEND_DIR),
+                env=env,
+                check=False,
+                timeout=60,
+            )
+        except subprocess.TimeoutExpired:
+            pass
+
+        result = subprocess.run(
+            [sys.executable, "-m", "etl_pipeline"],
+            cwd=str(BACKEND_DIR),
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            msg = (
+                f"Initial etl_pipeline run failed with code {result.returncode}\n"
+                f"STDOUT:\n{result.stdout}\n"
+                f"STDERR:\n{result.stderr}\n"
+            )
+            raise RuntimeError(msg)
+
         settings["last_etl_auto_run"] = now_sec
         _save_admin_settings(settings)
-        return "Initialized last_etl_auto_run anchor; will run after first full interval."
+        return "Initial auto ETL run completed; countdown started for next interval."
 
     try:
         if isinstance(last_run, (int, float)):

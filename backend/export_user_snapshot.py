@@ -79,8 +79,24 @@ def export_user_snapshot():
     seeds_dir = backend_dir / "etl_seeds"
     seeds_dir.mkdir(parents=True, exist_ok=True)
     out_path = seeds_dir / "user_snapshot.json"
+    # Normalize NaN/NaT values so JSON is always valid (null instead of NaN)
+    def _normalize_json(obj):
+        if isinstance(obj, dict):
+            return {k: _normalize_json(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_normalize_json(v) for v in obj]
+        try:
+            import math
+            # Replace NaN/inf with None so json.dump produces valid JSON
+            if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+                return None
+        except Exception:
+            pass
+        return obj
+
+    normalized_snapshot = _normalize_json(snapshot)
     with out_path.open("w", encoding="utf-8") as f:
-        json.dump(snapshot, f, indent=2, default=str)
+        json.dump(normalized_snapshot, f, indent=2, default=str)
 
     print(f"User snapshot written to {out_path}")
 
