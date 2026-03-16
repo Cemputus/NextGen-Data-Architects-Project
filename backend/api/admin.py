@@ -759,9 +759,11 @@ def run_etl():
         use_fallback = True
 
     if use_fallback:
+        # Fallback: run the ETL pipeline directly from the backend container.
+        # Airflow webserver may still be available on :8080, but the CLI is not in this container.
         threading.Thread(target=_run_etl_in_background, daemon=True).start()
         return jsonify({
-            'message': 'ETL pipeline started in background (Airflow not available). The page will refresh to show progress.',
+            'message': 'ETL pipeline started in background from the backend. The page will refresh to show progress.',
             'started': True,
             'in_progress': True,
         }), 202
