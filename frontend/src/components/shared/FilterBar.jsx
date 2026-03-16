@@ -132,7 +132,9 @@ export const FilterBar = ({
                         />
                         <span className="text-muted-foreground text-sm">-</span>
                         <input
+                            id="filter-end-date"
                             type="date"
+                            aria-label="End date"
                             className="h-9 px-3 py-1 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring text-sm text-foreground"
                             value={localFilters.end_date || ''}
                             onChange={(e) => handleChange('end_date', e.target.value)}
