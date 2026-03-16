@@ -1,14 +1,37 @@
 {
   "app_users": [
     {
+      "id": 23,
+      "username": "lynn",
+      "password_hash": "pbkdf2:sha256:600000$SxW7FFTgvfgJYl0W$ae6a5482defd27bce3c7ec3941f04eec28cc9a519e4412c8d66fb7a82e84da60",
+      "role": "hr",
+      "full_name": "Lynn Amoit",
+      "faculty_id": null,
+      "department_id": null,
+      "created_at": "2026-03-16 16:00:49.309595",
+      "created_by_username": "admin"
+    },
+    {
+      "id": 6,
+      "username": "ed",
+      "password_hash": "pbkdf2:sha256:600000$VY9R2HOsCA3rNQIs$b9d2f57b0bb64a2aec9de8d00bb73e1cf81cb60eb3bbdfc5046d14817e04a2c6",
+      "role": "sysadmin",
+      "full_name": "Guloba Emmanuel Edube",
+      "faculty_id": null,
+      "department_id": null,
+      "created_at": "2026-02-22 12:23:16",
+      "created_by_username": null
+    },
+    {
       "id": 12,
       "username": "dean",
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "staff",
       "full_name": "dean",
-      "faculty_id": NaN,
-      "department_id": NaN,
-      "created_at": "2026-02-26 19:54:03"
+      "faculty_id": null,
+      "department_id": null,
+      "created_at": "2026-02-26 19:54:03",
+      "created_by_username": null
     },
     {
       "id": 13,
@@ -17,8 +40,9 @@
       "role": "dean",
       "full_name": "Gift Ruth",
       "faculty_id": 10.0,
-      "department_id": NaN,
-      "created_at": "2026-02-28 17:09:02"
+      "department_id": null,
+      "created_at": "2026-02-28 17:09:02",
+      "created_by_username": null
     },
     {
       "id": 14,
@@ -27,8 +51,9 @@
       "role": "dean",
       "full_name": "Agaba Itungo",
       "faculty_id": 5.0,
-      "department_id": NaN,
-      "created_at": "2026-02-28 22:40:48"
+      "department_id": null,
+      "created_at": "2026-02-28 22:40:48",
+      "created_by_username": null
     },
     {
       "id": 15,
@@ -36,9 +61,10 @@
       "password_hash": "pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a",
       "role": "analyst",
       "full_name": "Mwine Irwin",
-      "faculty_id": NaN,
-      "department_id": NaN,
-      "created_at": "2026-03-01 09:42:42"
+      "faculty_id": null,
+      "department_id": null,
+      "created_at": "2026-03-01 09:42:42",
+      "created_by_username": null
     },
     {
       "id": 16,
@@ -46,9 +72,10 @@
       "password_hash": "pbkdf2:sha256:600000$hhk16sGAQBqJdGb2$fbaf9af8015770c7178ffc2628fffe184e3f0114c2520c84b15e449a5736e4d5",
       "role": "senate",
       "full_name": "Joy Abaho",
-      "faculty_id": NaN,
-      "department_id": NaN,
-      "created_at": "2026-03-01 13:36:51"
+      "faculty_id": null,
+      "department_id": null,
+      "created_at": "2026-03-01 13:36:51",
+      "created_by_username": null
     },
     {
       "id": 17,
@@ -57,8 +84,9 @@
       "role": "dean",
       "full_name": "Mark Nsubuga",
       "faculty_id": 1.0,
-      "department_id": NaN,
-      "created_at": "2026-03-04 09:55:50"
+      "department_id": null,
+      "created_at": "2026-03-04 09:55:50",
+      "created_by_username": null
     },
     {
       "id": 4,
@@ -66,9 +94,10 @@
       "password_hash": "pbkdf2:sha256:600000$HiZPyV0kqmlDq0Ww$84ec3b69156f739e5edfae9fc1e6db68ab289441039a0739a5997c5e1d5d5e26",
       "role": "hod",
       "full_name": "Luutu James",
-      "faculty_id": NaN,
+      "faculty_id": null,
       "department_id": 9.0,
-      "created_at": "2026-03-12 07:12:02.480227"
+      "created_at": "2026-03-12 07:12:02.480227",
+      "created_by_username": null
     },
     {
       "id": 9,
@@ -76,9 +105,10 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "analyst",
       "full_name": "Enoch Asingwiire",
-      "faculty_id": NaN,
-      "department_id": NaN,
-      "created_at": "2026-02-25 09:21:21"
+      "faculty_id": null,
+      "department_id": null,
+      "created_at": "2026-02-25 09:21:21",
+      "created_by_username": null
     },
     {
       "id": 10,
@@ -87,8 +117,9 @@
       "role": "dean",
       "full_name": "joy",
       "faculty_id": 6.0,
-      "department_id": NaN,
-      "created_at": "2026-02-26 19:18:29"
+      "department_id": null,
+      "created_at": "2026-02-26 19:18:29",
+      "created_by_username": null
     },
     {
       "id": 11,
@@ -96,19 +127,10 @@
       "password_hash": "pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83",
       "role": "staff",
       "full_name": "hr",
-      "faculty_id": NaN,
-      "department_id": NaN,
-      "created_at": "2026-02-26 19:53:51"
-    },
-    {
-      "id": 6,
-      "username": "ed",
-      "password_hash": "pbkdf2:sha256:600000$qR4BfGNDHZjVdwQc$2bde8305398d085f1529b4c01f6a9b28323fcb981f91c2990205cae9a7e6a2e7",
-      "role": "sysadmin",
-      "full_name": "Guloba Emmanuel Edube",
-      "faculty_id": NaN,
-      "department_id": NaN,
-      "created_at": "2026-02-22 12:23:16"
+      "faculty_id": null,
+      "department_id": null,
+      "created_at": "2026-02-26 19:53:51",
+      "created_by_username": null
     },
     {
       "id": 22,
@@ -117,8 +139,9 @@
       "role": "dean",
       "full_name": "Oscar Odongkara",
       "faculty_id": 9.0,
-      "department_id": NaN,
-      "created_at": "2026-03-14 17:16:52.586857"
+      "department_id": null,
+      "created_at": "2026-03-14 17:16:52.586857",
+      "created_by_username": null
     },
     {
       "id": 7,
@@ -128,7 +151,8 @@
       "full_name": "edube",
       "faculty_id": 6.0,
       "department_id": 9.0,
-      "created_at": "2026-02-24 17:20:23"
+      "created_at": "2026-02-24 17:20:23",
+      "created_by_username": null
     },
     {
       "id": 1,
@@ -138,7 +162,8 @@
       "full_name": "Emmanuel Nsubuga",
       "faculty_id": 1.0,
       "department_id": 1.0,
-      "created_at": "2026-02-20 18:34:15"
+      "created_at": "2026-02-20 18:34:15",
+      "created_by_username": null
     },
     {
       "id": 18,
@@ -147,8 +172,9 @@
       "role": "dean",
       "full_name": "Mark Mugisha",
       "faculty_id": 3.0,
-      "department_id": NaN,
-      "created_at": "2026-03-14 14:53:21.454328"
+      "department_id": null,
+      "created_at": "2026-03-14 14:53:21.454328",
+      "created_by_username": null
     },
     {
       "id": 20,
@@ -158,7 +184,8 @@
       "full_name": "Denzel Buwebo",
       "faculty_id": 1.0,
       "department_id": 1.0,
-      "created_at": "2026-03-14 14:56:43.673362"
+      "created_at": "2026-03-14 14:56:43.673362",
+      "created_by_username": null
     },
     {
       "id": 21,
@@ -168,7 +195,8 @@
       "full_name": "Derrick Katende",
       "faculty_id": 4.0,
       "department_id": 5.0,
-      "created_at": "2026-03-14 14:57:42.528052"
+      "created_at": "2026-03-14 14:57:42.528052",
+      "created_by_username": null
     }
   ],
   "user_profiles": [
@@ -180,7 +208,7 @@
       "last_name": "Emmanuel Edube",
       "email": "gulobaemmanueledube@gmail.com",
       "phone": "+256745597803",
-      "profile_picture_url": NaN,
+      "profile_picture_url": null,
       "preferences": null,
       "updated_at": "2026-03-12 08:44:49.967999"
     },
@@ -215,13 +243,13 @@
       "role_name": "analyst",
       "action": "profile_update",
       "resource": "profile",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:54:51.260173"
     },
     {
@@ -231,13 +259,13 @@
       "role_name": "analyst",
       "action": "profile_update",
       "resource": "profile",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:54:48.329937"
     },
     {
@@ -253,7 +281,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:54:20.304061"
     },
     {
@@ -269,7 +297,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:53:57.286451"
     },
     {
@@ -285,7 +313,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:53:12.340330"
     },
     {
@@ -301,7 +329,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:48:23.575066"
     },
     {
@@ -317,7 +345,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:48:06.851403"
     },
     {
@@ -333,7 +361,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:46:26.113440"
     },
     {
@@ -343,13 +371,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:46:24.753831"
     },
     {
@@ -365,7 +393,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:22:19.389119"
     },
     {
@@ -381,7 +409,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:22:11.843772"
     },
     {
@@ -391,13 +419,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 07:22:10.963586"
     },
     {
@@ -413,7 +441,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:57:41.846260"
     },
     {
@@ -429,7 +457,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:57:26.467525"
     },
     {
@@ -445,7 +473,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:57:17.405619"
     },
     {
@@ -455,13 +483,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:57:16.720130"
     },
     {
@@ -477,7 +505,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:42:22.254622"
     },
     {
@@ -493,7 +521,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:41:37.312360"
     },
     {
@@ -509,7 +537,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:41:34.606992"
     },
     {
@@ -525,7 +553,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:41:33.162079"
     },
     {
@@ -541,7 +569,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:39:23.642953"
     },
     {
@@ -551,13 +579,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:39:21.436669"
     },
     {
@@ -573,7 +601,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:28:23.010008"
     },
     {
@@ -589,7 +617,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:28:19.312049"
     },
     {
@@ -599,13 +627,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:28:18.493239"
     },
     {
@@ -615,13 +643,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:27:47.065748"
     },
     {
@@ -637,7 +665,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:13:50.515064"
     },
     {
@@ -653,7 +681,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:13:44.122730"
     },
     {
@@ -669,7 +697,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:12:29.252514"
     },
     {
@@ -685,7 +713,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:08:38.519035"
     },
     {
@@ -701,7 +729,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:08:31.065704"
     },
     {
@@ -717,7 +745,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:08:19.167656"
     },
     {
@@ -727,13 +755,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-15 06:08:14.893600"
     },
     {
@@ -749,7 +777,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 18:36:41.554166"
     },
     {
@@ -759,13 +787,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 18:36:40.340311"
     },
     {
@@ -781,7 +809,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:44:32.893303"
     },
     {
@@ -797,7 +825,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:44:32.828605"
     },
     {
@@ -813,7 +841,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:44:32.802490"
     },
     {
@@ -829,7 +857,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:44:26.259623"
     },
     {
@@ -845,7 +873,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:44:26.195690"
     },
     {
@@ -861,7 +889,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:44:26.183795"
     },
     {
@@ -877,7 +905,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:41:23.087545"
     },
     {
@@ -887,7 +915,7 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
@@ -909,7 +937,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:40:12.271878"
     },
     {
@@ -925,7 +953,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:37:45.686853"
     },
     {
@@ -941,7 +969,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:37:35.630158"
     },
     {
@@ -951,13 +979,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:37:34.418126"
     },
     {
@@ -973,7 +1001,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:37:01.063379"
     },
     {
@@ -989,7 +1017,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:36:58.467050"
     },
     {
@@ -1005,7 +1033,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:30:57.818813"
     },
     {
@@ -1021,7 +1049,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:29:52.394356"
     },
     {
@@ -1037,7 +1065,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:29:36.022387"
     },
     {
@@ -1053,7 +1081,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:29:34.819690"
     },
     {
@@ -1069,7 +1097,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:29:19.838795"
     },
     {
@@ -1085,7 +1113,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:28:41.873735"
     },
     {
@@ -1101,7 +1129,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:28:39.746336"
     },
     {
@@ -1117,7 +1145,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:28:35.585264"
     },
     {
@@ -1133,7 +1161,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:28:20.085576"
     },
     {
@@ -1149,7 +1177,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:27:50.929746"
     },
     {
@@ -1165,7 +1193,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:27:31.073900"
     },
     {
@@ -1181,7 +1209,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:26:57.173730"
     },
     {
@@ -1197,7 +1225,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:26:09.707653"
     },
     {
@@ -1213,7 +1241,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:26:01.754950"
     },
     {
@@ -1229,7 +1257,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:25:33.369911"
     },
     {
@@ -1245,7 +1273,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:25:28.419265"
     },
     {
@@ -1261,7 +1289,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:25:23.834694"
     },
     {
@@ -1271,13 +1299,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:25:23.019929"
     },
     {
@@ -1293,7 +1321,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:25:01.218864"
     },
     {
@@ -1309,7 +1337,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:24:29.171997"
     },
     {
@@ -1325,7 +1353,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:24:25.118434"
     },
     {
@@ -1341,7 +1369,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:24:19.959403"
     },
     {
@@ -1357,7 +1385,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:23:05.034230"
     },
     {
@@ -1373,7 +1401,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:23:00.381146"
     },
     {
@@ -1389,7 +1417,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:23:00.288385"
     },
     {
@@ -1405,7 +1433,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:23:00.151577"
     },
     {
@@ -1421,7 +1449,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:22:58.168268"
     },
     {
@@ -1437,7 +1465,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:22:58.077839"
     },
     {
@@ -1453,7 +1481,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:22:58.026219"
     },
     {
@@ -1469,7 +1497,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:22:45.531331"
     },
     {
@@ -1485,7 +1513,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:22:45.491250"
     },
     {
@@ -1501,7 +1529,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:22:45.422810"
     },
     {
@@ -1517,7 +1545,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:22:40.439567"
     },
     {
@@ -1533,7 +1561,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:22:34.309058"
     },
     {
@@ -1549,7 +1577,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:22:34.213792"
     },
     {
@@ -1565,7 +1593,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:22:34.187852"
     },
     {
@@ -1581,7 +1609,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:19:22.039123"
     },
     {
@@ -1597,7 +1625,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:17:34.329132"
     },
     {
@@ -1607,13 +1635,13 @@
       "role_name": "dean",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:17:34.028365"
     },
     {
@@ -1629,7 +1657,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:15:07.733552"
     },
     {
@@ -1639,13 +1667,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:15:07.410945"
     },
     {
@@ -1661,7 +1689,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:13:23.356867"
     },
     {
@@ -1677,7 +1705,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:12:50.682112"
     },
     {
@@ -1693,7 +1721,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:11:56.415949"
     },
     {
@@ -1709,7 +1737,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:11:16.910870"
     },
     {
@@ -1725,7 +1753,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:11:04.427792"
     },
     {
@@ -1735,13 +1763,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 17:11:03.294823"
     },
     {
@@ -1757,7 +1785,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:53:54.705842"
     },
     {
@@ -1773,7 +1801,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:53:52.725998"
     },
     {
@@ -1789,7 +1817,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:53:37.421458"
     },
     {
@@ -1805,7 +1833,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:53:32.463769"
     },
     {
@@ -1821,7 +1849,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:53:12.287897"
     },
     {
@@ -1837,7 +1865,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:52:59.780802"
     },
     {
@@ -1853,7 +1881,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:52:19.011658"
     },
     {
@@ -1869,7 +1897,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:51:39.891426"
     },
     {
@@ -1879,13 +1907,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:51:38.035781"
     },
     {
@@ -1901,7 +1929,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:25:07.187441"
     },
     {
@@ -1917,7 +1945,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:25:03.755246"
     },
     {
@@ -1933,7 +1961,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:24:59.791147"
     },
     {
@@ -1949,7 +1977,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:24:56.410523"
     },
     {
@@ -1965,7 +1993,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:24:11.607713"
     },
     {
@@ -1981,7 +2009,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:22:22.495648"
     },
     {
@@ -1997,7 +2025,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:22:19.133360"
     },
     {
@@ -2013,7 +2041,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:21:46.726950"
     },
     {
@@ -2029,7 +2057,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:21:39.780438"
     },
     {
@@ -2039,13 +2067,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:21:38.958592"
     },
     {
@@ -2061,7 +2089,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:19:17.954305"
     },
     {
@@ -2077,7 +2105,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:18:14.877410"
     },
     {
@@ -2093,7 +2121,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:13:54.115021"
     },
     {
@@ -2109,7 +2137,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:13:35.347667"
     },
     {
@@ -2119,13 +2147,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:13:34.734365"
     },
     {
@@ -2141,7 +2169,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:04:38.912875"
     },
     {
@@ -2157,7 +2185,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:01:24.205746"
     },
     {
@@ -2173,7 +2201,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 15:01:09.278282"
     },
     {
@@ -2189,7 +2217,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:52:42.399264"
     },
     {
@@ -2199,13 +2227,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:52:41.862019"
     },
     {
@@ -2221,7 +2249,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:51:01.758217"
     },
     {
@@ -2237,7 +2265,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:50:42.083260"
     },
     {
@@ -2253,7 +2281,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:47:38.039556"
     },
     {
@@ -2263,13 +2291,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:47:37.250241"
     },
     {
@@ -2285,7 +2313,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:34:13.271618"
     },
     {
@@ -2301,7 +2329,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:34:02.412267"
     },
     {
@@ -2317,7 +2345,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:34:02.257446"
     },
     {
@@ -2333,7 +2361,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:34:02.244919"
     },
     {
@@ -2349,7 +2377,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:32:42.969791"
     },
     {
@@ -2365,7 +2393,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:24:18.363335"
     },
     {
@@ -2375,13 +2403,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:24:17.658187"
     },
     {
@@ -2397,7 +2425,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:08:11.857720"
     },
     {
@@ -2413,7 +2441,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:07:49.627956"
     },
     {
@@ -2423,13 +2451,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:07:48.360719"
     },
     {
@@ -2445,7 +2473,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 14:05:31.521113"
     },
     {
@@ -2461,7 +2489,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 13:55:46.289619"
     },
     {
@@ -2477,7 +2505,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 13:51:01.834274"
     },
     {
@@ -2493,7 +2521,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 13:50:48.496681"
     },
     {
@@ -2509,7 +2537,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 13:07:08.345620"
     },
     {
@@ -2519,13 +2547,13 @@
       "role_name": "analyst",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 13:07:06.944890"
     },
     {
@@ -2541,7 +2569,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:53:49.955105"
     },
     {
@@ -2557,7 +2585,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:53:41.343463"
     },
     {
@@ -2573,7 +2601,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:52:56.134305"
     },
     {
@@ -2583,13 +2611,13 @@
       "role_name": "hod",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:52:55.078651"
     },
     {
@@ -2605,7 +2633,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:18:46.940412"
     },
     {
@@ -2621,7 +2649,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:18:46.919096"
     },
     {
@@ -2637,7 +2665,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:18:34.084060"
     },
     {
@@ -2653,7 +2681,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:18:29.596093"
     },
     {
@@ -2669,7 +2697,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:18:15.756786"
     },
     {
@@ -2685,7 +2713,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:18:11.277198"
     },
     {
@@ -2701,7 +2729,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:11:38.229830"
     },
     {
@@ -2711,13 +2739,13 @@
       "role_name": "hod",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 08:11:36.843250"
     },
     {
@@ -2733,7 +2761,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:36:40.101640"
     },
     {
@@ -2749,7 +2777,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:36:40.051270"
     },
     {
@@ -2765,7 +2793,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:36:40.035791"
     },
     {
@@ -2781,7 +2809,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:36:25.585507"
     },
     {
@@ -2797,7 +2825,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:36:22.088900"
     },
     {
@@ -2807,13 +2835,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:36:21.289766"
     },
     {
@@ -2829,7 +2857,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:36:11.139373"
     },
     {
@@ -2845,7 +2873,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:36:03.956646"
     },
     {
@@ -2861,7 +2889,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:35:41.948987"
     },
     {
@@ -2877,7 +2905,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:35:36.332794"
     },
     {
@@ -2893,7 +2921,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:34:42.524986"
     },
     {
@@ -2909,7 +2937,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:30:57.259794"
     },
     {
@@ -2925,7 +2953,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:30:54.198186"
     },
     {
@@ -2941,7 +2969,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:30:18.437621"
     },
     {
@@ -2957,7 +2985,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:30:14.363070"
     },
     {
@@ -2967,13 +2995,13 @@
       "role_name": "hod",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-14 07:30:13.572029"
     },
     {
@@ -2989,7 +3017,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 23:13:11.205539"
     },
     {
@@ -2999,13 +3027,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 23:13:10.711794"
     },
     {
@@ -3021,7 +3049,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 23:08:38.271626"
     },
     {
@@ -3037,7 +3065,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 23:02:53.144458"
     },
     {
@@ -3053,7 +3081,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 23:02:16.044662"
     },
     {
@@ -3069,7 +3097,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 23:02:12.599051"
     },
     {
@@ -3079,13 +3107,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 23:02:11.769411"
     },
     {
@@ -3101,7 +3129,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:50:12.634900"
     },
     {
@@ -3117,7 +3145,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:48:57.695037"
     },
     {
@@ -3133,7 +3161,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:48:22.530103"
     },
     {
@@ -3149,7 +3177,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:47:51.610748"
     },
     {
@@ -3165,7 +3193,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:45:31.466968"
     },
     {
@@ -3181,7 +3209,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:43:28.905510"
     },
     {
@@ -3197,7 +3225,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:42:14.791792"
     },
     {
@@ -3213,7 +3241,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:42:11.954131"
     },
     {
@@ -3223,13 +3251,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:42:11.295473"
     },
     {
@@ -3245,7 +3273,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:41:52.481548"
     },
     {
@@ -3261,7 +3289,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:41:13.722472"
     },
     {
@@ -3271,13 +3299,13 @@
       "role_name": "hod",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:41:12.954315"
     },
     {
@@ -3293,7 +3321,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:37:59.490621"
     },
     {
@@ -3309,7 +3337,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:19:35.350600"
     },
     {
@@ -3325,7 +3353,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:19:20.640089"
     },
     {
@@ -3341,7 +3369,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:11:55.691561"
     },
     {
@@ -3357,7 +3385,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:11:37.833963"
     },
     {
@@ -3373,7 +3401,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 22:10:32.923990"
     },
     {
@@ -3383,13 +3411,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 20:25:59.470646"
     },
     {
@@ -3405,7 +3433,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 16:26:27.408417"
     },
     {
@@ -3421,7 +3449,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 16:24:14.593284"
     },
     {
@@ -3437,7 +3465,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-13 16:14:53.640018"
     },
     {
@@ -3447,13 +3475,13 @@
       "role_name": "sysadmin",
       "action": "profile_update",
       "resource": "profile",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:44:49.722236"
     },
     {
@@ -3469,7 +3497,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:42:39.514302"
     },
     {
@@ -3485,7 +3513,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:42:37.698776"
     },
     {
@@ -3495,13 +3523,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:42:35.622999"
     },
     {
@@ -3517,7 +3545,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:41:53.872195"
     },
     {
@@ -3533,7 +3561,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:39:02.917472"
     },
     {
@@ -3549,7 +3577,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:39:02.869849"
     },
     {
@@ -3565,7 +3593,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:32:48.227248"
     },
     {
@@ -3581,7 +3609,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:32:23.354683"
     },
     {
@@ -3597,7 +3625,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:26:43.735492"
     },
     {
@@ -3613,7 +3641,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:24:47.111406"
     },
     {
@@ -3623,13 +3651,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:24:46.623166"
     },
     {
@@ -3645,7 +3673,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:22:36.168213"
     },
     {
@@ -3655,13 +3683,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:22:32.359322"
     },
     {
@@ -3671,7 +3699,7 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
@@ -3687,7 +3715,7 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
@@ -3709,7 +3737,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 08:08:36.130477"
     },
     {
@@ -3725,7 +3753,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 07:56:22.251856"
     },
     {
@@ -3735,13 +3763,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 07:55:38.813187"
     },
     {
@@ -3757,7 +3785,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 07:36:34.632006"
     },
     {
@@ -3773,7 +3801,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 07:17:03.641795"
     },
     {
@@ -3789,7 +3817,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 07:16:16.753210"
     },
     {
@@ -3799,13 +3827,13 @@
       "role_name": "hod",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 07:16:14.582320"
     },
     {
@@ -3821,7 +3849,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 07:09:56.836764"
     },
     {
@@ -3831,13 +3859,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 07:09:49.467887"
     },
     {
@@ -3853,7 +3881,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 06:40:12.271398"
     },
     {
@@ -3869,7 +3897,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 06:34:38.409625"
     },
     {
@@ -3885,7 +3913,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 06:34:32.249038"
     },
     {
@@ -3895,13 +3923,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 06:34:26.129797"
     },
     {
@@ -3917,7 +3945,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 06:21:36.143721"
     },
     {
@@ -3933,7 +3961,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 06:19:26.623198"
     },
     {
@@ -3943,13 +3971,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 06:19:07.878549"
     },
     {
@@ -3965,7 +3993,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 05:20:41.909690"
     },
     {
@@ -3981,7 +4009,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 05:20:40.595374"
     },
     {
@@ -3997,7 +4025,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 05:13:31.856575"
     },
     {
@@ -4013,7 +4041,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 05:11:20.206488"
     },
     {
@@ -4023,13 +4051,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 05:11:16.626713"
     },
     {
@@ -4045,7 +4073,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 04:06:32.431645"
     },
     {
@@ -4061,7 +4089,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 04:06:08.775306"
     },
     {
@@ -4077,7 +4105,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 04:06:04.489780"
     },
     {
@@ -4087,13 +4115,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-12 04:06:03.544723"
     },
     {
@@ -4109,7 +4137,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-11 21:19:15.814928"
     },
     {
@@ -4125,7 +4153,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-11 21:07:37.727442"
     },
     {
@@ -4141,7 +4169,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-11 21:04:07.108116"
     },
     {
@@ -4157,7 +4185,7 @@
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-11 21:04:00.208957"
     },
     {
@@ -4167,13 +4195,13 @@
       "role_name": "sysadmin",
       "action": "login",
       "resource": "auth",
-      "resource_id": NaN,
+      "resource_id": null,
       "old_value": null,
       "new_value": null,
       "ip_address": null,
       "user_agent": null,
       "status": "success",
-      "error_message": NaN,
+      "error_message": null,
       "created_at": "2026-03-11 21:03:58.130624"
     }
   ]

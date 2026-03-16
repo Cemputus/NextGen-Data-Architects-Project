@@ -34,6 +34,9 @@ const LayoutModern = ({ children }) => {
   const etlRunsListRef = useRef([]);
   const [adminSettings, setAdminSettings] = useState({});
   const [etlCountdownSec, setEtlCountdownSec] = useState(null);
+  const [chartNotifs, setChartNotifs] = useState([]);
+  const [chartNotifUnread, setChartNotifUnread] = useState(0);
+  const [chartNotifOpen, setChartNotifOpen] = useState(false);
 
   const getNavItems = () => {
     if (!user) return [];
@@ -47,8 +50,7 @@ const LayoutModern = ({ children }) => {
         { path: '/student/attendance', label: 'Attendance', icon: Clock },
         { path: '/student/payments', label: 'Payments', icon: DollarSign },
         { path: '/student/predictions', label: 'Predictions', icon: TrendingUp },
-        // No User Info option for students
-        { path: '/student/profile', label: 'Profile', icon: User },
+        { path: '/student/user-info', label: 'User Info', icon: User },
       ],
       staff: [
         { path: '/staff/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -57,8 +59,7 @@ const LayoutModern = ({ children }) => {
         { path: '/staff/classes', label: 'My Classes', icon: GraduationCap },
         { path: '/staff/analytics', label: 'Analytics', icon: Database },
         { path: '/staff/predictions', label: 'Predictions', icon: TrendingUp },
-        { path: '/staff/user-info', label: 'User Info', icon: FileText },
-        { path: '/staff/profile', label: 'Profile', icon: User },
+        { path: '/staff/user-info', label: 'User Info', icon: User },
       ],
       hod: [
         { path: '/hod/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -70,8 +71,7 @@ const LayoutModern = ({ children }) => {
         { path: '/hod/fex', label: 'FEX Analysis', icon: Shield },
         { path: '/hod/high-school', label: 'High School BI', icon: Building2 },
         { path: '/hod/predictions', label: 'Predictions', icon: TrendingUp },
-        { path: '/hod/user-info', label: 'User Info', icon: FileText },
-        { path: '/hod/profile', label: 'Profile', icon: User },
+        { path: '/hod/user-info', label: 'User Info', icon: User },
       ],
       dean: [
         { path: '/dean/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -81,8 +81,7 @@ const LayoutModern = ({ children }) => {
         { path: '/dean/fex', label: 'FEX Analysis', icon: Shield },
         { path: '/dean/high-school', label: 'High School BI', icon: Building2 },
         { path: '/dean/predictions', label: 'Predictions', icon: TrendingUp },
-        { path: '/dean/user-info', label: 'User Info', icon: FileText },
-        { path: '/dean/profile', label: 'Profile', icon: User },
+        { path: '/dean/user-info', label: 'User Info', icon: User },
       ],
       senate: [
         { path: '/senate/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -94,8 +93,7 @@ const LayoutModern = ({ children }) => {
         { path: '/senate/finance', label: 'Finance BI', icon: DollarSign },
         { path: '/senate/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/senate/reports', label: 'Reports', icon: History },
-        { path: '/senate/user-info', label: 'User Info', icon: FileText },
-        { path: '/senate/profile', label: 'Profile', icon: User },
+        { path: '/senate/user-info', label: 'User Info', icon: User },
       ],
       analyst: [
         { path: '/analyst/dashboard', label: 'Workspace', icon: Home },
@@ -108,8 +106,7 @@ const LayoutModern = ({ children }) => {
         { path: '/analyst/high-school', label: 'High School BI', icon: Building2 },
         { path: '/analyst/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/analyst/reports', label: 'Reports', icon: History },
-        { path: '/analyst/user-info', label: 'User Info', icon: FileText },
-        { path: '/analyst/profile', label: 'Profile', icon: User },
+        { path: '/analyst/user-info', label: 'User Info', icon: User },
       ],
       sysadmin: [
         { path: '/admin/dashboard', label: 'Console', icon: Shield },
@@ -120,8 +117,7 @@ const LayoutModern = ({ children }) => {
         { path: '/admin/etl', label: 'ETL Jobs', icon: Database },
         { path: '/admin/etl-notifications', label: 'ETL Notifications', icon: Bell },
         { path: '/admin/audit', label: 'Audit Logs', icon: History },
-        { path: '/admin/user-info', label: 'User Info', icon: FileText },
-        { path: '/admin/profile', label: 'Profile', icon: User },
+        { path: '/admin/user-info', label: 'User Info', icon: User },
       ],
       hr: [
         { path: '/hr/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -132,8 +128,7 @@ const LayoutModern = ({ children }) => {
         { path: '/hr/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/hr/payroll', label: 'Payroll', icon: DollarSign },
         { path: '/hr/evaluation', label: 'Evaluation', icon: Shield },
-        { path: '/hr/user-info', label: 'User Info', icon: FileText },
-        { path: '/hr/profile', label: 'Profile', icon: History },
+        { path: '/hr/user-info', label: 'User Info', icon: User },
       ],
       finance: [
         { path: '/finance/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -141,8 +136,7 @@ const LayoutModern = ({ children }) => {
         { path: '/finance/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/finance/payments', label: 'Payments', icon: DollarSign },
         { path: '/finance/predictions', label: 'Predictions', icon: TrendingUp },
-        { path: '/finance/user-info', label: 'User Info', icon: FileText },
-        { path: '/finance/profile', label: 'Profile', icon: User },
+        { path: '/finance/user-info', label: 'User Info', icon: User },
       ],
     };
 
@@ -175,6 +169,24 @@ const LayoutModern = ({ children }) => {
   const unreadCount = (list) => {
     const read = getReadLogs();
     return list.filter((r) => !read.has(r.log_file)).length;
+  };
+
+  const CHART_NOTIF_KEY = 'ucu_assigned_viz_seen_ids';
+
+  const getSeenVizIds = () => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(CHART_NOTIF_KEY) || '[]'));
+    } catch {
+      return new Set();
+    }
+  };
+
+  const setSeenVizIds = (idsSet) => {
+    try {
+      localStorage.setItem(CHART_NOTIF_KEY, JSON.stringify(Array.from(idsSet)));
+    } catch {
+      // ignore storage errors
+    }
   };
 
   // ETL run list + unread count for sysadmin/admin sidebar badge; listen for read updates
@@ -219,6 +231,52 @@ const LayoutModern = ({ children }) => {
       window.removeEventListener('admin-etl-read-update', onReadUpdate);
     };
   }, [user?.role]);
+
+  // Chart share/reshare notifications for all roles (based on assigned visualizations "for me")
+  useEffect(() => {
+    if (!user) {
+      setChartNotifs([]);
+      setChartNotifUnread(0);
+      return;
+    }
+    let cancelled = false;
+    const token = sessionStorage.getItem('ucu_session_token');
+    if (!token) return;
+    axios
+      .get('/api/query/assigned-visualizations/for-me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        if (cancelled) return;
+        const visualizations = res.data?.visualizations || [];
+        setChartNotifs(visualizations);
+        const seen = getSeenVizIds();
+        const unread = visualizations.filter((v) => !seen.has(v.id)).length;
+        setChartNotifUnread(unread);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setChartNotifs([]);
+          setChartNotifUnread(0);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.username]);
+
+  const handleOpenChartNotifs = () => {
+    setChartNotifOpen((open) => !open);
+    if (!chartNotifOpen) {
+      // Mark all as read when opening the popover
+      const seen = getSeenVizIds();
+      chartNotifs.forEach((v) => {
+        if (v?.id) seen.add(v.id);
+      });
+      setSeenVizIds(seen);
+      setChartNotifUnread(0);
+    }
+  };
 
   // Admin settings for ETL countdown — fetch on mount and poll so timer resets after ETL runs
   const fetchAdminSettings = React.useCallback(() => {
@@ -290,26 +348,28 @@ const LayoutModern = ({ children }) => {
       (user?.username?.[0] || user?.access_number?.[0] || '?');
     return base.toUpperCase().slice(0, 2);
   }, [user?.first_name, user?.last_name, user?.username, user?.access_number]);
+  // Top-right profile icon / name / role should always take the user
+  // to the high-level User Info page (summary + link into full profile editor).
   const profilePath =
     role === 'student'
-      ? '/student/profile'
+      ? '/student/user-info'
       : role === 'staff'
-        ? '/staff/profile'
+        ? '/staff/user-info'
         : role === 'hod'
-          ? '/hod/profile'
+          ? '/hod/user-info'
           : role === 'dean'
-            ? '/dean/profile'
+            ? '/dean/user-info'
             : role === 'senate'
-              ? '/senate/profile'
+              ? '/senate/user-info'
               : role === 'analyst'
-                ? '/analyst/profile'
+                ? '/analyst/user-info'
                 : (role === 'sysadmin' || role === 'admin')
-                  ? '/admin/profile'
+                  ? '/admin/user-info'
                   : role === 'hr'
-                    ? '/hr/profile'
+                    ? '/hr/user-info'
                     : role === 'finance'
-                      ? '/finance/profile'
-                      : '/profile';
+                      ? '/finance/user-info'
+                      : '/student/user-info';
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -558,14 +618,22 @@ const LayoutModern = ({ children }) => {
                         </AvatarFallback>
                       </Avatar>
                     </button>
-                    <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        navigate(profilePath);
+                      }}
+                      className="text-left"
+                      title="View and edit your profile"
+                    >
                       <p className="text-sm font-semibold text-foreground">
                         {user?.first_name} {user?.last_name}
                       </p>
                       <Badge variant="secondary" className="text-xs mt-1">
                         {user?.role}
                       </Badge>
-                    </div>
+                    </button>
                   </div>
                   <Button
                     variant="ghost"
@@ -619,13 +687,98 @@ const LayoutModern = ({ children }) => {
               </h2>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {/* Chart share/reshare notifications */}
+              <div className="relative hidden sm:block">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-full hover:bg-muted relative"
+                  onClick={handleOpenChartNotifs}
+                  title="Chart notifications"
+                >
+                  <Bell className="h-4 w-4 text-muted-foreground" />
+                  {chartNotifUnread > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                      {chartNotifUnread > 99 ? '99+' : chartNotifUnread}
+                    </span>
+                  )}
+                </Button>
+                {chartNotifOpen && (
+                  <div className="absolute right-0 mt-2 w-80 max-w-xs rounded-lg border border-border bg-popover shadow-lg z-30">
+                    <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+                      <span className="text-xs font-semibold text-foreground">Chart notifications</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {chartNotifs.length === 0 ? 'No items' : `${chartNotifs.length} total`}
+                      </span>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto">
+                      {chartNotifs.length === 0 ? (
+                        <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+                          No charts have been shared with you yet.
+                        </div>
+                      ) : (
+                        chartNotifs.slice(0, 15).map((v) => {
+                          const isReshared = v.isReshared;
+                          const resharedBy = v.resharedByUsername || '';
+                          const originalBy = v.originalCreatorUsername || v.createdByUsername;
+                          const targetLabel =
+                            v.targetType && v.targetValue ? `${v.targetType} → ${v.targetValue}` : '';
+                          const isUnread = chartNotifUnread > 0 && !getSeenVizIds().has(v.id);
+                          return (
+                            <button
+                              key={v.id}
+                              type="button"
+                              className={cn(
+                                'w-full text-left px-3 py-2.5 text-xs border-b border-border/60 last:border-b-0 hover:bg-muted/70',
+                                isUnread && 'bg-primary/5'
+                              )}
+                              onClick={() => navigate(`/${role}/shared-views`)}
+                            >
+                              <p className="font-semibold text-foreground truncate">
+                                {v.title || 'Shared chart'}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {isReshared ? (
+                                  <>
+                                    Reshared by <span className="font-medium">{resharedBy}</span>
+                                    {targetLabel && <> to {targetLabel}</>}
+                                    {originalBy && resharedBy && originalBy !== resharedBy && (
+                                      <> · Original by {originalBy}</>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    Shared by <span className="font-medium">{originalBy}</span>
+                                    {targetLabel && <> to {targetLabel}</>}
+                                  </>
+                                )}
+                              </p>
+                              {v.createdAt && (
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  {v.createdAt}
+                                </p>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
               <ThemeSwitcher className="hidden sm:block" />
-              <div className="text-right hidden sm:block min-w-0">
+              <button
+                type="button"
+                onClick={() => navigate(profilePath)}
+                className="text-right hidden sm:block min-w-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 rounded-md"
+                title="View and edit your profile"
+              >
                 <p className="text-sm font-semibold text-foreground truncate max-w-[120px] md:max-w-[180px]">
                   {user?.first_name} {user?.last_name}
                 </p>
                 <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
-              </div>
+              </button>
               <button
                 type="button"
                 onClick={() => navigate(profilePath)}

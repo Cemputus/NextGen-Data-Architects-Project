@@ -1037,9 +1037,24 @@ def get_my_shared_visualizations():
             rows = conn.execute(
                 text(
                     """
-                    SELECT id, created_by_username, created_at, title, description, tags, updated_at,
-                           target_type, target_value, query_text, chart_type, x_column, y_column, result_snapshot,
-                           parent_viz_id, reshared_by_username, reshare_description, original_creator_username
+                    SELECT id,
+                           created_by_username,
+                           created_at,
+                           title,
+                           description,
+                           tags,
+                           updated_at,
+                           target_type,
+                           target_value,
+                           query_text,
+                           chart_type,
+                           x_column,
+                           y_column,
+                           result_snapshot,
+                           parent_viz_id,
+                           reshared_by_username,
+                           reshare_description,
+                           original_creator_username
                     FROM assigned_query_visualizations
                     WHERE (created_by_username = :username OR reshared_by_username = :username)
                       AND LOWER(TRIM(COALESCE(target_type, ''))) IN ('role', 'user')
@@ -1056,7 +1071,9 @@ def get_my_shared_visualizations():
                         snap = json.loads(snap)
                     except Exception:
                         snap = None
-                reshared_by_me = (r.get("reshared_by_username") or "").strip() == username
+                reshared_by = (r.get("reshared_by_username") or "").strip()
+                reshared_by_me = reshared_by == username
+                is_reshared = bool(r.get("parent_viz_id") or reshared_by)
                 updated_at = r.get("updated_at") or r["created_at"]
                 out.append({
                     "id": r["id"],
@@ -1074,6 +1091,10 @@ def get_my_shared_visualizations():
                     "yColumn": r.get("y_column"),
                     "resultSnapshot": snap,
                     "resharedByMe": reshared_by_me,
+                    "resharedByUsername": reshared_by,
+                    "originalCreatorUsername": r.get("original_creator_username") or r["created_by_username"],
+                    "reshareDescription": r.get("reshare_description") or "",
+                    "isReshared": is_reshared,
                 })
             return jsonify({"visualizations": out}), 200
     except Exception as e:

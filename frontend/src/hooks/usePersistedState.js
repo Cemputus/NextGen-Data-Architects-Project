@@ -10,8 +10,11 @@ import React from 'react';
 const PREFIX = 'nextgen_draft_';
 
 function getCurrentUserKey() {
+  // Per-user scoping is based on the authenticated session user from AuthContext,
+  // which is stored in sessionStorage as 'ucu_session_user'.
   try {
-    const raw = localStorage.getItem('user');
+    if (typeof window === 'undefined') return 'guest';
+    const raw = window.sessionStorage.getItem('ucu_session_user');
     if (!raw) return 'guest';
     const parsed = JSON.parse(raw);
     const username =

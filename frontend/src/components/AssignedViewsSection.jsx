@@ -31,13 +31,35 @@ export function VizCard({ viz, chartHeight = 220 }) {
   const chartContainerStyle = typeof chartHeight === 'number' ? { height: chartHeight } : undefined;
   const chartContainerClass = typeof chartHeight === 'number' ? 'w-full' : 'h-[220px] w-full';
 
+  const isReshared = !!viz.isReshared;
+  const resharedBy = viz.resharedByUsername || viz.createdByUsername;
+  const originalBy = viz.originalCreatorUsername || viz.createdByUsername;
+  const targetLabel =
+    viz.targetType && viz.targetValue
+      ? `${viz.targetType} → ${viz.targetValue}`
+      : null;
+
   if (!chartData.length) {
     return (
       <Card className="border shadow-sm overflow-hidden">
         <CardHeader className="p-3 pb-1">
           <CardTitle className="text-sm font-semibold">{viz.title}</CardTitle>
           <CardDescription className="text-xs">
-            Shared by {viz.createdByUsername} · No data to display
+            {isReshared ? (
+              <>
+                Reshared by <span className="font-semibold">{resharedBy}</span>
+                {targetLabel && <> to {targetLabel}</>}
+                {originalBy && originalBy !== resharedBy && (
+                  <> · Original by {originalBy}</>
+                )}
+              </>
+            ) : (
+              <>
+                Shared by <span className="font-semibold">{originalBy}</span>
+                {targetLabel && <> to {targetLabel}</>}
+              </>
+            )}{' '}
+            · No data to display
           </CardDescription>
         </CardHeader>
       </Card>
@@ -52,7 +74,20 @@ export function VizCard({ viz, chartHeight = 220 }) {
           {viz.title}
         </CardTitle>
         <CardDescription className="text-xs">
-          Shared by {viz.createdByUsername}
+          {isReshared ? (
+            <>
+              Reshared by <span className="font-semibold">{resharedBy}</span>
+              {targetLabel && <> to {targetLabel}</>}
+              {originalBy && originalBy !== resharedBy && (
+                <> · Original by {originalBy}</>
+              )}
+            </>
+          ) : (
+            <>
+              Shared by <span className="font-semibold">{originalBy}</span>
+              {targetLabel && <> to {targetLabel}</>}
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-3 pt-0">
