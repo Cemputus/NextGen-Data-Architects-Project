@@ -138,14 +138,16 @@ services:
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
     command: >
-      bash -c " airflow db migrate && airflow users create
+      bash -c "airflow db migrate &&
+      (airflow users create
         --username admin
         --firstname Admin
         --lastname User
         --role Admin
         --email admin@example.com
-        --password admin || true &&
-      exec airflow webserver "
+        --password admin
+      || airflow users reset-password --username admin --password admin || true) &&
+      exec airflow webserver"
 
   airflow-scheduler:
     image: apache/airflow:2.10.2

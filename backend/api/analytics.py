@@ -1,6 +1,6 @@
 """
 Analytics API with RBAC and advanced filtering
-Includes FEX analytics, high school analytics, and role-based data scoping
+Includes FEX analytics, high school analytics, enrollment analytics, and role-based data scoping
 """
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
@@ -389,6 +389,83 @@ def get_student_retakes():
         print(f"Error in get_student_retakes: {e}")
         print(traceback.format_exc())
         return jsonify({'retakes': [], 'summary': {'total_retakes': 0}, 'error': str(e)}), 200
+
+
+@analytics_bp.route('/enrollment-by-year', methods=['GET'])
+@jwt_required()
+def get_enrollment_by_year():
+    """
+    Enrollment rate by academic year.
+
+    Global rule (E.1):
+    - Population restricted to students in Year 1, Semester 1 for that academic year.
+    - enrollment_rate = enrolled_year1 / total_year1 * 100.
+    """
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+
+        role = user_scope['role']
+        # Allow only analytics-facing roles
+        if role not in {Role.SENATE, Role.SYSADMIN, Role.ANALYST, Role.DEAN, Role.HOD, Role.FINANCE}:
+            return jsonify({'error': 'Permission denied'}), 403
+        if not has_permission(role, Resource.ANALYTICS, Permission.READ, user_scope):
+            return jsonify({'error': 'Permission denied'}), 403
+
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+
+        sql = """
+        WITH base AS (
+            SELECT
+                academic_year,
+                COUNT(DISTINCT CASE WHEN COALESCE(year_of_study, 1) = 1 THEN student_id END) AS total_year1
+            FROM dim_student
+            GROUP BY academic_year
+        ),
+        enrolled AS (
+            SELECT
+                ds.academic_year,
+                COUNT(DISTINCT ds.student_id) AS enrolled_year1
+            FROM dim_student ds
+            JOIN fact_enrollment fe
+              ON ds.student_id = fe.student_id
+            WHERE COALESCE(ds.year_of_study, 1) = 1
+              AND COALESCE(fe.semester_id, 1) = 1
+            GROUP BY ds.academic_year
+        )
+        SELECT
+            b.academic_year,
+            COALESCE(b.total_year1, 0) AS total_year1,
+            COALESCE(e.enrolled_year1, 0) AS enrolled_year1,
+            CASE
+                WHEN b.total_year1 > 0
+                THEN ROUND(COALESCE(e.enrolled_year1, 0)::numeric / b.total_year1 * 100, 1)
+                ELSE 0
+            END AS enrollment_rate
+        FROM base b
+        LEFT JOIN enrolled e USING (academic_year)
+        ORDER BY b.academic_year
+        """
+
+        df = pd.read_sql_query(text(sql), engine)
+        engine.dispose()
+
+        records = []
+        for _, row in df.iterrows():
+            records.append({
+                'academic_year': str(row.get('academic_year') or ''),
+                'total_year1': int(row.get('total_year1') or 0),
+                'enrolled_year1': int(row.get('enrolled_year1') or 0),
+                'enrollment_rate': float(row.get('enrollment_rate') or 0.0),
+            })
+
+        return jsonify({'enrollment_by_year': records}), 200
+    except Exception as e:
+        import traceback
+        print(f"Error in get_enrollment_by_year: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e), 'enrollment_by_year': []}), 500
+
 
 @analytics_bp.route('/high-school', methods=['GET'])
 @jwt_required()

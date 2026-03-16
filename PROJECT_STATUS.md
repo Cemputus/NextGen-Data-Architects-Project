@@ -160,6 +160,10 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
   - When computing **enrollment rate by academic year**, restrict the population to students in **Year 1, Semester 1** for that year.
   - Use this rule consistently across dashboards and SQL/views that report “enrollment rate” or “new intake size”.
 
+**Phase 6 completion checklist (in progress):**
+- [x] E.1 Enrollment evaluation by year: implement `/api/analytics/enrollment-by-year` using Year 1 / Semester 1 only and surface as “Enrollment rate (Y1 Sem 1)” KPI on **Senate**, **Dean**, and **HOD** dashboards.
+- [ ] 6.1–6.9 Role dashboards: complete full storytelling layouts (top KPIs → trends → distributions → risk/anomalies → narrative) for all roles.
+
 ---
 
 - **6.1 Student**: GPA/CGPA, pass/fail, attendance, fees/balance, retakes, progression.
@@ -172,6 +176,13 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 - **6.8 HR**: Staff counts, distribution, staffing structure per department/faculty.
 - **6.9 Sysadmin**: System health, user/role distribution, ETL status, audit logs, admin shortcuts.
 - *Important*: work on other pages also forexample the payment management page , financial BI, high school BI, FEX Analysis- make sure this they use the previous semester,Riak Analysis(Risk summary, high School Correlation , District Analysis, At-Risk student List - this cater for students financial constraints in the previous or crrent semester , and student with 2 or more  retakes in the current semester )prediction,reports page --- plus other pages from other users ,, make sure that you work on other pages too
+
+**Phase 6 status (in progress):**
+
+- [x] 6.E Global enrollment rule implemented in backend: `/api/analytics/enrollment-by-year` computes enrollment rate per academic year restricted to **Year 1, Semester 1**, using `dim_student` and `fact_enrollment`, and is exposed to Senate/Dean/Analyst/Finance via RBAC.
+- [x] 6.5 Senate dashboard enrollment KPI wired: Senate Dashboard now calls `/api/analytics/enrollment-by-year` and surfaces **Enrollment rate (Y1 Sem 1)** for the latest academic year alongside institution KPIs.
+- [ ] 6.4 Dean dashboard enrollment storytelling: Dean Dashboard to be updated to use the same enrollment rule for faculty‑scoped enrollment KPIs and charts.
+- [ ] 6.1–6.3, 6.6–6.9 Storytelling layouts: remaining role dashboards (Student, Staff, HOD, Analyst, Finance, HR, Sysadmin) to be aligned to the Phase 6 storytelling structure (KPIs → trends → distributions → risks → details).
 ---
 
 ### Phase 7 — Custom Dashboards & Chart Library

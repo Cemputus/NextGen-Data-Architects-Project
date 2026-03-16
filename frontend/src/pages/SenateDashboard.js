@@ -14,6 +14,7 @@ const SenateDashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
+  const [enrollmentByYear, setEnrollmentByYear] = useState([]);
   const [showWelcome, setShowWelcome] = useState(true);
   const [filters, setFilters] = useState({});
 
@@ -35,13 +36,21 @@ const SenateDashboard = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/dashboard/stats', {
-        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: filters
-      });
-      setStats(response.data);
+      const token = sessionStorage.getItem('ucu_session_token');
+      const [statsRes, enrollmentRes] = await Promise.all([
+        axios.get('/api/dashboard/stats', {
+          headers: { Authorization: `Bearer ${token}` },
+          params: filters
+        }),
+        axios.get('/api/analytics/enrollment-by-year', {
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(() => ({ data: { enrollment_by_year: [] } }))
+      ]);
+      setStats(statsRes.data);
+      setEnrollmentByYear(enrollmentRes.data?.enrollment_by_year || []);
     } catch (err) {
       console.error('Error loading dashboard:', err);
+      setEnrollmentByYear([]);
     } finally {
       setLoading(false);
     }
@@ -145,6 +154,9 @@ const SenateDashboard = () => {
                   <p className="mt-1 text-lg font-semibold">
                     {formatNumber(stats?.total_enrollments)}
                   </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    All course enrollments in the warehouse.
+                  </p>
                 </div>
                 <div className="border rounded-md px-3 py-2 bg-muted/40">
                   <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
@@ -160,6 +172,21 @@ const SenateDashboard = () => {
                   </p>
                   <p className="mt-1 text-lg font-semibold">
                     {formatPercent(stats?.retention_rate ?? stats?.avg_retention_rate)}
+                  </p>
+                </div>
+                <div className="border rounded-md px-3 py-2 bg-muted/40">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Enrollment rate (Y1 Sem 1)
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatPercent(
+                      (enrollmentByYear && enrollmentByYear.length > 0
+                        ? enrollmentByYear[enrollmentByYear.length - 1].enrollment_rate
+                        : 0) || 0
+                    )}
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Latest academic year, restricted to Year 1 / Semester 1.
                   </p>
                 </div>
                 <div className="border rounded-md px-3 py-2 bg-muted/40">
