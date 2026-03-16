@@ -740,36 +740,59 @@ def run_etl():
 
     import subprocess
     use_fallback = False
-    # Try Airflow first when the CLI is available and (optionally) airflow/ dir exists
+
+    # Preferred path: trigger the DAG via Airflow's REST API running in its own container.
     try:
+        import requests
         run_id = f"manual__{datetime.utcnow().isoformat()}"
-        airflow_dir = backend_dir.parent / 'airflow'
-        kwargs = {'check': True, 'timeout': 30, 'capture_output': True}
-        if airflow_dir.exists() and airflow_dir.is_dir():
-            kwargs['cwd'] = str(airflow_dir.resolve())
-        result = subprocess.run(
-            ['airflow', 'dags', 'trigger', 'etl_manual_run', '--run-id', run_id],
-            **kwargs,
+        airflow_base = os.environ.get('AIRFLOW_URL', 'http://airflow:8080')
+        api_url = f"{airflow_base.rstrip('/')}/api/v1/dags/etl_manual_run/dagRuns"
+        airflow_user = os.environ.get('AIRFLOW_USERNAME', 'admin')
+        airflow_pass = os.environ.get('AIRFLOW_PASSWORD', 'admin')
+        resp = requests.post(
+            api_url,
+            json={'dag_run_id': run_id},
+            auth=(airflow_user, airflow_pass),
+            timeout=30,
         )
-        if result.returncode != 0:
-            use_fallback = True
-    except FileNotFoundError:
+        if resp.status_code in (200, 201):
+            return jsonify({
+                'message': 'ETL pipeline started with Airflow. The page will refresh in a few seconds to show the new run.',
+                'started': True,
+                'in_progress': True,
+            }), 202
         use_fallback = True
     except Exception:
         use_fallback = True
 
-    if use_fallback:
-        # Fallback: run the ETL pipeline directly from the backend container.
-        # Airflow webserver may still be available on :8080, but the CLI is not in this container.
-        threading.Thread(target=_run_etl_in_background, daemon=True).start()
-        return jsonify({
-            'message': 'ETL pipeline started in background from the backend. The page will refresh to show progress.',
-            'started': True,
-            'in_progress': True,
-        }), 202
+    # Legacy path: try Airflow CLI inside this container (only works when airflow is installed here).
+    if not use_fallback:
+        try:
+            run_id = f"manual__{datetime.utcnow().isoformat()}"
+            airflow_dir = backend_dir.parent / 'airflow'
+            kwargs = {'check': True, 'timeout': 30, 'capture_output': True}
+            if airflow_dir.exists() and airflow_dir.is_dir():
+                kwargs['cwd'] = str(airflow_dir.resolve())
+            result = subprocess.run(
+                ['airflow', 'dags', 'trigger', 'etl_manual_run', '--run-id', run_id],
+                **kwargs,
+            )
+            if result.returncode == 0:
+                return jsonify({
+                    'message': 'ETL pipeline started with Airflow. The page will refresh in a few seconds to show the new run.',
+                    'started': True,
+                    'in_progress': True,
+                }), 202
+            use_fallback = True
+        except FileNotFoundError:
+            use_fallback = True
+        except Exception:
+            use_fallback = True
 
+    # Fallback: run the ETL pipeline directly from the backend container.
+    threading.Thread(target=_run_etl_in_background, daemon=True).start()
     return jsonify({
-        'message': 'ETL pipeline triggered via Airflow. The page will refresh in a few seconds to show the new run.',
+        'message': 'ETL pipeline started in background from the backend. The page will refresh to show progress.',
         'started': True,
         'in_progress': True,
     }), 202
