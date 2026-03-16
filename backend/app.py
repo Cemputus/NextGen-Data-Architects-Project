@@ -122,6 +122,7 @@ def _ensure_app_users_table(engine):
                 )
             """))
             conn.commit()
+            # Ensure staff_course_assignments exists for dean/HOD dashboards and course scoping
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS staff_course_assignments (
                     app_user_id INT NOT NULL,
@@ -131,6 +132,13 @@ def _ensure_app_users_table(engine):
                 )
             """))
             conn.commit()
+            # Ensure created_by_username column exists so we always know who created the app user
+            try:
+                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS created_by_username VARCHAR(100)"))
+                conn.commit()
+            except Exception:
+                # If this fails (permissions, etc.), we still keep core login working.
+                pass
     except Exception:
         pass
 
@@ -1604,12 +1612,16 @@ def _etl_scheduler_loop():
                 settings = json.load(f)
             if not settings.get('etl_auto_enabled'):
                 continue
-            interval_min = float(settings.get('etl_auto_interval_minutes') or 60)
-            interval_sec = max(60, int(interval_min * 60))  # min 1 min for test option
+            interval_min = float(settings.get('etl_auto_interval_minutes') or 300)
+            # Enforce a minimum interval of 5 hours for automatic ETL.
+            min_interval_sec = 5 * 60 * 60  # 5 hours
+            interval_sec = max(min_interval_sec, int(interval_min * 60))
             last_run = settings.get('last_etl_auto_run')
             now_sec = time.time()
-            # First time auto is enabled: set anchor so first run happens after one full interval
+            # First time auto is enabled: run ETL immediately, then set anchor for next interval
             if last_run is None:
+                # Run export_user_snapshot + etl_pipeline (same behavior as _run_etl_subprocess)
+                _run_etl_subprocess()
                 settings['last_etl_auto_run'] = now_sec
                 try:
                     _ADMIN_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)

@@ -689,15 +689,22 @@ def list_app_users():
     try:
         engine = create_engine(_get_rbac_conn_string())
         _ensure_app_users_table(engine)
-        df = pd.read_sql_query(
-            text(
-                "SELECT id, username, role, full_name, faculty_id, department_id, created_at "
-                "FROM app_users ORDER BY username"
-            ),
-            engine,
-        )
+        # Include created_by_username so admin can see who created each app user.
+        sql = """
+            SELECT id,
+                   username,
+                   role,
+                   full_name,
+                   faculty_id,
+                   department_id,
+                   created_at,
+                   created_by_username
+            FROM app_users
+            ORDER BY username
+        """
+        df = pd.read_sql_query(text(sql), engine)
         records = df.to_dict('records') if not df.empty else []
-        # Never expose password hashes; only metadata needed for login testing
+        # Never expose password hashes; only metadata needed for login testing and auditing
         return jsonify({'app_users': records, 'count': len(records)})
     except Exception as e:
         return jsonify({'error': str(e), 'app_users': [], 'count': 0}), 500

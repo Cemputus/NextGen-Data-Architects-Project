@@ -147,6 +147,25 @@ services:
         --password admin || true &&
       exec airflow webserver "
 
+  airflow-scheduler:
+    image: apache/airflow:2.10.2
+    container_name: nextgen_airflow_scheduler
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/airflow_meta
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW_CONN_NEXTGEN_POSTGRES: postgresql+psycopg2://postgres:postgres@postgres:5432/ucu_datawarehouse
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    command: >
+      bash -c "airflow db migrate && exec airflow scheduler"
+
   frontend:
     build:
       context: ./frontend
