@@ -1,8 +1,28 @@
 /**
  * Persistent admin UI state (filters, limits, tabs, pagination).
- * Survives hard refresh. Single localStorage key for all admin preferences.
+ * Survives hard refresh. Scoped per logged-in admin user so different admins
+ * (or users with the same role) do not share filters or preferences.
  */
-const STORAGE_KEY = 'admin_ui_state';
+const STORAGE_PREFIX = 'admin_ui_state_';
+
+const getCurrentUserKey = () => {
+  try {
+    if (typeof window === 'undefined') return 'guest';
+    const raw = window.sessionStorage.getItem('ucu_session_user');
+    if (!raw) return 'guest';
+    const parsed = JSON.parse(raw);
+    const username =
+      (parsed?.username ||
+        parsed?.access_number ||
+        parsed?.id ||
+        '').toString().trim().toLowerCase();
+    return username || 'guest';
+  } catch {
+    return 'guest';
+  }
+};
+
+const storageKey = () => `${STORAGE_PREFIX}${getCurrentUserKey()}`;
 
 const DEFAULTS = {
   etl: {
@@ -37,7 +57,7 @@ const DEFAULTS = {
 
 function load() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey());
     if (!raw) return { ...JSON.parse(JSON.stringify(DEFAULTS)) };
     const parsed = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return { ...JSON.parse(JSON.stringify(DEFAULTS)) };
@@ -61,7 +81,7 @@ function deepMerge(target, source) {
 
 function save(state) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(storageKey(), JSON.stringify(state));
   } catch (e) {
     console.warn('[adminUIState] Failed to persist:', e);
   }

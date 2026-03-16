@@ -5,10 +5,12 @@
 
 const STORAGE_PREFIX = 'ucu_analytics_';
 
-// Derive a per-user key segment from localStorage user info
+// Derive a per-user key segment from the current authenticated session user.
+// AuthContext stores this in sessionStorage as 'ucu_session_user'.
 const getCurrentUserKey = () => {
   try {
-    const raw = localStorage.getItem('user');
+    if (typeof window === 'undefined') return 'guest';
+    const raw = window.sessionStorage.getItem('ucu_session_user');
     if (!raw) return 'guest';
     const parsed = JSON.parse(raw);
     const username =

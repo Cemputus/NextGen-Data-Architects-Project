@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useProfilePhoto } from '../hooks/useProfilePhoto';
 import { usePersistedState } from '../hooks/usePersistedState';
@@ -17,6 +18,8 @@ const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem
 
 export default function UserInfoPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const profilePhotoUrl = useProfilePhoto(user?.profile_picture_url);
   const [employment, setEmployment] = useState(null);
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -92,10 +95,18 @@ export default function UserInfoPage() {
 
   const isStudent = (user?.role || '').toString().toLowerCase() === 'student';
   const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || 'User';
+  const roleSlug = (user?.role || '').toString().toLowerCase();
+  const pathPrefix = location.pathname.split('/')[1] || roleSlug || 'student';
+  const profilePath = `/${pathPrefix}/profile`;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+      <button
+        type="button"
+        className="flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer text-left bg-transparent border-0 p-0"
+        onClick={() => navigate(profilePath)}
+        title="View and edit your profile details"
+      >
         <Avatar className="h-20 w-20 shrink-0">
           {profilePhotoUrl ? (
             <AvatarImage src={profilePhotoUrl} alt="" className="object-cover" />
@@ -122,7 +133,7 @@ export default function UserInfoPage() {
             </span>
           )}
         </div>
-      </div>
+      </button>
 
       <Card className="border shadow-sm">
         <CardHeader className="p-4 pb-2">

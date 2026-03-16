@@ -72,6 +72,13 @@ const Login = () => {
       }
       const result = await login(username.trim(), password);
       if (result.success && result.user) {
+        // New explicit login: always start from the default route for this user,
+        // not from any previous user's last_route.
+        try {
+          sessionStorage.removeItem('ucu_last_route');
+        } catch {
+          // ignore storage errors
+        }
         const role = result.user?.role;
         const routes = {
           senate: '/senate/dashboard', sysadmin: '/admin/dashboard', analyst: '/analyst/dashboard',
