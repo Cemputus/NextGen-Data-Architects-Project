@@ -107,7 +107,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
     <PageContent>
       <PageHeader
         title="FEX Analytics"
-        description="Deep dive into failed exams and performance bottlenecks"
+        description="Deep dive into failed exams and performance bottlenecks, focused on the current semester by default unless you choose a specific period."
         actions={
           <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             <Select

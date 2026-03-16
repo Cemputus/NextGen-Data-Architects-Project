@@ -129,7 +129,34 @@ def get_fex_analytics():
         
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        
+
+        # When no explicit semester/academic_year filter is provided, focus on the
+        # most recent academic period: the current semester only.
+        current_semester = None
+        if not filters.get('semester_id') and not filters.get('academic_year'):
+            try:
+                recent_sql = """
+                SELECT
+                    ds.academic_year,
+                    fg.semester_id
+                FROM fact_grade fg
+                JOIN dim_student ds ON fg.student_id = ds.student_id
+                WHERE fg.semester_id IS NOT NULL
+                  AND ds.academic_year IS NOT NULL
+                GROUP BY ds.academic_year, fg.semester_id
+                ORDER BY ds.academic_year DESC, fg.semester_id DESC
+                LIMIT 1
+                """
+                recent_df = pd.read_sql_query(text(recent_sql), engine)
+                if not recent_df.empty:
+                    row = recent_df.iloc[0]
+                    ay = str(row.get('academic_year') or '').strip()
+                    sem = int(row.get('semester_id')) if row.get('semester_id') is not None else None
+                    if ay and sem is not None:
+                        current_semester = (ay, sem)
+            except Exception:
+                current_semester = None
+
         # Base query for FEX analytics
         # Note: We use LEFT JOINs to ensure we get all grade records even if some dimension data is missing
         drilldown = filters.get('drilldown', 'overall')
@@ -204,9 +231,20 @@ def get_fex_analytics():
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
-        
+
         query, params = build_filter_query(filters, base_query, user_scope)
-        
+
+        # Apply current-semester window if detected and no explicit semester filters
+        if current_semester:
+            ay, sem = current_semester
+            params['recent_ay'] = ay
+            params['recent_sem'] = sem
+            window_clause = "(ds.academic_year = :recent_ay AND fg.semester_id = :recent_sem)"
+            if "WHERE" in query.upper():
+                query += f" AND ({window_clause})"
+            else:
+                query += f" WHERE {window_clause}"
+
         # Add grouping
         query += f" GROUP BY {group_by_cols}"
         
@@ -224,8 +262,19 @@ def get_fex_analytics():
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
-        
+
         summary_query, summary_params = build_filter_query(filters, summary_query_base, user_scope)
+
+        # Apply the same current-semester window to the summary query so KPIs match the chart
+        if current_semester:
+            ay, sem = current_semester
+            summary_params['s_recent_ay'] = ay
+            summary_params['s_recent_sem'] = sem
+            window_clause = "(ds.academic_year = :s_recent_ay AND fg.semester_id = :s_recent_sem)"
+            if "WHERE" in summary_query.upper():
+                summary_query += f" AND ({window_clause})"
+            else:
+                summary_query += f" WHERE {window_clause}"
         simple_df = pd.read_sql_query(text(summary_query), engine, params=summary_params)
         
         # Get summary from simple query
@@ -754,7 +803,32 @@ def get_academic_risk_dashboard():
             
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        
+
+        # Default window: current semester only when no explicit semester/academic_year is provided.
+        current_semester = None
+        if not filters.get('semester_id') and not filters.get('academic_year'):
+            try:
+                recent_sql = """
+                SELECT
+                    ds.academic_year,
+                    fg.semester_id
+                FROM fact_grade fg
+                JOIN dim_student ds ON fg.student_id = ds.student_id
+                WHERE fg.semester_id IS NOT NULL
+                  AND ds.academic_year IS NOT NULL
+                GROUP BY ds.academic_year, fg.semester_id
+                ORDER BY ds.academic_year DESC, fg.semester_id DESC
+                LIMIT 1
+                """
+                recent_df = pd.read_sql_query(text(recent_sql), engine)
+                if not recent_df.empty:
+                    row = recent_df.iloc[0]
+                    ay = str(row.get('academic_year') or '').strip()
+                    sem = int(row.get('semester_id')) if row.get('semester_id') is not None else None
+                    if ay and sem is not None:
+                        current_semester = (ay, sem)
+            except Exception:
+                current_semester = None
         # We use the v_academic_summary view joining with dim_student for scoping
         # This allows us to see distributions of FCW, MEX, FEX across the institution
         query = """
@@ -778,8 +852,18 @@ def get_academic_risk_dashboard():
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
-        
+
         q, params = build_filter_query(filters, base_query, user_scope)
+
+        # Constrain summary to the current semester window when applicable
+        if current_semester:
+            ay, sem = current_semester
+            params['ar_ay'] = ay
+            params['ar_sem'] = sem
+            if "WHERE" in q.upper():
+                q += " AND ds.academic_year = :ar_ay AND fg.semester_id = :ar_sem"
+            else:
+                q += " WHERE ds.academic_year = :ar_ay AND fg.semester_id = :ar_sem"
         q += " GROUP BY exam_status"
         
         df = pd.read_sql_query(text(q), engine, params=params)
@@ -808,6 +892,16 @@ def get_academic_risk_dashboard():
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
         tq, tparams = build_filter_query(filters, trend_query, user_scope)
+
+        # Constrain trend window to the same current semester when applicable
+        if current_semester:
+            ay, sem = current_semester
+            tparams['tr_ay'] = ay
+            tparams['tr_sem'] = sem
+            if "WHERE" in tq.upper():
+                tq += " AND ds.academic_year = :tr_ay AND fg.semester_id = :tr_sem"
+            else:
+                tq += " WHERE ds.academic_year = :tr_ay AND fg.semester_id = :tr_sem"
         tq += " GROUP BY dt.year, dt.month, dt.month_name ORDER BY dt.year DESC, dt.month DESC LIMIT 12"
         
         trend_df = pd.read_sql_query(text(tq), engine, params=tparams)
@@ -826,6 +920,16 @@ def get_academic_risk_dashboard():
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
         rq, rparams = build_filter_query(filters, risk_list_query, user_scope)
+
+        # Constrain at-risk list to the current semester; HAVING 2+ failures then means 2+ in current semester
+        if current_semester:
+            ay, sem = current_semester
+            rparams['rl_ay'] = ay
+            rparams['rl_sem'] = sem
+            if "WHERE" in rq.upper():
+                rq += " AND ds.academic_year = :rl_ay AND fg.semester_id = :rl_sem"
+            else:
+                rq += " WHERE ds.academic_year = :rl_ay AND fg.semester_id = :rl_sem"
         rq += " GROUP BY ds.student_id, ds.access_number, ds.first_name, ds.last_name HAVING COUNT(CASE WHEN fg.exam_status IN ('FEX', 'MEX', 'FCW') THEN 1 END) >= 2 ORDER BY risk_points DESC LIMIT 20"
         
         risk_list_df = pd.read_sql_query(text(rq), engine, params=rparams)
@@ -2442,6 +2546,35 @@ def get_high_school_risk_correlation():
 
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+
+        # Default window: focus on the current semester when no explicit semester/academic_year is provided.
+        current_semester = None
+        if not filters.get('semester_id') and not filters.get('academic_year'):
+            try:
+                recent_sql = """
+                SELECT
+                    ds.academic_year,
+                    fg.semester_id
+                FROM fact_grade fg
+                JOIN dim_student ds ON fg.student_id = ds.student_id
+                WHERE fg.semester_id IS NOT NULL
+                  AND ds.high_school IS NOT NULL
+                  AND ds.high_school <> ''
+                  AND ds.academic_year IS NOT NULL
+                GROUP BY ds.academic_year, fg.semester_id
+                ORDER BY ds.academic_year DESC, fg.semester_id DESC
+                LIMIT 1
+                """
+                recent_df = pd.read_sql_query(text(recent_sql), engine)
+                if not recent_df.empty:
+                    row = recent_df.iloc[0]
+                    ay = str(row.get('academic_year') or '').strip()
+                    sem = int(row.get('semester_id')) if row.get('semester_id') is not None else None
+                    if ay and sem is not None:
+                        current_semester = (ay, sem)
+            except Exception:
+                current_semester = None
+
         has_scope = (role == Role.HOD and user_scope.get('department_id')) or (role == Role.DEAN and user_scope.get('faculty_id'))
         filter_keys = ['faculty_id', 'department_id', 'program_id', 'course_code', 'semester_id', 'high_school', 'access_number', 'reg_number', 'student_name', 'intake_year']
         has_filters = any(filters.get(k) for k in filter_keys)
@@ -2463,6 +2596,17 @@ def get_high_school_risk_correlation():
             LEFT JOIN dim_course dc ON fg.course_code = dc.course_code
             """
             q, params = build_filter_query(filters, base_school, user_scope)
+
+            # Apply current-semester window when applicable so high-school risk defaults to current semester.
+            if current_semester:
+                ay, sem = current_semester
+                params['hs_ay'] = ay
+                params['hs_sem'] = sem
+                if "WHERE" in q.upper():
+                    q += " AND ds.academic_year = :hs_ay AND fg.semester_id = :hs_sem"
+                else:
+                    q += " WHERE ds.academic_year = :hs_ay AND fg.semester_id = :hs_sem"
+
             q += " AND ds.high_school IS NOT NULL AND ds.high_school != ''"
             q += " GROUP BY ds.high_school, ds.high_school_district ORDER BY fcw_rate DESC"
             df = pd.read_sql_query(text(q), engine, params=params)
