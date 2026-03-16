@@ -914,14 +914,24 @@ class ETLPipeline:
         self.logger.info("  -> Progression: %d", len(progression_synthetic))
 
         # 14) Grades summary (XLSX, multi-sheet: SEMESTER_GPA, STUDENT_CGPA)
+        # Support both original filenames (student_grades_summary_list15/16.xlsx)
+        # and alternate names (grades_summary_list15/16.xlsx) in Synthetic_Data.
         grades_summary_parts = []
-        for fname in ['student_grades_summary_list15.xlsx', 'student_grades_summary_list16.xlsx']:
+        grade_files = [
+            'student_grades_summary_list15.xlsx',
+            'student_grades_summary_list16.xlsx',
+            'grades_summary_list15.xlsx',
+            'grades_summary_list16.xlsx',
+        ]
+        for fname in grade_files:
             p = root / fname
             if p.exists():
                 try:
                     xl = pd.ExcelFile(p)
                     for sheet in xl.sheet_names:
-                        grades_summary_parts.append(pd.read_excel(p, sheet_name=sheet).assign(_source_file=fname, _sheet=sheet))
+                        grades_summary_parts.append(
+                            pd.read_excel(p, sheet_name=sheet).assign(_source_file=fname, _sheet=sheet)
+                        )
                 except Exception as e:
                     self.logger.warning("Could not read %s: %s", fname, e)
         grades_summary_synthetic = pd.concat(grades_summary_parts, ignore_index=True) if grades_summary_parts else pd.DataFrame()
