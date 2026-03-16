@@ -17,7 +17,7 @@ import json
 import time
 import os
 
-from config import (
+from config.connection import (
     DATA_WAREHOUSE_CONN_STRING,
     DATA_WAREHOUSE_NAME,
     SECRET_KEY,

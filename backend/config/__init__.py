@@ -1,6 +1,8 @@
 """
-Central configuration for NextGen Analytics Platform (Phase 1).
-Single source for RBAC role constants, KPI/chart/page IDs, and academic calendar.
+Central configuration for NextGen Analytics Platform (Phase 1–5).
+Single source for:
+- RBAC role constants, KPI/chart/page IDs, academic calendar.
+- Database connection settings and warehouse connection strings.
 """
 from config.constants import (
     RBAC_ROLES,
@@ -14,6 +16,29 @@ from config.academic import (
     SEMESTERS,
     SEMESTER_START_RULES,
 )
+from config.connection import (
+    PG_HOST,
+    PG_PORT,
+    PG_USER,
+    PG_PASSWORD,
+    DB1_NAME,
+    DB2_NAME,
+    DATA_WAREHOUSE_NAME,
+    DB1_CONN_STRING,
+    DB2_CONN_STRING,
+    DATA_WAREHOUSE_CONN_STRING,
+    get_sqlalchemy_conn_string,
+    get_pg_params,
+    CSV1_PATH,
+    CSV2_PATH,
+    BRONZE_PATH,
+    SILVER_PATH,
+    GOLD_PATH,
+    USE_SYNTHETIC_DATA,
+    SYNTHETIC_DATA_DIR,
+    SECRET_KEY,
+    JWT_SECRET_KEY,
+)
 
 __all__ = [
     "RBAC_ROLES",
@@ -24,4 +49,25 @@ __all__ = [
     "ACADEMIC_YEARS",
     "SEMESTERS",
     "SEMESTER_START_RULES",
+    "PG_HOST",
+    "PG_PORT",
+    "PG_USER",
+    "PG_PASSWORD",
+    "DB1_NAME",
+    "DB2_NAME",
+    "DATA_WAREHOUSE_NAME",
+    "DB1_CONN_STRING",
+    "DB2_CONN_STRING",
+    "DATA_WAREHOUSE_CONN_STRING",
+    "get_sqlalchemy_conn_string",
+    "get_pg_params",
+    "CSV1_PATH",
+    "CSV2_PATH",
+    "BRONZE_PATH",
+    "SILVER_PATH",
+    "GOLD_PATH",
+    "USE_SYNTHETIC_DATA",
+    "SYNTHETIC_DATA_DIR",
+    "SECRET_KEY",
+    "JWT_SECRET_KEY",
 ]

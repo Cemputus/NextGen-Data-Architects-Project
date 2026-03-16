@@ -148,17 +148,19 @@ Upgrade the platform into a **production-grade institutional analytics system** 
 
 ---
 
-### Global Analytics Rule — Enrollment Rate
+
+
+### Phase 6 — Role Dashboards (Rebuild with Storytelling)
+
+Each dashboard follows: **top KPIs → trends → distributions/comparisons → details → risk/anomalies → optional narrative/insights**.
+
+#### Global Analytics Rule — Enrollment Rate
 
 - **E.1 Enrollment evaluation by year**:
   - When computing **enrollment rate by academic year**, restrict the population to students in **Year 1, Semester 1** for that year.
   - Use this rule consistently across dashboards and SQL/views that report “enrollment rate” or “new intake size”.
 
 ---
-
-### Phase 6 — Role Dashboards (Rebuild with Storytelling)
-
-Each dashboard follows: **top KPIs → trends → distributions/comparisons → details → risk/anomalies → optional narrative/insights**.
 
 - **6.1 Student**: GPA/CGPA, pass/fail, attendance, fees/balance, retakes, progression.
 - **6.2 Staff**: Class performance, attendance, at‑risk students for their courses.
