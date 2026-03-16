@@ -197,15 +197,21 @@ const PredictionPage = () => {
   if (loading && !predictions) {
     return (
       <PageContent>
-        <PageHeader title="Performance Prediction" description="Predict student performance using multiple ML models" />
-      <LoadingState message="Analyzing student data..." />
+        <PageHeader
+          title="Performance Prediction"
+          description="Scenario‑aware predictions for the current semester, combining tuition, attendance, and performance history."
+        />
+        <LoadingState message="Analyzing student data..." />
       </PageContent>
     );
   }
 
   return (
     <PageContent>
-      <PageHeader title="Performance Prediction" description="Predict student performance using multiple ML models" />
+      <PageHeader
+        title="Performance Prediction"
+        description="Scenario‑aware predictions for the current semester, combining tuition, attendance, and performance history. Use this page to explore what‑if scenarios and student‑level risk, not to override official grades."
+      />
 
       {/* Prediction Form */}
       <Card>

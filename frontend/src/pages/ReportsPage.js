@@ -59,7 +59,7 @@ const ReportsPage = () => {
     <PageContent>
       <PageHeader
         title="Reports"
-        description="Curated exports for key analytics views. All reports respect the filters you apply below."
+        description="Curated exports for key analytics views. All reports respect the filters you apply below and default to the current semester unless you choose a different period."
         actions={<ExportButtons stats={{}} filters={filters} filename="comprehensive_report" />}
       />
 
