@@ -14,6 +14,7 @@ import { Button } from '../components/ui/button';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
 import { Input } from '../components/ui/input';
 import { PageHeader } from '../components/ui/page-header';
+import { useAuth } from '../context/AuthContext';
 
 const CHART_HEIGHT = 240;
 
@@ -31,6 +32,7 @@ function filterList(list, filterTerm) {
 
 export default function ManagedSharedChartsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [savedList, setSavedList] = useState([]);
   const [sharedList, setSharedList] = useState([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
@@ -43,6 +45,9 @@ export default function ManagedSharedChartsPage() {
   const [deleting, setDeleting] = useState(false);
   const [newReplyMsg, setNewReplyMsg] = usePersistedState('managed_shared_newReplyMsg', {});
   const [replySubmitting, setReplySubmitting] = useState(false);
+  const [editDescViz, setEditDescViz] = useState(null);
+  const [editDescValue, setEditDescValue] = useState('');
+  const [editDescSaving, setEditDescSaving] = useState(false);
 
   const token = () => (typeof window !== 'undefined' ? sessionStorage.getItem('ucu_session_token') : null);
   const auth = () => ({ headers: { Authorization: `Bearer ${token()}` } });
@@ -66,9 +71,17 @@ export default function ManagedSharedChartsPage() {
   };
 
   useEffect(() => {
-    loadSaved();
+    // Always load shared charts.
     loadShared();
-  }, []);
+    // Only analyst and admin roles can see "Saved Charts" (dashboard-only charts).
+    const role = (user?.role || '').toString().toLowerCase();
+    if (role === 'analyst' || role === 'admin') {
+      loadSaved();
+    } else {
+      setLoadingSaved(false);
+      setSavedList([]);
+    }
+  }, [user?.role]);
 
   useEffect(() => {
     if (expandedViz && (savedList.some((v) => v.id === expandedViz) || sharedList.some((v) => v.id === expandedViz))) {
@@ -95,6 +108,31 @@ export default function ManagedSharedChartsPage() {
       setError(e.response?.data?.error || 'Failed to delete.');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const openEditDescription = (viz) => {
+    setEditDescViz(viz);
+    setEditDescValue(viz.description || '');
+  };
+
+  const handleSaveDescription = async () => {
+    if (!editDescViz) return;
+    setEditDescSaving(true);
+    try {
+      await axios.patch(
+        `/api/query/assigned-visualizations/${editDescViz.id}`,
+        { description: editDescValue },
+        auth()
+      );
+      // Update local state so both owner and reshared recipients see the new description.
+      setSavedList((prev) => prev.map((v) => (v.id === editDescViz.id ? { ...v, description: editDescValue } : v)));
+      setSharedList((prev) => prev.map((v) => (v.id === editDescViz.id ? { ...v, description: editDescValue } : v)));
+      setEditDescViz(null);
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to update description.');
+    } finally {
+      setEditDescSaving(false);
     }
   };
 
@@ -132,23 +170,63 @@ export default function ManagedSharedChartsPage() {
 
   const isSavedOnly = (v) => (v.targetType || '').toLowerCase() === 'dashboard' || !(v.targetType || '').trim();
 
+  const roleLower = (user?.role || '').toString().toLowerCase();
+  const canSeeSaved = roleLower === 'analyst' || roleLower === 'admin';
+  const canEditDescriptionOnly = !canSeeSaved;
+
   const renderChartCard = (viz, showSharedActions = true, isSavedSection = false) => (
     <div key={viz.id} className="border rounded-lg overflow-hidden bg-card flex flex-col">
       <div className="p-3 border-b bg-muted/30 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <span className="text-sm font-medium">{viz.title}</span>
-          {(viz.description || viz.tags) && (
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {[viz.description, viz.tags].filter(Boolean).join(' · ')}
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+            {isSavedSection ? (
+              <>
+                Saved by <span className="font-medium">{viz.createdByUsername}</span>
+              </>
+            ) : (
+              <>
+                {viz.resharedByUsername ? (
+                  <>
+                    Reshared by{' '}
+                    <span className="font-medium">{viz.resharedByUsername}</span>
+                    {viz.targetType && viz.targetValue && (
+                      <> to {viz.targetType} → {viz.targetValue}</>
+                    )}
+                    {viz.originalCreatorUsername &&
+                      viz.originalCreatorUsername !== viz.resharedByUsername && (
+                        <> · Original by {viz.originalCreatorUsername}</>
+                      )}
+                  </>
+                ) : (
+                  <>
+                    Shared by{' '}
+                    <span className="font-medium">{viz.createdByUsername}</span>
+                    {viz.targetType && viz.targetValue && (
+                      <> to {viz.targetType} → {viz.targetValue}</>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </p>
+          {(viz.reshareDescription || viz.description || viz.tags) && (
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+              {[
+                viz.reshareDescription || null,
+                viz.description || null,
+                viz.tags || null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </p>
           )}
         </div>
         <span className="text-xs text-muted-foreground shrink-0">
           {viz.updatedAt || viz.createdAt}
-          {isSavedSection ? ' · For dashboards only' : ` · ${viz.targetType}: ${viz.targetValue}`}
         </span>
         <div className="flex items-center gap-2 shrink-0">
-          {showSharedActions && (
+          {showSharedActions && canSeeSaved && (
             <Button
               type="button"
               variant="outline"
@@ -158,6 +236,18 @@ export default function ManagedSharedChartsPage() {
               title="Edit in NextGen Query and update this chart"
             >
               <Edit3 className="h-3 w-3" /> Edit
+            </Button>
+          )}
+          {showSharedActions && canEditDescriptionOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1 h-8 text-xs"
+              onClick={() => openEditDescription(viz)}
+              title="Edit description for this shared chart"
+            >
+              <Edit3 className="h-3 w-3" /> Edit description
             </Button>
           )}
           {showSharedActions && (
@@ -196,36 +286,48 @@ export default function ManagedSharedChartsPage() {
           {(feedbackByViz[viz.id] || []).length === 0 ? (
             <p className="text-xs text-muted-foreground">No feedback yet.</p>
           ) : (
-            (feedbackByViz[viz.id] || []).map((fb) => (
-              <div key={fb.id} className="pl-2 border-l-2 border-primary/30 space-y-1">
-                <p className="text-xs text-muted-foreground">
-                  {fb.authorUsername} · {fb.createdAt}
-                </p>
-                <p className="text-sm">{fb.message}</p>
-                {(fb.replies || []).map((rep) => (
-                  <div key={rep.id} className="pl-3 text-sm text-muted-foreground">
-                    <span className="font-medium">{rep.authorUsername}:</span> {rep.message}
-                    <span className="text-xs ml-1">({rep.createdAt})</span>
-                  </div>
-                ))}
-                <div className="flex gap-2 items-center mt-1">
-                  <Input
-                    placeholder="Reply..."
-                    value={newReplyMsg[fb.id] || ''}
-                    onChange={(e) => setNewReplyMsg((prev) => ({ ...prev, [fb.id]: e.target.value }))}
-                    className="flex-1 h-8 text-sm"
-                  />
-                  <Button
-                    size="sm"
-                    className="h-8 gap-1"
-                    onClick={() => submitReply(viz.id, fb.id)}
-                    disabled={replySubmitting}
-                  >
-                    <Send className="h-3 w-3" /> Reply
-                  </Button>
+            <>
+              {(feedbackByViz[viz.id] || []).map((fb) => (
+                <div key={fb.id} className="pl-2 border-l-2 border-primary/30 space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    {fb.authorUsername} · {fb.createdAt}
+                  </p>
+                  <p className="text-sm">{fb.message}</p>
+                  {(fb.replies || []).map((rep) => (
+                    <div key={rep.id} className="pl-3 text-sm text-muted-foreground">
+                      <span className="font-medium">{rep.authorUsername}:</span> {rep.message}
+                      <span className="text-xs ml-1">({rep.createdAt})</span>
+                    </div>
+                  ))}
                 </div>
+              ))}
+              {/* Single reply box for the latest feedback in this conversation */}
+              <div className="flex gap-2 items-center mt-2 pt-2 border-t border-border/60">
+                <Input
+                  placeholder="Reply..."
+                  value={newReplyMsg['__thread'] || ''}
+                  onChange={(e) => setNewReplyMsg((prev) => ({ ...prev, __thread: e.target.value }))}
+                  className="flex-1 h-8 text-sm"
+                />
+                <Button
+                  size="sm"
+                  className="h-8 gap-1"
+                  onClick={() => {
+                    const list = feedbackByViz[viz.id] || [];
+                    const latest = list[list.length - 1];
+                    if (!latest) return;
+                    const msg = (newReplyMsg['__thread'] || '').trim();
+                    if (!msg) return;
+                    // Reuse submitReply but pass the latest feedback id
+                    setNewReplyMsg((prev) => ({ ...prev, [latest.id]: msg, __thread: '' }));
+                    submitReply(viz.id, latest.id);
+                  }}
+                  disabled={replySubmitting}
+                >
+                  <Send className="h-3 w-3" /> Reply
+                </Button>
               </div>
-            ))
+            </>
           )}
         </div>
       )}
@@ -236,7 +338,11 @@ export default function ManagedSharedChartsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Manage Charts"
-        description="Saved Charts: charts saved for dashboards only (not shared with anyone). Manage Charts | Shared: charts you have shared with a role or user. No chart appears in both sections."
+        description={
+          canSeeSaved
+            ? 'Saved Charts: charts saved for dashboards only (not shared with anyone). Manage Charts | Shared: charts you have shared with a role or user. No chart appears in both sections.'
+            : 'Manage Charts | Shared: charts you have shared with a role or user. No chart appears in both sections.'
+        }
       />
 
       {error && (
@@ -263,35 +369,37 @@ export default function ManagedSharedChartsPage() {
         </div>
       ) : (
         <>
-          {/* Saved Charts — dashboard-only, not shared with any user/role */}
-          <section className="space-y-3">
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              Saved Charts
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Charts saved for dashboards only. They are not shared with any user or role. Use NextGen Query → Save chart to add here; pin into dashboards via Analyst → Dashboards → Edit content.
-            </p>
-            {filteredSaved.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-6 text-center">
-                <BarChart3 className="h-8 w-8 mx-auto text-muted-foreground/60 mb-2" />
-                <p className="text-sm font-medium text-foreground">
-                  {savedList.length === 0 ? 'No saved charts' : 'No matches for this filter'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {savedList.length === 0
-                    ? 'In NextGen Query, run a query and click Save chart to add one here.'
-                    : 'Try a different filter term.'}
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {filteredSaved.map((viz) => renderChartCard(viz, true, true))}
-              </div>
-            )}
-          </section>
+          {/* Saved Charts — dashboard-only, not shared with any user/role (Analyst/Admin only) */}
+          {canSeeSaved && (
+            <section className="space-y-3">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                Saved Charts
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Charts saved for dashboards only. They are not shared with any user or role. Use NextGen Query → Save chart to add here; pin into dashboards via Analyst → Dashboards → Edit content.
+              </p>
+              {filteredSaved.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-6 text-center">
+                  <BarChart3 className="h-8 w-8 mx-auto text-muted-foreground/60 mb-2" />
+                  <p className="text-sm font-medium text-foreground">
+                    {savedList.length === 0 ? 'No saved charts' : 'No matches for this filter'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {savedList.length === 0
+                      ? 'In NextGen Query, run a query and click Save chart to add one here.'
+                      : 'Try a different filter term.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {filteredSaved.map((viz) => renderChartCard(viz, true, true))}
+                </div>
+              )}
+            </section>
+          )}
 
-          {/* Manage Charts | Shared — shared with a role or user only */}
+          {/* Manage Charts | Shared — shared with a role or user only (all roles) */}
           <section className="space-y-3">
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
               <Share2 className="h-4 w-4 text-muted-foreground" />
@@ -340,6 +448,44 @@ export default function ManagedSharedChartsPage() {
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Delete
+            </Button>
+          </ModalFooter>
+        </Modal>
+      )}
+
+      {editDescViz && (
+        <Modal
+          open
+          onClose={() => !editDescSaving && setEditDescViz(null)}
+          titleId="edit-desc-title"
+          maxWidth="max-w-md"
+        >
+          <ModalHeader
+            title="Edit chart description"
+            titleId="edit-desc-title"
+            onClose={() => !editDescSaving && setEditDescViz(null)}
+          />
+          <ModalBody>
+            <p className="text-sm mb-2">
+              Update the description for <span className="font-semibold">{editDescViz.title}</span>.
+            </p>
+            <Input
+              value={editDescValue}
+              onChange={(e) => setEditDescValue(e.target.value)}
+              placeholder="Enter a helpful description for this chart"
+              className="mt-1"
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="outline"
+              onClick={() => !editDescSaving && setEditDescViz(null)}
+              disabled={editDescSaving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSaveDescription} disabled={editDescSaving}>
+              {editDescSaving ? 'Saving...' : 'Save description'}
             </Button>
           </ModalFooter>
         </Modal>

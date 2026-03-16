@@ -34,6 +34,9 @@ const LayoutModern = ({ children }) => {
   const etlRunsListRef = useRef([]);
   const [adminSettings, setAdminSettings] = useState({});
   const [etlCountdownSec, setEtlCountdownSec] = useState(null);
+  const [chartNotifs, setChartNotifs] = useState([]);
+  const [chartNotifUnread, setChartNotifUnread] = useState(0);
+  const [chartNotifOpen, setChartNotifOpen] = useState(false);
 
   const getNavItems = () => {
     if (!user) return [];
@@ -177,6 +180,24 @@ const LayoutModern = ({ children }) => {
     return list.filter((r) => !read.has(r.log_file)).length;
   };
 
+  const CHART_NOTIF_KEY = 'ucu_assigned_viz_seen_ids';
+
+  const getSeenVizIds = () => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(CHART_NOTIF_KEY) || '[]'));
+    } catch {
+      return new Set();
+    }
+  };
+
+  const setSeenVizIds = (idsSet) => {
+    try {
+      localStorage.setItem(CHART_NOTIF_KEY, JSON.stringify(Array.from(idsSet)));
+    } catch {
+      // ignore storage errors
+    }
+  };
+
   // ETL run list + unread count for sysadmin/admin sidebar badge; listen for read updates
   useEffect(() => {
     const role = (user?.role || '').toString().toLowerCase();
@@ -219,6 +240,52 @@ const LayoutModern = ({ children }) => {
       window.removeEventListener('admin-etl-read-update', onReadUpdate);
     };
   }, [user?.role]);
+
+  // Chart share/reshare notifications for all roles (based on assigned visualizations "for me")
+  useEffect(() => {
+    if (!user) {
+      setChartNotifs([]);
+      setChartNotifUnread(0);
+      return;
+    }
+    let cancelled = false;
+    const token = sessionStorage.getItem('ucu_session_token');
+    if (!token) return;
+    axios
+      .get('/api/query/assigned-visualizations/for-me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        if (cancelled) return;
+        const visualizations = res.data?.visualizations || [];
+        setChartNotifs(visualizations);
+        const seen = getSeenVizIds();
+        const unread = visualizations.filter((v) => !seen.has(v.id)).length;
+        setChartNotifUnread(unread);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setChartNotifs([]);
+          setChartNotifUnread(0);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.username]);
+
+  const handleOpenChartNotifs = () => {
+    setChartNotifOpen((open) => !open);
+    if (!chartNotifOpen) {
+      // Mark all as read when opening the popover
+      const seen = getSeenVizIds();
+      chartNotifs.forEach((v) => {
+        if (v?.id) seen.add(v.id);
+      });
+      setSeenVizIds(seen);
+      setChartNotifUnread(0);
+    }
+  };
 
   // Admin settings for ETL countdown — fetch on mount and poll so timer resets after ETL runs
   const fetchAdminSettings = React.useCallback(() => {
@@ -619,6 +686,86 @@ const LayoutModern = ({ children }) => {
               </h2>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {/* Chart share/reshare notifications */}
+              <div className="relative hidden sm:block">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-full hover:bg-muted relative"
+                  onClick={handleOpenChartNotifs}
+                  title="Chart notifications"
+                >
+                  <Bell className="h-4 w-4 text-muted-foreground" />
+                  {chartNotifUnread > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                      {chartNotifUnread > 99 ? '99+' : chartNotifUnread}
+                    </span>
+                  )}
+                </Button>
+                {chartNotifOpen && (
+                  <div className="absolute right-0 mt-2 w-80 max-w-xs rounded-lg border border-border bg-popover shadow-lg z-30">
+                    <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+                      <span className="text-xs font-semibold text-foreground">Chart notifications</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {chartNotifs.length === 0 ? 'No items' : `${chartNotifs.length} total`}
+                      </span>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto">
+                      {chartNotifs.length === 0 ? (
+                        <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+                          No charts have been shared with you yet.
+                        </div>
+                      ) : (
+                        chartNotifs.slice(0, 15).map((v) => {
+                          const isReshared = v.isReshared;
+                          const resharedBy = v.resharedByUsername || '';
+                          const originalBy = v.originalCreatorUsername || v.createdByUsername;
+                          const targetLabel =
+                            v.targetType && v.targetValue ? `${v.targetType} → ${v.targetValue}` : '';
+                          const isUnread = chartNotifUnread > 0 && !getSeenVizIds().has(v.id);
+                          return (
+                            <button
+                              key={v.id}
+                              type="button"
+                              className={cn(
+                                'w-full text-left px-3 py-2.5 text-xs border-b border-border/60 last:border-b-0 hover:bg-muted/70',
+                                isUnread && 'bg-primary/5'
+                              )}
+                              onClick={() => navigate(`/${role}/shared-views`)}
+                            >
+                              <p className="font-semibold text-foreground truncate">
+                                {v.title || 'Shared chart'}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {isReshared ? (
+                                  <>
+                                    Reshared by <span className="font-medium">{resharedBy}</span>
+                                    {targetLabel && <> to {targetLabel}</>}
+                                    {originalBy && resharedBy && originalBy !== resharedBy && (
+                                      <> · Original by {originalBy}</>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    Shared by <span className="font-medium">{originalBy}</span>
+                                    {targetLabel && <> to {targetLabel}</>}
+                                  </>
+                                )}
+                              </p>
+                              {v.createdAt && (
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  {v.createdAt}
+                                </p>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
               <ThemeSwitcher className="hidden sm:block" />
               <div className="text-right hidden sm:block min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate max-w-[120px] md:max-w-[180px]">

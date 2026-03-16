@@ -79,6 +79,28 @@ def get_pg_params(database_name: str):
     }
 
 
+# ==================== Paths & Data Sources ====================
+
+BASE_DIR = Path(__file__).parent
+
+# CSV paths (UCU tailored data)
+CSV1_PATH = BASE_DIR / "data" / "source_data1.csv"
+CSV2_PATH = BASE_DIR / "data" / "source_data2.csv"
+
+# Medallion architecture paths
+BRONZE_PATH = BASE_DIR / "data" / "bronze"
+SILVER_PATH = BASE_DIR / "data" / "silver"
+GOLD_PATH = BASE_DIR / "data" / "gold"
+
+# Data source: synthetic is the primary source (backend/data/Synthetic_Data). ETL always uses it when the folder exists.
+USE_SYNTHETIC_DATA = True
+SYNTHETIC_DATA_DIR = BASE_DIR / "data" / "Synthetic_Data"
+
+# Ensure directories exist (safe no-op if already present)
+for path in [BRONZE_PATH, SILVER_PATH, GOLD_PATH]:
+    path.mkdir(parents=True, exist_ok=True)
+
+
 # ==================== Flask Secrets ====================
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "your-secret-key-change-in-production")
@@ -111,4 +133,13 @@ __all__ = [
     # Flask secrets
     "SECRET_KEY",
     "JWT_SECRET_KEY",
+    # Paths / data
+    "BASE_DIR",
+    "CSV1_PATH",
+    "CSV2_PATH",
+    "BRONZE_PATH",
+    "SILVER_PATH",
+    "GOLD_PATH",
+    "USE_SYNTHETIC_DATA",
+    "SYNTHETIC_DATA_DIR",
 ]
