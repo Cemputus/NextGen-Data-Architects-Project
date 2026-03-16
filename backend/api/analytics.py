@@ -1019,6 +1019,134 @@ def get_high_school_risk_correlation_legacy():
         return jsonify({'error': str(e)}), 500
 
 
+@analytics_bp.route('/finance', methods=['GET'])
+@jwt_required()
+def get_finance_analytics():
+    """
+    Finance analytics: tuition expected vs paid, outstanding balances, and payment rate.
+
+    Defaults to the current semester when no explicit semester_id/academic_year is provided.
+    """
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+        role = user_scope['role']
+
+        # Only finance-facing roles should use this endpoint directly
+        if role not in {Role.FINANCE, Role.SYSADMIN, Role.ANALYST}:
+            return jsonify({'error': 'Permission denied'}), 403
+        if not has_permission(role, Resource.FINANCE_ANALYTICS, Permission.READ, user_scope) and role not in {
+            Role.SYSADMIN,
+            Role.ANALYST,
+        }:
+            return jsonify({'error': 'Permission denied'}), 403
+
+        filters = request.args.to_dict()
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+
+        # Determine current semester window (academic_year + semester_id) when no explicit filters exist.
+        current_semester = None
+        if not filters.get('semester_id') and not filters.get('academic_year'):
+            try:
+                recent_sql = """
+                SELECT
+                    ds.academic_year,
+                    fp.semester_id
+                FROM fact_payment fp
+                JOIN dim_student ds ON fp.student_id = ds.student_id
+                WHERE fp.semester_id IS NOT NULL
+                  AND ds.academic_year IS NOT NULL
+                GROUP BY ds.academic_year, fp.semester_id
+                ORDER BY ds.academic_year DESC, fp.semester_id DESC
+                LIMIT 1
+                """
+                recent_df = pd.read_sql_query(text(recent_sql), engine)
+                if not recent_df.empty:
+                    row = recent_df.iloc[0]
+                    ay = str(row.get('academic_year') or '').strip()
+                    sem = int(row.get('semester_id')) if row.get('semester_id') is not None else None
+                    if ay and sem is not None:
+                        current_semester = (ay, sem)
+            except Exception:
+                current_semester = None
+
+        # Base payment query: scoped to role and filters via build_filter_query (using dim_student joins).
+        base_q = """
+        SELECT
+            SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) AS total_payments,
+            SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END)   AS total_pending,
+            SUM(fp.amount)                                                   AS total_required
+        FROM fact_payment fp
+        JOIN dim_student ds ON fp.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        """
+        pay_q, pay_params = build_filter_query(filters, base_q, user_scope)
+
+        if current_semester:
+            ay, sem = current_semester
+            pay_params['fin_ay'] = ay
+            pay_params['fin_sem'] = sem
+            if "WHERE" in pay_q.upper():
+                pay_q += " AND ds.academic_year = :fin_ay AND fp.semester_id = :fin_sem"
+            else:
+                pay_q += " WHERE ds.academic_year = :fin_ay AND fp.semester_id = :fin_sem"
+
+        payments_df = pd.read_sql_query(text(pay_q), engine, params=pay_params)
+        total_payments = float(payments_df['total_payments'][0]) if not payments_df.empty and pd.notna(
+            payments_df['total_payments'][0]
+        ) else 0.0
+        total_pending = float(payments_df['total_pending'][0]) if not payments_df.empty and pd.notna(
+            payments_df['total_pending'][0]
+        ) else 0.0
+        total_required = float(payments_df['total_required'][0]) if not payments_df.empty and pd.notna(
+            payments_df['total_required'][0]
+        ) else 0.0
+
+        payment_rate = 0.0
+        if total_required > 0:
+            payment_rate = round((total_payments / total_required) * 100, 1)
+
+        # Total students in scope (for denominator / context)
+        students_q = """
+        SELECT COUNT(DISTINCT ds.student_id) AS total_students
+        FROM dim_student ds
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        """
+        stu_q, stu_params = build_filter_query(filters, students_q, user_scope)
+        if current_semester:
+            ay, sem = current_semester
+            stu_params['stu_ay'] = ay
+            stu_params['stu_sem'] = sem
+            if "WHERE" in stu_q.upper():
+                stu_q += " AND ds.academic_year = :stu_ay"
+            else:
+                stu_q += " WHERE ds.academic_year = :stu_ay"
+
+        students_df = pd.read_sql_query(text(stu_q), engine, params=stu_params)
+        total_students = int(students_df['total_students'][0]) if not students_df.empty and pd.notna(
+            students_df['total_students'][0]
+        ) else 0
+
+        engine.dispose()
+        return jsonify(
+            {
+                'total_payments': total_payments,
+                'total_pending': total_pending,
+                'total_required': total_required,
+                'payment_rate': payment_rate,
+                'total_students': total_students,
+            }
+        ), 200
+    except Exception as e:
+        import traceback
+        print(f"Error in get_finance_analytics: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
 @analytics_bp.route('/staff/classes', methods=['GET'])
 @jwt_required()
 def get_staff_classes():

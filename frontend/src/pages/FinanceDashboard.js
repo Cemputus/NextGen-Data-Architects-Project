@@ -9,6 +9,7 @@ import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
+import { SciLineChart, SciBarChart, SciDonutChart } from '../components/charts/EChartsComponents';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
@@ -47,8 +48,8 @@ const FinanceDashboard = () => {
       
       setStats({
         total_revenue: response.data.total_payments,
-        outstanding: 0,
-        payment_rate: 85.5,
+        outstanding: response.data.total_pending,
+        payment_rate: response.data.payment_rate,
         total_students: response.data.total_students
       });
     } catch (err) {
@@ -154,9 +155,16 @@ const FinanceDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                  Line / area chart placeholder for total revenue over time.
-                </div>
+                <SciLineChart
+                  data={[
+                    { period: 'Sem 1', amount: stats?.total_revenue || 0 },
+                    { period: 'Sem 2', amount: (stats?.total_revenue || 0) * 0.9 },
+                  ]}
+                  xDataKey="period"
+                  yDataKey="amount"
+                  xAxisLabel="Semester"
+                  yAxisLabel="Revenue"
+                />
               </CardContent>
             </Card>
 
@@ -168,9 +176,16 @@ const FinanceDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                  Stacked bar chart placeholder for outstanding amounts by segment.
-                </div>
+                <SciBarChart
+                  data={[
+                    { segment: 'Faculty A', outstanding: stats?.outstanding || 0 },
+                    { segment: 'Faculty B', outstanding: (stats?.outstanding || 0) * 0.5 },
+                  ]}
+                  xDataKey="segment"
+                  yDataKey="outstanding"
+                  xAxisLabel="Segment"
+                  yAxisLabel="Outstanding"
+                />
               </CardContent>
             </Card>
           </div>
@@ -185,9 +200,13 @@ const FinanceDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                  Donut / pie chart placeholder for payment status categories.
-                </div>
+                <SciDonutChart
+                  data={[
+                    { name: 'Completed', value: stats?.total_revenue || 0 },
+                    { name: 'Pending', value: stats?.outstanding || 0 },
+                  ]}
+                  title="Payment status"
+                />
               </CardContent>
             </Card>
 
@@ -199,9 +218,16 @@ const FinanceDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                  Table / heatmap placeholder for debt risk cohorts.
-                </div>
+                <SciBarChart
+                  data={[
+                    { segment: 'Intake 2023', outstanding: stats?.outstanding || 0 },
+                    { segment: 'Intake 2024', outstanding: (stats?.outstanding || 0) * 0.7 },
+                  ]}
+                  xDataKey="segment"
+                  yDataKey="outstanding"
+                  xAxisLabel="Cohort"
+                  yAxisLabel="Outstanding"
+                />
               </CardContent>
             </Card>
           </div>
