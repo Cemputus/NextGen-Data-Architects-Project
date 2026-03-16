@@ -15,6 +15,8 @@ const SenateDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [enrollmentByYear, setEnrollmentByYear] = useState([]);
+  const [riskSummary, setRiskSummary] = useState(null);
+  const [highSchoolRisk, setHighSchoolRisk] = useState({ by_school: [], by_district: [] });
   const [showWelcome, setShowWelcome] = useState(true);
   const [filters, setFilters] = useState({});
 
@@ -37,20 +39,39 @@ const SenateDashboard = () => {
     try {
       setLoading(true);
       const token = sessionStorage.getItem('ucu_session_token');
-      const [statsRes, enrollmentRes] = await Promise.all([
+      const [statsRes, enrollmentRes, riskRes, hsRes] = await Promise.all([
         axios.get('/api/dashboard/stats', {
           headers: { Authorization: `Bearer ${token}` },
           params: filters
         }),
         axios.get('/api/analytics/enrollment-by-year', {
           headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => ({ data: { enrollment_by_year: [] } }))
+        }).catch(() => ({ data: { enrollment_by_year: [] } })),
+        axios
+          .get('/api/analytics/academic-risk-summary', {
+            headers: { Authorization: `Bearer ${token}` },
+            params: filters,
+          })
+          .catch(() => ({ data: { summary: null } })),
+        axios
+          .get('/api/analytics/high-school-risk-correlation', {
+            headers: { Authorization: `Bearer ${token}` },
+            params: filters,
+          })
+          .catch(() => ({ data: { by_school: [], by_district: [] } })),
       ]);
       setStats(statsRes.data);
       setEnrollmentByYear(enrollmentRes.data?.enrollment_by_year || []);
+      setRiskSummary(riskRes.data?.summary || null);
+      setHighSchoolRisk({
+        by_school: hsRes.data?.by_school || [],
+        by_district: hsRes.data?.by_district || [],
+      });
     } catch (err) {
       console.error('Error loading dashboard:', err);
       setEnrollmentByYear([]);
+      setRiskSummary(null);
+      setHighSchoolRisk({ by_school: [], by_district: [] });
     } finally {
       setLoading(false);
     }
@@ -260,16 +281,119 @@ const SenateDashboard = () => {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold">Feeder schools & outcomes</CardTitle>
                 <CardDescription className="text-xs">
-                  Role-ready container for high-school recruitment and performance analytics (FCW/MEX/FEX by school).
+                  High-risk and resilient schools based on FCW/MEX/FEX and average grade in the latest years.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                  Matrix / heatmap placeholder for high school vs outcomes.
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-xs">
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-semibold mb-1">
+                      Top high-risk schools (by FCW rate)
+                    </p>
+                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                      {(highSchoolRisk.by_school || [])
+                        .slice(0, 5)
+                        .map((s) => (
+                          <li key={`${s.school}-${s.district}`} className="flex justify-between gap-2">
+                            <span className="truncate">
+                              {s.school} <span className="text-[10px] text-muted-foreground">({s.district})</span>
+                            </span>
+                            <span className="font-medium">
+                              {formatPercent((s.fcw_rate ?? 0) * 100)}
+                            </span>
+                          </li>
+                        ))}
+                      {(!highSchoolRisk.by_school || highSchoolRisk.by_school.length === 0) && (
+                        <li className="text-muted-foreground">No high-school risk data available.</li>
+                      )}
+                    </ul>
+                  </div>
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-semibold mb-1">
+                      High-performing districts (avg grade)
+                    </p>
+                    <ul className="space-y-1 max-h-40 overflow-y-auto">
+                      {(highSchoolRisk.by_district || [])
+                        .slice(0, 5)
+                        .map((d) => (
+                          <li key={d.district} className="flex justify-between gap-2">
+                            <span className="truncate">{d.district}</span>
+                            <span className="font-medium">
+                              {formatNumber(d.avg_grade ?? 0)}
+                            </span>
+                          </li>
+                        ))}
+                      {(!highSchoolRisk.by_district || highSchoolRisk.by_district.length === 0) && (
+                        <li className="text-muted-foreground">No district-level risk data available.</li>
+                      )}
+                    </ul>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          {/* Row 3: Academic risk summary (FCW/MEX/FEX) */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Academic risk summary (FCW / MEX / FEX)</CardTitle>
+              <CardDescription className="text-xs">
+                Summarized FCW, MEX, FEX counts and average grade from <code>v_student_risk_summary</code>,
+                scoped by Senate role and filters.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {riskSummary ? (
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 text-xs">
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">FCW</p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(riskSummary.fcw_count)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Failed coursework records.</p>
+                  </div>
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">MEX</p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(riskSummary.mex_count)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Missed exam records.</p>
+                  </div>
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">FEX</p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(riskSummary.fex_count)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Failed exam records.</p>
+                  </div>
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                      Courses analyzed
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(riskSummary.total_courses)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Total unique course records in summary.</p>
+                  </div>
+                  <div className="border rounded-md px-3 py-2 bg-muted/40">
+                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                      Avg grade (all courses)
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {formatNumber(riskSummary.avg_grade)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      From <code>v_student_risk_summary</code>.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No academic risk summary available for the current filters.
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

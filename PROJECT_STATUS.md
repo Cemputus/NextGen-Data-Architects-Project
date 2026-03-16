@@ -177,6 +177,11 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 - **6.9 Sysadmin**: System health, user/role distribution, ETL status, audit logs, admin shortcuts.
 - *Important*: work on other pages also forexample the payment management page , financial BI, high school BI, FEX Analysis- make sure this they use the previous semester,Riak Analysis(Risk summary, high School Correlation , District Analysis, At-Risk student List - this cater for students financial constraints in the previous or crrent semester , and student with 2 or more  retakes in the current semester )prediction,reports page --- plus other pages from other users ,, make sure that you work on other pages too
 
+**Phase 6 completion checklist (dashboards in progress):**
+- [x] E.1 Enrollment evaluation by year: implement `/api/analytics/enrollment-by-year` using Year 1 / Semester 1 only and surface as “Enrollment rate (Y1 Sem 1)” KPI on **Senate**, **Dean**, and **HOD** dashboards.
+- [x] 6.5 Senate – risk & high‑school correlation: Senate dashboard shows institution‑wide FCW/MEX/FEX summary via `/api/analytics/academic-risk-summary` and high‑school / district risk highlights via `/api/analytics/high-school-risk-correlation`.
+- [ ] 6.1–6.4, 6.6–6.9: finalize full storytelling layouts (top KPIs → trends → distributions → risk/anomalies → narrative) for all remaining role dashboards.
+
 **Phase 6 status (in progress):**
 
 - [x] 6.E Global enrollment rule implemented in backend: `/api/analytics/enrollment-by-year` computes enrollment rate per academic year restricted to **Year 1, Semester 1**, using `dim_student` and `fact_enrollment`, and is exposed to Senate/Dean/Analyst/Finance via RBAC.
