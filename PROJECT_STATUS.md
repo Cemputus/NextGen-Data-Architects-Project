@@ -227,32 +227,42 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 
 ---
 
-### Phase 9 — Recruitment / Feeder‑School Analytics
+### Phase 9 — Recruitment / Feeder‑School Analytics ✅
 
-- **9.1 Analytics capabilities**:
+- **9.1 Analytics capabilities** ✅:
   - Top feeder schools; district recruitment distribution.
   - Academic performance by school; FCW/MEX/FEX by school.
   - Sponsorship distribution; program preferences; retention/persistence by school.
-- **9.2 Dashboards/sections**:
+- **9.2 Dashboards/sections** ✅:
   - Recruitment source analysis; district/geographic analysis; feeder‑school ranking and performance; school‑to‑finance/scholarship patterns; school‑based targeting insights.
-- **9.3 RBAC**:
+- **9.3 RBAC** ✅:
   - Expose to Senate, Dean, HOD, Analyst, Sysadmin with appropriate scope; not to general students/staff unless explicitly allowed.
+
+**Phase 9 completion checklist:**
+- [x] 9.1 Recruitment analytics endpoint `/api/analytics/recruitment` returns institution- and scope-aware metrics: top feeder schools, recruitment by district, and performance/risk profile by school (avg GPA, FCW/MEX/FEX rates), using `dim_student`, `fact_grade`, and role-based filters.
+- [x] 9.2 Recruitment & Feeder-School Analytics page (`RecruitmentAnalytics`) added for HOD, Dean, Senate, Analyst (and Sysadmin via analyst routes), using storytelling layout (KPIs → top schools → districts → performance by school) and wired to `/api/analytics/recruitment`.
+- [x] 9.3 RBAC enforced so only Senate, Dean, HOD, Analyst, and Sysadmin can access recruitment analytics; students, staff, finance, and HR receive permission denied.
 
 ---
 
-### Phase 10 — Seed Users & Admin/Sysadmin Experience
+### Phase 10 — Seed Users & Admin/Sysadmin Experience ✅
 
-- **10.1 User seeding**:
+- **10.1 User seeding** ✅:
   - Seed all core roles (student, staff, HOD, Dean, Senate, Analyst, HR, Finance, Sysadmin).
   - For each department, seed 4–5 lecturer/staff accounts with correct faculty/department/scope.
   - Use default demo password `ChangeMe123` (overridable per environment).
-- **10.2 Admin console**:
+- **10.2 Admin console** ✅:
   - Professional sysadmin UI for:
     - User management, role assignment, faculty/department mapping, password resets.
     - ETL settings/visibility, audit logs, system settings.
     - Oversight of dashboard access where appropriate.
-- **10.3 Security & auditability**:
+- **10.3 Security & auditability** ✅:
   - All admin actions must be role‑protected, validated, and logged to audit tables where possible.
+
+**Phase 10 completion checklist:**
+- [x] 10.1 User seeding script `seed_users.py` creates core institutional accounts (Senate, Finance, HR, Sysadmin, Analysts) and, for each key department, a HOD plus 4–5 `staff` (lecturer) users with correct `faculty_id` / `department_id`, all using demo password `ChangeMe123` by default.
+- [x] 10.2 Admin console pages (AdminDashboard, AdminUsers, AdminSettings, AdminETL, AdminETLNotifications, AdminAudit) backed by `/api/admin/*` provide sysadmin-only user management, system/admin settings, ETL visibility, and audit access.
+- [x] 10.3 Security & auditability implemented via `_require_sysadmin()` guards on admin APIs, `audit_log` integration where available, and `export_user_snapshot.py` + ETL seeding to persist and replay app_users, profiles, user_state, and audit_logs across environments.
 
 ---
 

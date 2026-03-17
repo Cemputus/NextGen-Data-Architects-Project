@@ -32,6 +32,7 @@ import AcademicRiskDashboard from './pages/AcademicRiskDashboard';
 // Shared Pages
 import FEXAnalytics from './pages/FEXAnalytics';
 import HighSchoolAnalytics from './pages/HighSchoolAnalytics';
+import RecruitmentAnalytics from './pages/RecruitmentAnalytics';
 import ProfilePage from './pages/ProfilePage';
 import PredictionPage from './pages/PredictionPage';
 import AnalyticsPage from './pages/AnalyticsPage';
@@ -174,6 +175,7 @@ function App() {
                       <Route path="analytics" element={<Navigate to="/hod/dashboard" replace />} />
                       <Route path="fex" element={<FEXAnalytics />} />
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
+                      <Route path="recruitment" element={<RecruitmentAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
                       <Route path="predictions" element={<PredictionPage />} />
                       <Route path="profile" element={<ProfilePage />} />
@@ -196,6 +198,7 @@ function App() {
                       <Route path="analytics" element={<Navigate to="/dean/dashboard" replace />} />
                       <Route path="fex" element={<FEXAnalytics />} />
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
+                      <Route path="recruitment" element={<RecruitmentAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
                       <Route path="predictions" element={<PredictionPage />} />
                       <Route path="profile" element={<ProfilePage />} />
@@ -218,6 +221,7 @@ function App() {
                       <Route path="analytics" element={<Navigate to="/senate/dashboard" replace />} />
                       <Route path="fex" element={<FEXAnalytics />} />
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
+                      <Route path="recruitment" element={<RecruitmentAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
                       <Route path="finance" element={<SenateFinance />} />
                       <Route path="reports" element={<ReportsPage />} />
@@ -243,6 +247,7 @@ function App() {
                       <Route path="dashboards" element={<AnalystDashboardsPage />} />
                       <Route path="fex" element={<FEXAnalytics />} />
                       <Route path="high-school" element={<HighSchoolAnalytics />} />
+                      <Route path="recruitment" element={<RecruitmentAnalytics />} />
                       <Route path="risk" element={<AcademicRiskDashboard />} />
                       <Route path="predictions" element={<PredictionPage />} />
                       <Route path="reports" element={<ReportsPage />} />
