@@ -133,8 +133,14 @@ class ETLPipeline:
                     if not isinstance(rows, list):
                         return
                     self.logger.info(f"[RBAC seed] Seeding table {table_name} with {len(rows)} rows from snapshot")
-                    conn.execute(text(f"DELETE FROM {table_name}"))
-                    conn.commit()
+                    try:
+                        conn.execute(text(f"DELETE FROM {table_name}"))
+                        conn.commit()
+                    except Exception as delete_ex:
+                        # Roll back so subsequent operations aren't stuck in an aborted transaction
+                        self.logger.error(f"[RBAC seed] Failed to clear table {table_name}: {delete_ex}")
+                        conn.rollback()
+                        return
                     if not rows:
                         return
                     df = pd.DataFrame(rows)
@@ -149,8 +155,10 @@ class ETLPipeline:
                     try:
                         conn.execute(text("DELETE FROM staff_course_assignments"))
                         conn.commit()
-                    except Exception:
-                        pass  # table may not exist yet
+                    except Exception as ex:
+                        # Table may not exist yet or FK might be missing; ensure transaction is clean
+                        self.logger.warning(f"[RBAC seed] Could not clear staff_course_assignments: {ex}")
+                        conn.rollback()
                 upsert_table("app_users", app_users_rows)
                 upsert_table("user_profiles", snapshot.get("user_profiles", []))
                 upsert_table("user_state", snapshot.get("user_state", []))

@@ -12,7 +12,7 @@ import ExportButtons from '../components/ExportButtons';
 import { KPICard } from '../components/ui/kpi-card';
 import { DashboardGrid } from '../components/ui/dashboard-grid';
 import axios from 'axios';
-import { SciBarChart, SciDonutChart, UCU_COLORS } from '../components/charts/EChartsComponents';
+import { SciBarChart, SciDonutChart, SciLineChart, UCU_COLORS } from '../components/charts/EChartsComponents';
 import { Loader2 } from 'lucide-react';
 import { loadPageState, savePageState } from '../utils/statePersistence';
 import { DataTable } from '../components/shared/DataTable';
@@ -65,6 +65,7 @@ const AcademicRiskDashboard = () => {
 
     const riskSummary = riskData?.summary || { fcw_count: 0, mex_count: 0, fex_count: 0, total_courses: 0, avg_grade: 0 };
     const correlations = correlationData?.by_school || [];
+    const trend = riskData?.trends || riskData?.trend || riskData?.risk_over_time || [];
 
     const riskDistribution = [
         { name: 'FCW (Finance)', value: riskSummary.fcw_count },
@@ -90,8 +91,8 @@ const AcademicRiskDashboard = () => {
 
     return (
         <div className="space-y-4">
-            <AlertBanner variant="info" title="Filters apply to all metrics and the student list." className="mb-4">
-                Change filters above to scope by faculty, department, or program. Use the Export button in the At-Risk Student List tab to download the table.
+            <AlertBanner variant="info" title="Filters apply to all metrics, charts, and the student list." className="mb-4">
+                Refine the story by faculty, department, program, course, semester, or high school. Use the Export actions to share the current view with senate, deans, or quality assurance.
             </AlertBanner>
 
             {/* Header */}
@@ -101,7 +102,10 @@ const AcademicRiskDashboard = () => {
                         <ShieldAlert className="h-6 w-6 text-red-600" />
                         Academic Risk Dashboard
                     </h1>
-                    <p className="text-sm text-muted-foreground">Monitoring students at risk and analyzing performance correlations</p>
+                    <p className="text-sm text-muted-foreground">
+                        Institution-wide view of academic, attendance, and financial risk – from headline KPIs to high school and district patterns,
+                        ending with an actionable at-risk student list.
+                    </p>
                 </div>
                 <ExportButtons
                     data={riskData}
@@ -182,7 +186,7 @@ const AcademicRiskDashboard = () => {
                                 <Card className="border-red-100 shadow-sm border-t-4 border-t-red-500">
                                     <CardHeader>
                                         <CardTitle className="text-base font-semibold">Risk Type Distribution</CardTitle>
-                                        <CardDescription>Breakdown of different failure modes</CardDescription>
+                                        <CardDescription>Relative contribution of FCW, MEX, and FEX to overall risk</CardDescription>
                                     </CardHeader>
                                     <CardContent>
                                         <div className={chartContainerClass}>
@@ -199,7 +203,7 @@ const AcademicRiskDashboard = () => {
                                 <Card className="border-indigo-100 shadow-sm border-t-4 border-t-indigo-500">
                                     <CardHeader>
                                         <CardTitle className="text-base font-semibold">Institutional Stability</CardTitle>
-                                        <CardDescription>Academic standing overview</CardDescription>
+                                        <CardDescription>Academic standing overview for the current filter window</CardDescription>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="flex flex-col items-center justify-center h-full space-y-6 py-8">
@@ -214,13 +218,45 @@ const AcademicRiskDashboard = () => {
                                             </div>
                                             <div className="text-center max-w-xs">
                                                 <p className="text-sm text-muted-foreground">
-                                                    The current institutional academic standing is <strong>{riskSummary.avg_grade > 60 ? 'Healthy' : 'Challenging'}</strong> based on processed grade records.
+                                                    The current institutional academic standing is{' '}
+                                                    <strong>{riskSummary.avg_grade > 60 ? 'Healthy' : 'Challenging'}</strong> based on processed grade records
+                                                    in the selected faculty/department or institution-wide view.
                                                 </p>
                                             </div>
                                         </div>
                                     </CardContent>
                                 </Card>
                             </div>
+                            <Card className="border shadow-sm">
+                                <CardHeader>
+                                    <CardTitle className="text-base font-semibold">Risk Trend by Semester</CardTitle>
+                                    <CardDescription>
+                                        How FEX, MEX, and FCW counts evolve over recent semesters for the current scope.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className={chartContainerClass}>
+                                        {trend && trend.length > 0 ? (
+                                            <SciLineChart
+                                                data={trend}
+                                                xDataKey="period"
+                                                series={[
+                                                    { key: 'fex_count', label: 'FEX', color: '#EF4444' },
+                                                    { key: 'mex_count', label: 'MEX', color: '#3B82F6' },
+                                                    { key: 'fcw_count', label: 'FCW', color: '#F59E0B' },
+                                                ]}
+                                                xAxisLabel="Semester / Academic Year"
+                                                yAxisLabel="Number of events"
+                                                showLegend
+                                            />
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center text-muted-foreground border border-dashed rounded-lg">
+                                                No trend data available for the current filters.
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </TabsContent>
 
                         <TabsContent value="hs-correlation" className="space-y-4">

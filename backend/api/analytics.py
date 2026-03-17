@@ -803,10 +803,20 @@ def get_academic_risk_dashboard():
             
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+<<<<<<< HEAD
         
         # Default window: current semester only when no explicit semester/academic_year is provided.
+=======
+
+        # Default window: current semester only when no explicit semester/academic_year is provided
+        # (or when dropdowns are effectively set to "all").
+>>>>>>> origin/main
         current_semester = None
-        if not filters.get('semester_id') and not filters.get('academic_year'):
+        sem_raw = (filters.get('semester_id') or '').strip()
+        ay_raw = (filters.get('academic_year') or '').strip()
+        no_explicit_semester = sem_raw == '' or sem_raw.lower() == 'all'
+        no_explicit_year = ay_raw == '' or ay_raw.lower() == 'all'
+        if no_explicit_semester and no_explicit_year:
             try:
                 recent_sql = """
                 SELECT

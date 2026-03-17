@@ -25,9 +25,6 @@ export const FilterChips = ({
 
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
-      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-        Active filters:
-      </span>
       {entries.map(([key, value]) => {
         const label = labels[key] ?? getLabel(key, value);
         if (!label) return null;
