@@ -65,7 +65,7 @@ const AcademicRiskDashboard = () => {
 
     const riskSummary = riskData?.summary || { fcw_count: 0, mex_count: 0, fex_count: 0, total_courses: 0, avg_grade: 0 };
     const correlations = correlationData?.by_school || [];
-    const trend = riskData?.trend || riskData?.risk_over_time || [];
+    const trend = riskData?.trends || riskData?.trend || riskData?.risk_over_time || [];
 
     const riskDistribution = [
         { name: 'FCW (Finance)', value: riskSummary.fcw_count },
