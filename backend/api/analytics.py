@@ -2660,6 +2660,121 @@ def get_academic_risk():
         return jsonify({'error': str(e)}), 500
 
 
+@analytics_bp.route('/recruitment', methods=['GET'])
+@jwt_required()
+def get_recruitment_analytics():
+    """
+    Recruitment / feeder-school analytics.
+    - Top feeder schools (student counts by high school)
+    - Recruitment by district
+    - Academic performance & risk profile by school (GPA + FCW/MEX/FEX rates)
+    Exposed to Senate, Dean, HOD, Analyst, Sysadmin; not to general students/staff/finance/HR.
+    """
+    engine = None
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+        role = user_scope['role']
+
+        # Restrict to strategic/analytics roles
+        if role in [Role.STUDENT, Role.STAFF, Role.FINANCE, Role.HR]:
+            return jsonify({'error': 'Permission denied'}), 403
+
+        filters = request.args.to_dict()
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+
+        # Shared FROM/JOIN block so build_filter_query can apply scope and filters
+        base_from = """
+        FROM dim_student ds
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        """
+
+        # 1) Top feeder schools
+        base_feeder = f"""
+        SELECT
+            ds.high_school AS school,
+            COALESCE(ds.high_school_district, 'Unknown') AS district,
+            COUNT(DISTINCT ds.student_id) AS student_count
+        {base_from}
+        """
+        feeder_query, params = build_filter_query(filters, base_feeder, user_scope)
+        if "WHERE" in feeder_query.upper():
+            feeder_query += " AND ds.high_school IS NOT NULL AND ds.high_school <> ''"
+        else:
+            feeder_query += " WHERE ds.high_school IS NOT NULL AND ds.high_school <> ''"
+        feeder_query += " GROUP BY ds.high_school, ds.high_school_district ORDER BY student_count DESC"
+        feeder_df = pd.read_sql_query(text(feeder_query), engine, params=params)
+        top_schools = feeder_df.to_dict('records') if not feeder_df.empty else []
+
+        # 2) Recruitment by district
+        base_district = f"""
+        SELECT
+            COALESCE(ds.high_school_district, 'Unknown') AS district,
+            COUNT(DISTINCT ds.student_id) AS student_count
+        {base_from}
+        """
+        district_query, params_dist = build_filter_query(filters, base_district, user_scope)
+        district_query += " GROUP BY ds.high_school_district ORDER BY student_count DESC"
+        district_df = pd.read_sql_query(text(district_query), engine, params=params_dist)
+        by_district = district_df.to_dict('records') if not district_df.empty else []
+
+        # 3) Academic performance & risk profile by school (scoped, similar to v_highschool_risk)
+        base_perf = f"""
+        SELECT
+            ds.high_school AS school,
+            COALESCE(ds.high_school_district, 'Unknown') AS district,
+            AVG(CASE WHEN fg.fcw THEN 1.0 ELSE 0.0 END) AS fcw_rate,
+            AVG(CASE WHEN fg.exam_status = 'MEX' THEN 1.0 ELSE 0.0 END) AS mex_rate,
+            AVG(CASE WHEN fg.exam_status = 'FEX' THEN 1.0 ELSE 0.0 END) AS fex_rate,
+            AVG(fg.grade) AS avg_gpa
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        """
+        perf_query, params_perf = build_filter_query(filters, base_perf, user_scope)
+        if "WHERE" in perf_query.upper():
+            perf_query += " AND ds.high_school IS NOT NULL AND ds.high_school <> ''"
+        else:
+            perf_query += " WHERE ds.high_school IS NOT NULL AND ds.high_school <> ''"
+        perf_query += " GROUP BY ds.high_school, ds.high_school_district ORDER BY fcw_rate DESC"
+        perf_df = pd.read_sql_query(text(perf_query), engine, params=params_perf)
+        performance_by_school = perf_df.to_dict('records') if not perf_df.empty else []
+
+        # High-level recruitment KPIs
+        total_students = int(feeder_df['student_count'].sum()) if not feeder_df.empty else 0
+        schools_represented = int(feeder_df['school'].nunique()) if not feeder_df.empty else 0
+        district_coverage = int(district_df['district'].nunique()) if not district_df.empty else 0
+
+        if engine is not None:
+            engine.dispose()
+
+        return jsonify({
+            'summary': {
+                'total_students': total_students,
+                'schools_represented': schools_represented,
+                'district_coverage': district_coverage,
+            },
+            'top_schools': top_schools,
+            'by_district': by_district,
+            'performance_by_school': performance_by_school,
+        }), 200
+
+    except Exception as e:
+        import traceback
+        print(f"Error in get_recruitment_analytics: {e}")
+        print(traceback.format_exc())
+        if engine is not None:
+            try:
+                engine.dispose()
+            except Exception:
+                pass
+        return jsonify({'error': str(e)}), 500
+
+
 @analytics_bp.route('/high-school-risk-correlation', methods=['GET'])
 @jwt_required()
 def get_high_school_risk_correlation():

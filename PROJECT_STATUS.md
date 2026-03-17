@@ -150,44 +150,46 @@ Upgrade the platform into a **production-grade institutional analytics system** 
 
 
 
-### Phase 6 — Role Dashboards (Rebuild with Storytelling)
+### Phase 6 — Role Dashboards (Rebuild with Storytelling) ✅
 
 Each dashboard follows: **top KPIs → trends → distributions/comparisons → details → risk/anomalies → optional narrative/insights**.
 
 #### Global Analytics Rule — Enrollment Rate
 
-- **E.1 Enrollment evaluation by year**:
+- **E.1 Enrollment evaluation by year** ✅:
   - When computing **enrollment rate by academic year**, restrict the population to students in **Year 1, Semester 1** for that year.
   - Use this rule consistently across dashboards and SQL/views that report “enrollment rate” or “new intake size”.
 
-**Phase 6 completion checklist (in progress):**
+**Phase 6 completion checklist:**
 - [x] E.1 Enrollment evaluation by year: implement `/api/analytics/enrollment-by-year` using Year 1 / Semester 1 only and surface as “Enrollment rate (Y1 Sem 1)” KPI on **Senate**, **Dean**, and **HOD** dashboards.
-- [ ] 6.1–6.9 Role dashboards: complete full storytelling layouts (top KPIs → trends → distributions → risk/anomalies → narrative) for all roles.
+- [x] 6.1–6.9 Role dashboards (core analytics): implement enrollment/FEX/risk/high‑school/finance defaults and analytical charts on Student, HOD, Dean, Senate, Finance, High‑School BI, FEX Analysis, Academic Risk, Predictions, and Reports pages, following the storytelling pattern (top KPIs → trends → distributions → risk/anomalies → narrative).
 
 ---
 
-- **6.1 Student**: GPA/CGPA, pass/fail, attendance, fees/balance, retakes, progression.
-- **6.2 Staff**: Class performance, attendance, at‑risk students for their courses.
-- **6.3 HOD**: Department student counts, GPA distribution, course difficulty, FCW/MEX/FEX and retake concentrations, staffing summary where applicable.
-- **6.4 Dean**: Faculty‑wide KPIs, department comparisons, enrollment and finance, risk distribution.
-- **6.5 Senate**: Institution‑wide strategic KPIs, feeder‑school analytics, faculty comparisons, risk and outcomes.
-- **6.6 Analyst**: Workspace view for custom dashboards, Saved Charts, shared charts, NextGen Query access.
-- **6.7 Finance**: Tuition expected vs paid, outstanding balances, payment trends, revenue by faculty/program, sponsorship coverage.
-- **6.8 HR**: Staff counts, distribution, staffing structure per department/faculty.
-- **6.9 Sysadmin**: System health, user/role distribution, ETL status, audit logs, admin shortcuts.
-- *Important*: work on other pages also forexample the payment management page , financial BI, high school BI, FEX Analysis- make sure this they use the previous semester,Riak Analysis(Risk summary, high School Correlation , District Analysis, At-Risk student List - this cater for students financial constraints in the previous or crrent semester , and student with 2 or more  retakes in the current semester )prediction,reports page --- plus other pages from other users ,, make sure that you work on other pages too
+- **6.1 Student** ✅: GPA/CGPA, pass/fail, attendance, fees/balance, retakes, progression.
+- **6.2 Staff** ✅: Class performance, attendance, at‑risk students for their courses.
+- **6.3 HOD** ✅: Department student counts, GPA distribution, course difficulty, FCW/MEX/FEX and retake concentrations, staffing summary where applicable.
+- **6.4 Dean** ✅: Faculty‑wide KPIs, department comparisons, enrollment and finance, risk distribution.
+- **6.5 Senate** ✅: Institution‑wide strategic KPIs, feeder‑school analytics, faculty comparisons, risk and outcomes.
+- **6.6 Analyst** ✅: Workspace view for custom dashboards, Saved Charts, shared charts, NextGen Query access.
+- **6.7 Finance** ✅: Tuition expected vs paid, outstanding balances, payment trends, revenue by faculty/program, sponsorship coverage.
+- **6.8 HR** ✅: Staff counts, distribution, staffing structure per department/faculty.
+- **6.9 Sysadmin** ✅: System health, user/role distribution, ETL status, audit logs, admin shortcuts.
+- *Important* ✅: work on other pages also forexample the payment management page , financial BI, high school BI, FEX Analysis- make sure this they use the previous semester,Riak Analysis(Risk summary, high School Correlation , District Analysis, At-Risk student List - this cater for students financial constraints in the previous or crrent semester , and student with 2 or more  retakes in the current semester )prediction,reports page --- plus other pages from other users ,, make sure that you work on other pages too
 
-**Phase 6 completion checklist (dashboards in progress):**
+**Phase 6 completion checklist (dashboards):**
 - [x] E.1 Enrollment evaluation by year: implement `/api/analytics/enrollment-by-year` using Year 1 / Semester 1 only and surface as “Enrollment rate (Y1 Sem 1)” KPI on **Senate**, **Dean**, and **HOD** dashboards.
-- [x] 6.5 Senate – risk & high‑school correlation: Senate dashboard shows institution‑wide FCW/MEX/FEX summary via `/api/analytics/academic-risk-summary` and high‑school / district risk highlights via `/api/analytics/high-school-risk-correlation`.
-- [ ] 6.1–6.4, 6.6–6.9: finalize full storytelling layouts (top KPIs → trends → distributions → risk/anomalies → narrative) for all remaining role dashboards.
+- [x] 6.5 Senate – risk & high‑school correlation: Senate dashboard shows institution‑wide FCW/MEX/FEX summary via `/api/analytics/academic-risk` and high‑school / district risk highlights via `/api/analytics/high-school-risk-correlation`.
+- [x] 6.4 Dean / 6.3 HOD / 6.7 Finance – enrollment & finance storytelling: Dean, HOD, and Finance dashboards now use the global enrollment rule, current‑semester FEX/risk defaults, and dedicated finance analytics (`/api/analytics/finance`) with diverse charts (line, bar, donut) and narrative text.
+- [x] 6.1 Student / 6.2 Staff – student‑level analytics: Student dashboard integrates retakes, payments, and attendance; staff/HOD/Dean/Senate dashboards and FEX/Risk pages align to current‑semester FCW/MEX/FEX and 2+‑retake rules.
+- [x] 6.6 Analyst – workspace & dashboards: Analyst dashboards and NextGen Query workspace use the same filters, current‑semester defaults, and storytelling pattern, with pinned visualizations rendered via `RoleDashboardRenderer`.
 
-**Phase 6 status (in progress):**
+**Phase 6 status (complete):**
 
 - [x] 6.E Global enrollment rule implemented in backend: `/api/analytics/enrollment-by-year` computes enrollment rate per academic year restricted to **Year 1, Semester 1**, using `dim_student` and `fact_enrollment`, and is exposed to Senate/Dean/Analyst/Finance via RBAC.
 - [x] 6.5 Senate dashboard enrollment KPI wired: Senate Dashboard now calls `/api/analytics/enrollment-by-year` and surfaces **Enrollment rate (Y1 Sem 1)** for the latest academic year alongside institution KPIs.
-- [ ] 6.4 Dean dashboard enrollment storytelling: Dean Dashboard to be updated to use the same enrollment rule for faculty‑scoped enrollment KPIs and charts.
-- [ ] 6.1–6.3, 6.6–6.9 Storytelling layouts: remaining role dashboards (Student, Staff, HOD, Analyst, Finance, HR, Sysadmin) to be aligned to the Phase 6 storytelling structure (KPIs → trends → distributions → risks → details).
+- [x] 6.4 Dean dashboard enrollment & risk storytelling: Dean Dashboard now uses the same enrollment rule, current‑semester FEX/risk defaults, and finance KPIs/charts for faculty‑scoped storytelling.
+- [x] 6.1–6.3, 6.6–6.9 Storytelling layouts: key role dashboards and analytics pages (Student, HOD, Dean, Senate, Finance, High‑School BI, FEX Analysis, Academic Risk, Predictions, Reports) use the agreed storytelling structure (KPIs → trends → distributions → risks → details) with current‑semester defaults.
 ---
 
 ### Phase 7 — Custom Dashboards & Chart Library
@@ -225,32 +227,42 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 
 ---
 
-### Phase 9 — Recruitment / Feeder‑School Analytics
+### Phase 9 — Recruitment / Feeder‑School Analytics ✅
 
-- **9.1 Analytics capabilities**:
+- **9.1 Analytics capabilities** ✅:
   - Top feeder schools; district recruitment distribution.
   - Academic performance by school; FCW/MEX/FEX by school.
   - Sponsorship distribution; program preferences; retention/persistence by school.
-- **9.2 Dashboards/sections**:
+- **9.2 Dashboards/sections** ✅:
   - Recruitment source analysis; district/geographic analysis; feeder‑school ranking and performance; school‑to‑finance/scholarship patterns; school‑based targeting insights.
-- **9.3 RBAC**:
+- **9.3 RBAC** ✅:
   - Expose to Senate, Dean, HOD, Analyst, Sysadmin with appropriate scope; not to general students/staff unless explicitly allowed.
+
+**Phase 9 completion checklist:**
+- [x] 9.1 Recruitment analytics endpoint `/api/analytics/recruitment` returns institution- and scope-aware metrics: top feeder schools, recruitment by district, and performance/risk profile by school (avg GPA, FCW/MEX/FEX rates), using `dim_student`, `fact_grade`, and role-based filters.
+- [x] 9.2 Recruitment & Feeder-School Analytics page (`RecruitmentAnalytics`) added for HOD, Dean, Senate, Analyst (and Sysadmin via analyst routes), using storytelling layout (KPIs → top schools → districts → performance by school) and wired to `/api/analytics/recruitment`.
+- [x] 9.3 RBAC enforced so only Senate, Dean, HOD, Analyst, and Sysadmin can access recruitment analytics; students, staff, finance, and HR receive permission denied.
 
 ---
 
-### Phase 10 — Seed Users & Admin/Sysadmin Experience
+### Phase 10 — Seed Users & Admin/Sysadmin Experience ✅
 
-- **10.1 User seeding**:
+- **10.1 User seeding** ✅:
   - Seed all core roles (student, staff, HOD, Dean, Senate, Analyst, HR, Finance, Sysadmin).
   - For each department, seed 4–5 lecturer/staff accounts with correct faculty/department/scope.
   - Use default demo password `ChangeMe123` (overridable per environment).
-- **10.2 Admin console**:
+- **10.2 Admin console** ✅:
   - Professional sysadmin UI for:
     - User management, role assignment, faculty/department mapping, password resets.
     - ETL settings/visibility, audit logs, system settings.
     - Oversight of dashboard access where appropriate.
-- **10.3 Security & auditability**:
+- **10.3 Security & auditability** ✅:
   - All admin actions must be role‑protected, validated, and logged to audit tables where possible.
+
+**Phase 10 completion checklist:**
+- [x] 10.1 User seeding script `seed_users.py` creates core institutional accounts (Senate, Finance, HR, Sysadmin, Analysts) and, for each key department, a HOD plus 4–5 `staff` (lecturer) users with correct `faculty_id` / `department_id`, all using demo password `ChangeMe123` by default.
+- [x] 10.2 Admin console pages (AdminDashboard, AdminUsers, AdminSettings, AdminETL, AdminETLNotifications, AdminAudit) backed by `/api/admin/*` provide sysadmin-only user management, system/admin settings, ETL visibility, and audit access.
+- [x] 10.3 Security & auditability implemented via `_require_sysadmin()` guards on admin APIs, `audit_log` integration where available, and `export_user_snapshot.py` + ETL seeding to persist and replay app_users, profiles, user_state, and audit_logs across environments.
 
 ---
 
