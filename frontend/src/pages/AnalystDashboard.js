@@ -16,6 +16,7 @@ import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
+import { SciBarChart, SciLineChart, SciDonutChart, SciStackedColumnChart, SciAreaChart } from '../components/charts/EChartsComponents';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -25,6 +26,16 @@ const AnalystDashboard = () => {
   const [stats, setStats] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [loadingCharts, setLoadingCharts] = useState(true);
+  const [loadingStudentDist, setLoadingStudentDist] = useState(false);
+  const [enrollmentGroupBy, setEnrollmentGroupBy] = useState('faculty'); // faculty | department | program
+  const [enrollmentByFaculty, setEnrollmentByFaculty] = useState([]);
+  const [gradesOverTime, setGradesOverTime] = useState([]);
+  const [gradeDistribution, setGradeDistribution] = useState([]);
+  const [riskSummary, setRiskSummary] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState([]);
+  const [paymentTrends, setPaymentTrends] = useState([]);
+  const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
 
   const loadStats = async () => {
     try {
@@ -43,11 +54,161 @@ const AnalystDashboard = () => {
     }
   };
 
+  const abbreviateName = (name) => {
+    if (!name) return '';
+    const trimmed = name.toString().trim();
+    if (!trimmed) return '';
+    const words = trimmed.split(/\s+/);
+    if (words.length === 1) {
+      return trimmed.length > 10 ? `${trimmed.slice(0, 10)}…` : trimmed;
+    }
+    return words.map((w) => w[0]).join('').toUpperCase();
+  };
+
+  const loadCharts = async () => {
+    try {
+      setLoadingCharts(true);
+      const token = sessionStorage.getItem('ucu_session_token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [
+        gradesRes,
+        gradeDistRes,
+        riskRes,
+        paymentStatusRes,
+        paymentTrendsRes,
+      ] = await Promise.all([
+        axios
+          .get('/api/dashboard/grades-over-time', {
+            headers,
+            params: { period: 'quarterly' },
+          })
+          .catch(() => ({ data: { periods: [], grades: [] } })),
+        axios
+          .get('/api/dashboard/grade-distribution', {
+            headers,
+          })
+          .catch(() => ({ data: { grades: [], counts: [] } })),
+        axios
+          .get('/api/analytics/academic-risk-summary', {
+            headers,
+          })
+          .catch(() => ({ data: { summary: null } })),
+        axios
+          .get('/api/dashboard/payment-status', {
+            headers,
+          })
+          .catch(() => ({ data: { statuses: [], counts: [] } })),
+        axios
+          .get('/api/dashboard/payment-trends', {
+            headers,
+            params: { period: 'quarterly' },
+          })
+          .catch(() => ({ data: { periods: [], amounts: [] } })),
+      ]);
+
+      setGradesOverTime(
+        (gradesRes.data.periods || []).map((period, idx) => ({
+          period,
+          grade: gradesRes.data.grades?.[idx] || 0,
+        })),
+      );
+
+      setGradeDistribution(
+        (gradeDistRes.data.grades || []).map((grade, idx) => ({
+          name: grade,
+          value: gradeDistRes.data.counts?.[idx] || 0,
+        })),
+      );
+
+      setRiskSummary(riskRes.data.summary || null);
+
+      setPaymentStatus(
+        (paymentStatusRes.data.statuses || []).map((status, idx) => ({
+          name: status,
+          value: paymentStatusRes.data.counts?.[idx] || 0,
+        })),
+      );
+
+      setPaymentTrends(
+        (paymentTrendsRes.data.periods || []).map((period, idx) => ({
+          period,
+          amount: paymentTrendsRes.data.amounts?.[idx] || 0,
+        })),
+      );
+    } catch (err) {
+      console.error('Error loading analyst charts:', err);
+    } finally {
+      setLoadingCharts(false);
+    }
+  };
+
+  const loadStudentDistributionChart = async (groupByOverride) => {
+    try {
+      setLoadingStudentDist(true);
+      const token = sessionStorage.getItem('ucu_session_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const groupBy = groupByOverride || enrollmentGroupBy;
+      const res = await axios
+        .get('/api/dashboard/students-by-department', {
+          headers,
+          params: { group_by: groupBy },
+        })
+        .catch(() => ({ data: { labels: [], counts: [] } }));
+      const enrollLabels = res.data.labels || res.data.departments || [];
+      const enrollCounts = res.data.counts || [];
+      setEnrollmentByFaculty(
+        enrollLabels.map((name, idx) => ({
+          name: abbreviateName(name),
+          fullName: name,
+          students: enrollCounts[idx] || 0,
+        })),
+      );
+    } catch (err) {
+      console.error('Error loading student distribution chart:', err);
+      setEnrollmentByFaculty([]);
+    } finally {
+      setLoadingStudentDist(false);
+    }
+  };
+
+  const loadPipelineChart = async (overrideFilters) => {
+    try {
+      const token = sessionStorage.getItem('ucu_session_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios
+        .get('/api/analytics/enrollment-pipeline', {
+          headers,
+          params: {},
+        })
+        .catch(() => ({ data: { pipeline: [] } }));
+
+      setEnrollmentPipeline(
+        (res.data.pipeline || []).map((row) => ({
+          academic_year: row.academic_year ? String(row.academic_year) : '',
+          period: row.academic_year ? String(row.academic_year) : '',
+          total_enrollments: row.total_enrollments || 0,
+        })),
+      );
+    } catch (err) {
+      console.error('Error loading enrollment pipeline chart:', err);
+      setEnrollmentPipeline([]);
+    }
+  };
+
   useEffect(() => {
     loadStats();
+    loadCharts();
+    loadPipelineChart();
+    loadStudentDistributionChart();
     const interval = setInterval(loadStats, ANALYST_KPI_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    loadStudentDistributionChart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enrollmentGroupBy]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -169,34 +330,74 @@ const AnalystDashboard = () => {
       </Card>
 
       {/* Section A – Enrollment & pipeline */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="border shadow-sm h-full">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">Enrollment pipeline</CardTitle>
             <CardDescription className="text-xs">
-              Funnel from applications to enrolled students by semester/year. Powered by enrollment
-              and admissions facts (to be wired to dedicated endpoints).
+            Trend of first-year, first-semester students across academic years.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-              Enrollment funnel visual placeholder (bar / funnel chart).
+          {loadingCharts ? (
+            <div className="min-h-[260px] flex items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
+          ) : enrollmentPipeline.length === 0 ? (
+            <div className="min-h-[260px] flex items-center justify-center text-xs text-muted-foreground border border-dashed rounded-md">
+              Chart coming soon.
+            </div>
+          ) : (
+            <SciAreaChart
+              data={enrollmentPipeline}
+              xDataKey="period"
+              yDataKey="total_enrollments"
+              xAxisLabel="Academic period"
+              yAxisLabel="First-year students (Sem 1)"
+            />
+          )}
           </CardContent>
         </Card>
 
         <Card className="border shadow-sm h-full">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Enrollment by faculty/program</CardTitle>
-            <CardDescription className="text-xs">
-              Distribution of enrolled students by faculty and program. This will use
-              `/api/dashboard/students-by-department` and related views.
-            </CardDescription>
+          <CardHeader className="pb-1">
+            <CardTitle className="text-sm font-semibold">Student distribution by faculty/program</CardTitle>
           </CardHeader>
-          <CardContent className="pt-0">
-            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-              Stacked / grouped bar chart placeholder for faculty & program mix.
+          <CardContent className="pt-0 pb-1">
+            <div className="flex items-center justify-end mb-2 gap-2">
+              <select
+                className="border rounded-md px-2 py-1 text-xs bg-background"
+                value={enrollmentGroupBy}
+                onChange={(e) => setEnrollmentGroupBy(e.target.value)}
+              >
+                <option value="faculty">By faculty</option>
+                <option value="department">By department</option>
+                <option value="program">By program</option>
+              </select>
             </div>
+            {loadingStudentDist ? (
+              <div className="min-h-[320px] flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <SciBarChart
+                data={enrollmentByFaculty}
+                xDataKey="name"
+                yDataKey="students"
+                xAxisLabel={
+                  enrollmentGroupBy === 'faculty'
+                    ? 'Faculty'
+                    : enrollmentGroupBy === 'department'
+                      ? 'Department'
+                      : 'Program'
+                }
+                yAxisLabel="Number of students"
+                showLegend={false}
+                tooltipNameKey="fullName"
+                minHeight={360}
+                maxHeight={380}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -211,9 +412,18 @@ const AnalystDashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-              Grade distribution / box or stacked bar chart placeholder.
-            </div>
+            {loadingCharts ? (
+              <div className="min-h-[220px] flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <SciDonutChart
+                data={gradeDistribution}
+                nameKey="name"
+                valueKey="value"
+                title="Grade distribution"
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -226,9 +436,24 @@ const AnalystDashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-              Risk segmentation heatmap / cohort visual placeholder.
-            </div>
+            {loadingCharts ? (
+              <div className="min-h-[220px] flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+            <SciStackedColumnChart
+              data={[
+                { name: 'FCW', value: riskSummary?.fcw_count || 0 },
+                { name: 'MEX', value: riskSummary?.mex_count || 0 },
+                { name: 'FEX', value: riskSummary?.fex_count || 0 },
+              ]}
+              xDataKey="name"
+              yDataKey="value"
+              xAxisLabel="Segment"
+              yAxisLabel="Number of course outcomes"
+              showPercentages
+            />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -278,9 +503,27 @@ const AnalystDashboard = () => {
               </p>
             </div>
           </div>
-          <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-            Payment trends and mix chart placeholder (line + stacked bar).
-          </div>
+          {loadingCharts ? (
+            <div className="min-h-[220px] flex items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <SciDonutChart
+                data={paymentStatus}
+                nameKey="name"
+                valueKey="value"
+                title="Payment status mix"
+              />
+              <SciLineChart
+                data={paymentTrends}
+                xDataKey="period"
+                yDataKey="amount"
+                xAxisLabel="Period"
+                yAxisLabel="Amount paid"
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

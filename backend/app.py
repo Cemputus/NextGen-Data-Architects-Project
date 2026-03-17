@@ -1847,6 +1847,20 @@ def get_dashboard_stats():
         all_where = [w for w in [role_where, " AND ".join(filter_where_parts) if filter_where_parts else ""] if w]
         scope_where = f" WHERE {' AND '.join(all_where)} " if all_where else ""
 
+        # Restrict payment KPIs to the current/latest semester for ALL users
+        current_semester_clause = ""
+        try:
+            cur_df = pd.read_sql_query(
+                text("SELECT MAX(semester_id) AS sem FROM fact_payment WHERE semester_id IS NOT NULL"),
+                engine,
+            )
+            if not cur_df.empty and pd.notna(cur_df['sem'][0]):
+                cur_sem = int(cur_df['sem'][0])
+                current_semester_clause = f" AND fp.semester_id = {cur_sem}"
+        except Exception as e:
+            print(f"Error determining current semester for payments: {e}")
+            current_semester_clause = ""
+
         # Total students - with role scope
         try:
             total_students_result = pd.read_sql_query(
@@ -1928,9 +1942,9 @@ def get_dashboard_stats():
         # Total payments - role scoped
         try:
             if role_where:
-                pay_q = f"SELECT SUM(fp.amount) as total FROM fact_payment fp JOIN dim_student ds ON fp.student_id = ds.student_id{scope_join} WHERE fp.status = 'Completed' AND {role_where}"
+                pay_q = f"SELECT SUM(fp.amount) as total FROM fact_payment fp JOIN dim_student ds ON fp.student_id = ds.student_id{scope_join} WHERE fp.status = 'Completed' {current_semester_clause} AND {role_where}"
             else:
-                pay_q = "SELECT SUM(amount) as total FROM fact_payment WHERE status = 'Completed'"
+                pay_q = f"SELECT SUM(amount) as total FROM fact_payment fp WHERE fp.status = 'Completed' {current_semester_clause}"
             total_payments_result = pd.read_sql_query(text(pay_q), engine)
             total_payments = float(total_payments_result['total'][0]) if not total_payments_result.empty and pd.notna(total_payments_result['total'][0]) else 0.0
         except Exception as e:
@@ -2014,9 +2028,9 @@ def get_dashboard_stats():
         # Outstanding Payments - role scoped
         try:
             if role_where:
-                out_q = f"SELECT SUM(fp.amount) as total FROM fact_payment fp JOIN dim_student ds ON fp.student_id = ds.student_id{scope_join} WHERE fp.status = 'Pending' AND {role_where}"
+                out_q = f"SELECT SUM(fp.amount) as total FROM fact_payment fp JOIN dim_student ds ON fp.student_id = ds.student_id{scope_join} WHERE fp.status = 'Pending' {current_semester_clause} AND {role_where}"
             else:
-                out_q = "SELECT SUM(amount) as total FROM fact_payment WHERE status = 'Pending'"
+                out_q = f"SELECT SUM(amount) as total FROM fact_payment fp WHERE fp.status = 'Pending' {current_semester_clause}"
             outstanding_result = pd.read_sql_query(text(out_q), engine)
             outstanding_payments = float(outstanding_result['total'][0]) if not outstanding_result.empty and pd.notna(outstanding_result['total'][0]) else 0.0
         except Exception as e:

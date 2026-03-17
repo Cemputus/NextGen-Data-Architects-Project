@@ -1209,9 +1209,10 @@ def get_staff_classes():
         print(f"Error in get_staff_classes: {e}")
         return jsonify({'error': str(e)}), 500
 
+
 def _filter_options_fallback_faculties(engine, role, user_scope, faculty_id, department_id, program_id):
     """Get faculties; if dim_faculty is empty, derive from dim_student -> program -> department -> faculty."""
-        if role == Role.STUDENT:
+    if role == Role.STUDENT:
         return []
     try:
         if role == Role.HOD and user_scope.get('department_id'):
@@ -1226,7 +1227,10 @@ def _filter_options_fallback_faculties(engine, role, user_scope, faculty_id, dep
             q = "SELECT DISTINCT faculty_id, faculty_name FROM dim_faculty WHERE faculty_id = :fac_id"
             df = pd.read_sql_query(text(q), engine, params={'fac_id': user_scope['faculty_id']})
         else:
-            df = pd.read_sql_query(text("SELECT DISTINCT faculty_id, faculty_name FROM dim_faculty ORDER BY faculty_name"), engine)
+            df = pd.read_sql_query(
+                text("SELECT DISTINCT faculty_id, faculty_name FROM dim_faculty ORDER BY faculty_name"),
+                engine,
+            )
         recs = df.to_dict('records') if not df.empty else []
         if recs:
             return recs
@@ -1284,20 +1288,20 @@ def get_filter_options():
             options['departments'] = []
         else:
             try:
-        dept_query = """
-            SELECT DISTINCT d.department_id, d.department_name, d.faculty_id
-            FROM dim_department d
-        """
-        dept_where = []
-        if role == Role.HOD and user_scope.get('department_id'):
-            dept_where.append(f"d.department_id = {user_scope['department_id']}")
+                dept_query = """
+                    SELECT DISTINCT d.department_id, d.department_name, d.faculty_id
+                    FROM dim_department d
+                """
+                dept_where = []
+                if role == Role.HOD and user_scope.get('department_id'):
+                    dept_where.append(f"d.department_id = {user_scope['department_id']}")
                 elif role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id:
-                dept_where.append(f"d.faculty_id = {user_scope['faculty_id']}")
-        if faculty_id:
-            dept_where.append(f"d.faculty_id = {faculty_id}")
-        if dept_where:
-            dept_query += " WHERE " + " AND ".join(dept_where)
-        dept_query += " ORDER BY d.department_name"
+                    dept_where.append(f"d.faculty_id = {user_scope['faculty_id']}")
+                if faculty_id:
+                    dept_where.append(f"d.faculty_id = {faculty_id}")
+                if dept_where:
+                    dept_query += " WHERE " + " AND ".join(dept_where)
+                dept_query += " ORDER BY d.department_name"
                 df = pd.read_sql_query(text(dept_query), engine)
                 options['departments'] = df.to_dict('records') if not df.empty else []
                 if not options['departments']:
@@ -1305,7 +1309,7 @@ def get_filter_options():
                         SELECT DISTINCT d.department_id, d.department_name, d.faculty_id
                         FROM dim_student ds
                         JOIN dim_program p ON ds.program_id = p.program_id
-            JOIN dim_department d ON p.department_id = d.department_id
+                        JOIN dim_department d ON p.department_id = d.department_id
                         ORDER BY d.department_name
                     """
                     df2 = pd.read_sql_query(text(fallback), engine)
@@ -1342,13 +1346,13 @@ def get_filter_options():
                     prog_where.append(f"p.department_id = {user_scope['department_id']}")
                 elif role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id and not department_id:
                     prog_where.append(f"d.faculty_id = {user_scope['faculty_id']}")
-            if department_id:
-                prog_where.append(f"p.department_id = {department_id}")
-            elif faculty_id:
-                prog_where.append(f"d.faculty_id = {faculty_id}")
-            if prog_where:
-                prog_query += " WHERE " + " AND ".join(prog_where)
-            prog_query += " ORDER BY p.program_name"
+                if department_id:
+                    prog_where.append(f"p.department_id = {department_id}")
+                elif faculty_id:
+                    prog_where.append(f"d.faculty_id = {faculty_id}")
+                if prog_where:
+                    prog_query += " WHERE " + " AND ".join(prog_where)
+                prog_query += " ORDER BY p.program_name"
                 df = pd.read_sql_query(text(prog_query), engine)
                 options['programs'] = df.to_dict('records') if not df.empty else []
                 if not options['programs']:
@@ -1366,37 +1370,37 @@ def get_filter_options():
         
         # --- Courses (filtered by department/faculty; fallback from fact_grade) ---
         try:
-        if role == Role.STUDENT:
+            if role == Role.STUDENT:
                 if user_scope.get('student_id'):
                     q = """
-                SELECT DISTINCT c.course_code, c.course_name
-                FROM dim_course c
+                        SELECT DISTINCT c.course_code, c.course_name
+                        FROM dim_course c
                         JOIN fact_grade fg ON c.course_code = fg.course_code
                         WHERE fg.student_id = :student_id
-                ORDER BY c.course_code
-            """
+                        ORDER BY c.course_code
+                    """
                     df = pd.read_sql_query(text(q), engine, params={'student_id': user_scope['student_id']})
                     options['courses'] = df.to_dict('records') if not df.empty else []
-            else:
-                options['courses'] = []
+                else:
+                    options['courses'] = []
             else:
                 course_query = "SELECT DISTINCT course_code, course_name FROM dim_course ORDER BY course_code"
-            if department_id:
-                course_query = """
-                    SELECT DISTINCT c.course_code, c.course_name
-                    FROM dim_course c
-                    WHERE c.department = (SELECT department_name FROM dim_department WHERE department_id = :dept_id)
-                    ORDER BY c.course_code
-                """
+                if department_id:
+                    course_query = """
+                        SELECT DISTINCT c.course_code, c.course_name
+                        FROM dim_course c
+                        WHERE c.department = (SELECT department_name FROM dim_department WHERE department_id = :dept_id)
+                        ORDER BY c.course_code
+                    """
                     df = pd.read_sql_query(text(course_query), engine, params={'dept_id': department_id})
-            elif faculty_id:
-                course_query = """
-                    SELECT DISTINCT c.course_code, c.course_name
-                    FROM dim_course c
-                    JOIN dim_department d ON c.department = d.department_name
-                    WHERE d.faculty_id = :fac_id
-                    ORDER BY c.course_code
-                """
+                elif faculty_id:
+                    course_query = """
+                        SELECT DISTINCT c.course_code, c.course_name
+                        FROM dim_course c
+                        JOIN dim_department d ON c.department = d.department_name
+                        WHERE d.faculty_id = :fac_id
+                        ORDER BY c.course_code
+                    """
                     df = pd.read_sql_query(text(course_query), engine, params={'fac_id': faculty_id})
                 elif role == Role.HOD and user_scope.get('department_id'):
                     course_query = """
@@ -1420,8 +1424,14 @@ def get_filter_options():
                 options['courses'] = df.to_dict('records') if not df.empty else []
                 if not options['courses']:
                     df2 = pd.read_sql_query(
-                        text("SELECT DISTINCT fg.course_code, COALESCE(c.course_name, fg.course_code) as course_name FROM fact_grade fg LEFT JOIN dim_course c ON fg.course_code = c.course_code WHERE fg.course_code IS NOT NULL ORDER BY fg.course_code"),
-                        engine
+                        text(
+                            "SELECT DISTINCT fg.course_code, COALESCE(c.course_name, fg.course_code) as course_name "
+                            "FROM fact_grade fg "
+                            "LEFT JOIN dim_course c ON fg.course_code = c.course_code "
+                            "WHERE fg.course_code IS NOT NULL "
+                            "ORDER BY fg.course_code"
+                        ),
+                        engine,
                     )
                     options['courses'] = df2.to_dict('records') if not df2.empty else []
         except Exception:
@@ -1431,13 +1441,16 @@ def get_filter_options():
         try:
             df = pd.read_sql_query(
                 text("SELECT semester_id, semester_name FROM dim_semester ORDER BY semester_id"),
-            engine
-        )
+                engine,
+            )
             options['semesters'] = df.to_dict('records') if not df.empty else []
             if not options['semesters']:
                 df2 = pd.read_sql_query(
-                    text("SELECT DISTINCT semester_id, 'Semester ' || semester_id as semester_name FROM fact_grade WHERE semester_id IS NOT NULL ORDER BY semester_id"),
-                    engine
+                    text(
+                        "SELECT DISTINCT semester_id, 'Semester ' || semester_id as semester_name "
+                        "FROM fact_grade WHERE semester_id IS NOT NULL ORDER BY semester_id"
+                    ),
+                    engine,
                 )
                 options['semesters'] = df2.to_dict('records') if not df2.empty else []
             for r in options['semesters']:
@@ -1450,79 +1463,85 @@ def get_filter_options():
         if role == Role.STUDENT:
             options['high_schools'] = []
         else:
-            try:
             if role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id:
-                    q = """
+                q = """
                     SELECT DISTINCT ds.high_school, ds.high_school_district
                     FROM dim_student ds
                     JOIN dim_program p ON ds.program_id = p.program_id
                     JOIN dim_department d ON p.department_id = d.department_id
-                        WHERE ds.high_school IS NOT NULL AND ds.high_school != '' AND d.faculty_id = :fac_id
-                        ORDER BY ds.high_school
+                    WHERE ds.high_school IS NOT NULL AND ds.high_school != '' AND d.faculty_id = :fac_id
+                    ORDER BY ds.high_school
                 """
-                    df = pd.read_sql_query(text(q), engine, params={'fac_id': user_scope['faculty_id']})
+                df = pd.read_sql_query(text(q), engine, params={'fac_id': user_scope['faculty_id']})
             elif role == Role.HOD and user_scope.get('department_id') and not department_id:
-                    q = """
+                q = """
                     SELECT DISTINCT ds.high_school, ds.high_school_district
                     FROM dim_student ds
                     JOIN dim_program p ON ds.program_id = p.program_id
-                        WHERE ds.high_school IS NOT NULL AND ds.high_school != '' AND p.department_id = :dept_id
-                        ORDER BY ds.high_school
+                    WHERE ds.high_school IS NOT NULL AND ds.high_school != '' AND p.department_id = :dept_id
+                    ORDER BY ds.high_school
                 """
-                    df = pd.read_sql_query(text(q), engine, params={'dept_id': user_scope['department_id']})
+                df = pd.read_sql_query(text(q), engine, params={'dept_id': user_scope['department_id']})
             else:
-                    df = pd.read_sql_query(
-                        text("SELECT DISTINCT high_school, high_school_district FROM dim_student WHERE high_school IS NOT NULL AND high_school != '' ORDER BY high_school"),
-                        engine
-                    )
-                options['high_schools'] = df.to_dict('records') if not df.empty else []
-            except Exception:
-                options['high_schools'] = []
+                df = pd.read_sql_query(
+                    text(
+                        "SELECT DISTINCT high_school, high_school_district "
+                        "FROM dim_student "
+                        "WHERE high_school IS NOT NULL AND high_school != '' "
+                        "ORDER BY high_school"
+                    ),
+                    engine,
+                )
+            options['high_schools'] = df.to_dict('records') if not df.empty else []
         
         # --- Intake years (normalize to int; role-based) ---
-        try:
         if role == Role.STUDENT:
             if user_scope.get('student_id'):
-                    df = pd.read_sql_query(
-                        text("SELECT DISTINCT EXTRACT(YEAR FROM admission_date) as year FROM dim_student WHERE student_id = :sid AND admission_date IS NOT NULL"),
-                        engine,
-                        params={'sid': user_scope['student_id']}
-                    )
+                df = pd.read_sql_query(
+                    text(
+                        "SELECT DISTINCT EXTRACT(YEAR FROM admission_date) as year "
+                        "FROM dim_student "
+                        "WHERE student_id = :sid AND admission_date IS NOT NULL"
+                    ),
+                    engine,
+                    params={'sid': user_scope['student_id']},
+                )
             else:
-                    df = pd.DataFrame()
+                df = pd.DataFrame()
         else:
-                base = "SELECT DISTINCT EXTRACT(YEAR FROM admission_date) as year FROM dim_student WHERE admission_date IS NOT NULL"
+            base = (
+                "SELECT DISTINCT EXTRACT(YEAR FROM admission_date) as year "
+                "FROM dim_student WHERE admission_date IS NOT NULL"
+            )
             if role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id:
-                    q = """
-                        SELECT DISTINCT EXTRACT(YEAR FROM ds.admission_date) as year
+                q = """
+                    SELECT DISTINCT EXTRACT(YEAR FROM ds.admission_date) as year
                     FROM dim_student ds
                     JOIN dim_program p ON ds.program_id = p.program_id
                     JOIN dim_department d ON p.department_id = d.department_id
                     WHERE ds.admission_date IS NOT NULL AND d.faculty_id = :fac_id
-                        ORDER BY year DESC
+                    ORDER BY year DESC
                 """
-                    df = pd.read_sql_query(text(q), engine, params={'fac_id': user_scope['faculty_id']})
+                df = pd.read_sql_query(text(q), engine, params={'fac_id': user_scope['faculty_id']})
             elif role == Role.HOD and user_scope.get('department_id') and not department_id:
-                    q = """
-                        SELECT DISTINCT EXTRACT(YEAR FROM ds.admission_date) as year
+                q = """
+                    SELECT DISTINCT EXTRACT(YEAR FROM ds.admission_date) as year
                     FROM dim_student ds
                     JOIN dim_program p ON ds.program_id = p.program_id
                     WHERE ds.admission_date IS NOT NULL AND p.department_id = :dept_id
-                        ORDER BY year DESC
+                    ORDER BY year DESC
                 """
-                    df = pd.read_sql_query(text(q), engine, params={'dept_id': user_scope['department_id']})
+                df = pd.read_sql_query(text(q), engine, params={'dept_id': user_scope['department_id']})
             else:
-                    df = pd.read_sql_query(text(base + " ORDER BY year DESC"), engine)
-            if not df.empty and 'year' in df.columns:
-                years = [int(y) if y is not None and not pd.isna(y) else None for y in df['year'].tolist()]
-                options['intake_years'] = [y for y in years if y is not None]
-            else:
-                options['intake_years'] = []
-        except Exception:
+                df = pd.read_sql_query(text(base + " ORDER BY year DESC"), engine)
+        if not df.empty and 'year' in df.columns:
+            years = [int(y) if y is not None and not pd.isna(y) else None for y in df['year'].tolist()]
+            options['intake_years'] = [y for y in years if y is not None]
+        else:
             options['intake_years'] = []
         
         if engine:
-        engine.dispose()
+            engine.dispose()
         return jsonify(options), 200
         
     except Exception as e:
@@ -2233,6 +2252,90 @@ def get_student_analytics():
         print(f"Error in get_student_analytics: {e}")
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
+
+
+@analytics_bp.route('/enrollment-pipeline', methods=['GET'])
+@jwt_required()
+def get_enrollment_pipeline():
+    """
+    Enrollment pipeline: trend of first-year, first-semester students by academic_year.
+    Used for the analyst 'Enrollment pipeline' chart.
+    """
+    engine = None
+    try:
+        claims = get_jwt()
+        user_scope = get_user_scope(claims)
+        role = user_scope['role']
+
+        # Students should not access institution-level pipeline
+        if role == Role.STUDENT:
+            return jsonify({'error': 'Permission denied'}), 403
+
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+
+        # Institution-wide trend of first-year, first-semester students per academic_year.
+        # Primary query: strictly year_of_study = 1 and semester_id = 1.
+        q_primary = """
+        SELECT
+            COALESCE(fe.academic_year, ds.academic_year) AS academic_year,
+            COUNT(DISTINCT fe.student_id) AS total_enrollments
+        FROM fact_enrollment fe
+        JOIN dim_student ds ON fe.student_id = ds.student_id
+        WHERE fe.semester_id = 1
+          AND COALESCE(ds.year_of_study, 1) = 1
+        GROUP BY COALESCE(fe.academic_year, ds.academic_year)
+        ORDER BY COALESCE(fe.academic_year, ds.academic_year)
+        """
+
+        df = pd.read_sql_query(text(q_primary), engine)
+
+        # Fallback 1: if no rows (e.g., year_of_study not populated), drop the year_of_study filter
+        if df.empty:
+            q_fallback = """
+            SELECT
+                COALESCE(fe.academic_year, ds.academic_year) AS academic_year,
+                COUNT(DISTINCT fe.student_id) AS total_enrollments
+            FROM fact_enrollment fe
+            JOIN dim_student ds ON fe.student_id = ds.student_id
+            WHERE fe.semester_id = 1
+            GROUP BY COALESCE(fe.academic_year, ds.academic_year)
+            ORDER BY COALESCE(fe.academic_year, ds.academic_year)
+            """
+            df = pd.read_sql_query(text(q_fallback), engine)
+
+        # Fallback 2: if still empty, show overall enrollment trend (all semesters) per academic_year
+        if df.empty:
+            q_fallback2 = """
+            SELECT
+                COALESCE(fe.academic_year, ds.academic_year) AS academic_year,
+                COUNT(DISTINCT fe.student_id) AS total_enrollments
+            FROM fact_enrollment fe
+            JOIN dim_student ds ON fe.student_id = ds.student_id
+            GROUP BY COALESCE(fe.academic_year, ds.academic_year)
+            ORDER BY COALESCE(fe.academic_year, ds.academic_year)
+            """
+            df = pd.read_sql_query(text(q_fallback2), engine)
+        engine.dispose()
+
+        records = df.to_dict('records') if not df.empty else []
+        for r in records:
+            if r.get('academic_year') is not None:
+                r['academic_year'] = str(r['academic_year'])
+            if r.get('semester_id') is not None and isinstance(r['semester_id'], (float,)):
+                r['semester_id'] = int(r['semester_id'])
+
+        return jsonify({'pipeline': records}), 200
+
+    except Exception as e:
+        import traceback
+        print(f"Error in get_enrollment_pipeline: {e}")
+        print(traceback.format_exc())
+        if engine is not None:
+            try:
+                engine.dispose()
+            except Exception:
+                pass
+        return jsonify({'error': str(e), 'pipeline': []}), 500
 
 
 @analytics_bp.route('/hr', methods=['GET'])
