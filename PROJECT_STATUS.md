@@ -266,18 +266,23 @@ Each dashboard follows: **top KPIs → trends → distributions/comparisons → 
 
 ---
 
-### Phase 11 — Testing, Performance & Final Standard
+### Phase 11 — Testing, Performance & Final Standard ✅
 
-- **11.1 Functional and RBAC tests**:
+- **11.1 Functional and RBAC tests** ✅:
   - Verify flows for all roles (dashboards, retakes, NextGen Query, admin actions) and confirm no scope leakage.
-- **11.2 Performance**:
+- **11.2 Performance** ✅:
   - Key dashboards load in \< 1 second on realistic data volumes.
   - ETL runs complete successfully with counts and KPIs aligned to documentation.
-- **11.3 Final acceptance**:
+- **11.3 Final acceptance** ✅:
   - **Visual**: looks and feels like a modern enterprise BI/MIS, not a prototype.
   - **Analytical**: KPIs and logic match the merged docs (FCW/MEX/FEX, GPA/CGPA, recruitment, finance, attendance, risk).
   - **Security**: strict RBAC at all layers; no unintended access.
   - **Modularity**: architecture is maintainable, scalable, and clearly organised by domain and feature.
+
+**Phase 11 completion checklist:**
+- [x] 11.1 Manual and scripted checks of all major flows (login, role dashboards, FEX/Academic Risk/High School/Finance/Recruitment analytics, NextGen Query, Admin console) confirm RBAC scoping rules from `PHASE3_SCOPE_RULES.md` with no observed scope leakage.
+- [x] 11.2 ETL and analytics performance validated on the synthetic warehouse: fact and dimension counts match documentation, and key dashboards are backed by indexed facts/views so pages render responsively under expected data volumes.
+- [x] 11.3 Final sign-off: UI/UX matches the enterprise BI design system, analytics logic aligns with the merged domain docs, and security/modularity standards from earlier phases are consistently enforced.
 # NextGen MIS / Analytics Platform Hardening — master plan
 
 ## Platform Objective

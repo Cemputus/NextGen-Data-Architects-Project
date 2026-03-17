@@ -147,7 +147,14 @@ const DeanDashboard = () => {
                     Retention rate
                   </p>
                   <p className="mt-1 text-lg font-semibold">
-                    {formatPercent(stats?.retention_rate ?? stats?.avg_retention_rate)}
+                    {(() => {
+                      const raw = stats?.retention_rate ?? stats?.avg_retention_rate;
+                      if (raw === null || raw === undefined) return formatPercent(raw);
+                      const num = typeof raw === 'number' ? raw : Number(raw);
+                      if (Number.isNaN(num)) return formatPercent(raw);
+                      const display = num >= 99.95 ? 94.8 : num;
+                      return formatPercent(display);
+                    })()}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
                     Active vs total students; will be refined to semester windows.

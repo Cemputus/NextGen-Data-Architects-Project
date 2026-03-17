@@ -1,4 +1,4 @@
-Master Engineering Prompt — NextGen MIS / NextGen Analytics System
+# Master Engineering Prompt — NextGen MIS / NextGen Analytics System
 You are refactoring and upgrading the NextGen MIS / NextGen Analytics System into a production-grade institutional analytics platform with enterprise UI/UX, advanced BI capabilities, strict RBAC, PostgreSQL-first optimization, and a modular architecture that scales cleanly.
 
 This is not a cosmetic patch. Treat this as a full platform hardening and analytics modernization initiative.
@@ -15,7 +15,7 @@ institutional decision-support systems
 
 The system must feel professional, analytical, modular, clean, fast, and role-aware.
 
-1. Primary Objective
+## 1. Primary Objective
 Upgrade the entire platform so that it becomes a high-end university analytics and management system capable of supporting:
 
 executive decision-making
@@ -89,10 +89,10 @@ time logic and academic timeline constraints
 
 Do not ignore these documents. The application must reflect them in both backend logic and frontend analytics behavior.
 
-2. Non-Negotiable Engineering Standards
+## 2. Non-Negotiable Engineering Standards
 Apply the following standards across the entire codebase:
 
-2.1 Architecture
+### 2.1 Architecture
 Refactor to a modular, domain-driven, maintainable architecture.
 
 Enforce clear separation of concerns between:
@@ -123,7 +123,7 @@ ETL / settings / admin modules
 
 Avoid monolithic pages and duplicated logic.
 
-2.2 Code quality
+### 2.2 Code quality
 Enforce:
 
 reusable components
@@ -148,7 +148,7 @@ safe guards around unauthorized access
 
 scalable chart registry and dashboard metadata models
 
-2.3 Product quality
+### 2.3 Product quality
 The final system should feel:
 
 elegant
@@ -165,10 +165,10 @@ trustworthy
 
 enterprise-ready
 
-3. Full UI/UX Professionalization — Highest Priority
+## 3. Full UI/UX Professionalization — Highest Priority
 Redesign the entire interface across all roles to a modern enterprise standard.
 
-3.1 Global design system
+### 3.1 Global design system
 Implement a unified professional design system with:
 
 consistent typography
@@ -205,7 +205,7 @@ success/error messaging
 
 Use a clean and highly professional visual language suitable for an analytics-heavy SaaS system.
 
-3.2 Layout quality
+### 3.2 Layout quality
 All pages must use:
 
 responsive grid layouts
@@ -224,7 +224,7 @@ high-quality sidebar and page shell
 
 polished header actions and filters
 
-3.3 Dashboard aesthetic target
+### 3.3 Dashboard aesthetic target
 Dashboards should look like modern BI tools, not student projects.
 
 They must support:
@@ -245,7 +245,7 @@ clear segmentation by theme
 
 analytical summaries rather than random chart placement
 
-3.4 Tables and analytics controls
+### 3.4 Tables and analytics controls
 Upgrade all data tables and filter panels to professional standards:
 
 sticky headers where appropriate
@@ -268,12 +268,12 @@ compact but readable layout
 
 consistent row actions
 
-4. Charts, KPIs, and BI Experience — Full Replacement
+## 4. Charts, KPIs, and BI Experience — Full Replacement
 Remove all current charts and KPI cards. Do not retain the existing analytics visuals unless a component is structurally reusable.
 
 Rebuild the analytics layer from scratch using the merged documentation as the semantic source of truth.
 
-4.1 Replace all existing analytics
+### 4.1 Replace all existing analytics
 Perform a full analytics refresh:
 
 remove all current charts
@@ -288,7 +288,7 @@ build metrics using meaningful domain logic
 
 stop using repetitive, boring chart patterns
 
-4.2 Visualization quality target
+### 4.2 Visualization quality target
 The platform must reach a Power BI / Tableau level presentation standard in terms of:
 
 visual hierarchy
@@ -305,7 +305,7 @@ drill-down readiness
 
 interpretability
 
-4.3 Chart diversity
+### 4.3 Chart diversity
 Do not overuse bar charts.
 
 Use a strategically varied chart library such as:
@@ -342,7 +342,7 @@ risk segmentation visuals
 
 Each chart type must be chosen because it matches the metric story.
 
-4.4 KPI and metrics redesign
+### 4.4 KPI and metrics redesign
 Rebuild KPI cards based on the documentation, including but not limited to:
 
 Academic KPIs
@@ -436,7 +436,7 @@ optional recommendations / insight text blocks
 
 Do not produce random dashboards with disconnected charts.
 
-5. Strict Role-Based Access Control — Must Be Enforced Everywhere
+## 5. Strict Role-Based Access Control — Must Be Enforced Everywhere
 The system has strict RBAC. This must be enforced at:
 
 route level
@@ -459,7 +459,7 @@ admin feature level
 
 Do not implement RBAC only in the UI. Enforce it deeply.
 
-5.1 Core roles
+### 5.1 Core roles
 Implement and preserve the following real RBAC roles exactly:
 
 Student
@@ -480,7 +480,7 @@ Finance
 
 Sysadmin
 
-5.2 RBAC interpretation
+### 5.2 RBAC interpretation
 Use the following role rules as authoritative:
 
 Student
@@ -566,7 +566,7 @@ password reset capability
 
 full access to all areas
 
-5.3 Scope-aware visibility
+### 5.3 Scope-aware visibility
 The backend must apply scope filters where relevant:
 
 students see only self
@@ -587,7 +587,7 @@ finance sees finance domain
 
 sysadmin sees all
 
-5.4 Dashboard access model
+### 5.4 Dashboard access model
 Dashboards and chart assets must support controlled visibility by:
 
 owner
@@ -600,10 +600,10 @@ system role defaults
 
 scoped institutional hierarchy where relevant
 
-6. Custom Dashboards — Major Upgrade
+## 6. Custom Dashboards — Major Upgrade
 The custom dashboard system needs a serious redesign.
 
-6.1 Required capabilities
+### 6.1 Required capabilities
 Custom dashboards must support:
 
 dashboard creation
@@ -628,7 +628,7 @@ clean dashboard metadata management
 
 visibility rules based on RBAC
 
-6.2 Current dashboards vs custom dashboards
+### 6.2 Current dashboards vs custom dashboards
 Improve the dashboard manager experience so it clearly separates:
 
 current/default dashboards by role
@@ -641,7 +641,7 @@ dashboard preview/open/edit actions
 
 dashboard swapping/replacement workflows where applicable
 
-6.3 Reusable chart asset model
+### 6.3 Reusable chart asset model
 Custom dashboards must be built from reusable chart assets rather than hardcoded widget definitions.
 
 Each chart asset should carry metadata such as:
@@ -668,7 +668,7 @@ tags/category
 
 last updated timestamp
 
-6.4 Dashboard builder UX
+### 6.4 Dashboard builder UX
 The dashboard builder should feel premium and organized:
 
 left panel for available saved charts
@@ -683,10 +683,10 @@ validation messages
 
 assignment controls
 
-7. NextGen Query — Major Enhancement
+## 7. NextGen Query — Major Enhancement
 The NextGen Query page must become a serious analyst workspace, similar in spirit to Power BI query + SQL workbench + BI visualization studio.
 
-7.1 Purpose
+### 7.1 Purpose
 Analysts should be able to:
 
 write SQL safely against allowed analytical views/tables
@@ -703,7 +703,7 @@ reuse them in dashboards
 
 share them to users/roles when permitted
 
-7.2 Workspace layout
+### 7.2 Workspace layout
 Design the page professionally with clear zones:
 
 SQL editor / code area
@@ -720,7 +720,7 @@ query history or recent queries if available
 
 validation/error panel
 
-7.3 Manage Charts rename and restructure
+### 7.3 Manage Charts rename and restructure
 Rename the current section:
 
 Manage charts I Shared
@@ -739,7 +739,7 @@ Contains charts created and saved from NextGen Query or other chart-building wor
 
 These are different concepts and must be represented separately.
 
-7.4 Saved chart lifecycle
+### 7.4 Saved chart lifecycle
 A chart generated in NextGen Query must support:
 
 save as chart asset
@@ -758,7 +758,7 @@ later editing of metadata
 
 later reuse in custom dashboards
 
-7.5 Reuse across the system
+### 7.5 Reuse across the system
 Saved Charts must become available in:
 
 custom dashboard builder
@@ -769,7 +769,7 @@ analyst chart management page
 
 share/assign workflows
 
-7.6 SQL safety and scope
+### 7.6 SQL safety and scope
 NextGen Query must not become an unrestricted raw SQL security hole.
 
 Implement guardrails such as:
@@ -790,12 +790,12 @@ timeout and error handling
 
 scoped database permissions appropriate to analyst capabilities
 
-8. PostgreSQL-First Optimization — Mandatory
+## 8. PostgreSQL-First Optimization — Mandatory
 The system must be optimized around PostgreSQL as the authoritative database platform.
 
 Treat PostgreSQL as essential for this analytics-heavy system.
 
-8.1 Why this matters
+### 8.1 Why this matters
 This platform powers:
 
 multi-domain analytics
@@ -814,7 +814,7 @@ future ETL and warehousing needs
 
 The implementation must therefore exploit PostgreSQL strengths appropriately.
 
-8.2 Required PostgreSQL improvements
+### 8.2 Required PostgreSQL improvements
 Refactor data access and schema usage to support:
 
 efficient indexing
@@ -833,7 +833,7 @@ secure role-aware filtering
 
 clean separation between transactional tables and analytical views
 
-8.3 Schema strategy
+### 8.3 Schema strategy
 Align database structures to the merged documentation and warehouse semantics:
 
 Recommended logical warehouse constructs include:
@@ -868,7 +868,7 @@ fact_progression
 
 You do not need to rigidly over-engineer, but the system must clearly respect dimensional / analytical modeling principles.
 
-8.4 Query performance expectations
+### 8.4 Query performance expectations
 Optimize for common workloads such as:
 
 dashboard aggregates by faculty / department / program / semester
@@ -889,7 +889,7 @@ custom dashboard loading
 
 role-scoped views
 
-8.5 Database deliverables
+### 8.5 Database deliverables
 Improve:
 
 indexes
@@ -908,10 +908,10 @@ reusable DB utility layer
 
 migration structure if applicable
 
-9. Incorporate the Full Domain Logic from the Master Documentation
+## 9. Incorporate the Full Domain Logic from the Master Documentation
 The upgraded system must reflect the logic in the merged documentation. This includes both data semantics and analytics semantics.
 
-9.1 Core university domains to support
+### 9.1 Core university domains to support
 The system must support the following analytics domains clearly and consistently:
 
 academic performance intelligence
@@ -934,7 +934,7 @@ executive institutional scorecards
 
 SQL-first exploration via NextGen Query
 
-9.2 Business logic to preserve
+### 9.2 Business logic to preserve
 Respect the documented rules including:
 
 coursework = 60%
@@ -961,7 +961,7 @@ date-driven analysis
 
 synthetic/anonymized dataset assumptions
 
-9.3 Data quality semantics to reflect in analytics
+### 9.3 Data quality semantics to reflect in analytics
 Analytics views and dashboards should assume and respect the documented constraints:
 
 unique registration numbers
@@ -976,10 +976,10 @@ all programs represented
 
 coverage across academic, finance, attendance, and high-school domains
 
-10. Recruitment / Feeder School Analytics — Must Be Visible in BI
+## 10. Recruitment / Feeder School Analytics — Must Be Visible in BI
 The platform must incorporate the school recruitment intelligence described in the documentation.
 
-10.1 Required recruitment analytics capabilities
+### 10.1 Required recruitment analytics capabilities
 Support analytics such as:
 
 top feeder schools
@@ -998,7 +998,7 @@ program preference by school
 
 retention/persistence by feeder school
 
-10.2 Dashboard coverage
+### 10.2 Dashboard coverage
 Add or improve dashboards / sections for:
 
 recruitment source analysis
@@ -1015,13 +1015,13 @@ school-based strategic targeting insights
 
 These should be presentation-quality and suitable for demos and institutional storytelling.
 
-11. Seed Application Users — Required
+## 11. Seed Application Users — Required
 Seed realistic app users for demo and system completeness.
 
-11.1 Seed all required roles
+### 11.1 Seed all required roles
 Create seed users for all major roles where needed.
 
-11.2 Lecturer seeding requirement
+### 11.2 Lecturer seeding requirement
 For each department, seed at least 4 to 5 lecturer/staff accounts.
 
 Use realistic names and link them correctly to:
@@ -1034,13 +1034,13 @@ role
 
 scope
 
-11.3 Password requirement
+### 11.3 Password requirement
 Use the default password:
 
 ChangeMe123
 for all seeded demo users unless explicitly overridden by secure environment-specific logic.
 
-11.4 Role correctness
+### 11.4 Role correctness
 Ensure seeded users reflect RBAC rules correctly, especially for:
 
 dean assignments
