@@ -81,12 +81,14 @@ export function SciBarChart({
   xDataKey = 'name',
   yDataKey = 'value',
   yDataKeys = null,
-  height = chartHeight,
   xAxisLabel = 'Category',
   yAxisLabel = 'Value',
   fillColor = '#4F46E5',
   showLegend = true,
   showGrid = true,
+  tooltipNameKey = null,
+  minHeight = chartMinHeight,
+  maxHeight = chartMaxHeight,
 }) {
   const option = useMemo(() => {
     const categories = data.map((d) => String(d[xDataKey] ?? ''));
@@ -109,7 +111,17 @@ export function SciBarChart({
 
     return {
       grid: defaultGrid,
-      tooltip: defaultTooltip,
+      tooltip: {
+        ...defaultTooltip,
+        formatter: (params) => {
+          const p = Array.isArray(params) ? params[0] : params;
+          const idx = p?.dataIndex ?? 0;
+          const raw = Array.isArray(data) && data[idx] ? data[idx] : {};
+          const label =
+            (tooltipNameKey && raw && raw[tooltipNameKey]) || p?.name || '';
+          return `${label}<br/>${yAxisLabel}: ${formatTooltipValue(p.value)}`;
+        },
+      },
       legend: showLegend ? { show: true, bottom: 0, textStyle: defaultTextStyle } : { show: false },
       xAxis: {
         type: 'category',
@@ -132,15 +144,15 @@ export function SciBarChart({
 
   if (!data || data.length === 0) {
     return (
-      <BaseChart option={{}} loading={false} minHeight={chartMinHeight} maxHeight={chartMaxHeight} />
+      <BaseChart option={{}} loading={false} minHeight={minHeight} maxHeight={maxHeight} />
     );
   }
 
   return (
     <BaseChart
       option={option}
-      minHeight={chartMinHeight}
-      maxHeight={chartMaxHeight}
+      minHeight={minHeight}
+      maxHeight={maxHeight}
     />
   );
 }
