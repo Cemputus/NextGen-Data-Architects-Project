@@ -1,0 +1,283 @@
+% Predictive model pipeline documentation
+% CGPA prediction: 01 Profiling, 02 Integration & Feature Engineering, 03 Model
+
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+
+\title{Predictive Model Pipeline Documentation\\[0.5em]
+\large Dataset Profiling, Integration \& Feature Engineering, and CGPA Prediction}
+\author{Other\_Analysis Pipeline}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document describes the three-notebook pipeline used to build a predictive model for semester-level Cumulative Grade Point Average (CGPA). It explains the role of \texttt{01\_dataset\_profiling.ipynb}, \texttt{02\_integration\_feature\_engineering.ipynb}, and \texttt{03\_cgpa\_prediction\_model.ipynb}, their importance for the final model, and the rationale for the techniques, procedures, and methods used in each stage.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%=============================================================================
+\section{Overview of the Pipeline}
+%=============================================================================
+
+The pipeline is organised into three sequential stages:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{01\_dataset\_profiling.ipynb} --- Data discovery, quality audit, and schema validation for all raw assets (CSV and Excel).
+  \item \textbf{02\_integration\_feature\_engineering.ipynb} --- Integration of multiple sources into a single modeling table at \emph{one row per student per semester}, with engineered features and optional enrichment from Excel/CSV.
+  \item \textbf{03\_cgpa\_prediction\_model.ipynb} --- Training, cross-validation, model selection, holdout evaluation, and interpretation of a CGPA regression model.
+\end{enumerate}
+
+The \textbf{target variable} is CGPA for each student-semester. Predictors include attendance behaviour, payment behaviour, sponsorship, past academic performance (lagged), and optional attributes from students list, academic progression, and high school data. The following sections detail each notebook, its importance for the predictive model, and why the chosen techniques and methods were used.
+
+%=============================================================================
+\section{01\_dataset\_profiling.ipynb}
+%=============================================================================
+
+\subsection{Role and Importance for the Predictive Model}
+
+The profiling notebook performs the \textbf{data understanding and quality assessment} phase. It is the foundation for everything that follows:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Reliability of integration:} Later notebooks join tables on keys such as \texttt{REG\_NO} and \texttt{SEMESTER\_INDEX}. If these keys contain duplicates or nulls, joins will produce wrong row counts (e.g.\ duplicate or dropped records), leading to biased targets and invalid model training.
+  \item \textbf{Correct feature design:} By inspecting value distributions (e.g.\ attendance status, payment status, grade status), we ensure that the encoding and aggregation logic in the feature-engineering notebook matches the actual data (e.g.\ \texttt{PRESENT}/\texttt{LATE}/\texttt{ABSENT}).
+  \item \textbf{Interpretation of model performance:} Understanding the distribution of CGPA (range, mean, standard deviation) allows us to judge whether a given MAE or RMSE is practically acceptable.
+\end{itemize}
+
+Without profiling, silent data issues (duplicate keys, unexpected categories, severe missingness) could invalidate the entire modeling pipeline.
+
+\subsection{Techniques and Procedures Used}
+
+\subsubsection{File discovery (CSV and Excel)}
+
+The notebook discovers all \texttt{*.csv} and \texttt{*.xlsx} files in the project directory. This provides:
+
+\begin{itemize}[leftmargin=*]
+  \item A single, reproducible list of input assets.
+  \item Support for both CSV (common in scripts and version control) and Excel (common in institutional exports). The same pipeline can be run whether data is provided as CSV or Excel.
+\end{itemize}
+
+\subsubsection{Preference for CSV when both exist}
+
+When the same logical dataset exists as both a CSV and an Excel file (e.g.\ \texttt{course\_catalog\_ucu}), the notebook \textbf{prefers the CSV} for profiling and documents the overlap. Reasons:
+
+\begin{itemize}[leftmargin=*]
+  \item Consistency with downstream notebooks (02 and 03), which also prefer CSV then Excel via \texttt{load\_table}.
+  \item CSVs are easier to version-control and to process in automated pipelines.
+  \item The overlap table makes the choice explicit and auditable.
+\end{itemize}
+
+\subsubsection{Profiling functions}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{\texttt{load\_csv} / \texttt{load\_xlsx}:} Load each file (Excel: one DataFrame per sheet, with names like \texttt{stem} or \texttt{stem\_SheetName} for multi-sheet workbooks). Only datasets not already present from CSV are added from Excel, so CSV wins when both exist.
+  \item \textbf{\texttt{profile\_df}:} For each table, computes row count, column count, total null cells, duplicate rows, and---when a key is supplied---duplicate keys and null keys. This directly answers: ``Can we safely join on this key?''
+  \item \textbf{\texttt{value\_counts\_safe}:} Categorical value counts for selected columns (attendance status, payment status, sponsorship status, grade status). Used to validate the set of possible values before encoding in feature engineering.
+\end{itemize}
+
+\subsubsection{Key map and profiling report}
+
+A \textbf{KEY\_MAP} associates each dataset (or sheet) with its intended primary key (e.g.\ \texttt{REG\_NO} for students list, \texttt{REG\_NO}+\texttt{SEMESTER\_INDEX} for transcripts, \texttt{PROGRESSION\_ID} for academic progression). The resulting profile table (saved as \texttt{outputs/dataset\_profiles.csv}) summarises rows, columns, nulls, duplicates, and key quality. This report supports documentation and future data monitoring.
+
+\subsubsection{Deeper domain summaries}
+
+The notebook also computes domain-specific summaries (e.g.\ CGPA by semester, attendance status counts, payment amounts by status, sponsorship amounts, grade completion status). These inform:
+
+\begin{itemize}[leftmargin=*]
+  \item What level of prediction error is reasonable (e.g.\ relative to CGPA standard deviation).
+  \item Which status values must be handled in aggregation (e.g.\ success vs.\ failed payments).
+\end{itemize}
+
+\subsection{Why These Methods Were Chosen}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Automatic file discovery:} Reduces human error and keeps the pipeline robust when files are added or removed.
+  \item \textbf{Explicit key validation:} Prevents invalid joins that would corrupt the modeling table.
+  \item \textbf{CSV-over-Excel when both exist:} Aligns with best practices for reproducibility and automation while still supporting Excel-only assets (e.g.\ \texttt{students\_list15.xlsx}, \texttt{dim\_date\_2022\_2026.xlsx}).
+  \item \textbf{Export of profiles:} Gives a persistent record of data health for reports and for comparing runs over time.
+\end{itemize}
+
+%=============================================================================
+\section{02\_integration\_feature\_engineering.ipynb}
+%=============================================================================
+
+\subsection{Role and Importance for the Predictive Model}
+
+This notebook builds the \textbf{single modeling table} consumed by the prediction model. It:
+
+\begin{itemize}[leftmargin=*]
+  \item Defines the \textbf{grain} of the supervised learning problem: one row per student per semester, with target CGPA and a fixed set of predictors.
+  \item \textbf{Avoids target leakage} by using only lagged performance (previous semester) and same-semester behavioural aggregates (attendance, payments, sponsorship) as predictors---never future or CGPA-derived quantities.
+  \item Enriches the table with optional sources (students list, academic progression, high school) when available, improving predictive signal and enabling cohort-based evaluation (e.g.\ List15 vs.\ List16).
+\end{itemize}
+
+Without correct integration and feature engineering, the model would either see invalid data (wrong grain, leakage) or miss useful signals (attendance, payments, retakes).
+
+\subsection{Techniques and Procedures Used}
+
+\subsubsection{Unified loading: CSV preferred, then Excel}
+
+A \textbf{\texttt{load\_table(data\_dir, stem)}} helper tries \texttt{stem.csv} first, then \texttt{stem.xlsx} (first sheet). This:
+
+\begin{itemize}[leftmargin=*]
+  \item Matches the profiling notebook and ensures the same ``CSV when both exist'' policy across the pipeline.
+  \item Allows the pipeline to run when some assets exist only as Excel (e.g.\ \texttt{students\_list15.xlsx}, \texttt{academic\_progression\_list15.xlsx}).
+\end{itemize}
+
+Core tables (transcript, performance, attendance, payments, sponsorships, high schools) are loaded this way. If transcript is missing, the run fails; if attendance/payments/sponsorships are missing, empty DataFrames are used so that aggregations and merges still run (with empty but correctly shaped results).
+
+\subsubsection{Date parsing and column selection}
+
+Date columns (attendance \texttt{DATE}, payment \texttt{PAYMENT\_DATE}, sponsorship \texttt{DISBURSEMENT\_DATE}) are parsed to datetime so that time-span features (e.g.\ \texttt{attendance\_span\_days}, \texttt{payment\_span\_days}) can be computed. Only columns needed for aggregation and joining are kept, to reduce memory and clarify dependencies.
+
+\subsubsection{Attendance aggregation (by student-semester)}
+
+Raw attendance events are grouped by \texttt{REG\_NO} and \texttt{SEMESTER\_INDEX}. For each group we compute:
+
+\begin{itemize}[leftmargin=*]
+  \item Number of distinct attendance days, counts of present/late/absent, and derived \textbf{rates} (\texttt{present\_rate}, \texttt{late\_rate}, \texttt{absent\_rate}).
+  \item \texttt{attendance\_span\_days} (first to last attendance date). Status values are normalised (e.g.\ \texttt{P} $\to$ \texttt{PRESENT}) so that rates are consistent.
+\end{itemize}
+
+\paragraph{Why:} Attendance is a strong behavioural signal for academic performance; rates and span are interpretable and suitable for regression.
+
+\subsubsection{Payment aggregation (by student-semester)}
+
+Payment transactions are grouped by \texttt{REG\_NO} and \texttt{SEMESTER\_INDEX}. We compute transaction counts, success/failure counts and amounts, \texttt{payment\_success\_rate}, distinct methods/channels/sources, and \texttt{payment\_span\_days}.
+
+\paragraph{Why:} Payment behaviour reflects financial stability and enrolment continuity; success rate and amounts are plausible predictors of CGPA.
+
+\subsubsection{Sponsorship aggregation (by student-semester)}
+
+Sponsorship events are grouped by student and semester. We compute event counts, approved counts, total and approved amounts, distinct sponsors and scholarship types, and a binary \texttt{has\_sponsorship}.
+
+\paragraph{Why:} Sponsorship explicitly captures external financial support, which may reduce stress and support performance; the model can test this effect.
+
+\subsubsection{Lagged (past-performance) features}
+
+For each student, the transcript is sorted by \texttt{SEMESTER\_INDEX} and a one-period lag is applied to CGPA, semester GPA, failed/passed counts, FCW/FEX/MEX counts, credits failed/passed, and cumulative credits. These are stored with a \texttt{prev\_} prefix.
+
+\paragraph{Why:} Past performance is the strongest predictor of future performance. Using \emph{lagged} values ensures we only use information available \emph{before} the semester we are predicting, avoiding leakage.
+
+\subsubsection{Optional: students list and academic progression}
+
+When \texttt{students\_list15}/\texttt{students\_list16} (CSV or Excel) exist, they are concatenated with a \texttt{STUDENT\_LIST} column (LIST15/LIST16) and merged on \texttt{REG\_NO}, adding columns not already present (e.g.\ \texttt{TOTAL\_REGISTRATIONS}, \texttt{STUDENT\_LIST}). When \texttt{academic\_progression\_list15}/\texttt{academic\_progression\_list16} exist, they are aggregated by \texttt{REG\_NO} and \texttt{SEMESTER\_INDEX} to produce \texttt{progression\_count}, \texttt{retake\_count\_semester}, and \texttt{max\_attempt\_semester}, then merged into the modeling table.
+
+\paragraph{Why:} Students list provides cohort labels (for holdout evaluation) and registration history; academic progression provides retake/attempt signals that may improve prediction.
+
+\subsubsection{Statistical validation: association with CGPA}
+
+Before saving the table, the notebook computes \textbf{Spearman correlations} between each candidate feature and CGPA, with a two-tailed \textbf{significance test} (p-value). Variables with \(p < 0.05\) are flagged as statistically significant. Results are saved to \texttt{outputs/feature\_cgpa\_correlations.csv}. This step provides evidence that the chosen variables are associated with the target and can aid prediction; the modeling notebook (03) then adds \emph{in-model} evidence via permutation importance and \(R^2\).
+
+\subsubsection{Build final modeling table}
+
+The base is the lag-augmented transcript. Then we left-join (in order): performance (if loaded), attendance aggregates, payment aggregates, sponsorship aggregates, high schools (if loaded), optional students list, optional progression aggregates. Sponsorship columns are filled with 0 where missing (no record $\Rightarrow$ no sponsorship). The result is written to \texttt{outputs/modeling\_table\_student\_semester.csv}.
+
+\subsection{Why These Methods Were Chosen}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Single grain (student-semester):} Matches the natural unit of the target (one CGPA per student per semester) and keeps the model simple and interpretable.
+  \item \textbf{Lagged features only for past performance:} Prevents target leakage while retaining the most informative academic history.
+  \item \textbf{Left joins and 0-fill for sponsorship:} Preserves all student-semester rows and distinguishes ``no sponsorship'' from missing data.
+  \item \textbf{CSV then Excel + optional enrichment:} Maximises compatibility with different data availability and adds predictive power when extra sources (students list, progression) are present.
+\end{itemize}
+
+%=============================================================================
+\section{03\_cgpa\_prediction\_model.ipynb}
+%=============================================================================
+
+\subsection{Role and Importance for the Predictive Model}
+
+This notebook implements the \textbf{regression model} for CGPA. It:
+
+\begin{itemize}[leftmargin=*]
+  \item Reads the integrated table from 02 and selects a fixed set of features that avoid leakage and support interpretation.
+  \item Trains multiple candidate models and selects the best using cross-validated error (RMSE/MAE) and, when possible, a holdout cohort (List16).
+  \item Saves the chosen pipeline and reports feature importance (permutation-based) so that stakeholders can see which variables drive predictions.
+\end{itemize}
+
+It is the final stage that turns the engineered table into a deployable predictor and an interpretable analysis.
+
+\subsection{Techniques and Procedures Used}
+
+\subsubsection{Feature set and leakage avoidance}
+
+Features are chosen explicitly. \textbf{Excluded} (leak columns): \texttt{CUM\_QUALITY\_POINTS}, \texttt{CUM\_CREDITS\_ATTEMPTED}, \texttt{CUM\_CREDITS\_PASSED}, \texttt{QUALITY\_POINTS}---these either reconstruct CGPA mechanically or are too closely tied to the current semester outcome. \textbf{Included:} program, academic year, semester, semester index; attendance features (days, rates, span); payment features (counts, success rate, amounts, diversity, span); sponsorship features; and all \texttt{prev\_*} lagged performance features. Optional columns from 02 (e.g.\ \texttt{SCHOOL\_TIER}, \texttt{TOTAL\_REGISTRATIONS}, \texttt{progression\_count}, \texttt{retake\_count\_semester}, \texttt{max\_attempt\_semester}) are added when present.
+
+\paragraph{Why:} Conservative feature selection keeps the model interpretable and prevents inflated performance from leakage. Optional features are used when available without breaking runs when they are absent.
+
+\subsubsection{Preprocessing pipeline}
+
+A \textbf{ColumnTransformer} is used so that preprocessing is consistent at train and prediction time:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Numeric features:} Missing values are imputed with the \textbf{median} (robust to outliers).
+  \item \textbf{Categorical features:} Missing values are imputed with the \textbf{most frequent} category, then \textbf{one-hot encoded} with \texttt{handle\_unknown="ignore"} so that new categories at prediction time do not cause errors.
+\end{itemize}
+
+\paragraph{Why:} Median and mode imputation are simple and stable; one-hot encoding allows linear and tree models to use categorical predictors; the pipeline encapsulates all steps for deployment.
+
+\subsubsection{Candidate models}
+
+Three estimators are compared:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Ridge regression:} Linear model with $\ell_2$ regularisation. Provides an interpretable baseline and stable coefficients.
+  \item \textbf{Random Forest regressor:} Ensemble of trees; captures non-linear relationships and interactions without strong parametric assumptions.
+  \item \textbf{HistGradientBoostingRegressor:} Gradient boosting optimised for tabular data; often gives strong predictive performance.
+\end{itemize}
+
+\paragraph{Why:} Using multiple model families lets the data determine the best performer (by cross-validated RMSE) rather than fixing a single algorithm. Ridge gives interpretability; tree-based models capture complexity.
+
+\subsubsection{Grouped cross-validation and holdout}
+
+\textbf{GroupKFold} (e.g.\ 5 folds) is used with \texttt{REG\_NO} as the group. All semesters of a given student stay together in either the training or the validation set, never split across both. This prevents optimistic estimates from the same student appearing in train and test.
+
+When a \texttt{STUDENT\_LIST} column exists (from high schools or students list), the notebook uses \textbf{List15 as training} and \textbf{List16 as holdout}. This mimics a realistic deployment: train on one cohort, evaluate on another.
+
+\paragraph{Why:} Grouped CV and cohort holdout produce honest estimates of generalisation and avoid inflating accuracy by leaking student identity across folds.
+
+\subsubsection{Model selection and final pipeline}
+
+The model with the \textbf{lowest cross-validated RMSE} is selected. That pipeline (preprocessing + estimator) is retrained on the full dataset and saved (e.g.\ \texttt{cgpa\_model.joblib}) together with the feature list and metrics. This artifact can be loaded later to score new student-semester records.
+
+\subsubsection{Permutation feature importance}
+
+On the holdout set, \textbf{permutation importance} is computed: each feature is shuffled in turn and the increase in RMSE is recorded. Features that cause the largest increase when shuffled are ranked as most important.
+
+\paragraph{Why:} Permutation importance is model-agnostic and reflects each feature’s contribution to out-of-sample prediction, supporting interpretation and reporting (e.g.\ which of attendance, payments, or past CGPA matters most).
+
+\subsection{Why These Methods Were Chosen}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Explicit leak exclusion and optional features:} Ensures validity and allows the pipeline to benefit from 02’s optional columns without hard dependency.
+  \item \textbf{Pipeline + ColumnTransformer:} Guarantees that the same preprocessing is applied in training and production.
+  \item \textbf{Multiple models + CV:} Balances interpretability (Ridge) with flexibility (RF, HGB) and selects by performance.
+  \item \textbf{GroupKFold and cohort holdout:} Yield realistic performance estimates and support cohort-based analysis.
+  \item \textbf{Permutation importance:} Gives a clear, communicable ranking of drivers of CGPA prediction.
+\end{itemize}
+
+%=============================================================================
+\section{Summary: Pipeline Coherence}
+%=============================================================================
+
+The three notebooks form a single, coherent pipeline:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{01} establishes data quality and key validity; documents CSV vs Excel overlap; and exports profiles for auditing. It ensures that 02 and 03 operate on trustworthy, well-understood inputs.
+  \item \textbf{02} unifies all sources at student-semester grain; uses lagged performance and same-semester behaviour only; and optionally enriches from students list and academic progression. It produces the only table 03 needs.
+  \item \textbf{03} trains and evaluates the CGPA model on that table; avoids leakage; uses grouped CV and cohort holdout; and reports feature importance. It delivers a deployable predictor and interpretable results.
+\end{itemize}
+
+The techniques and procedures in each notebook were chosen to support \textbf{reproducibility}, \textbf{validity} (no leakage, honest evaluation), and \textbf{interpretability} (clear features, documented choices, importance rankings), while remaining flexible to CSV/Excel and optional enrichment sources.
+
+\end{document}

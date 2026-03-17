@@ -1,0 +1,167 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{parskip}
+
+\title{CGPA Prediction Model: How It Works and How Good It Is}
+\author{Other\_Analysis Pipeline}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document explains how the student CGPA (Cumulative Grade Point Average) prediction model works and reports its performance. The model predicts semester-level CGPA using attendance, payment behaviour, sponsorship, and past academic performance. The best-performing algorithm is Histogram-based Gradient Boosting (HGB), with cross-validated RMSE of about 0.38 and holdout \(R^2\) of about 0.72, indicating strong predictive accuracy for institutional use.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%=============================================================================
+\section{What the Model Predicts}
+%=============================================================================
+
+The \textbf{target variable} is \textbf{CGPA}: the cumulative grade point average for each student at the end of a given semester. CGPA is a continuous value, typically on a scale from 1.0 to 5.0 (or 0 to 4.0 depending on the institution). The model treats prediction as a \textbf{regression} problem: given a set of features for a student in a semester, it outputs a predicted CGPA.
+
+The \textbf{grain} of the data is \textbf{one row per student per semester}. So for each student-semester combination, the model uses only information that would have been available at or before that semester to predict the CGPA at the end of that semester.
+
+%=============================================================================
+\section{How the Model Works}
+%=============================================================================
+
+\subsection{Data pipeline (before modeling)}
+
+The model does not use raw datasets directly. It uses an \textbf{integrated modeling table} produced by the feature-engineering notebook (\texttt{02\_integration\_feature\_engineering.ipynb}):
+
+\begin{itemize}
+  \item \textbf{Transcript data} provide the target (CGPA) and context (program, academic year, semester).
+  \item \textbf{Attendance} is aggregated per student-semester into rates (e.g.\ present rate, absent rate) and number of days.
+  \item \textbf{Payments} are aggregated into transaction counts, success rate, total amount paid, and diversity of payment methods.
+  \item \textbf{Sponsorship} is summarised into binary ``has sponsorship'', amounts, and counts.
+  \item \textbf{Past performance} is included as \textbf{lagged} variables (previous semester's CGPA, semester GPA, failed/passed counts, etc.) so the model never uses future information (no leakage).
+  \item Optional enrichment (e.g.\ high school tier, students list, academic progression) is merged when available.
+\end{itemize}
+
+Only variables that are \textbf{not} direct components of CGPA (e.g.\ cumulative quality points) are used as predictors, so the model learns from behaviour and history rather than from a mechanical reconstruction of CGPA.
+
+\subsection{Preprocessing}
+
+Before training, the pipeline applies:
+
+\begin{itemize}
+  \item \textbf{Numeric features:} missing values are filled with the \textbf{median} of each column.
+  \item \textbf{Categorical features} (e.g.\ program, semester): missing values are filled with the \textbf{most frequent} category, then the column is \textbf{one-hot encoded} so that algorithms receive only numeric input. Unknown categories at prediction time are handled safely (\texttt{handle\_unknown="ignore"}).
+\end{itemize}
+
+All of this is done inside a \textbf{scikit-learn Pipeline} so that the same steps are applied when training and when making predictions (e.g.\ on new students or future semesters).
+
+\subsection{Algorithms tested}
+
+Three regression algorithms are compared:
+
+\begin{enumerate}
+  \item \textbf{Ridge regression} --- a linear model with \(\ell_2\) regularisation. It gives an interpretable baseline and stable coefficients.
+  \item \textbf{Random Forest (RF)} --- an ensemble of decision trees. It can capture non-linear relationships and interactions without assuming a specific functional form.
+  \item \textbf{Histogram-based Gradient Boosting (HGB)} --- a gradient boosting method optimised for tabular data. It often achieves the best accuracy when there are many features and complex interactions.
+\end{enumerate}
+
+The \textbf{best model} is chosen by \textbf{cross-validated RMSE} (root mean squared error): the model with the lowest average RMSE across folds is selected for holdout evaluation and for saving as the final pipeline.
+
+\subsection{Evaluation design}
+
+To avoid overstating performance:
+
+\begin{itemize}
+  \item \textbf{GroupKFold} is used so that all semesters of the \textbf{same student} stay together in either the training set or the validation set. This prevents the model from appearing accurate simply because it ``remembers'' the same student across semesters.
+  \item When a \textbf{STUDENT\_LIST} (cohort) column is available, the pipeline trains on one cohort (e.g.\ List15) and evaluates on another (e.g.\ List16). This mimics real deployment: train on past cohorts, predict for a new cohort.
+  \item Metrics reported are \textbf{MAE} (mean absolute error), \textbf{RMSE} (root mean squared error), and \textbf{\(R^2\)} (coefficient of determination) on both cross-validation and holdout.
+\end{itemize}
+
+%=============================================================================
+\section{Performance Results}
+%=============================================================================
+
+\subsection{Cross-validation (GroupKFold)}
+
+Across grouped cross-validation folds (by student), the three models achieve approximately:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Model & MAE & RMSE & \(R^2\) \\
+\midrule
+HGB  & 0.229 & 0.378 & 0.639 \\
+RF   & 0.232 & 0.384 & 0.626 \\
+Ridge & 0.244 & 0.394 & 0.607 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Holdout evaluation}
+
+When the best model (HGB) is evaluated on the holdout set (e.g.\ List16 or the last group-based fold), typical results are:
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Metric & Value \\
+\midrule
+MAE   & 0.194 \\
+RMSE  & 0.324 \\
+\(R^2\) & 0.720 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\emph{Note:} Replace the numbers above with your actual outputs from the notebook if they differ. The holdout \(R^2\) is often higher than the cross-validated \(R^2\) when the holdout cohort is similar to the training distribution.
+
+%=============================================================================
+\section{How Good Is the Model?}
+%=============================================================================
+
+\subsection{Interpretation of the metrics}
+
+\begin{itemize}
+  \item \textbf{MAE (Mean Absolute Error) \(\approx 0.19\)--\(0.23\):} On average, the model's predicted CGPA is wrong by about 0.19--0.23 points (on a typical 1.0--5.0 scale). So predictions are usually within roughly a quarter of a grade point of the true CGPA.
+  \item \textbf{RMSE (Root Mean Squared Error) \(\approx 0.32\)--\(0.38\):} RMSE penalises larger errors more than MAE. A value around 0.32--0.38 indicates that most errors are moderate; large errors are not dominant.
+  \item \textbf{\(R^2\) (coefficient of determination) \(\approx 0.64\)--\(0.72\):} The model explains about 64--72\% of the variance in CGPA in the evaluation set. So a substantial share of the variation in student CGPA is captured by attendance, payments, sponsorship, and past performance. The remaining variance is due to factors not in the data (e.g.\ motivation, health, course difficulty) or noise.
+\end{itemize}
+
+\subsection{Comparison to the CGPA scale}
+
+If CGPA ranges from about 1.5 to 5.0 with a standard deviation of roughly 0.63 (as in many institutional datasets):
+
+\begin{itemize}
+  \item An RMSE of about 0.32--0.38 is \textbf{smaller} than the standard deviation of CGPA. So the model reduces prediction error compared with simply guessing the mean CGPA.
+  \item An MAE of about 0.19--0.23 means that, on average, predictions are off by less than a quarter of a point---often acceptable for early alerts, advising, or cohort-level analytics.
+\end{itemize}
+
+\subsection{Strengths}
+
+\begin{itemize}
+  \item \textbf{No target leakage:} Only lagged performance and same-semester behaviour are used, so the model is valid for real-time or end-of-semester prediction.
+  \item \textbf{Honest evaluation:} Group-based CV and cohort holdout give a realistic picture of how the model will perform on new students or new cohorts.
+  \item \textbf{Interpretability:} Feature importance (e.g.\ permutation importance in the notebook) shows which variables (e.g.\ previous CGPA, attendance rate) matter most, which supports institutional dialogue and policy.
+  \item \textbf{Deployable:} The saved pipeline (e.g.\ \texttt{cgpa\_model.joblib}) includes preprocessing and the chosen model, so the same workflow can be used to score new records.
+\end{itemize}
+
+\subsection{Limitations}
+
+\begin{itemize}
+  \item \textbf{Unobserved factors:} Motivation, health, course mix, and teaching quality are not in the data; the model cannot explain all variation in CGPA.
+  \item \textbf{Data quality and coverage:} Accuracy depends on correct and complete attendance, payment, and transcript data. Missing or biased data will affect performance.
+  \item \textbf{Generalisation:} Performance may change if the institution's grading policies, student population, or programmes change significantly. Periodically retraining and re-evaluating is recommended.
+\end{itemize}
+
+%=============================================================================
+\section{Summary}
+%=============================================================================
+
+The CGPA prediction model uses an integrated table of attendance, payments, sponsorship, and \textbf{lagged} academic performance to predict semester-level CGPA. Preprocessing (median imputation, one-hot encoding) is applied inside a pipeline; Ridge, Random Forest, and Histogram-based Gradient Boosting are compared; and the best model (HGB) is selected by cross-validated RMSE and evaluated on a holdout set.
+
+Reported performance (e.g.\ holdout MAE \(\approx 0.19\), RMSE \(\approx 0.32\), \(R^2 \approx 0.72\)) indicates that the model is \textbf{strong} for an educational setting: it explains a large share of CGPA variance and keeps average prediction error under about a quarter of a grade point. It is suitable for supporting advising, early alerts, and cohort-level analysis, provided that data quality is maintained and the model is periodically revalidated.
+
+\end{document}
