@@ -92,7 +92,7 @@ const AcademicRiskDashboard = () => {
     return (
         <div className="space-y-4">
             {/* Header */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-wrap">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                     <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
                         <ShieldAlert className="h-6 w-6 text-red-600" />
@@ -103,12 +103,14 @@ const AcademicRiskDashboard = () => {
                         ending with an actionable at-risk student list.
                     </p>
                 </div>
-                <ExportButtons
-                    data={riskData}
-                    filters={filters}
-                    filename="academic_risk_analysis"
-                    stats={riskSummary}
-                />
+                <div className="sm:shrink-0 sm:ml-4">
+                    <ExportButtons
+                        data={riskData}
+                        filters={filters}
+                        filename="academic_risk_analysis"
+                        stats={riskSummary}
+                    />
+                </div>
             </div>
 
             {/* Filters - role-based: Dean starts at Department, HOD at Program */}
