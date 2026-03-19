@@ -1217,9 +1217,6 @@ def get_staff_classes():
 
 def _filter_options_fallback_faculties(engine, role, user_scope, faculty_id, department_id, program_id):
     """Get faculties; if dim_faculty is empty, derive from dim_student -> program -> department -> faculty."""
-    # Students do not see institution-wide faculty lists in this endpoint.
-    if role == Role.STUDENT:
-        return []
     try:
         if role == Role.HOD and user_scope.get('department_id'):
             q = """
@@ -1269,6 +1266,8 @@ def get_filter_options():
         faculty_id = request.args.get('faculty_id', type=int)
         department_id = request.args.get('department_id', type=int)
         program_id = request.args.get('program_id', type=int)
+        semester_id_filter = request.args.get('semester_id', type=int)
+        intake_year_filter = request.args.get('intake_year', type=int)
         
         options = {
             'faculties': [],
@@ -1551,10 +1550,31 @@ def get_filter_options():
             else:
                 df = pd.read_sql_query(text(base + " ORDER BY year DESC"), engine)
         if not df.empty and 'year' in df.columns:
-            years = [int(y) if y is not None and not pd.isna(y) else None for y in df['year'].tolist()]
-            options['intake_years'] = [y for y in years if y is not None]
+            years = []
+            for y in df['year'].tolist():
+                if y is None or pd.isna(y):
+                    continue
+                try:
+                    years.append(int(float(y)))
+                except Exception:
+                    continue
+            # Business rule: clamp to <= 2026 and apply semester/year compatibility
+            base_years = [y for y in years if y is not None and y <= 2026]
+            # If a specific semester is selected:
+            # - For May (2) or September (3), 2026 should not appear
+            if semester_id_filter in (2, 3):
+                base_years = [y for y in base_years if y != 2026]
+            options['intake_years'] = sorted(set(base_years), reverse=True)
         else:
             options['intake_years'] = []
+
+        # If a specific intake year (e.g., 2026) is selected, restrict semesters accordingly:
+        # - For 2026, only January/Easter (semester_id = 1) should be visible
+        if intake_year_filter == 2026 and options['semesters']:
+            options['semesters'] = [
+                s for s in options['semesters']
+                if str(s.get('semester_id')) == '1'
+            ]
         
         if engine is not None:
             try:
@@ -1564,16 +1584,20 @@ def get_filter_options():
         return jsonify(options), 200
         
     except Exception as e:
+        import traceback
+        print(f"Error in get_filter_options: {e}")
+        print(traceback.format_exc())
         if engine:
             try:
                 engine.dispose()
             except Exception:
                 pass
-        fallback_options = {
+        fallback_options = locals().get('options') or {
             'faculties': [], 'departments': [], 'programs': [], 'courses': [],
             'semesters': [], 'high_schools': [], 'intake_years': []
         }
-        return jsonify({**fallback_options, 'error': str(e)}), 500
+        # Return safe payload so the frontend filter panel does not break hard.
+        return jsonify(fallback_options), 200
 
 
 @analytics_bp.route('/faculty', methods=['GET'])
@@ -2320,6 +2344,11 @@ def get_enrollment_pipeline():
         department_filter = (filters.get('department') or filters.get('department_name') or '').strip()
         program_filter = (filters.get('program') or filters.get('program_name') or '').strip()
         program_id_filter = (filters.get('program_id') or filters.get('programId') or '').strip()
+        intake_filter = (filters.get('intake') or '').strip().lower()
+        course_filter = (filters.get('course') or filters.get('course_code') or '').strip()
+        high_school_filter = (filters.get('high_school') or '').strip()
+        intake_year_filter = (filters.get('intake_year') or '').strip()
+        semester_id_filter = (filters.get('semester_id') or '').strip()
 
         def _ay_start(ay: str) -> int:
             # "2023/2024" -> 2023
@@ -2377,8 +2406,22 @@ def get_enrollment_pipeline():
 
         # NOTE: column names are case-sensitive in the synthetic-loaded warehouse table,
         # so we quote them. We also join dim_student so we can apply faculty/department/program filters.
+        # Map intake filter to semester index + label (UCU intakes)
+        # Default: January (Easter) — first semester
+        sem_index = 1
+        sem_label = 'SEM1'
+        if semester_id_filter in ('1', '2', '3'):
+            sem_index = int(semester_id_filter)
+            sem_label = f"SEM{sem_index}"
+        elif intake_filter in ('may', 'trinity', 'may (trinity)'):
+            sem_index = 2
+            sem_label = 'SEM2'
+        elif intake_filter in ('september', 'sept', 'advent', 'september (advent)'):
+            sem_index = 3
+            sem_label = 'SEM3'
+
         ds_where = ["COALESCE(ds.year_of_study, 1) = 1"]
-        ds_params = {}
+        ds_params = {'sem_index': sem_index, 'sem_label': sem_label}
         if faculty_filter:
             ds_where.append("ds.\"FACULTY\" ILIKE :faculty")
             ds_params["faculty"] = f"%{faculty_filter}%"
@@ -2395,6 +2438,15 @@ def get_enrollment_pipeline():
         elif program_filter:
             ds_where.append("ds.\"ProgramName\" ILIKE :program")
             ds_params["program"] = f"%{program_filter}%"
+        if high_school_filter:
+            ds_where.append("COALESCE(ds.high_school, ds.\"HighSchool\", '') ILIKE :high_school")
+            ds_params["high_school"] = f"%{high_school_filter}%"
+        if intake_year_filter:
+            try:
+                ds_where.append("EXTRACT(YEAR FROM ds.admission_date) = :intake_year")
+                ds_params["intake_year"] = int(intake_year_filter)
+            except ValueError:
+                pass
 
         ds_where_sql = " AND ".join(ds_where)
         q_perf = f"""
@@ -2408,9 +2460,10 @@ def get_enrollment_pipeline():
                 COUNT(DISTINCT fe.student_id) AS total_enrollments
             FROM fact_academic_performance fe
             JOIN dim_student ds ON fe.student_id = ds.student_id
-            WHERE fe.\"SEMESTER_INDEX\" = 1
-              AND UPPER(fe.\"SEMESTER\") = 'SEM1'
+            WHERE fe.\"SEMESTER_INDEX\" = :sem_index
+              AND UPPER(fe.\"SEMESTER\") = :sem_label
               AND {ds_where_sql}
+              {"AND EXISTS (SELECT 1 FROM fact_grade fg WHERE fg.student_id = fe.student_id AND fg.course_code = :course_code AND fg.semester_id = :sem_index)" if course_filter else ""}
             GROUP BY \"ACADEMIC_YEAR\"
         )
         SELECT
@@ -2423,6 +2476,9 @@ def get_enrollment_pipeline():
 
         df = pd.DataFrame()
         records = []
+        if course_filter:
+            ds_params["course_code"] = course_filter
+
         try:
             df = pd.read_sql_query(text(q_perf), engine, params=ds_params)
             records = df.to_dict('records') if not df.empty else []
@@ -2441,11 +2497,11 @@ def get_enrollment_pipeline():
                     frames.append(pd.read_csv(p))
             if frames:
                 perf = pd.concat(frames, ignore_index=True)
-                # First-year first-semester = semester_index=1 and semester=SEM1
+                # First-year first-semester = semester_index=sem_index and semester=SEM*
                 if "SEMESTER_INDEX" in perf.columns:
-                    perf = perf[perf["SEMESTER_INDEX"] == 1]
+                    perf = perf[perf["SEMESTER_INDEX"] == sem_index]
                 if "SEMESTER" in perf.columns:
-                    perf = perf[perf["SEMESTER"].astype(str).str.upper().eq("SEM1")]
+                    perf = perf[perf["SEMESTER"].astype(str).str.upper().eq(sem_label)]
 
                 # Join roster attributes (faculty/department/program) so filters behave consistently.
                 roster_cols = ["REG. NO.", "FACULTY", "DEPARTMENT", "PROGRAM ID", "PROGRAM"]
@@ -2999,7 +3055,7 @@ def get_academic_risk():
         if where_clauses:
             where_str = "WHERE " + " AND ".join(where_clauses)
             
-        # Summary query
+        # Summary query: prefer view if present, otherwise fallback to fact_grade aggregation.
         sql_summary = f"""
         SELECT 
             COALESCE(SUM(fcw_count), 0) as fcw_count,
@@ -3014,7 +3070,24 @@ def get_academic_risk():
         LEFT JOIN dim_faculty df ON dd.faculty_id = df.faculty_id
         {where_str}
         """
-        summary_df = pd.read_sql_query(text(sql_summary), engine, params=params)
+        try:
+            summary_df = pd.read_sql_query(text(sql_summary), engine, params=params)
+        except Exception:
+            sql_summary_fallback = f"""
+            SELECT
+                COALESCE(SUM(CASE WHEN fg.fcw THEN 1 ELSE 0 END), 0) as fcw_count,
+                COALESCE(SUM(CASE WHEN fg.exam_status = 'MEX' THEN 1 ELSE 0 END), 0) as mex_count,
+                COALESCE(SUM(CASE WHEN fg.exam_status = 'FEX' THEN 1 ELSE 0 END), 0) as fex_count,
+                COALESCE(COUNT(*), 0) as total_courses,
+                AVG(fg.grade) as avg_grade
+            FROM fact_grade fg
+            JOIN dim_student ds ON fg.student_id = ds.student_id
+            LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+            LEFT JOIN dim_department dd ON dp.department_id = dd.department_id
+            LEFT JOIN dim_faculty df ON dd.faculty_id = df.faculty_id
+            {where_str}
+            """
+            summary_df = pd.read_sql_query(text(sql_summary_fallback), engine, params=params)
         summary = summary_df.iloc[0].to_dict() if not summary_df.empty else {}
         for k in summary:
             if pd.isna(summary[k]): summary[k] = 0

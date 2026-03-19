@@ -184,6 +184,7 @@ const GlobalFilterPanel = ({
   const clearFilters = () => {
     setFilters({});
     setSearchTerm('');
+    saveSearchTerm(pageName, '');
     onFilterChange({});
     logAuditEvent('filter_cleared', 'filters', pageName);
     if (!isAnalyticsOverview) {
@@ -300,22 +301,6 @@ const GlobalFilterPanel = ({
                 {filterOptions.programs?.map((p, idx) => (
                   <option key={`prog-${p.program_id || idx}`} value={p.program_id}>
                     {p.program_name}
-                  </option>
-                ))}
-              </Select>
-              )}
-
-              {!hideAcademic && (
-              <Select
-                value={filters.course_code || ''}
-                onChange={(e) => handleFilterChange('course_code', e.target.value || null)}
-                disabled={loading}
-                className="h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary"
-              >
-                <option value="">All Courses</option>
-                {filterOptions.courses?.map((c, idx) => (
-                  <option key={`course-${c.course_code || idx}`} value={c.course_code}>
-                    {c.course_code} - {c.course_name?.substring(0, 40) || ''}
                   </option>
                 ))}
               </Select>

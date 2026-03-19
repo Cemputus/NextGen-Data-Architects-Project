@@ -3,7 +3,7 @@
  * Enhanced with cascading filters, advanced icons, and modern UI
  */
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Filter, 
   X, 
   Search, 
@@ -14,8 +14,7 @@ import {
   BookOpen,
   Calendar,
   School,
-  Users,
-  Sparkles
+  Users
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -23,7 +22,6 @@ import { Select } from './ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Badge } from './ui/badge';
 import { Label } from './ui/label';
-import { cn } from '../lib/utils';
 import axios from 'axios';
 
 const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
@@ -41,6 +39,38 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const normalizeOptions = (data = {}) => ({
+    faculties: (data.faculties || []).map((f) => ({
+      faculty_id: f.faculty_id ?? f.FacultyID ?? f.id,
+      faculty_name: f.faculty_name ?? f.FacultyName ?? f.name,
+    })).filter((f) => f.faculty_id !== undefined && f.faculty_name),
+    departments: (data.departments || []).map((d) => ({
+      department_id: d.department_id ?? d.DepartmentID ?? d.id,
+      department_name: d.department_name ?? d.DepartmentName ?? d.name,
+      faculty_id: d.faculty_id ?? d.FacultyID,
+    })).filter((d) => d.department_id !== undefined && d.department_name),
+    programs: (data.programs || []).map((p) => ({
+      program_id: p.program_id ?? p.ProgramID ?? p.id,
+      program_name: p.program_name ?? p.ProgramName ?? p.name,
+      department_id: p.department_id ?? p.DepartmentID,
+      faculty_id: p.faculty_id ?? p.FacultyID,
+    })).filter((p) => p.program_id !== undefined && p.program_name),
+    courses: (data.courses || []).map((c) => ({
+      course_code: c.course_code ?? c.CourseCode ?? c.id,
+      course_name: c.course_name ?? c.CourseName ?? c.name,
+      program_id: c.program_id ?? c.ProgramID,
+    })).filter((c) => c.course_code),
+    semesters: (data.semesters || []).map((s) => ({
+      semester_id: s.semester_id ?? s.SemesterID ?? s.id,
+      semester_name: s.semester_name ?? s.SemesterName ?? s.name,
+    })).filter((s) => s.semester_id !== undefined),
+    high_schools: (data.high_schools || []).map((h) => ({
+      high_school: h.high_school ?? h.school_name ?? h.HighSchool ?? h.name,
+      high_school_district: h.high_school_district ?? h.HighSchoolDistrict ?? h.district,
+    })).filter((h) => h.high_school),
+    intake_years: (data.intake_years || []).map((y) => Number(y)).filter((y) => !Number.isNaN(y)),
+  });
+
   // Load filter options with cascading support
   const loadFilterOptions = async (facultyId = null, departmentId = null) => {
     setLoading(true);
@@ -53,7 +83,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params
       });
-      setFilterOptions(res.data);
+      setFilterOptions(normalizeOptions(res.data || {}));
       
       // If faculty changed, clear department and program filters
       if (facultyId && filters.department_id) {
@@ -136,12 +166,12 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
   const activeFiltersCount = Object.keys(filters).filter(k => filters[k]).length;
 
   return (
-    <Card className="w-full shadow-lg border-2 border-border">
-      <CardHeader className="pb-3">
+    <Card className="w-full shadow-sm border border-border">
+      <CardHeader className="pb-1 pt-2 px-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Filter className="h-5 w-5 text-primary" />
-            <CardTitle className="text-xl">Advanced Filters</CardTitle>
+            <Filter className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-semibold">Filters</CardTitle>
             {activeFiltersCount > 0 && (
               <Badge variant="default" className="ml-2">
                 {activeFiltersCount} active
@@ -157,36 +187,30 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
             {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
         </div>
-        <CardDescription>
-          Use cascading filters to narrow down your analytics. Filters sync automatically.
+        <CardDescription className="text-[11px] leading-tight">
+          Use cascading filters to narrow down your analytics for this workspace.
         </CardDescription>
       </CardHeader>
 
       {isOpen && (
-        <CardContent className="space-y-4">
-          {/* Search Bar */}
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+        <CardContent className="px-3 pb-2 pt-1">
+          <div className="flex items-end gap-2 overflow-x-auto pb-1">
+            <div className="relative min-w-[280px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by Access Number (A#####), Reg No, or Name"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="pl-10"
+                className="pl-10 h-9 text-xs"
               />
             </div>
-            <Button onClick={handleSearch} className="gap-2">
+            <Button onClick={handleSearch} className="gap-2 h-9 text-xs">
               <Search className="h-4 w-4" />
               Search
             </Button>
-          </div>
-
-          {/* Filter Controls - Cascading */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {/* Faculty Filter */}
-            <div className="space-y-2">
-              <Label htmlFor="faculty" className="flex items-center gap-2">
+            <div className="min-w-[180px] space-y-1">
+              <Label htmlFor="faculty" className="flex items-center gap-1 text-[11px]">
                 <Building2 className="h-4 w-4 text-primary" />
                 Faculty
               </Label>
@@ -194,20 +218,18 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
                 id="faculty"
                 value={filters.faculty_id || ''}
                 onChange={(e) => handleFilterChange('faculty_id', e.target.value || null)}
-                className="w-full"
+                className="w-full h-9 text-xs"
               >
                 <option value="">All Faculties</option>
-                {filterOptions.faculties?.map(f => (
+                {filterOptions.faculties?.map((f) => (
                   <option key={f.faculty_id} value={f.faculty_id}>
                     {f.faculty_name}
                   </option>
                 ))}
               </Select>
             </div>
-
-            {/* Department Filter - Cascades from Faculty */}
-            <div className="space-y-2">
-              <Label htmlFor="department" className="flex items-center gap-2">
+            <div className="min-w-[180px] space-y-1">
+              <Label htmlFor="department" className="flex items-center gap-1 text-[11px]">
                 <GraduationCap className="h-4 w-4 text-primary" />
                 Department
               </Label>
@@ -215,21 +237,21 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
                 id="department"
                 value={filters.department_id || ''}
                 onChange={(e) => handleFilterChange('department_id', e.target.value || null)}
-                className="w-full"
+                className="w-full h-9 text-xs"
                 disabled={!filterOptions.departments || filterOptions.departments.length === 0}
               >
-                <option value="">{filters.faculty_id ? 'All Departments' : 'Select Faculty First'}</option>
-                {filterOptions.departments?.map(d => (
+                <option value="">
+                  {filters.faculty_id ? 'All Departments' : 'Select Faculty First'}
+                </option>
+                {filterOptions.departments?.map((d) => (
                   <option key={d.department_id} value={d.department_id}>
                     {d.department_name}
                   </option>
                 ))}
               </Select>
             </div>
-
-            {/* Program Filter - Cascades from Department */}
-            <div className="space-y-2">
-              <Label htmlFor="program" className="flex items-center gap-2">
+            <div className="min-w-[180px] space-y-1">
+              <Label htmlFor="program" className="flex items-center gap-1 text-[11px]">
                 <BookOpen className="h-4 w-4 text-primary" />
                 Program
               </Label>
@@ -237,21 +259,43 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
                 id="program"
                 value={filters.program_id || ''}
                 onChange={(e) => handleFilterChange('program_id', e.target.value || null)}
-                className="w-full"
+                className="w-full h-9 text-xs"
                 disabled={!filterOptions.programs || filterOptions.programs.length === 0}
               >
-                <option value="">{filters.department_id ? 'All Programs' : 'Select Department First'}</option>
-                {filterOptions.programs?.map(p => (
+                <option value="">
+                  {filters.department_id ? 'All Programs' : 'Select Department First'}
+                </option>
+                {filterOptions.programs?.map((p) => (
                   <option key={p.program_id} value={p.program_id}>
                     {p.program_name}
                   </option>
                 ))}
               </Select>
             </div>
-
-            {/* Semester Filter */}
-            <div className="space-y-2">
-              <Label htmlFor="semester" className="flex items-center gap-2">
+            <div className="min-w-[180px] space-y-1">
+              <Label htmlFor="course" className="flex items-center gap-1 text-[11px]">
+                <BookOpen className="h-4 w-4 text-primary" />
+                Course
+              </Label>
+              <Select
+                id="course"
+                value={filters.course_code || ''}
+                onChange={(e) => handleFilterChange('course_code', e.target.value || null)}
+                className="w-full h-9 text-xs"
+                disabled={!filterOptions.courses || filterOptions.courses.length === 0}
+              >
+                <option value="">
+                  {filters.program_id ? 'All Courses' : 'Select Program First'}
+                </option>
+                {filterOptions.courses?.map((c) => (
+                  <option key={c.course_code} value={c.course_code}>
+                    {c.course_name || c.course_code}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="min-w-[180px] space-y-1">
+              <Label htmlFor="semester" className="flex items-center gap-1 text-[11px]">
                 <Calendar className="h-4 w-4 text-primary" />
                 Semester
               </Label>
@@ -259,20 +303,18 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
                 id="semester"
                 value={filters.semester_id || ''}
                 onChange={(e) => handleFilterChange('semester_id', e.target.value || null)}
-                className="w-full"
+                className="w-full h-9 text-xs"
               >
                 <option value="">All Semesters</option>
-                {filterOptions.semesters?.map(s => (
+                {filterOptions.semesters?.map((s) => (
                   <option key={s.semester_id} value={s.semester_id}>
                     {s.semester_name}
                   </option>
                 ))}
               </Select>
             </div>
-
-            {/* High School Filter */}
-            <div className="space-y-2">
-              <Label htmlFor="high_school" className="flex items-center gap-2">
+            <div className="min-w-[200px] space-y-1">
+              <Label htmlFor="high_school" className="flex items-center gap-1 text-[11px]">
                 <School className="h-4 w-4 text-primary" />
                 High School
               </Label>
@@ -280,54 +322,47 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
                 id="high_school"
                 value={filters.high_school || ''}
                 onChange={(e) => handleFilterChange('high_school', e.target.value || null)}
-                className="w-full"
+                className="w-full h-9 text-xs"
               >
                 <option value="">All High Schools</option>
-                {filterOptions.high_schools?.map(hs => (
+                {filterOptions.high_schools?.map((hs) => (
                   <option key={hs.high_school} value={hs.high_school}>
-                    {hs.high_school} {hs.high_school_district ? `(${hs.high_school_district})` : ''}
+                    {hs.high_school}
+                    {hs.high_school_district ? ` (${hs.high_school_district})` : ''}
                   </option>
                 ))}
               </Select>
             </div>
-
-            {/* Intake Year Filter */}
-            <div className="space-y-2">
-              <Label htmlFor="intake_year" className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                Intake Year
-              </Label>
-              <Select
-                id="intake_year"
-                value={filters.intake_year || ''}
-                onChange={(e) => handleFilterChange('intake_year', e.target.value || null)}
-                className="w-full"
+            <div className="min-w-[150px] space-y-1 flex items-end gap-2">
+              <div className="flex-1">
+                <Label htmlFor="intake_year" className="flex items-center gap-1 text-[11px]">
+                  <Users className="h-4 w-4 text-primary" />
+                  Intake Year
+                </Label>
+                <Select
+                  id="intake_year"
+                  value={filters.intake_year || ''}
+                  onChange={(e) => handleFilterChange('intake_year', e.target.value || null)}
+                  className="w-full h-9 text-xs"
+                >
+                  <option value="">All Years</option>
+                  {filterOptions.intake_years?.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <Button
+                variant="outline"
+                onClick={clearFilters}
+                className="gap-2 h-9 text-xs min-w-[110px]"
+                disabled={activeFiltersCount === 0}
               >
-                <option value="">All Years</option>
-                {filterOptions.intake_years?.map(year => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </Select>
+                <X className="h-4 w-4" />
+                Clear All
+              </Button>
             </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-2 border-t border-border">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Sparkles className="h-4 w-4" />
-              <span>Filters automatically sync when parent selections change</span>
-            </div>
-            <Button
-              variant="outline"
-              onClick={clearFilters}
-              className="gap-2"
-              disabled={activeFiltersCount === 0}
-            >
-              <X className="h-4 w-4" />
-              Clear All
-            </Button>
           </div>
         </CardContent>
       )}

@@ -6,9 +6,9 @@ import React, { useMemo } from 'react';
 import { BaseChart } from './BaseChart';
 import { UCU_COLORS, CHART_PALETTE_THEME, defaultGrid, defaultTooltip, defaultTextStyle, defaultTitleTextStyle, formatTooltipValue } from '../../lib/chartTheme';
 
-const chartHeight = 280;
-const chartMinHeight = 200;
-const chartMaxHeight = 360;
+const chartHeight = 360;
+const chartMinHeight = 300;
+const chartMaxHeight = 480;
 
 /** Line chart */
 export function SciLineChart({
