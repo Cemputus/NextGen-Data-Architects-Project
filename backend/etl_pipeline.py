@@ -2070,6 +2070,11 @@ class ETLPipeline:
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fa_date ON fact_attendance(date_key)"))
             
             # Fact_Payment
+            # Postgres automatically creates a composite type with the same name as the table.
+            # If a previous ETL run failed mid-way, that type can be left behind even when the
+            # table itself is missing. `CREATE TABLE IF NOT EXISTS fact_payment` would then
+            # still attempt to create the composite type and fail with a pg_type uniqueness error.
+            conn.execute(text("DROP TYPE IF EXISTS fact_payment CASCADE"))
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS fact_payment (
                     payment_id VARCHAR(20) PRIMARY KEY,

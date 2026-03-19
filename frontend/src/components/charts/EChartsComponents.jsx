@@ -22,20 +22,34 @@ export function SciLineChart({
   strokeWidth = 3,
   showLegend = true,
   showGrid = true,
+  smooth = true,
+  symbolSize = 6,
 }) {
   const option = useMemo(() => {
     const xValues = data.map((d) => d[xDataKey]);
     const yValues = data.map((d) => d[yDataKey] ?? 0);
+    const x0 = xValues[0];
+    const isNumericX = typeof x0 === 'number' && !Number.isNaN(x0);
     return {
       grid: defaultGrid,
-      tooltip: { ...defaultTooltip, trigger: 'axis' },
+      tooltip: {
+        ...defaultTooltip,
+        trigger: 'axis',
+        formatter: (params) => {
+          const p = Array.isArray(params) ? params[0] : params;
+          const axisLabel = p?.axisValueLabel ?? p?.name ?? '';
+          const rawVal = p?.value;
+          const yVal = Array.isArray(rawVal) ? rawVal[1] : rawVal;
+          return `${axisLabel}<br/>${yAxisLabel}: ${formatTooltipValue(yVal)}`;
+        },
+      },
       legend: showLegend ? { show: true, bottom: 0, textStyle: defaultTextStyle } : { show: false },
       xAxis: {
-        type: typeof xValues[0] === 'number' ? 'value' : 'category',
-        data: typeof xValues[0] === 'number' ? undefined : xValues,
+        type: isNumericX ? 'value' : 'category',
+        data: isNumericX ? undefined : xValues,
         name: xAxisLabel,
         nameTextStyle: defaultTextStyle,
-        axisLabel: defaultTextStyle,
+        axisLabel: { ...defaultTextStyle, interval: 0 },
         splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
       },
       yAxis: {
@@ -49,16 +63,16 @@ export function SciLineChart({
         {
           name: yAxisLabel,
           type: 'line',
-          data: typeof xValues[0] === 'number' ? data.map((d, i) => [d[xDataKey], d[yDataKey]]) : yValues,
-          smooth: true,
+          data: isNumericX ? data.map((d) => [d[xDataKey], d[yDataKey]]) : yValues,
+          smooth,
           lineStyle: { width: strokeWidth, color: strokeColor },
           itemStyle: { color: strokeColor },
           symbol: 'circle',
-          symbolSize: 6,
+          symbolSize,
         },
       ],
     };
-  }, [data, xDataKey, yDataKey, xAxisLabel, yAxisLabel, strokeColor, strokeWidth, showLegend, showGrid]);
+  }, [data, xDataKey, yDataKey, xAxisLabel, yAxisLabel, strokeColor, strokeWidth, showLegend, showGrid, smooth, symbolSize]);
 
   if (!data || data.length === 0) {
     return (
