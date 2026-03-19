@@ -91,10 +91,6 @@ const AcademicRiskDashboard = () => {
 
     return (
         <div className="space-y-4">
-            <AlertBanner variant="info" title="Filters apply to all metrics, charts, and the student list." className="mb-4">
-                Refine the story by faculty, department, program, course, semester, or high school. Use the Export actions to share the current view with senate, deans, or quality assurance.
-            </AlertBanner>
-
             {/* Header */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-wrap">
                 <div className="min-w-0">
