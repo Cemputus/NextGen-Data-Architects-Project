@@ -16,7 +16,14 @@ import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
-import { SciBarChart, SciLineChart, SciDonutChart, SciStackedColumnChart, SciAreaChart } from '../components/charts/EChartsComponents';
+import {
+  SciBarChart,
+  SciLineChart,
+  SciDonutChart,
+  SciStackedColumnChart,
+  SciAreaChart,
+  UCU_COLORS,
+} from '../components/charts/EChartsComponents';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
@@ -155,6 +162,19 @@ const AnalystDashboard = () => {
     } finally {
       setLoadingCharts(false);
     }
+  };
+
+  const gradeColor = (grade) => {
+    const g = (grade ?? '').toString().trim().toUpperCase();
+    // Requested: F = red, A = green, others distributed distinctly.
+    if (g === 'F') return UCU_COLORS.red;
+    if (g === 'A') return UCU_COLORS.green;
+    if (g === 'B') return UCU_COLORS.gold;
+    if (g === 'C') return UCU_COLORS.blue;
+    if (g === 'D') return UCU_COLORS.purple;
+    // Fallback: cycle through palette so unknown grades still look consistent.
+    const idx = Math.abs(Array.from(g).reduce((s, ch) => s + ch.charCodeAt(0), 0)) % 5;
+    return [UCU_COLORS.gold, UCU_COLORS.blue, UCU_COLORS.purple, UCU_COLORS.cyan, UCU_COLORS.maroon][idx];
   };
 
   const loadStudentDistributionChart = async () => {
@@ -470,7 +490,10 @@ const AnalystDashboard = () => {
               </div>
             ) : (
               <SciDonutChart
-                data={gradeDistribution}
+                data={(gradeDistribution || []).map((d) => ({
+                  ...d,
+                  color: gradeColor(d?.name),
+                }))}
                 nameKey="name"
                 valueKey="value"
                 title="Grade distribution"
@@ -503,6 +526,9 @@ const AnalystDashboard = () => {
               yDataKey="value"
               xAxisLabel="Segment"
               yAxisLabel="Number of course outcomes"
+              // Keep FCW/MEX/FEX colors consistent across hard refreshes/palette changes.
+              // Requested: FEX red, FCW "malon" (maroon), MEX orange.
+              colors={[UCU_COLORS.maroon, UCU_COLORS.orange, UCU_COLORS.red]}
               showPercentages
             />
             )}

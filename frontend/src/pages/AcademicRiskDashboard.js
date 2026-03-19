@@ -192,7 +192,8 @@ const AcademicRiskDashboard = () => {
                                                 data={riskDistribution}
                                                 nameKey="name"
                                                 valueKey="value"
-                                                colors={['#F59E0B', '#3B82F6', '#EF4444']}
+                                                // Requested: FCW=maroon/malon, MEX=orange, FEX=red
+                                                colors={['#8B5CF6', '#F59E0B', '#EF4444']}
                                             />
                                         </div>
                                     </CardContent>
@@ -240,8 +241,8 @@ const AcademicRiskDashboard = () => {
                                                 xDataKey="period"
                                                 series={[
                                                     { key: 'fex_count', label: 'FEX', color: '#EF4444' },
-                                                    { key: 'mex_count', label: 'MEX', color: '#3B82F6' },
-                                                    { key: 'fcw_count', label: 'FCW', color: '#F59E0B' },
+                                                    { key: 'mex_count', label: 'MEX', color: '#F59E0B' },
+                                                    { key: 'fcw_count', label: 'FCW', color: '#8B5CF6' },
                                                 ]}
                                                 xAxisLabel="Semester / Academic Year"
                                                 yAxisLabel="Number of events"

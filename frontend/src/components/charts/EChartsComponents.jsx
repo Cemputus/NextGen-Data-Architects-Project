@@ -255,6 +255,17 @@ export function SciStackedColumnChart({
     const categories = data.map((d) => String(d[xDataKey] ?? ''));
     const values = data.map((d) => d[yDataKey] ?? 0);
     const total = values.reduce((s, v) => s + v, 0);
+
+    // System-level risk color lock:
+    // If stacked segments are exactly FCW/MEX/FEX, force consistent colors
+    // so the palette never makes FEX appear non-red.
+    const lockRiskColors = colors === CHART_PALETTE_THEME;
+    const riskColorByName = {
+      FCW: UCU_COLORS.maroon,
+      MEX: UCU_COLORS.orange,
+      FEX: UCU_COLORS.red,
+    };
+
     const series = data.map((_, i) => {
       const arr = new Array(data.length).fill(0);
       arr[i] = values[i];
@@ -264,7 +275,11 @@ export function SciStackedColumnChart({
         type: 'bar',
         stack: 'total',
         data: arr,
-        itemStyle: { color: colors[i % colors.length] },
+        itemStyle: {
+          color: lockRiskColors
+            ? (riskColorByName[categories[i]] ?? colors[i % colors.length])
+            : colors[i % colors.length],
+        },
       };
     });
 
@@ -330,7 +345,8 @@ export function SciDonutChart({
     const seriesData = (data || []).map((d, i) => ({
       name: String(d[nameKey] ?? ''),
       value: Number(d[valueKey]) || 0,
-      itemStyle: { color: colors[i % colors.length] },
+      // Allow callers to override colors per-slice (e.g. grade distribution).
+      itemStyle: { color: d.color ?? colors[i % colors.length] },
     })).filter((d) => d.value > 0);
     return {
       tooltip: {
