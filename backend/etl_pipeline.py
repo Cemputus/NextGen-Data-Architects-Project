@@ -1598,6 +1598,23 @@ class ETLPipeline:
         
         # Create fact tables
         self._create_facts(engine, silver_data)
+
+        # Create/update analytical views required by BI dashboards.
+        # These are idempotent (`CREATE OR REPLACE VIEW`) so they are safe to run every Gold ETL.
+        _views_sql_path = Path(__file__).resolve().parent / 'sql' / 'create_analytical_views.sql'
+        if _views_sql_path.exists():
+            try:
+                sql_text = _views_sql_path.read_text(encoding='utf-8')
+                with engine.connect() as conn:
+                    for stmt in sql_text.split(';'):
+                        stmt = stmt.strip()
+                        if stmt and not stmt.startswith('--'):
+                            conn.execute(text(stmt))
+                    conn.commit()
+                self.logger.info("  → Analytical views (v_academic_summary, v_student_risk_summary, v_highschool_risk) created/updated")
+            except Exception as e:
+                # Non-fatal: API has fallbacks if views aren't present.
+                self.logger.warning("  → Analytical views SQL failed (non-fatal): %s", e)
         
         engine.dispose()
         self.logger.info("=" * 60)

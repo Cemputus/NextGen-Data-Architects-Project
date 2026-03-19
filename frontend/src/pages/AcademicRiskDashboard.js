@@ -68,7 +68,7 @@ const AcademicRiskDashboard = () => {
     const trend = riskData?.trends || riskData?.trend || riskData?.risk_over_time || [];
 
     const riskDistribution = [
-        { name: 'FCW (Finance)', value: riskSummary.fcw_count },
+        { name: 'FCW (Failed Coursework)', value: riskSummary.fcw_count },
         { name: 'MEX (Missed Exams)', value: riskSummary.mex_count },
         { name: 'FEX (Failed Exams)', value: riskSummary.fex_count }
     ];

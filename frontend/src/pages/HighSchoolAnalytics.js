@@ -7,7 +7,6 @@ import { School } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import ExportButtons from '../components/ExportButtons';
 import { DataTable } from '../components/shared/DataTable';
-import { AlertBanner } from '../components/ui/alert-banner';
 import { SkeletonTable } from '../components/ui/skeleton';
 import axios from 'axios';
 import { exportTableToExcel } from '../utils/exportUtils';
@@ -79,10 +78,6 @@ const HighSchoolAnalytics = () => {
           filters={{ drilldown }}
         />
       </div>
-
-      <AlertBanner variant="info" title="Semester focus: current and previous">
-        These analytics focus on recent performance. Use global filters where available to further scope by faculty, department, or program.
-      </AlertBanner>
 
       <Card className="border shadow-sm">
         <CardHeader className="p-4 pb-2 flex flex-row flex-wrap items-center justify-between gap-4">

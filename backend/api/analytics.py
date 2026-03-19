@@ -3314,28 +3314,64 @@ def get_high_school_risk_correlation():
             else:
                 by_district = []
         else:
-            sql = """
-            SELECT high_school as school,
-                   COALESCE(high_school_district, 'Unknown') as district,
-                   COALESCE(fcw_rate, 0) as fcw_rate,
-                   COALESCE(mex_rate, 0) as mex_rate,
-                   COALESCE(fex_rate, 0) as fex_rate,
-                   COALESCE(avg_grade, 0) as avg_gpa
-            FROM v_highschool_risk
-            ORDER BY fcw_rate DESC
-            """
-            df = pd.read_sql_query(text(sql), engine)
-            by_school = df.to_dict('records') if not df.empty else []
-            sql_district = """
-            SELECT COALESCE(high_school_district, 'Unknown') as district,
-                   AVG(fcw_rate) as avg_fcw_rate,
-                   AVG(avg_grade) as avg_grade
-            FROM v_highschool_risk
-            GROUP BY high_school_district
-            ORDER BY avg_fcw_rate DESC
-            """
-            dist_df = pd.read_sql_query(text(sql_district), engine)
-            by_district = dist_df.to_dict('records') if not dist_df.empty else []
+            # Fast path: use the prebuilt warehouse view (if it exists).
+            # If the view isn't created in this environment, fall back to
+            # computing the same metrics from fact_grade + dim_student.
+            try:
+                sql = """
+                SELECT high_school as school,
+                       COALESCE(high_school_district, 'Unknown') as district,
+                       COALESCE(fcw_rate, 0) as fcw_rate,
+                       COALESCE(mex_rate, 0) as mex_rate,
+                       COALESCE(fex_rate, 0) as fex_rate,
+                       COALESCE(avg_grade, 0) as avg_gpa
+                FROM v_highschool_risk
+                ORDER BY fcw_rate DESC
+                """
+                df = pd.read_sql_query(text(sql), engine)
+                by_school = df.to_dict('records') if not df.empty else []
+
+                sql_district = """
+                SELECT COALESCE(high_school_district, 'Unknown') as district,
+                       AVG(fcw_rate) as avg_fcw_rate,
+                       AVG(avg_grade) as avg_grade
+                FROM v_highschool_risk
+                GROUP BY high_school_district
+                ORDER BY avg_fcw_rate DESC
+                """
+                dist_df = pd.read_sql_query(text(sql_district), engine)
+                by_district = dist_df.to_dict('records') if not dist_df.empty else []
+            except Exception:
+                # Robust fallback (no dependency on v_highschool_risk view).
+                q, params = build_filter_query(filters, base_school, user_scope)
+
+                def _has_where(sql_text: str) -> bool:
+                    return ' WHERE ' in sql_text.upper() or sql_text.upper().strip().startswith('WHERE')
+
+                if current_semester:
+                    ay, sem = current_semester
+                    params['hs_ay'] = ay
+                    params['hs_sem'] = sem
+                    if _has_where(q):
+                        q += " AND ds.academic_year = :hs_ay AND fg.semester_id = :hs_sem"
+                    else:
+                        q += " WHERE ds.academic_year = :hs_ay AND fg.semester_id = :hs_sem"
+
+                if _has_where(q):
+                    q += " AND ds.high_school IS NOT NULL AND ds.high_school <> ''"
+                else:
+                    q += " WHERE ds.high_school IS NOT NULL AND ds.high_school <> ''"
+
+                q += " GROUP BY ds.high_school, ds.high_school_district ORDER BY fcw_rate DESC"
+                df = pd.read_sql_query(text(q), engine, params=params)
+                by_school = df.to_dict('records') if not df.empty else []
+
+                if not df.empty and 'district' in df.columns:
+                    dist_df = df.groupby('district').agg({'fcw_rate': 'mean', 'avg_gpa': 'mean'}).reset_index()
+                    dist_df.columns = ['district', 'avg_fcw_rate', 'avg_grade']
+                    by_district = dist_df.sort_values('avg_fcw_rate', ascending=False).to_dict('records')
+                else:
+                    by_district = []
 
         engine.dispose()
         return jsonify({

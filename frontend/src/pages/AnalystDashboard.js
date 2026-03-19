@@ -304,7 +304,7 @@ const AnalystDashboard = () => {
         subtitle={
           showWelcome && lastName
             ? `Welcome back ${lastName} 🤗!`
-            : 'Institution-wide analytics workspace focused on current and previous semesters'
+            : 'Institution-wide analytics workspace'
         }
         actions={
           <>
