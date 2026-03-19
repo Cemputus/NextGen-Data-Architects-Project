@@ -49,14 +49,23 @@ export function SciLineChart({
         data: isNumericX ? undefined : xValues,
         name: xAxisLabel,
         nameTextStyle: defaultTextStyle,
-        axisLabel: { ...defaultTextStyle, interval: 0 },
+        axisLabel: {
+          ...defaultTextStyle,
+          interval: xValues.length > 8 ? 'auto' : 0,
+          rotate: xValues.length > 8 ? 45 : 0,
+          hideOverlap: true,
+          formatter: (value) => String(value),
+        },
         splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
       },
       yAxis: {
         type: 'value',
         name: yAxisLabel,
         nameTextStyle: defaultTextStyle,
-        axisLabel: defaultTextStyle,
+        axisLabel: {
+          ...defaultTextStyle,
+          formatter: (value) => formatTooltipValue(value),
+        },
         splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
       },
       series: [
@@ -371,6 +380,232 @@ export function SciDonutChart({
   return (
     <BaseChart option={option} minHeight={minHeight} maxHeight={maxHeight} />
   );
+}
+
+/** 3D-styled pie chart (visual depth using shadow + top layer) */
+export function Sci3DPieChart({
+  data = [],
+  nameKey = 'name',
+  valueKey = 'value',
+  title = '',
+  minHeight = chartMinHeight,
+  maxHeight = chartMaxHeight,
+  // Optional overrides
+  failedColor = '#ef4444', // red
+  successColor = '#22c55e', // green
+  otherColor = '#f59e0b', // amber for the 3rd slice
+}) {
+  const option = useMemo(() => {
+    const raw = (data || [])
+      .map((d, i) => {
+        const name = String(d?.[nameKey] ?? '');
+        const value = Number(d?.[valueKey]) || 0;
+        const up = name.toUpperCase();
+        let color = otherColor;
+        if (up.includes('FAILED')) color = failedColor;
+        else if (up.includes('SUCCESS')) color = successColor;
+        return {
+          name,
+          value,
+          itemStyle: {
+            color,
+            borderColor: 'rgba(255,255,255,0.25)',
+            borderWidth: 1,
+          },
+        };
+      })
+      .filter((d) => d.value > 0);
+
+    const seriesDataTop = raw;
+    const seriesDataShadow = raw.map((d) => ({
+      name: d.name,
+      value: d.value,
+      itemStyle: {
+        // Darker shadow tone of the slice color
+        color: d.itemStyle?.color || otherColor,
+        opacity: 0.55,
+      },
+    }));
+
+    return {
+      tooltip: {
+        ...defaultTooltip,
+        trigger: 'item',
+        formatter: ({ name, value, percent }) =>
+          `${name}: ${formatTooltipValue(value)} (${percent}%)`,
+      },
+      legend: {
+        show: true,
+        bottom: 0,
+        top: 'auto',
+        padding: [12, 0, 4, 0],
+        itemGap: 10,
+        textStyle: defaultTextStyle,
+      },
+      title: title ? { text: title, left: 'center', top: 8, textStyle: defaultTitleTextStyle } : undefined,
+      series: [
+        // Shadow / bottom layer for the 3D feel
+        {
+          type: 'pie',
+          radius: ['55%', '78%'],
+          center: ['50%', '46%'],
+          label: { show: false },
+          labelLine: { show: false },
+          data: seriesDataShadow,
+          avoidLabelOverlap: true,
+        },
+        // Top layer
+        {
+          type: 'pie',
+          radius: ['55%', '78%'],
+          center: ['50%', '38%'],
+          avoidLabelOverlap: true,
+          label: { show: true, fontSize: 11, formatter: '{b}: {d}%' },
+          labelLine: { show: true },
+          data: seriesDataTop,
+          itemStyle: {
+            borderRadius: 8,
+            shadowBlur: 18,
+            shadowOffsetY: 10,
+            shadowColor: 'rgba(0,0,0,0.25)',
+          },
+        },
+      ],
+    };
+  }, [data, nameKey, valueKey, title, failedColor, successColor, otherColor]);
+
+  if (!data || data.length === 0) {
+    return <BaseChart option={{}} loading={false} minHeight={minHeight} maxHeight={maxHeight} />;
+  }
+
+  return <BaseChart option={option} minHeight={minHeight} maxHeight={maxHeight} />;
+}
+
+/** Full pie chart (no donut hole) */
+export function SciPieChart({
+  data = [],
+  nameKey = 'name',
+  valueKey = 'value',
+  title = '',
+  colors = CHART_PALETTE_THEME,
+  minHeight = chartMinHeight,
+  maxHeight = chartMaxHeight,
+}) {
+  const option = useMemo(() => {
+    const seriesData = (data || [])
+      .map((d, i) => ({
+        name: String(d?.[nameKey] ?? ''),
+        value: Number(d?.[valueKey]) || 0,
+        itemStyle: { color: colors[i % colors.length] },
+      }))
+      .filter((d) => d.value > 0);
+
+    return {
+      tooltip: {
+        ...defaultTooltip,
+        trigger: 'item',
+        formatter: ({ name, value, percent }) =>
+          `${name}: ${formatTooltipValue(value)} (${percent}%)`,
+      },
+      legend: {
+        show: true,
+        bottom: 0,
+        top: 'auto',
+        padding: [14, 0, 4, 0],
+        itemGap: 10,
+        textStyle: defaultTextStyle,
+      },
+      title: title ? { text: title, left: 'center', top: 8, textStyle: defaultTitleTextStyle } : undefined,
+      series: [
+        {
+          type: 'pie',
+          radius: ['60%', '88%'],
+          center: ['50%', '38%'],
+          avoidLabelOverlap: true,
+          label: { show: true, fontSize: 11, formatter: '{b}: {d}%' },
+          labelLine: { show: true },
+          data: seriesData,
+        },
+      ],
+    };
+  }, [data, nameKey, valueKey, title, colors]);
+
+  if (!data || data.length === 0) {
+    return <BaseChart option={{}} loading={false} minHeight={minHeight} maxHeight={maxHeight} />;
+  }
+
+  return <BaseChart option={option} minHeight={minHeight} maxHeight={maxHeight} />;
+}
+
+/** Flat full pie chart with status-based colors */
+export function SciStatusPieChart({
+  data = [],
+  nameKey = 'name',
+  valueKey = 'value',
+  title = '',
+  minHeight = chartMinHeight,
+  maxHeight = chartMaxHeight,
+  // Status mapping colors
+  failedColor = '#ef4444', // red
+  successColor = '#22c55e', // green
+  otherColor = '#f59e0b', // amber
+}) {
+  const option = useMemo(() => {
+    const seriesData = (data || [])
+      .map((d, i) => {
+        const name = String(d?.[nameKey] ?? '');
+        const value = Number(d?.[valueKey]) || 0;
+        const up = name.toUpperCase();
+        let color = otherColor;
+        if (up.includes('FAILED')) color = failedColor;
+        else if (up.includes('SUCCESS')) color = successColor;
+        return {
+          name,
+          value,
+          itemStyle: {
+            color,
+            borderColor: 'rgba(255,255,255,0.25)',
+            borderWidth: 1,
+          },
+        };
+      })
+      .filter((d) => d.value > 0);
+
+    return {
+      tooltip: {
+        ...defaultTooltip,
+        trigger: 'item',
+        formatter: ({ name, value, percent }) =>
+          `${name}: ${formatTooltipValue(value)} (${percent}%)`,
+      },
+      legend: {
+        show: true,
+        bottom: 0,
+        top: 'auto',
+        padding: [12, 0, 4, 0],
+        itemGap: 10,
+        textStyle: defaultTextStyle,
+      },
+      title: title ? { text: title, left: 'center', top: 8, textStyle: defaultTitleTextStyle } : undefined,
+      series: [
+        {
+          type: 'pie',
+          radius: ['60%', '88%'],
+          center: ['50%', '38%'],
+          avoidLabelOverlap: true,
+          label: { show: true, fontSize: 11, formatter: '{b}: {d}%' },
+          labelLine: { show: true },
+          data: seriesData,
+        },
+      ],
+    };
+  }, [data, nameKey, valueKey, title, failedColor, successColor, otherColor]);
+
+  if (!data || data.length === 0) {
+    return <BaseChart option={{}} loading={false} minHeight={minHeight} maxHeight={maxHeight} />;
+  }
+
+  return <BaseChart option={option} minHeight={minHeight} maxHeight={maxHeight} />;
 }
 
 export { UCU_COLORS };

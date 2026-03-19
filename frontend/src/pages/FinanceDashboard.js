@@ -6,10 +6,11 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users, Activity, Receipt, CreditCard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import { SciLineChart, SciBarChart, SciDonutChart } from '../components/charts/EChartsComponents';
+import { KPICard } from '../components/ui/kpi-card';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
@@ -72,6 +73,16 @@ const FinanceDashboard = () => {
     return `${num.toFixed(1)}%`;
   };
 
+  // Professional UGX formatting for KPI tiles (UI only).
+  // Example: 119,445,136,148 => UGX 119,445.1M
+  const formatUGX = (value) => {
+    if (value === null || value === undefined) return 'UGX –';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(num)) return 'UGX –';
+    const millions = num / 1_000_000;
+    return `UGX ${millions.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
+  };
+
   return (
     <div className="space-y-4">
       {/* Header with Export */}
@@ -109,38 +120,26 @@ const FinanceDashboard = () => {
             </CardHeader>
             <CardContent className="pt-0 pb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Total revenue
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.total_revenue)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Outstanding
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.outstanding)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Payment rate
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatPercent(stats?.payment_rate)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Students in scope
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.total_students)}
-                  </p>
-                </div>
+                <KPICard
+                  title="Total revenue"
+                  value={formatUGX(stats?.total_revenue)}
+                  icon={Receipt}
+                />
+                <KPICard
+                  title="Outstanding"
+                  value={formatUGX(stats?.outstanding)}
+                  icon={CreditCard}
+                />
+                <KPICard
+                  title="Payment rate"
+                  value={formatPercent(stats?.payment_rate)}
+                  icon={Activity}
+                />
+                <KPICard
+                  title="Students in scope"
+                  value={formatNumber(stats?.total_students)}
+                  icon={Users}
+                />
               </div>
             </CardContent>
           </Card>

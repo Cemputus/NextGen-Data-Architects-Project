@@ -2,6 +2,7 @@
  * Senate Dashboard - Smooth, Clean UI
  */
 import React, { useState, useEffect } from 'react';
+import { Users, Activity, GraduationCap, Target, Calendar, Receipt, Award, AlertTriangle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
@@ -10,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import { SkeletonCard, Skeleton } from '../components/ui/skeleton';
 import { SciBarChart, SciDonutChart } from '../components/charts/EChartsComponents';
+import { KPICard } from '../components/ui/kpi-card';
 
 const SenateDashboard = () => {
   const { user } = useAuth();
@@ -139,6 +141,16 @@ const SenateDashboard = () => {
     return `${num.toFixed(1)}%`;
   };
 
+  // Professional UGX formatting for KPI tiles (UI only).
+  // Example: 119,445,136,148 => UGX 119,445.1M
+  const formatUGX = (value) => {
+    if (value === null || value === undefined) return 'UGX –';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(num)) return 'UGX –';
+    const millions = num / 1_000_000;
+    return `UGX ${millions.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
+  };
+
   const exportReport = async (format) => {
     try {
       const response = await axios.get(`/api/export/${format}`, {
@@ -190,7 +202,7 @@ const SenateDashboard = () => {
 
       {loading ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-stretch">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <SkeletonCard key={i} />
             ))}
@@ -201,87 +213,63 @@ const SenateDashboard = () => {
         <>
           {/* Top institution KPI strip */}
           <Card className="border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Institution overview</CardTitle>
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-base font-semibold">Institution overview</CardTitle>
               <CardDescription className="text-xs">
                 Institution-wide KPIs from the warehouse, scoped by your Senate role and global filters.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-0">
-              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Total students
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.total_students)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Enrollments
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.total_enrollments)}
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    All course enrollments in the warehouse.
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Average grade
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.avg_grade)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Retention rate
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {(() => {
-                      const raw = stats?.retention_rate ?? stats?.avg_retention_rate;
-                      if (raw === null || raw === undefined) return formatPercent(raw);
-                      const num = typeof raw === 'number' ? raw : Number(raw);
-                      if (Number.isNaN(num)) return formatPercent(raw);
-                      const display = num >= 99.95 ? 94.8 : num;
-                      return formatPercent(display);
-                    })()}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Enrollment rate (Y1 Sem 1)
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatPercent(
-                      (enrollmentByYear && enrollmentByYear.length > 0
-                        ? enrollmentByYear[enrollmentByYear.length - 1].enrollment_rate
-                        : 0) || 0
-                    )}
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Latest academic year, restricted to Year 1 / Semester 1.
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Graduation rate
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatPercent(stats?.graduation_rate ?? stats?.avg_graduation_rate)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Total revenue
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.total_payments)}
-                  </p>
-                </div>
+            <CardContent className="pt-0 pb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-stretch">
+                <KPICard
+                  title="Total students"
+                  value={formatNumber(stats?.total_students)}
+                  icon={Users}
+                />
+                <KPICard
+                  title="Enrollments"
+                  value={formatNumber(stats?.total_enrollments)}
+                  icon={Activity}
+                  subtitle="All course enrollments in the warehouse."
+                />
+                <KPICard
+                  title="Average grade"
+                  value={formatNumber(stats?.avg_grade)}
+                  icon={GraduationCap}
+                />
+                <KPICard
+                  title="Retention rate"
+                  value={(() => {
+                    const raw = stats?.retention_rate ?? stats?.avg_retention_rate;
+                    if (raw === null || raw === undefined) return formatPercent(raw);
+                    const num = typeof raw === 'number' ? raw : Number(raw);
+                    if (Number.isNaN(num)) return formatPercent(raw);
+                    const display = num >= 99.95 ? 94.8 : num;
+                    return formatPercent(display);
+                  })()}
+                  icon={Target}
+                />
+                <KPICard
+                  title="Enrollment rate (Y1 Sem 1)"
+                  value={formatPercent(
+                    (enrollmentByYear && enrollmentByYear.length > 0
+                      ? enrollmentByYear[enrollmentByYear.length - 1].enrollment_rate
+                      : 0) || 0
+                  )}
+                  icon={Calendar}
+                  subtitle="Latest academic year, restricted to Year 1 / Semester 1."
+                />
+                <KPICard
+                  title="Total revenue"
+                  value={formatUGX(stats?.total_payments)}
+                  icon={Receipt}
+                />
+                {/* Force graduation rate into the 2nd row by placing it last in the grid */}
+                <KPICard
+                  title="Graduation rate"
+                  value={formatPercent(stats?.graduation_rate ?? stats?.avg_graduation_rate)}
+                  icon={GraduationCap}
+                />
               </div>
             </CardContent>
           </Card>
@@ -289,7 +277,7 @@ const SenateDashboard = () => {
           {/* Row 1: Enrollment & faculty comparison */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
+              <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-sm font-semibold">Enrollment by faculty</CardTitle>
                 <CardDescription className="text-xs">
                   Distribution of students and enrollments across faculties, respecting RBAC scope for Senate.
@@ -338,7 +326,7 @@ const SenateDashboard = () => {
             </Card>
 
             <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
+              <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-sm font-semibold">FCW/MEX/FEX by faculty</CardTitle>
                 <CardDescription className="text-xs">
                   High-level view of risk segments (FCW, MEX, FEX) by faculty, built on FCW/MEX/FEX facts.
@@ -355,7 +343,7 @@ const SenateDashboard = () => {
           {/* Row 2: Finance & recruitment */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
+              <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-sm font-semibold">Payment status mix</CardTitle>
                 <CardDescription className="text-xs">
                   Completed vs pending payments at institution level, from `fact_payment`.
@@ -378,7 +366,7 @@ const SenateDashboard = () => {
             </Card>
 
             <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
+              <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-sm font-semibold">Feeder schools & outcomes</CardTitle>
                 <CardDescription className="text-xs">
                   High-risk and resilient schools based on FCW/MEX/FEX and average grade in the latest years.
@@ -435,7 +423,7 @@ const SenateDashboard = () => {
 
           {/* Row 3: Academic risk summary (FCW/MEX/FEX) */}
           <Card className="border shadow-sm">
-            <CardHeader className="pb-3">
+            <CardHeader className="p-4 pb-2">
               <CardTitle className="text-sm font-semibold">Academic risk summary (FCW / MEX / FEX)</CardTitle>
               <CardDescription className="text-xs">
                 Summarized FCW, MEX, FEX counts and average grade from <code>v_student_risk_summary</code>,
@@ -445,47 +433,40 @@ const SenateDashboard = () => {
             <CardContent className="pt-0">
               {riskSummary ? (
                 <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 text-xs">
-                  <div className="border rounded-md px-3 py-2 bg-muted/40">
-                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">FCW</p>
-                    <p className="mt-1 text-lg font-semibold">
-                      {formatNumber(riskSummary.fcw_count)}
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Failed coursework records.</p>
-                  </div>
-                  <div className="border rounded-md px-3 py-2 bg-muted/40">
-                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">MEX</p>
-                    <p className="mt-1 text-lg font-semibold">
-                      {formatNumber(riskSummary.mex_count)}
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Missed exam records.</p>
-                  </div>
-                  <div className="border rounded-md px-3 py-2 bg-muted/40">
-                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">FEX</p>
-                    <p className="mt-1 text-lg font-semibold">
-                      {formatNumber(riskSummary.fex_count)}
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Failed exam records.</p>
-                  </div>
-                  <div className="border rounded-md px-3 py-2 bg-muted/40">
-                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                      Courses analyzed
-                    </p>
-                    <p className="mt-1 text-lg font-semibold">
-                      {formatNumber(riskSummary.total_courses)}
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Total unique course records in summary.</p>
-                  </div>
-                  <div className="border rounded-md px-3 py-2 bg-muted/40">
-                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                      Avg grade (all courses)
-                    </p>
-                    <p className="mt-1 text-lg font-semibold">
-                      {formatNumber(riskSummary.avg_grade)}
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      From <code>v_student_risk_summary</code>.
-                    </p>
-                  </div>
+                  <KPICard
+                    title="FCW"
+                    value={formatNumber(riskSummary.fcw_count)}
+                    icon={AlertTriangle}
+                    subtitle="Failed coursework records."
+                  />
+                  <KPICard
+                    title="MEX"
+                    value={formatNumber(riskSummary.mex_count)}
+                    icon={Award}
+                    subtitle="Missed exam records."
+                  />
+                  <KPICard
+                    title="FEX"
+                    value={formatNumber(riskSummary.fex_count)}
+                    icon={AlertTriangle}
+                    subtitle="Failed exam records."
+                  />
+                  <KPICard
+                    title="Courses analyzed"
+                    value={formatNumber(riskSummary.total_courses)}
+                    icon={Activity}
+                    subtitle="Total unique course records in summary."
+                  />
+                  <KPICard
+                    title="Avg grade (all courses)"
+                    value={formatNumber(riskSummary.avg_grade)}
+                    icon={GraduationCap}
+                    subtitle={
+                      <>
+                        From <code>v_student_risk_summary</code>.
+                      </>
+                    }
+                  />
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">

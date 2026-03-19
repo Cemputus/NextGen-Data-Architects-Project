@@ -1891,6 +1891,22 @@ def get_dashboard_stats():
                 print(f"Error determining current semester for payments: {e}")
                 current_semester_clause = ""
 
+        # For debug / verification: payments + tuition KPIs using RBAC only (ignore global filters),
+        # but still restrict to the latest semester available in fact tables.
+        unfiltered_payment_semester_clause = ""
+        unfiltered_grade_semester_clause = ""
+        try:
+            cur_df2 = pd.read_sql_query(
+                text("SELECT MAX(semester_id) AS sem FROM fact_payment WHERE semester_id IS NOT NULL"),
+                engine,
+            )
+            if not cur_df2.empty and pd.notna(cur_df2['sem'][0]):
+                cur_sem2 = int(cur_df2['sem'][0])
+                unfiltered_payment_semester_clause = f" AND fp.semester_id = {cur_sem2}"
+                unfiltered_grade_semester_clause = f" AND fg.semester_id = {cur_sem2}"
+        except Exception as e:
+            print(f"Error determining unfiltered semester: {e}")
+
         # Total students - with role scope
         try:
             total_students_result = pd.read_sql_query(
@@ -1963,26 +1979,75 @@ def get_dashboard_stats():
             print(f"Error getting fex_count: {e}")
             fex_count = 0
 
-        # Tuition-related missed exams - role scoped
+        # Tuition-related missed exams
+        # For now: RBAC only (ignore global filters) to verify base KPI wiring.
         try:
             if role_where:
-                sem_grade_clause = f" AND fg.semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
-                tuition_q = f"SELECT COUNT(*) as count FROM fact_grade fg JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join} WHERE fg.exam_status = 'MEX' AND (fg.absence_reason LIKE '%%Tuition%%' OR fg.absence_reason LIKE '%%Financial%%'){sem_grade_clause} AND {role_where}"
+                tuition_q = f"""
+                SELECT COUNT(*) as count
+                FROM fact_grade fg
+                JOIN dim_student ds ON fg.student_id = ds.student_id
+                {role_join}
+                WHERE fg.exam_status = 'MEX'
+                  AND (fg.absence_reason LIKE '%%Tuition%%' OR fg.absence_reason LIKE '%%Financial%%')
+                  {unfiltered_grade_semester_clause}
+                  AND {role_where}
+                """
             else:
-                sem_grade_clause = f" AND semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
-                tuition_q = f"SELECT COUNT(*) as count FROM fact_grade WHERE exam_status = 'MEX' AND (absence_reason LIKE '%%Tuition%%' OR absence_reason LIKE '%%Financial%%'){sem_grade_clause}"
+                tuition_q = f"""
+                SELECT COUNT(*) as count
+                FROM fact_grade fg
+                WHERE fg.exam_status = 'MEX'
+                  AND (fg.absence_reason LIKE '%%Tuition%%' OR fg.absence_reason LIKE '%%Financial%%')
+                  {unfiltered_grade_semester_clause}
+                """
             tuition_mex_result = pd.read_sql_query(text(tuition_q), engine)
             tuition_mex_count = int(tuition_mex_result['count'][0]) if not tuition_mex_result.empty and pd.notna(tuition_mex_result['count'][0]) else 0
         except Exception as e:
             print(f"Error getting tuition_mex_count: {e}")
             tuition_mex_count = 0
 
-        # Total payments - role scoped
+        # Payment-to-student match:
+        # - If fact_payment.student_id already equals dim_student.student_id, use it.
+        # - Otherwise, match against dim_student.reg_no / dim_student.access_number.
+        # - Use LATERAL to guarantee a single dim_student row (avoid duplicate sums).
+        payment_student_join = """
+        LEFT JOIN LATERAL (
+            SELECT ds.*
+            FROM dim_student ds
+            WHERE ds.student_id = fp.student_id
+               OR ds.reg_no = fp.student_id
+               OR ds.access_number = fp.student_id
+            ORDER BY
+                CASE
+                    WHEN ds.student_id = fp.student_id THEN 1
+                    WHEN ds.reg_no = fp.student_id THEN 2
+                    WHEN ds.access_number = fp.student_id THEN 3
+                    ELSE 4
+                END
+            LIMIT 1
+        ) ds ON TRUE
+        """
+
+        # Total payments (RBAC only for KPI wiring verification)
         try:
             if role_where:
-                pay_q = f"SELECT SUM(fp.amount) as total FROM fact_payment fp JOIN dim_student ds ON fp.student_id = ds.student_id{scope_join} WHERE fp.status = 'Completed' {current_semester_clause} AND {role_where}"
+                pay_q = f"""
+                SELECT SUM(fp.amount) as total
+                FROM fact_payment fp
+                {payment_student_join}
+                {role_join}
+                WHERE fp.status IN ('Completed', 'SUCCESS')
+                  {unfiltered_payment_semester_clause}
+                  AND {role_where}
+                """
             else:
-                pay_q = f"SELECT SUM(amount) as total FROM fact_payment fp WHERE fp.status = 'Completed' {current_semester_clause}"
+                pay_q = f"""
+                SELECT SUM(fp.amount) as total
+                FROM fact_payment fp
+                WHERE fp.status IN ('Completed', 'SUCCESS')
+                  {unfiltered_payment_semester_clause}
+                """
             total_payments_result = pd.read_sql_query(text(pay_q), engine)
             total_payments = float(total_payments_result['total'][0]) if not total_payments_result.empty and pd.notna(total_payments_result['total'][0]) else 0.0
         except Exception as e:
@@ -2063,12 +2128,25 @@ def get_dashboard_stats():
             print(f"Error getting avg_graduation_rate: {e}")
             avg_graduation_rate = 0.0
 
-        # Outstanding Payments - role scoped
+        # Outstanding Payments (RBAC only for KPI wiring verification)
         try:
             if role_where:
-                out_q = f"SELECT SUM(fp.amount) as total FROM fact_payment fp JOIN dim_student ds ON fp.student_id = ds.student_id{scope_join} WHERE fp.status = 'Pending' {current_semester_clause} AND {role_where}"
+                out_q = f"""
+                SELECT SUM(fp.amount) as total
+                FROM fact_payment fp
+                {payment_student_join}
+                {role_join}
+                WHERE fp.status IN ('Pending', 'FAILED')
+                  {unfiltered_payment_semester_clause}
+                  AND {role_where}
+                """
             else:
-                out_q = f"SELECT SUM(amount) as total FROM fact_payment fp WHERE fp.status = 'Pending' {current_semester_clause}"
+                out_q = f"""
+                SELECT SUM(fp.amount) as total
+                FROM fact_payment fp
+                WHERE fp.status IN ('Pending', 'FAILED')
+                  {unfiltered_payment_semester_clause}
+                """
             outstanding_result = pd.read_sql_query(text(out_q), engine)
             outstanding_payments = float(outstanding_result['total'][0]) if not outstanding_result.empty and pd.notna(outstanding_result['total'][0]) else 0.0
         except Exception as e:
@@ -2996,21 +3074,162 @@ def get_payment_trends():
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-        join_clause = ""
-        needs_join = (role in [Role.DEAN, Role.HOD, Role.STAFF, Role.STUDENT] or
-                     (filters.get('faculty_id') and str(filters['faculty_id']).strip() and str(filters['faculty_id']).lower() != 'all') or
-                     (filters.get('department_id') and str(filters['department_id']).strip() and str(filters['department_id']).lower() != 'all'))
-        if needs_join:
-            join_clause = """
-            JOIN dim_student ds ON fp.student_id = ds.student_id
-            LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
-            LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
-            LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        faculty_filter = (
+            filters.get('faculty_id')
+            and str(filters['faculty_id']).strip()
+            and str(filters['faculty_id']).strip().lower() != 'all'
+        )
+        department_filter = (
+            filters.get('department_id')
+            and str(filters['department_id']).strip()
+            and str(filters['department_id']).strip().lower() != 'all'
+        )
+        program_filter = (
+            filters.get('program_id')
+            and str(filters['program_id']).strip()
+            and str(filters['program_id']).strip().lower() != 'all'
+        )
+        semester_filter = (
+            filters.get('semester_id')
+            and str(filters['semester_id']).strip()
+            and str(filters['semester_id']).strip().lower() != 'all'
+        )
+
+        # Fast path: Analyst/Finance + program-only filter.
+        # Avoid the expensive LATERAL match for every payment row.
+        if role in [Role.ANALYST, Role.FINANCE] and program_filter and (not faculty_filter) and (not department_filter):
+            program_id = filters['program_id']
+            sem_clause = f" AND fp.semester_id = {filters['semester_id']}" if semester_filter else ""
+
+            if period == 'monthly':
+                period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS TEXT))"
+                group_by = "dt.year, dt.month, dt.month_name"
+                order_by = "dt.year, dt.month"
+            elif period == 'yearly':
+                period_select = "CAST(dt.year AS TEXT)"
+                group_by = "dt.year"
+                order_by = "dt.year"
+            else:
+                period_select = "CONCAT('Q', CAST(dt.quarter AS TEXT), ' ', CAST(dt.year AS TEXT))"
+                group_by = "dt.year, dt.quarter"
+                order_by = "dt.year, dt.quarter"
+
+            query = f"""
+            WITH matched AS (
+                SELECT
+                    fp.payment_id,
+                    fp.date_key,
+                    fp.semester_id,
+                    fp.status,
+                    fp.amount,
+                    1 AS match_rank
+                FROM fact_payment fp
+                JOIN dim_student ds ON ds.student_id = fp.student_id
+                WHERE ds.program_id = {program_id}
+                {sem_clause}
+
+                UNION ALL
+
+                SELECT
+                    fp.payment_id,
+                    fp.date_key,
+                    fp.semester_id,
+                    fp.status,
+                    fp.amount,
+                    2 AS match_rank
+                FROM fact_payment fp
+                JOIN dim_student ds ON ds.reg_no = fp.student_id
+                WHERE ds.program_id = {program_id}
+                {sem_clause}
+
+                UNION ALL
+
+                SELECT
+                    fp.payment_id,
+                    fp.date_key,
+                    fp.semester_id,
+                    fp.status,
+                    fp.amount,
+                    3 AS match_rank
+                FROM fact_payment fp
+                JOIN dim_student ds ON ds.access_number = fp.student_id
+                WHERE ds.program_id = {program_id}
+                {sem_clause}
+            ),
+            best AS (
+                SELECT DISTINCT ON (payment_id)
+                    payment_id,
+                    date_key,
+                    semester_id,
+                    status,
+                    amount
+                FROM matched
+                ORDER BY payment_id, match_rank
+            )
+            SELECT
+                {period_select} as period,
+                SUM(CASE WHEN status IN ('Completed', 'SUCCESS') THEN amount ELSE 0 END) as total_amount,
+                COUNT(CASE WHEN status IN ('Completed', 'SUCCESS') THEN 1 END) as completed_count,
+                COUNT(CASE WHEN status IN ('Pending', 'FAILED') THEN 1 END) as pending_count
+            FROM best b
+            JOIN dim_time dt ON b.date_key = dt.date_key
+            WHERE dt.year >= {min_year}
+            GROUP BY {group_by}
+            ORDER BY {order_by}
             """
-        else:
-            join_clause = """
-            JOIN dim_student ds ON fp.student_id = ds.student_id
-            """
+
+            df = pd.read_sql_query(text(query), engine)
+            engine.dispose()
+            if not df.empty:
+                return jsonify({
+                    'periods': df['period'].tolist(),
+                    'amounts': df['total_amount'].round(2).tolist(),
+                    'completed_payments': df['completed_count'].tolist(),
+                    'pending_payments': df['pending_count'].tolist()
+                })
+            return jsonify({
+                'periods': [],
+                'amounts': [],
+                'completed_payments': [],
+                'pending_payments': []
+            })
+
+        needs_student_join = (
+            role in [Role.DEAN, Role.HOD, Role.STAFF, Role.STUDENT]
+            or (filters.get('faculty_id') and str(filters['faculty_id']).strip().lower() != 'all')
+            or (filters.get('department_id') and str(filters['department_id']).strip().lower() != 'all')
+            or (filters.get('program_id') and str(filters['program_id']).strip().lower() != 'all')
+        )
+
+        program_pushdown = ""
+        if filters.get('program_id') and str(filters['program_id']).strip().lower() != 'all':
+            # Push `program_id` into the student-match subquery for performance.
+            program_pushdown = f" AND ds.program_id = {filters['program_id']}"
+
+        # Only join to dim_student/dim_program when filters require it.
+        # For Analyst/Finance default views, joining can be expensive and is unnecessary.
+        join_clause = f"""
+        LEFT JOIN LATERAL (
+            SELECT ds.*
+            FROM dim_student ds
+            WHERE (
+                ds.student_id = fp.student_id
+                OR ds.reg_no = fp.student_id
+                OR ds.access_number = fp.student_id
+            ){program_pushdown}
+            ORDER BY
+                CASE
+                    WHEN ds.student_id = fp.student_id THEN 1
+                    WHEN ds.reg_no = fp.student_id THEN 2
+                    WHEN ds.access_number = fp.student_id THEN 3
+                    ELSE 4
+                END
+            LIMIT 1
+        ) ds ON TRUE
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        """ if needs_student_join else ""
         if period == 'monthly':
             period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS TEXT))"
             group_by = "dt.year, dt.month, dt.month_name"
@@ -3027,9 +3246,9 @@ def get_payment_trends():
         query = f"""
         SELECT
             {period_select} as period,
-            SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) as total_amount,
-            COUNT(CASE WHEN fp.status = 'Completed' THEN 1 END) as completed_count,
-            COUNT(CASE WHEN fp.status = 'Pending' THEN 1 END) as pending_count
+            SUM(CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN fp.amount ELSE 0 END) as total_amount,
+            COUNT(CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN 1 END) as completed_count,
+            COUNT(CASE WHEN fp.status IN ('Pending', 'FAILED') THEN 1 END) as pending_count
         FROM fact_payment fp
         JOIN dim_time dt ON fp.date_key = dt.date_key
         {join_clause}
