@@ -36,6 +36,7 @@ const AnalystDashboard = () => {
   const [paymentStatus, setPaymentStatus] = useState([]);
   const [paymentTrends, setPaymentTrends] = useState([]);
   const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
+  const [loadingPipeline, setLoadingPipeline] = useState(true);
 
   const loadStats = async () => {
     try {
@@ -174,6 +175,7 @@ const AnalystDashboard = () => {
 
   const loadPipelineChart = async (overrideFilters) => {
     try {
+      setLoadingPipeline(true);
       const token = sessionStorage.getItem('ucu_session_token');
       const headers = { Authorization: `Bearer ${token}` };
       const res = await axios
@@ -193,6 +195,8 @@ const AnalystDashboard = () => {
     } catch (err) {
       console.error('Error loading enrollment pipeline chart:', err);
       setEnrollmentPipeline([]);
+    } finally {
+      setLoadingPipeline(false);
     }
   };
 
@@ -349,7 +353,7 @@ const AnalystDashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-          {loadingCharts ? (
+          {loadingPipeline ? (
             <div className="min-h-[260px] flex items-center justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
@@ -358,12 +362,14 @@ const AnalystDashboard = () => {
               Chart coming soon.
             </div>
           ) : (
-            <SciAreaChart
+            <SciLineChart
               data={enrollmentPipeline}
               xDataKey="period"
               yDataKey="total_enrollments"
               xAxisLabel="Academic period"
               yAxisLabel="First-year students (Sem 1)"
+              smooth={false}
+              symbolSize={5}
             />
           )}
           </CardContent>

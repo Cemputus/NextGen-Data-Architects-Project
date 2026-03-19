@@ -9,6 +9,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import { SkeletonCard, Skeleton } from '../components/ui/skeleton';
+import { SciBarChart, SciDonutChart } from '../components/charts/EChartsComponents';
 
 const SenateDashboard = () => {
   const { user } = useAuth();
@@ -19,10 +20,20 @@ const SenateDashboard = () => {
   const [highSchoolRisk, setHighSchoolRisk] = useState({ by_school: [], by_district: [] });
   const [showWelcome, setShowWelcome] = useState(true);
   const [filters, setFilters] = useState({});
+  const [enrollmentByFaculty, setEnrollmentByFaculty] = useState([]);
+  const [loadingFacultyChart, setLoadingFacultyChart] = useState(false);
+  const [enrollmentGroupBy, setEnrollmentGroupBy] = useState('faculty'); // faculty | department | program
+  const [paymentStatus, setPaymentStatus] = useState([]);
 
   useEffect(() => {
     loadDashboardData();
   }, [filters]);
+
+  useEffect(() => {
+    // When groupBy changes, we just reload the dashboard data and reuse the faculty mapping logic above
+    loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enrollmentGroupBy]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -35,11 +46,22 @@ const SenateDashboard = () => {
     user?.username ||
     '';
 
+  const abbreviateName = (name) => {
+    if (!name) return '';
+    const trimmed = name.toString().trim();
+    if (!trimmed) return '';
+    const words = trimmed.split(/\s+/);
+    if (words.length === 1) {
+      return trimmed.length > 10 ? `${trimmed.slice(0, 10)}…` : trimmed;
+    }
+    return words.map((w) => w[0]).join('').toUpperCase();
+  };
+
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       const token = sessionStorage.getItem('ucu_session_token');
-      const [statsRes, enrollmentRes, riskRes, hsRes] = await Promise.all([
+      const [statsRes, enrollmentRes, facultyRes, paymentStatusRes, riskRes, hsRes] = await Promise.all([
         axios.get('/api/dashboard/stats', {
           headers: { Authorization: `Bearer ${token}` },
           params: filters
@@ -47,6 +69,18 @@ const SenateDashboard = () => {
         axios.get('/api/analytics/enrollment-by-year', {
           headers: { Authorization: `Bearer ${token}` }
         }).catch(() => ({ data: { enrollment_by_year: [] } })),
+        axios
+          .get('/api/dashboard/students-by-department', {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { ...filters, group_by: 'faculty' },
+          })
+          .catch(() => ({ data: { labels: [], counts: [] } })),
+        axios
+          .get('/api/dashboard/payment-status', {
+            headers: { Authorization: `Bearer ${token}` },
+            params: filters,
+          })
+          .catch(() => ({ data: { statuses: [], counts: [] } })),
         axios
           .get('/api/analytics/academic-risk-summary', {
             headers: { Authorization: `Bearer ${token}` },
@@ -62,6 +96,21 @@ const SenateDashboard = () => {
       ]);
       setStats(statsRes.data);
       setEnrollmentByYear(enrollmentRes.data?.enrollment_by_year || []);
+      const facLabels = facultyRes.data.labels || facultyRes.data.departments || [];
+      const facCounts = facultyRes.data.counts || [];
+      setEnrollmentByFaculty(
+        facLabels.map((name, idx) => ({
+          name: abbreviateName(name),
+          fullName: name,
+          students: facCounts[idx] || 0,
+        })),
+      );
+      setPaymentStatus(
+        (paymentStatusRes.data.statuses || []).map((status, idx) => ({
+          name: status,
+          value: paymentStatusRes.data.counts?.[idx] || 0,
+        })),
+      );
       setRiskSummary(riskRes.data?.summary || null);
       setHighSchoolRisk({
         by_school: hsRes.data?.by_school || [],
@@ -247,9 +296,44 @@ const SenateDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                  Stacked / grouped bar chart placeholder for faculty enrollment.
+                <div className="flex items-center justify-end mb-2 gap-2">
+                  <select
+                    className="border rounded-md px-2 py-1 text-xs bg-background"
+                    value={enrollmentGroupBy}
+                    onChange={(e) => setEnrollmentGroupBy(e.target.value)}
+                  >
+                    <option value="faculty">By faculty</option>
+                    <option value="department">By department</option>
+                    <option value="program">By program</option>
+                  </select>
                 </div>
+                {loadingFacultyChart ? (
+                  <div className="min-h-[320px] flex items-center justify-center">
+                    <Skeleton className="h-[320px] w-full rounded-md" />
+                  </div>
+                ) : enrollmentByFaculty.length === 0 ? (
+                  <div className="min-h-[320px] flex items-center justify-center text-xs text-muted-foreground border border-dashed rounded-md">
+                    No faculty enrollment data available.
+                  </div>
+                ) : (
+                  <SciBarChart
+                    data={enrollmentByFaculty}
+                    xDataKey="name"
+                    yDataKey="students"
+                    xAxisLabel={
+                      enrollmentGroupBy === 'faculty'
+                        ? 'Faculty'
+                        : enrollmentGroupBy === 'department'
+                          ? 'Department'
+                          : 'Program'
+                    }
+                    yAxisLabel="Number of students"
+                    showLegend={false}
+                    tooltipNameKey="fullName"
+                    minHeight={360}
+                    maxHeight={380}
+                  />
+                )}
               </CardContent>
             </Card>
 
@@ -278,9 +362,18 @@ const SenateDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
+              {paymentStatus.length === 0 ? (
                 <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                  Donut chart placeholder for payment status distribution.
+                  No payment status data available.
                 </div>
+              ) : (
+                <SciDonutChart
+                  data={paymentStatus}
+                  nameKey="name"
+                  valueKey="value"
+                  title="Payment status mix"
+                />
+              )}
               </CardContent>
             </Card>
 
