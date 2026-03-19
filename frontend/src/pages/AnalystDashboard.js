@@ -8,7 +8,7 @@
  * lives in the dedicated Dashboard Manager page.
  */
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Loader2 } from 'lucide-react';
+import { RefreshCw, Loader2, Users, Activity, GraduationCap, Target, Receipt, Award } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { PageHeader } from '../components/ui/page-header';
@@ -25,6 +25,7 @@ import {
   UCU_COLORS,
 } from '../components/charts/EChartsComponents';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
+import { KPICard } from '../components/ui/kpi-card';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -297,6 +298,16 @@ const AnalystDashboard = () => {
     return `${num.toFixed(1)}%`;
   };
 
+  // Professional UGX formatting for KPI tiles (UI only).
+  // Example: 119,445,136,148 => UGX 119,445.1M
+  const formatUGX = (value) => {
+    if (value === null || value === undefined) return 'UGX –';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(num)) return 'UGX –';
+    const millions = num / 1_000_000;
+    return `UGX ${millions.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -335,74 +346,52 @@ const AnalystDashboard = () => {
 
       {/* Top KPI strip */}
       <Card className="border shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Executive overview</CardTitle>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-base font-semibold">Executive overview</CardTitle>
           <CardDescription className="text-xs">
             High-level KPIs scoped by your analyst role. Current implementation uses global aggregates;
             semester-focused metrics will plug in here.
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 pb-4">
           {loadingStats && !stats ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="border rounded-md px-3 py-2 bg-muted/40">
-                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                  Total students (scoped)
-                </p>
-                <p className="mt-1 text-lg font-semibold">
-                  {formatNumber(stats?.total_students)}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  From `dim_student` with role-based scope.
-                </p>
-              </div>
-              <div className="border rounded-md px-3 py-2 bg-muted/40">
-                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                  Total enrollments
-                </p>
-                <p className="mt-1 text-lg font-semibold">
-                  {formatNumber(stats?.total_enrollments)}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Count of `fact_enrollment` records in scope.
-                </p>
-              </div>
-              <div className="border rounded-md px-3 py-2 bg-muted/40">
-                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                  Average grade (completed)
-                </p>
-                <p className="mt-1 text-lg font-semibold">
-                  {formatNumber(stats?.avg_grade)}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  AVG(`fact_grade.grade`) where exam_status = Completed.
-                </p>
-              </div>
-              <div className="border rounded-md px-3 py-2 bg-muted/40">
-                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                  Retention rate (all-time)
-                </p>
-                <p className="mt-1 text-lg font-semibold">
-                  {(() => {
-                    const raw =
-                      stats?.retention_rate ?? stats?.avg_retention_rate;
-                    if (raw === null || raw === undefined) return formatPercent(raw);
-                    const num =
-                      typeof raw === 'number' ? raw : Number(raw);
-                    if (Number.isNaN(num)) return formatPercent(raw);
-                    // Business rule: never show a perfect 100.0% – clamp to 94.8%
-                    const display = num >= 99.95 ? 94.8 : num;
-                    return formatPercent(display);
-                  })()}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Active vs total students (will be refined to semester windows).
-                </p>
-              </div>
+              <KPICard
+                title="Total students (scoped)"
+                value={formatNumber(stats?.total_students)}
+                icon={Users}
+                subtitle="From `dim_student` with role-based scope."
+              />
+              <KPICard
+                title="Total enrollments"
+                value={formatNumber(stats?.total_enrollments)}
+                icon={Activity}
+                subtitle="Count of `fact_enrollment` records in scope."
+              />
+              <KPICard
+                title="Average grade (completed)"
+                value={formatNumber(stats?.avg_grade)}
+                icon={GraduationCap}
+                subtitle="AVG(`fact_grade.grade`) where exam_status = Completed."
+              />
+              <KPICard
+                title="Retention rate (all-time)"
+                value={(() => {
+                  const raw = stats?.retention_rate ?? stats?.avg_retention_rate;
+                  if (raw === null || raw === undefined) return formatPercent(raw);
+                  const num = typeof raw === 'number' ? raw : Number(raw);
+                  if (Number.isNaN(num)) return formatPercent(raw);
+                  // Business rule: never show a perfect 100.0% – clamp to 94.8%
+                  const display = num >= 99.95 ? 94.8 : num;
+                  return formatPercent(display);
+                })()}
+                icon={Target}
+                subtitle="Active vs total students (will be refined to semester windows)."
+              />
             </div>
           )}
         </CardContent>
@@ -411,7 +400,7 @@ const AnalystDashboard = () => {
       {/* Section A – Enrollment & pipeline */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="border shadow-sm h-full">
-          <CardHeader className="pb-3">
+          <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-semibold">Enrollment pipeline</CardTitle>
             <CardDescription className="text-xs">
               Trend of first-year, first-semester students across academic years.
@@ -441,10 +430,10 @@ const AnalystDashboard = () => {
         </Card>
 
         <Card className="border shadow-sm h-full">
-          <CardHeader className="pb-1">
+          <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-semibold">Student distribution by faculty/program</CardTitle>
           </CardHeader>
-          <CardContent className="pt-0 pb-1">
+          <CardContent className="pt-0">
             {loadingStudentDist ? (
               <div className="min-h-[320px] flex items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -477,7 +466,7 @@ const AnalystDashboard = () => {
       {/* Section B – Performance & risk */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="border shadow-sm h-full">
-          <CardHeader className="pb-3">
+          <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-semibold">Performance & grade distribution</CardTitle>
             <CardDescription className="text-xs">
               GPA/grade distribution and pass/fail ratios across faculties, departments and programs.
@@ -503,7 +492,7 @@ const AnalystDashboard = () => {
         </Card>
 
         <Card className="border shadow-sm h-full">
-          <CardHeader className="pb-3">
+          <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-semibold">Risk & FCW/MEX/FEX segments</CardTitle>
             <CardDescription className="text-xs">
               Concentration of FCW/MEX/FEX across courses and programs. Driven by FCW/MEX/FEX
@@ -538,7 +527,7 @@ const AnalystDashboard = () => {
 
       {/* Section C – Payments & finance (analyst scope) */}
       <Card className="border shadow-sm">
-        <CardHeader className="pb-3">
+        <CardHeader className="p-4 pb-2">
           <CardTitle className="text-sm font-semibold">Payments & outstanding balances</CardTitle>
           <CardDescription className="text-xs">
             High-level finance view for analysts. Full finance dashboards remain in the dedicated
@@ -547,47 +536,32 @@ const AnalystDashboard = () => {
         </CardHeader>
         <CardContent className="pt-0">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-            <div className="border rounded-md px-3 py-2 bg-muted/40">
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                Total payments
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {formatNumber(stats?.total_payments)}
-              </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Completed payments in `fact_payment`.
-              </p>
-            </div>
-            <div className="border rounded-md px-3 py-2 bg-muted/40">
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                Outstanding payments
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {formatNumber(stats?.outstanding_payments)}
-              </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Pending balances in `fact_payment`.
-              </p>
-            </div>
-            <div className="border rounded-md px-3 py-2 bg-muted/40">
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                Tuition-related missed exams
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {formatNumber(stats?.tuition_related_missed)}
-              </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                MEX exams with tuition/financial absence reasons.
-              </p>
-            </div>
+            <KPICard
+              title="Total payments"
+              value={formatUGX(stats?.total_payments)}
+              icon={Receipt}
+              subtitle="Completed payments in `fact_payment`."
+            />
+            <KPICard
+              title="Outstanding payments"
+              value={formatUGX(stats?.outstanding_payments)}
+              icon={Receipt}
+              subtitle="Pending balances in `fact_payment`."
+            />
+            <KPICard
+              title="Tuition-related missed exams"
+              value={formatNumber(stats?.tuition_related_missed)}
+              icon={Award}
+              subtitle="MEX exams with tuition/financial absence reasons."
+            />
           </div>
           {loadingCharts ? (
             <div className="min-h-[220px] flex items-center justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <SciDonutChart
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+              <Sci3DPieChart
                 data={paymentStatus}
                 nameKey="name"
                 valueKey="value"

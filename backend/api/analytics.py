@@ -3043,13 +3043,33 @@ def get_academic_risk():
         elif role == Role.DEAN and user_scope.get('faculty_id'):
             where_clauses.append("df.faculty_id = :fac_id")
             params['fac_id'] = user_scope['faculty_id']
-            
-        if filters.get('faculty_id') and str(filters['faculty_id']) != 'all':
+
+        # Apply global filters (faculty/department/program/high_school/intake_year/semester)
+        fac_id = filters.get('faculty_id')
+        dept_id = filters.get('department_id')
+        prog_id = filters.get('program_id')
+        high_school = filters.get('high_school')
+        intake_year = filters.get('intake_year')
+        sem_id = filters.get('semester_id')
+
+        if fac_id and str(fac_id).strip().lower() != 'all':
             where_clauses.append("df.faculty_id = :f_faculty_id")
-            params['f_faculty_id'] = filters['faculty_id']
-        if filters.get('department_id') and str(filters['department_id']) != 'all':
+            params['f_faculty_id'] = int(fac_id)
+        if dept_id and str(dept_id).strip().lower() != 'all':
             where_clauses.append("dd.department_id = :f_dept_id")
-            params['f_dept_id'] = filters['department_id']
+            params['f_dept_id'] = int(dept_id)
+        if prog_id and str(prog_id).strip().lower() != 'all':
+            where_clauses.append("ds.program_id = :f_prog_id")
+            params['f_prog_id'] = int(prog_id)
+        if high_school and str(high_school).strip().lower() != 'all':
+            params['f_hs'] = f"%{str(high_school).strip()}%"
+            where_clauses.append("ds.high_school ILIKE :f_hs")
+        if intake_year and str(intake_year).strip().lower() != 'all':
+            try:
+                params['f_year'] = int(intake_year)
+                where_clauses.append("EXTRACT(YEAR FROM ds.admission_date) = :f_year")
+            except Exception:
+                pass
             
         where_str = ""
         if where_clauses:
@@ -3073,6 +3093,16 @@ def get_academic_risk():
         try:
             summary_df = pd.read_sql_query(text(sql_summary), engine, params=params)
         except Exception:
+            # Fallback: derive FCW/MEX/FEX directly from fact_grade when the view is missing.
+            # Semester filter is only meaningful here (v_student_risk_summary may not carry semester_id).
+            sem_clause = ""
+            if sem_id and str(sem_id).strip().lower() != 'all':
+                try:
+                    params['f_sem'] = int(sem_id)
+                    sem_clause = " AND fg.semester_id = :f_sem"
+                except Exception:
+                    sem_clause = ""
+
             sql_summary_fallback = f"""
             SELECT
                 COALESCE(SUM(CASE WHEN fg.fcw THEN 1 ELSE 0 END), 0) as fcw_count,
@@ -3086,6 +3116,7 @@ def get_academic_risk():
             LEFT JOIN dim_department dd ON dp.department_id = dd.department_id
             LEFT JOIN dim_faculty df ON dd.faculty_id = df.faculty_id
             {where_str}
+            {sem_clause}
             """
             summary_df = pd.read_sql_query(text(sql_summary_fallback), engine, params=params)
         summary = summary_df.iloc[0].to_dict() if not summary_df.empty else {}
