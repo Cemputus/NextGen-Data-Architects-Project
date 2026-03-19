@@ -24,7 +24,6 @@ export const CHART_OPTIONS = [
 
 export const PAGE_CONFIG_KEYS = [
   'fex_analytics',
-  'high_school_analytics',
   'risk_analytics',
   'analyst_dashboard',
   'dean_dashboard',
@@ -38,7 +37,6 @@ export const PAGE_CONFIG_KEYS = [
 
 export const PAGE_CONFIG_LABELS = {
   fex_analytics: 'FEX Analytics',
-  high_school_analytics: 'High School Analytics',
   risk_analytics: 'Risk Analytics',
   analyst_dashboard: 'Analyst Dashboard',
   dean_dashboard: 'Dean Dashboard',

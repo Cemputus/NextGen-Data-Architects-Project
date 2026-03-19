@@ -9,13 +9,13 @@ export const rbac = {
   canAccess: (userRole, resource, permission = 'read') => {
     // Simplified frontend check - full validation on backend
     const permissions = {
-      senate: ['dashboard', 'analytics', 'reports', 'fex', 'high-school', 'profile'],
+      senate: ['dashboard', 'analytics', 'reports', 'fex', 'profile'],
       sysadmin: ['dashboard', 'users', 'settings', 'etl', 'audit', 'profile'],
-      analyst: ['dashboard', 'analytics', 'fex', 'high-school', 'reports', 'profile'],
+      analyst: ['dashboard', 'analytics', 'fex', 'reports', 'profile'],
       student: ['dashboard', 'grades', 'attendance', 'payments', 'profile'],
       staff: ['dashboard', 'classes', 'analytics', 'profile'],
-      dean: ['dashboard', 'analytics', 'fex', 'high-school', 'profile'],
-      hod: ['dashboard', 'assign-classes', 'analytics', 'fex', 'high-school', 'profile'],
+      dean: ['dashboard', 'analytics', 'fex', 'profile'],
+      hod: ['dashboard', 'assign-classes', 'analytics', 'fex', 'profile'],
       hr: ['dashboard', 'analytics', 'staff', 'profile'],
       finance: ['dashboard', 'analytics', 'payments', 'profile'],
     };
