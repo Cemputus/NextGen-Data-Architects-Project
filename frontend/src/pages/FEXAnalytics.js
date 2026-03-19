@@ -21,7 +21,6 @@ import { PageHeader, PageContent } from '../components/ui/page-header';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { useAuth } from '../context/AuthContext';
 import { CHART_PALETTE } from '../config/designTokens';
-import { AlertBanner } from '../components/ui/alert-banner';
 import { Skeleton } from '../components/ui/skeleton';
 
 const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
@@ -151,10 +150,6 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
         />
       )}
 
-      <AlertBanner variant="info" title="FEX data by drilldown" className="mb-4">
-        Select Overall or by Faculty, Department, Program, or Course. Metrics update with your filter selection.
-      </AlertBanner>
-
       {loading ? (
         <div className="rounded-lg border border-border bg-card p-6 space-y-4">
           <Skeleton className="h-5 w-48" />
@@ -165,7 +160,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-red-700">
-              FEX distribution (chart rebuild in progress)
+              FEX distribution
             </CardTitle>
             <CardDescription className="text-xs">
               KPI cards were removed to avoid duplicate KPI sections. Use the drilldown selector above.

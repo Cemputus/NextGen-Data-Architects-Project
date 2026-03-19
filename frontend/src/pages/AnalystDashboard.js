@@ -16,7 +16,15 @@ import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
-import { SciBarChart, SciLineChart, SciPieChart, Sci3DPieChart, SciStackedColumnChart, SciAreaChart } from '../components/charts/EChartsComponents';
+import {
+  SciBarChart,
+  SciLineChart,
+  SciPieChart,
+  Sci3DPieChart,
+  SciStackedColumnChart,
+  SciAreaChart,
+  UCU_COLORS,
+} from '../components/charts/EChartsComponents';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { KPICard } from '../components/ui/kpi-card';
 
@@ -158,6 +166,19 @@ const AnalystDashboard = () => {
     }
   };
 
+  const gradeColor = (grade) => {
+    const g = (grade ?? '').toString().trim().toUpperCase();
+    // Requested: F = red, A = green, others distributed distinctly.
+    if (g === 'F') return UCU_COLORS.red;
+    if (g === 'A') return UCU_COLORS.green;
+    if (g === 'B') return UCU_COLORS.gold;
+    if (g === 'C') return UCU_COLORS.blue;
+    if (g === 'D') return UCU_COLORS.purple;
+    // Fallback: cycle through palette so unknown grades still look consistent.
+    const idx = Math.abs(Array.from(g).reduce((s, ch) => s + ch.charCodeAt(0), 0)) % 5;
+    return [UCU_COLORS.gold, UCU_COLORS.blue, UCU_COLORS.purple, UCU_COLORS.cyan, UCU_COLORS.maroon][idx];
+  };
+
   const loadStudentDistributionChart = async () => {
     try {
       setLoadingStudentDist(true);
@@ -295,7 +316,7 @@ const AnalystDashboard = () => {
         subtitle={
           showWelcome && lastName
             ? `Welcome back ${lastName} 🤗!`
-            : 'Institution-wide analytics workspace focused on current and previous semesters'
+            : 'Institution-wide analytics workspace'
         }
         actions={
           <>
@@ -492,6 +513,9 @@ const AnalystDashboard = () => {
               yDataKey="value"
               xAxisLabel="Segment"
               yAxisLabel="Number of course outcomes"
+              // Keep FCW/MEX/FEX colors consistent across hard refreshes/palette changes.
+              // Requested: FEX red, FCW "malon" (maroon), MEX orange.
+              colors={[UCU_COLORS.maroon, UCU_COLORS.gold, '#DC2626']}
               showPercentages
             />
             )}

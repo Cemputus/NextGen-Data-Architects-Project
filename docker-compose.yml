@@ -139,14 +139,11 @@ services:
       - ./airflow/plugins:/opt/airflow/plugins
     command: >
       bash -c "airflow db migrate &&
-      (airflow users create
-        --username admin
-        --firstname Admin
-        --lastname User
-        --role Admin
-        --email admin@example.com
-        --password admin
-      || airflow users reset-password --username admin --password admin || true) &&
+      if airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin; then
+        echo 'Airflow admin user created';
+      else
+        airflow users reset-password --username admin --password admin || true;
+      fi &&
       exec airflow webserver"
 
   airflow-scheduler:

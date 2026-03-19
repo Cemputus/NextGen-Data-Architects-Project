@@ -68,7 +68,7 @@ const AcademicRiskDashboard = () => {
     const trend = riskData?.trends || riskData?.trend || riskData?.risk_over_time || [];
 
     const riskDistribution = [
-        { name: 'FCW (Finance)', value: riskSummary.fcw_count },
+        { name: 'FCW (Failed Coursework)', value: riskSummary.fcw_count },
         { name: 'MEX (Missed Exams)', value: riskSummary.mex_count },
         { name: 'FEX (Failed Exams)', value: riskSummary.fex_count }
     ];
@@ -91,12 +91,8 @@ const AcademicRiskDashboard = () => {
 
     return (
         <div className="space-y-4">
-            <AlertBanner variant="info" title="Filters apply to all metrics, charts, and the student list." className="mb-4">
-                Refine the story by faculty, department, program, course, semester, or high school. Use the Export actions to share the current view with senate, deans, or quality assurance.
-            </AlertBanner>
-
             {/* Header */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-wrap">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                     <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
                         <ShieldAlert className="h-6 w-6 text-red-600" />
@@ -107,12 +103,14 @@ const AcademicRiskDashboard = () => {
                         ending with an actionable at-risk student list.
                     </p>
                 </div>
-                <ExportButtons
-                    data={riskData}
-                    filters={filters}
-                    filename="academic_risk_analysis"
-                    stats={riskSummary}
-                />
+                <div className="sm:shrink-0 sm:ml-4">
+                    <ExportButtons
+                        data={riskData}
+                        filters={filters}
+                        filename="academic_risk_analysis"
+                        stats={riskSummary}
+                    />
+                </div>
             </div>
 
             {/* Filters - role-based: Dean starts at Department, HOD at Program */}
@@ -194,7 +192,8 @@ const AcademicRiskDashboard = () => {
                                                 data={riskDistribution}
                                                 nameKey="name"
                                                 valueKey="value"
-                                                colors={['#F59E0B', '#3B82F6', '#EF4444']}
+                                                // Requested: FCW=maroon/malon, MEX=orange, FEX=red
+                                                colors={['#8B5CF6', '#F59E0B', '#EF4444']}
                                             />
                                         </div>
                                     </CardContent>
@@ -242,8 +241,8 @@ const AcademicRiskDashboard = () => {
                                                 xDataKey="period"
                                                 series={[
                                                     { key: 'fex_count', label: 'FEX', color: '#EF4444' },
-                                                    { key: 'mex_count', label: 'MEX', color: '#3B82F6' },
-                                                    { key: 'fcw_count', label: 'FCW', color: '#F59E0B' },
+                                                    { key: 'mex_count', label: 'MEX', color: '#F59E0B' },
+                                                    { key: 'fcw_count', label: 'FCW', color: '#8B5CF6' },
                                                 ]}
                                                 xAxisLabel="Semester / Academic Year"
                                                 yAxisLabel="Number of events"

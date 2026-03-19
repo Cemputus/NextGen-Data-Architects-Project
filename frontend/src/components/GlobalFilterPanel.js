@@ -35,11 +35,8 @@ const GlobalFilterPanel = ({
   const effectiveHideFaculty = hideFaculty || isDean || isHod;
   const effectiveHideDepartment = hideDepartment || isHod;
 
-  // For analytics overview pages (e.g. analyst_analytics, senate_analytics), don't reuse old filters –
-  // always start clean so charts don't get "stuck" on stale combinations.
-  const isAnalyticsOverview = typeof pageName === 'string' && pageName.endsWith('_analytics');
-  // Load persisted filters and search term
-  const savedFiltersState = isAnalyticsOverview ? {} : loadFilters(pageName, savedFilters || {});
+  // Load persisted filters and search term for this page (per-user)
+  const savedFiltersState = loadFilters(pageName, savedFilters || {});
   const savedSearch = loadSearchTerm(pageName, '');
   
   const [filters, setFilters] = useState(savedFiltersState);
@@ -79,7 +76,7 @@ const GlobalFilterPanel = ({
         params,
       });
       const data = res?.data || {};
-      setFilterOptions({
+      const nextOptions = {
         faculties: Array.isArray(data.faculties) ? data.faculties : emptyOptions.faculties,
         departments: Array.isArray(data.departments) ? data.departments : emptyOptions.departments,
         programs: Array.isArray(data.programs) ? data.programs : emptyOptions.programs,
@@ -87,7 +84,66 @@ const GlobalFilterPanel = ({
         semesters: Array.isArray(data.semesters) ? data.semesters : emptyOptions.semesters,
         high_schools: Array.isArray(data.high_schools) ? data.high_schools : emptyOptions.high_schools,
         intake_years: Array.isArray(data.intake_years) ? data.intake_years : emptyOptions.intake_years,
-      });
+      };
+      setFilterOptions(nextOptions);
+
+      // Guard against stale persisted filters after hard refresh:
+      // if a selected value is not available in current cascaded options,
+      // clear it (and its children) so filters remain logically consistent.
+      const cleanedFilters = { ...(currentFilters || {}) };
+      let changed = false;
+
+      const hasId = (list, idKey, selectedValue) =>
+        Array.isArray(list) &&
+        list.some((item) => String(item?.[idKey]) === String(selectedValue));
+
+      if (
+        cleanedFilters.faculty_id &&
+        nextOptions.faculties.length > 0 &&
+        !hasId(nextOptions.faculties, 'faculty_id', cleanedFilters.faculty_id)
+      ) {
+        delete cleanedFilters.faculty_id;
+        delete cleanedFilters.department_id;
+        delete cleanedFilters.program_id;
+        delete cleanedFilters.course_code;
+        changed = true;
+      }
+
+      if (
+        cleanedFilters.department_id &&
+        nextOptions.departments.length > 0 &&
+        !hasId(nextOptions.departments, 'department_id', cleanedFilters.department_id)
+      ) {
+        delete cleanedFilters.department_id;
+        delete cleanedFilters.program_id;
+        delete cleanedFilters.course_code;
+        changed = true;
+      }
+
+      if (
+        cleanedFilters.program_id &&
+        nextOptions.programs.length > 0 &&
+        !hasId(nextOptions.programs, 'program_id', cleanedFilters.program_id)
+      ) {
+        delete cleanedFilters.program_id;
+        delete cleanedFilters.course_code;
+        changed = true;
+      }
+
+      if (
+        cleanedFilters.course_code &&
+        nextOptions.courses.length > 0 &&
+        !hasId(nextOptions.courses, 'course_code', cleanedFilters.course_code)
+      ) {
+        delete cleanedFilters.course_code;
+        changed = true;
+      }
+
+      if (changed) {
+        setFilters(cleanedFilters);
+        onFilterChange(cleanedFilters);
+        saveFilters(pageName, cleanedFilters);
+      }
     } catch (err) {
       console.error('Error loading filter options:', err);
       setFilterOptions((prev) => ({
@@ -150,9 +206,7 @@ const GlobalFilterPanel = ({
     setFilters(newFilters);
     onFilterChange(newFilters);
     logAuditEvent('filter_applied', 'filters', pageName);
-    if (!isAnalyticsOverview) {
-      saveFilters(pageName, newFilters);
-    }
+    saveFilters(pageName, newFilters);
     setTimeout(() => {
       loadFilterOptions(newFilters);
     }, 100);
@@ -187,9 +241,7 @@ const GlobalFilterPanel = ({
     saveSearchTerm(pageName, '');
     onFilterChange({});
     logAuditEvent('filter_cleared', 'filters', pageName);
-    if (!isAnalyticsOverview) {
-      saveFilters(pageName, {});
-    }
+    saveFilters(pageName, {});
     loadFilterOptions({});
   };
 
@@ -366,10 +418,23 @@ const GlobalFilterPanel = ({
                   <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
                   {Object.entries(filters).map(([key, value], idx) => {
                     if (!value) return null;
-                    const displayValue = filterOptions.faculties?.find(f => f.faculty_id == value)?.faculty_name ||
-                                         filterOptions.departments?.find(d => d.department_id == value)?.department_name ||
-                                         filterOptions.programs?.find(p => p.program_id == value)?.program_name ||
-                                         value;
+                    let displayValue = value;
+                    if (key === 'faculty_id') {
+                      displayValue =
+                        filterOptions.faculties?.find((f) => String(f.faculty_id) === String(value))?.faculty_name || value;
+                    } else if (key === 'department_id') {
+                      displayValue =
+                        filterOptions.departments?.find((d) => String(d.department_id) === String(value))?.department_name || value;
+                    } else if (key === 'program_id') {
+                      displayValue =
+                        filterOptions.programs?.find((p) => String(p.program_id) === String(value))?.program_name || value;
+                    } else if (key === 'course_code') {
+                      displayValue =
+                        filterOptions.courses?.find((c) => String(c.course_code) === String(value))?.course_name || value;
+                    } else if (key === 'semester_id') {
+                      displayValue =
+                        filterOptions.semesters?.find((s) => String(s.semester_id) === String(value))?.semester_name || value;
+                    }
                     return (
                       <Badge
                         key={`filter-${key}-${value}-${idx}`}
