@@ -17,6 +17,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import { SciBarChart, SciLineChart, SciDonutChart, SciStackedColumnChart, SciAreaChart } from '../components/charts/EChartsComponents';
+import GlobalFilterPanel from '../components/GlobalFilterPanel';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -28,7 +29,6 @@ const AnalystDashboard = () => {
   const [showWelcome, setShowWelcome] = useState(true);
   const [loadingCharts, setLoadingCharts] = useState(true);
   const [loadingStudentDist, setLoadingStudentDist] = useState(false);
-  const [enrollmentGroupBy, setEnrollmentGroupBy] = useState('faculty'); // faculty | department | program
   const [enrollmentByFaculty, setEnrollmentByFaculty] = useState([]);
   const [gradesOverTime, setGradesOverTime] = useState([]);
   const [gradeDistribution, setGradeDistribution] = useState([]);
@@ -37,6 +37,15 @@ const AnalystDashboard = () => {
   const [paymentTrends, setPaymentTrends] = useState([]);
   const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
   const [loadingPipeline, setLoadingPipeline] = useState(true);
+  const [globalFilters, setGlobalFilters] = useState({});
+
+  const distributionGroupBy = globalFilters?.program_id
+    ? 'year_of_study'
+    : globalFilters?.department_id
+      ? 'program'
+      : globalFilters?.faculty_id
+        ? 'department'
+        : 'faculty';
 
   const loadStats = async () => {
     try {
@@ -45,6 +54,7 @@ const AnalystDashboard = () => {
       }
       const response = await axios.get('/api/dashboard/stats', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
+        params: globalFilters,
       });
       setStats(response.data);
     } catch (err) {
@@ -82,28 +92,31 @@ const AnalystDashboard = () => {
         axios
           .get('/api/dashboard/grades-over-time', {
             headers,
-            params: { period: 'quarterly' },
+            params: { period: 'quarterly', ...globalFilters },
           })
           .catch(() => ({ data: { periods: [], grades: [] } })),
         axios
           .get('/api/dashboard/grade-distribution', {
             headers,
+            params: globalFilters,
           })
           .catch(() => ({ data: { grades: [], counts: [] } })),
         axios
           .get('/api/analytics/academic-risk-summary', {
             headers,
+            params: globalFilters,
           })
           .catch(() => ({ data: { summary: null } })),
         axios
           .get('/api/dashboard/payment-status', {
             headers,
+            params: globalFilters,
           })
           .catch(() => ({ data: { statuses: [], counts: [] } })),
         axios
           .get('/api/dashboard/payment-trends', {
             headers,
-            params: { period: 'quarterly' },
+            params: { period: 'quarterly', ...globalFilters },
           })
           .catch(() => ({ data: { periods: [], amounts: [] } })),
       ]);
@@ -144,16 +157,15 @@ const AnalystDashboard = () => {
     }
   };
 
-  const loadStudentDistributionChart = async (groupByOverride) => {
+  const loadStudentDistributionChart = async () => {
     try {
       setLoadingStudentDist(true);
       const token = sessionStorage.getItem('ucu_session_token');
       const headers = { Authorization: `Bearer ${token}` };
-      const groupBy = groupByOverride || enrollmentGroupBy;
       const res = await axios
         .get('/api/dashboard/students-by-department', {
           headers,
-          params: { group_by: groupBy },
+          params: { group_by: distributionGroupBy, ...globalFilters },
         })
         .catch(() => ({ data: { labels: [], counts: [] } }));
       const enrollLabels = res.data.labels || res.data.departments || [];
@@ -173,15 +185,37 @@ const AnalystDashboard = () => {
     }
   };
 
-  const loadPipelineChart = async (overrideFilters) => {
+  const loadPipelineChart = async () => {
     try {
       setLoadingPipeline(true);
       const token = sessionStorage.getItem('ucu_session_token');
       const headers = { Authorization: `Bearer ${token}` };
+      const params = {};
+      if (globalFilters.faculty_id) {
+        params.faculty_id = globalFilters.faculty_id;
+      }
+      if (globalFilters.department_id) {
+        params.department_id = globalFilters.department_id;
+      }
+      if (globalFilters.program_id) {
+        params.program_id = globalFilters.program_id;
+      }
+      if (globalFilters.semester_id) {
+        params.semester_id = globalFilters.semester_id;
+      }
+      if (globalFilters.high_school) {
+        params.high_school = globalFilters.high_school;
+      }
+      if (globalFilters.intake_year) {
+        params.intake_year = globalFilters.intake_year;
+      }
+      if (globalFilters.course_code) {
+        params.course_code = globalFilters.course_code;
+      }
       const res = await axios
         .get('/api/analytics/enrollment-pipeline', {
           headers,
-          params: {},
+          params,
         })
         .catch(() => ({ data: { pipeline: [] } }));
 
@@ -210,9 +244,12 @@ const AnalystDashboard = () => {
   }, []);
 
   useEffect(() => {
+    loadStats();
+    loadCharts();
     loadStudentDistributionChart();
+    loadPipelineChart();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enrollmentGroupBy]);
+  }, [globalFilters, distributionGroupBy]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -266,6 +303,14 @@ const AnalystDashboard = () => {
             <ExportButtons filename="analyst_workspace" />
           </>
         }
+      />
+
+      {/* Global filter panel */}
+      <GlobalFilterPanel
+        onFilterChange={(next) => {
+          setGlobalFilters(next || {});
+        }}
+        pageName="analyst_analytics"
       />
 
       {/* Top KPI strip */}
@@ -349,29 +394,29 @@ const AnalystDashboard = () => {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">Enrollment pipeline</CardTitle>
             <CardDescription className="text-xs">
-            Trend of first-year, first-semester students across academic years.
+              Trend of first-year, first-semester students across academic years.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-          {loadingPipeline ? (
-            <div className="min-h-[260px] flex items-center justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : enrollmentPipeline.length === 0 ? (
-            <div className="min-h-[260px] flex items-center justify-center text-xs text-muted-foreground border border-dashed rounded-md">
-              Chart coming soon.
-            </div>
-          ) : (
-            <SciLineChart
-              data={enrollmentPipeline}
-              xDataKey="period"
-              yDataKey="total_enrollments"
-              xAxisLabel="Academic period"
-              yAxisLabel="First-year students (Sem 1)"
-              smooth={false}
-              symbolSize={5}
-            />
-          )}
+            {loadingPipeline ? (
+              <div className="min-h-[260px] flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : enrollmentPipeline.length === 0 ? (
+              <div className="min-h-[260px] flex items-center justify-center text-xs text-muted-foreground border border-dashed rounded-md">
+                Chart coming soon.
+              </div>
+            ) : (
+              <SciLineChart
+                data={enrollmentPipeline}
+                xDataKey="period"
+                yDataKey="total_enrollments"
+                xAxisLabel="Academic period"
+                yAxisLabel="First-year students (Sem 1)"
+                smooth={false}
+                symbolSize={5}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -380,17 +425,6 @@ const AnalystDashboard = () => {
             <CardTitle className="text-sm font-semibold">Student distribution by faculty/program</CardTitle>
           </CardHeader>
           <CardContent className="pt-0 pb-1">
-            <div className="flex items-center justify-end mb-2 gap-2">
-              <select
-                className="border rounded-md px-2 py-1 text-xs bg-background"
-                value={enrollmentGroupBy}
-                onChange={(e) => setEnrollmentGroupBy(e.target.value)}
-              >
-                <option value="faculty">By faculty</option>
-                <option value="department">By department</option>
-                <option value="program">By program</option>
-              </select>
-            </div>
             {loadingStudentDist ? (
               <div className="min-h-[320px] flex items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -401,11 +435,13 @@ const AnalystDashboard = () => {
                 xDataKey="name"
                 yDataKey="students"
                 xAxisLabel={
-                  enrollmentGroupBy === 'faculty'
-                    ? 'Faculty'
-                    : enrollmentGroupBy === 'department'
-                      ? 'Department'
-                      : 'Program'
+                  distributionGroupBy === 'year_of_study'
+                    ? 'Year of Study'
+                    : distributionGroupBy === 'program'
+                      ? 'Program'
+                      : distributionGroupBy === 'department'
+                        ? 'Department'
+                        : 'Faculty'
                 }
                 yAxisLabel="Number of students"
                 showLegend={false}

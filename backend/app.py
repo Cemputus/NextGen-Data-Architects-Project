@@ -1817,6 +1817,19 @@ def get_dashboard_stats():
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         role_join, role_where = _dashboard_role_scope()
         filters = request.args.to_dict()
+        semester_id_filter = None
+        intake_year_filter = None
+        try:
+            if filters.get('semester_id') and str(filters.get('semester_id')).strip().lower() not in ('', 'all'):
+                semester_id_filter = int(filters.get('semester_id'))
+        except Exception:
+            semester_id_filter = None
+        try:
+            if filters.get('intake_year') and str(filters.get('intake_year')).strip().lower() not in ('', 'all'):
+                intake_year_filter = int(filters.get('intake_year'))
+        except Exception:
+            intake_year_filter = None
+
         filter_join = ""
         filter_where_parts = []
         if filters.get('faculty_id') and str(filters.get('faculty_id', '')).strip().lower() not in ('', 'all'):
@@ -1842,24 +1855,41 @@ def get_dashboard_stats():
         JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
                 """
             filter_where_parts.append(f"ds.program_id = {filters['program_id']}")
+        if filters.get('high_school') and str(filters.get('high_school', '')).strip().lower() not in ('', 'all'):
+            hs = str(filters.get('high_school')).replace("'", "''")
+            filter_where_parts.append(f"ds.high_school ILIKE '%{hs}%'")
+        if intake_year_filter is not None:
+            filter_where_parts.append(f"EXTRACT(YEAR FROM ds.admission_date) = {intake_year_filter}")
+        if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
+            cc = str(filters.get('course_code')).replace("'", "''")
+            filter_where_parts.append(
+                f"EXISTS (SELECT 1 FROM fact_enrollment fe2 WHERE fe2.student_id = ds.student_id AND fe2.course_code = '{cc}')"
+            )
+        if semester_id_filter is not None:
+            filter_where_parts.append(
+                f"EXISTS (SELECT 1 FROM fact_enrollment fe3 WHERE fe3.student_id = ds.student_id AND fe3.semester_id = {semester_id_filter})"
+            )
         use_join = role_join or filter_join
         scope_join = f" {use_join} " if use_join else ""
         all_where = [w for w in [role_where, " AND ".join(filter_where_parts) if filter_where_parts else ""] if w]
         scope_where = f" WHERE {' AND '.join(all_where)} " if all_where else ""
 
-        # Restrict payment KPIs to the current/latest semester for ALL users
+        # Restrict payment KPIs to selected semester; else current/latest semester for all users
         current_semester_clause = ""
-        try:
-            cur_df = pd.read_sql_query(
-                text("SELECT MAX(semester_id) AS sem FROM fact_payment WHERE semester_id IS NOT NULL"),
-                engine,
-            )
-            if not cur_df.empty and pd.notna(cur_df['sem'][0]):
-                cur_sem = int(cur_df['sem'][0])
-                current_semester_clause = f" AND fp.semester_id = {cur_sem}"
-        except Exception as e:
-            print(f"Error determining current semester for payments: {e}")
-            current_semester_clause = ""
+        if semester_id_filter is not None:
+            current_semester_clause = f" AND fp.semester_id = {semester_id_filter}"
+        else:
+            try:
+                cur_df = pd.read_sql_query(
+                    text("SELECT MAX(semester_id) AS sem FROM fact_payment WHERE semester_id IS NOT NULL"),
+                    engine,
+                )
+                if not cur_df.empty and pd.notna(cur_df['sem'][0]):
+                    cur_sem = int(cur_df['sem'][0])
+                    current_semester_clause = f" AND fp.semester_id = {cur_sem}"
+            except Exception as e:
+                print(f"Error determining current semester for payments: {e}")
+                current_semester_clause = ""
 
         # Total students - with role scope
         try:
@@ -1895,9 +1925,11 @@ def get_dashboard_stats():
         # Average grade (only completed exams) - role scoped
         try:
             if role_where:
-                avg_q = f"SELECT AVG(fg.grade) as avg FROM fact_grade fg JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join} WHERE fg.exam_status = 'Completed' AND {role_where}"
+                sem_grade_clause = f" AND fg.semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                avg_q = f"SELECT AVG(fg.grade) as avg FROM fact_grade fg JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join} WHERE fg.exam_status = 'Completed'{sem_grade_clause} AND {role_where}"
             else:
-                avg_q = "SELECT AVG(grade) as avg FROM fact_grade WHERE exam_status = 'Completed'"
+                sem_grade_clause = f" AND semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                avg_q = f"SELECT AVG(grade) as avg FROM fact_grade WHERE exam_status = 'Completed'{sem_grade_clause}"
             avg_grade_result = pd.read_sql_query(text(avg_q), engine)
             avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
         except Exception as e:
@@ -1907,9 +1939,11 @@ def get_dashboard_stats():
         # MEX/FEX statistics - role scoped
         try:
             if role_where:
-                mex_q = f"SELECT COUNT(*) as count FROM fact_grade fg JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join} WHERE fg.exam_status = 'MEX' AND {role_where}"
+                sem_grade_clause = f" AND fg.semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                mex_q = f"SELECT COUNT(*) as count FROM fact_grade fg JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join} WHERE fg.exam_status = 'MEX'{sem_grade_clause} AND {role_where}"
             else:
-                mex_q = "SELECT COUNT(*) as count FROM fact_grade WHERE exam_status = 'MEX'"
+                sem_grade_clause = f" AND semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                mex_q = f"SELECT COUNT(*) as count FROM fact_grade WHERE exam_status = 'MEX'{sem_grade_clause}"
             mex_count_result = pd.read_sql_query(text(mex_q), engine)
             mex_count = int(mex_count_result['count'][0]) if not mex_count_result.empty and pd.notna(mex_count_result['count'][0]) else 0
         except Exception as e:
@@ -1918,9 +1952,11 @@ def get_dashboard_stats():
 
         try:
             if role_where:
-                fex_q = f"SELECT COUNT(*) as count FROM fact_grade fg JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join} WHERE fg.exam_status = 'FEX' AND {role_where}"
+                sem_grade_clause = f" AND fg.semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                fex_q = f"SELECT COUNT(*) as count FROM fact_grade fg JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join} WHERE fg.exam_status = 'FEX'{sem_grade_clause} AND {role_where}"
             else:
-                fex_q = "SELECT COUNT(*) as count FROM fact_grade WHERE exam_status = 'FEX'"
+                sem_grade_clause = f" AND semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                fex_q = f"SELECT COUNT(*) as count FROM fact_grade WHERE exam_status = 'FEX'{sem_grade_clause}"
             fex_count_result = pd.read_sql_query(text(fex_q), engine)
             fex_count = int(fex_count_result['count'][0]) if not fex_count_result.empty and pd.notna(fex_count_result['count'][0]) else 0
         except Exception as e:
@@ -1930,9 +1966,11 @@ def get_dashboard_stats():
         # Tuition-related missed exams - role scoped
         try:
             if role_where:
-                tuition_q = f"SELECT COUNT(*) as count FROM fact_grade fg JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join} WHERE fg.exam_status = 'MEX' AND (fg.absence_reason LIKE '%%Tuition%%' OR fg.absence_reason LIKE '%%Financial%%') AND {role_where}"
+                sem_grade_clause = f" AND fg.semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                tuition_q = f"SELECT COUNT(*) as count FROM fact_grade fg JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join} WHERE fg.exam_status = 'MEX' AND (fg.absence_reason LIKE '%%Tuition%%' OR fg.absence_reason LIKE '%%Financial%%'){sem_grade_clause} AND {role_where}"
             else:
-                tuition_q = "SELECT COUNT(*) as count FROM fact_grade WHERE exam_status = 'MEX' AND (absence_reason LIKE '%%Tuition%%' OR absence_reason LIKE '%%Financial%%')"
+                sem_grade_clause = f" AND semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                tuition_q = f"SELECT COUNT(*) as count FROM fact_grade WHERE exam_status = 'MEX' AND (absence_reason LIKE '%%Tuition%%' OR absence_reason LIKE '%%Financial%%'){sem_grade_clause}"
             tuition_mex_result = pd.read_sql_query(text(tuition_q), engine)
             tuition_mex_count = int(tuition_mex_result['count'][0]) if not tuition_mex_result.empty and pd.notna(tuition_mex_result['count'][0]) else 0
         except Exception as e:
@@ -2089,7 +2127,7 @@ def get_students_by_department():
 
         # Grouping dimension (validated)
         group_by = (filters.get('group_by') or 'department').strip().lower()
-        if group_by not in ('department', 'faculty', 'program', 'course'):
+        if group_by not in ('department', 'faculty', 'program', 'course', 'year_of_study'):
             group_by = 'department'
 
         # Build WHERE clause based on role and filters
@@ -2108,15 +2146,41 @@ def get_students_by_department():
         department_id = filters.get('department_id')
         program_id = filters.get('program_id')
         semester_id = filters.get('semester_id')
+        intake_year = filters.get('intake_year')
+        high_school = filters.get('high_school')
+        course_code = filters.get('course_code')
 
-        if faculty_id:
-            where_clauses.append(f"df.faculty_id = {int(faculty_id)}")
-        if department_id:
-            where_clauses.append(f"ddept.department_id = {int(department_id)}")
-        if program_id:
-            where_clauses.append(f"ds.program_id = {int(program_id)}")
-        if semester_id:
-            where_clauses.append(f"fe.semester_id = {int(semester_id)}")
+        try:
+            if faculty_id and str(faculty_id).strip().lower() not in ('', 'all'):
+                where_clauses.append(f"df.faculty_id = {int(faculty_id)}")
+        except Exception:
+            pass
+        try:
+            if department_id and str(department_id).strip().lower() not in ('', 'all'):
+                where_clauses.append(f"ddept.department_id = {int(department_id)}")
+        except Exception:
+            pass
+        try:
+            if program_id and str(program_id).strip().lower() not in ('', 'all'):
+                where_clauses.append(f"ds.program_id = {int(program_id)}")
+        except Exception:
+            pass
+        try:
+            if semester_id and str(semester_id).strip().lower() not in ('', 'all'):
+                where_clauses.append(f"fe.semester_id = {int(semester_id)}")
+        except Exception:
+            pass
+        try:
+            if intake_year and str(intake_year).strip().lower() not in ('', 'all'):
+                where_clauses.append(f"EXTRACT(YEAR FROM ds.admission_date) = {int(intake_year)}")
+        except Exception:
+            pass
+        if high_school and str(high_school).strip().lower() not in ('', 'all'):
+            hs = str(high_school).replace("'", "''")
+            where_clauses.append(f"ds.high_school ILIKE '%{hs}%'")
+        if course_code and str(course_code).strip().lower() not in ('', 'all'):
+            cc = str(course_code).replace("'", "''")
+            where_clauses.append(f"fe.course_code = '{cc}'")
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
@@ -2165,6 +2229,101 @@ def get_students_by_department():
             GROUP BY COALESCE(dc.course_name, fe.course_code)
             ORDER BY student_count DESC
             """
+        elif group_by == 'year_of_study':
+            # Group by effective year of study using program-duration business rules.
+            # Rules:
+            # - Medicine/Dentistry: 5 years
+            # - Law, Engineering (bachelor), Nursing: 4 years
+            # - Diploma: 2 years
+            # - Masters: 2 years
+            # - PhD: 3 years
+            # - Others: 3 years
+            # Graduation nuance:
+            # - For 3-year programs, students with Year-4/Sem-1 retake signals remain treated as Year 3 finalists.
+            # - Graduated students in 3-year programs with no such retake are excluded from year-of-study distribution.
+            query = f"""
+            WITH scoped AS (
+                SELECT DISTINCT
+                    ds.student_id,
+                    ds.year_of_study,
+                    ds.status,
+                    dp.program_name,
+                    dp.degree_level,
+                    dp.duration_years,
+                    CASE
+                        WHEN LOWER(COALESCE(dp.program_name, '')) LIKE '%medicine%' OR LOWER(COALESCE(dp.program_name, '')) LIKE '%dentistry%' THEN 5
+                        WHEN LOWER(COALESCE(dp.program_name, '')) LIKE '%bachelor of law%' OR LOWER(COALESCE(dp.program_name, '')) LIKE '%bachelor of laws%' THEN 4
+                        WHEN LOWER(COALESCE(dp.program_name, '')) LIKE '%engineering%' THEN 4
+                        WHEN LOWER(COALESCE(dp.program_name, '')) LIKE '%nursing%' THEN 4
+                        WHEN LOWER(COALESCE(dp.degree_level, '')) LIKE '%diploma%' OR LOWER(COALESCE(dp.program_name, '')) LIKE 'diploma%' THEN 2
+                        WHEN LOWER(COALESCE(dp.degree_level, '')) LIKE '%master%' OR LOWER(COALESCE(dp.program_name, '')) LIKE '%master%' THEN 2
+                        WHEN LOWER(COALESCE(dp.degree_level, '')) LIKE '%phd%' OR LOWER(COALESCE(dp.program_name, '')) LIKE '%phd%' OR LOWER(COALESCE(dp.program_name, '')) LIKE '%doctor of philosophy%' THEN 3
+                        WHEN dp.duration_years IS NOT NULL AND dp.duration_years > 0 THEN dp.duration_years
+                        ELSE 3
+                    END AS expected_duration,
+                    CASE
+                        WHEN EXISTS (
+                            SELECT 1
+                            FROM fact_grade fgx
+                            WHERE fgx.student_id = ds.student_id
+                              AND fgx.semester_id = 1
+                              AND COALESCE(ds.year_of_study, 1) >= 4
+                              AND (fgx.exam_status IN ('FCW', 'MEX', 'FEX'))
+                        ) THEN 1 ELSE 0
+                    END AS has_sem1_retake_signal
+                FROM dim_student ds
+                JOIN dim_program dp ON ds.program_id = dp.program_id
+                JOIN dim_department ddept ON dp.department_id = ddept.department_id
+                JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+                LEFT JOIN fact_enrollment fe ON ds.student_id = fe.student_id
+                {where_clause}
+            ),
+            effective AS (
+                SELECT
+                    student_id,
+                    CASE
+                        -- Default 3-year programs ONLY (exclude explicit 5y, 4y, diplomas, masters, PhD)
+                        WHEN expected_duration = 3
+                             AND (degree_level IS NULL OR LOWER(degree_level) NOT LIKE '%phd%')
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%medicine%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%dentistry%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%engineering%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%nursing%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE 'diploma%%'
+                             AND LOWER(COALESCE(degree_level, '')) NOT LIKE '%diploma%'
+                             AND LOWER(COALESCE(degree_level, '')) NOT LIKE '%master%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%master%'
+                             AND LOWER(COALESCE(degree_level, '')) NOT LIKE '%phd%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%doctor of philosophy%'
+                             AND LOWER(COALESCE(status, '')) LIKE 'graduat%%'
+                             AND has_sem1_retake_signal = 0
+                            THEN NULL
+                        WHEN expected_duration = 3
+                             AND (degree_level IS NULL OR LOWER(degree_level) NOT LIKE '%phd%')
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%medicine%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%dentistry%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%engineering%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%nursing%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE 'diploma%%'
+                             AND LOWER(COALESCE(degree_level, '')) NOT LIKE '%diploma%'
+                             AND LOWER(COALESCE(degree_level, '')) NOT LIKE '%master%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%master%'
+                             AND LOWER(COALESCE(degree_level, '')) NOT LIKE '%phd%'
+                             AND LOWER(COALESCE(program_name, '')) NOT LIKE '%doctor of philosophy%'
+                             AND has_sem1_retake_signal = 1
+                            THEN 3
+                        ELSE LEAST(COALESCE(year_of_study, 1), expected_duration)
+                    END AS effective_year
+                FROM scoped
+            )
+            SELECT
+                effective_year AS year_of_study,
+                COUNT(DISTINCT student_id) AS student_count
+            FROM effective
+            WHERE effective_year IS NOT NULL
+            GROUP BY effective_year
+            ORDER BY effective_year ASC
+            """
         else:
             # Default: group by department (existing behavior)
             query = f"""
@@ -2192,6 +2351,8 @@ def get_students_by_department():
             labels = df_res['program'].tolist()
         elif group_by == 'course':
             labels = df_res['course'].tolist()
+        elif group_by == 'year_of_study':
+            labels = [f"Year {int(y)}" if pd.notna(y) else "Year 1" for y in df_res['year_of_study'].tolist()]
         else:
             labels = df_res['department'].tolist()
 
@@ -2211,6 +2372,8 @@ def get_students_by_department():
             response['programs'] = df_res['program'].tolist()
         elif group_by == 'course':
             response['courses'] = df_res['course'].tolist()
+        elif group_by == 'year_of_study':
+            response['years_of_study'] = labels
 
         return jsonify(response)
     except Exception as e:
