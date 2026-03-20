@@ -39,6 +39,19 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const formatIntakeYearLabel = (rawYear) => {
+    const y = Number(rawYear);
+    if (!Number.isFinite(y)) return String(rawYear ?? '');
+    // Requested UI window: 2021/2 to 2026
+    // 2021 -> 2021/2, 2022 -> 2022/3, ... 2025 -> 2025/6
+    if (y >= 2021 && y <= 2025) {
+      const next = y + 1;
+      return `${y}/${String(next).slice(-1)}`;
+    }
+    if (y === 2026) return '2026';
+    return String(y);
+  };
+
   const normalizeOptions = (data = {}) => ({
     faculties: (data.faculties || []).map((f) => ({
       faculty_id: f.faculty_id ?? f.FacultyID ?? f.id,
@@ -348,7 +361,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
                   <option value="">All Years</option>
                   {filterOptions.intake_years?.map((year) => (
                     <option key={year} value={year}>
-                      {year}
+                      {formatIntakeYearLabel(year)}
                     </option>
                   ))}
                 </Select>

@@ -67,6 +67,19 @@ const GlobalFilterPanel = ({
     intake_years: [],
   };
 
+  const formatIntakeYearLabel = (rawYear) => {
+    const y = Number(rawYear);
+    if (!Number.isFinite(y)) return String(rawYear ?? '');
+    // Requested UI window: 2021/2 to 2026
+    // 2021 -> 2021/2, 2022 -> 2022/3, ... 2025 -> 2025/6
+    if (y >= 2021 && y <= 2025) {
+      const next = y + 1;
+      return `${y}/${String(next).slice(-1)}`;
+    }
+    if (y === 2026) return '2026';
+    return String(y);
+  };
+
   // Load filter options with current filter values for cascading (faculties -> departments -> programs -> courses)
   const loadFilterOptions = async (currentFilters = {}) => {
     setLoading(true);
@@ -402,7 +415,7 @@ const GlobalFilterPanel = ({
                 <option value="">All Years</option>
                 {filterOptions.intake_years?.map((year, idx) => (
                   <option key={`year-${year || idx}`} value={year}>
-                    {year}
+                    {formatIntakeYearLabel(year)}
                   </option>
                 ))}
               </Select>
@@ -436,6 +449,8 @@ const GlobalFilterPanel = ({
                     } else if (key === 'semester_id') {
                       displayValue =
                         filterOptions.semesters?.find((s) => String(s.semester_id) === String(value))?.semester_name || value;
+                    } else if (key === 'intake_year') {
+                      displayValue = formatIntakeYearLabel(value);
                     }
                     return (
                       <Badge

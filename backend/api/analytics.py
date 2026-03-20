@@ -105,7 +105,12 @@ def build_filter_query(filters, base_query, user_scope):
         
         if _has_value(filters.get('intake_year')):
             where_clauses.append("EXTRACT(YEAR FROM ds.admission_date) = :filter_intake_year")
-            params['filter_intake_year'] = filters['intake_year']
+            try:
+                params['filter_intake_year'] = int(filters['intake_year'])
+            except (ValueError, TypeError):
+                # Keep original value if it can't be coerced; SQL will error if invalid,
+                # but this avoids silently changing semantics.
+                params['filter_intake_year'] = filters['intake_year']
         
         if _has_value(filters.get('semester_id')):
             where_clauses.append("fg.semester_id = :filter_semester_id")
@@ -205,6 +210,21 @@ def get_fex_analytics():
             'N/A' as course_name
             """
             group_by_cols = "dp.program_id, dp.program_name, ddept.department_name, dc.department, df.faculty_name"
+        elif drilldown == 'year_of_study':
+            # When a program is selected, show the distribution across student year-of-study.
+            select_cols = """
+            COALESCE(ds.year_of_study, 1) as year_of_study,
+            CONCAT('Year ', COALESCE(ds.year_of_study, 1)) as year_label,
+            'N/A' as faculty_id,
+            'N/A' as faculty_name,
+            'N/A' as department_id,
+            'N/A' as department,
+            'N/A' as program_id,
+            'N/A' as program_name,
+            'N/A' as course_code,
+            'N/A' as course_name
+            """
+            group_by_cols = "COALESCE(ds.year_of_study, 1)"
         elif drilldown == 'course':
             select_cols = """
             dc.course_code,
@@ -1571,8 +1591,9 @@ def get_filter_options():
                     years.append(int(float(y)))
                 except Exception:
                     continue
-            # Business rule: clamp to <= 2026 and apply semester/year compatibility
-            base_years = [y for y in years if y is not None and y <= 2026]
+            # Business rule: only show intake years within the supported window.
+            # Requested UI range: 2021/2 to 2026 (we still store/filter by numeric year).
+            base_years = [y for y in years if y is not None and y >= 2021 and y <= 2026]
             # If a specific semester is selected:
             # - For May (2) or September (3), 2026 should not appear
             if semester_id_filter in (2, 3):

@@ -28,10 +28,6 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
   const [loading, setLoading] = useState(true);
   const [fexData, setFexData] = useState(null);
 
-  // Keep page header uniform with other pages: only the Global cascading Filters panel is user-editable.
-  // Drilldown is fixed.
-  const drilldown = 'faculty';
-
   const savedState = loadPageState('fex_analytics', { filters: {}, drilldown: 'faculty', tab: 'distribution' });
   // Keep filters hydrated by GlobalFilterPanel persistence (statePersistence.loadFilters).
   // This matches the Analyst Workspace behavior and avoids mixing `loadPageState(filters)`
@@ -41,6 +37,20 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
 
   const filters = externalFilters != null ? externalFilters : internalFilters;
   const isControlled = externalFilters != null;
+
+  // Match Analyst Workspace cascading behavior:
+  // - Department selected => chart groups by Program
+  // - Program selected => chart groups by Year of Study
+  // - Faculty selected (fallback) => chart groups by Department
+  // - Nothing selected => chart groups by Faculty
+  const drilldown =
+    filters.program_id
+      ? 'year_of_study'
+      : filters.department_id
+        ? 'program'
+        : filters.faculty_id
+          ? 'department'
+          : 'faculty';
 
   useEffect(() => {
     if (!isControlled) savePageState('fex_analytics', { filters: {}, tab: activeTab });
@@ -87,6 +97,10 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
   const COLORS = CHART_PALETTE;
 
   const getDataKey = () => {
+    if (drilldown === 'faculty') return 'faculty_name';
+    if (drilldown === 'department') return 'department';
+    if (drilldown === 'program') return 'program_name';
+    if (drilldown === 'year_of_study') return 'year_label';
     return 'faculty_name';
   };
 
@@ -118,12 +132,23 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
   const chartDataForChart = (chartData || []).map((row) => {
     const key = getDataKey();
     const fullName = row?.[key] ?? '';
+    const axisName =
+      drilldown === 'year_of_study' ? String(fullName || '') : abbreviateName(String(fullName || ''));
     return {
       ...row,
-      name: abbreviateName(String(fullName || '')),
+      name: axisName,
       fullName: String(fullName || ''),
     };
   });
+
+  const xAxisLabel =
+    drilldown === 'faculty'
+      ? 'Faculty'
+      : drilldown === 'department'
+        ? 'Department'
+        : drilldown === 'program'
+          ? 'Program'
+          : 'Year of Study';
 
   const rolePrefix = user?.role?.toLowerCase() === 'sysadmin' ? 'admin' : user?.role?.toLowerCase() || 'dashboard';
 
@@ -178,7 +203,11 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className={chartContainerClass} data-chart-title={`FEX Distribution by ${drilldown}`} data-chart-container="true">
+            <div
+              className={chartContainerClass}
+              data-chart-title={`FEX Distribution by ${xAxisLabel}`}
+              data-chart-container="true"
+            >
               {chartData.length > 0 ? (
                 <SciBarChart
                   data={chartDataForChart}
@@ -188,7 +217,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
                     { key: 'total_mex', label: 'MEX', color: '#f59e0b' },
                     { key: 'total_fcw', label: 'FCW', color: '#8b5cf6' }
                   ]}
-                  xAxisLabel={drilldown.charAt(0).toUpperCase() + drilldown.slice(1)}
+                  xAxisLabel={xAxisLabel}
                   yAxisLabel="Count"
                   showLegend={true}
                   showGrid={true}
