@@ -20,6 +20,7 @@ import {
   SciBarChart,
   SciLineChart,
   SciDonutChart,
+  Sci3DPieChart,
   SciStackedColumnChart,
   SciAreaChart,
   UCU_COLORS,

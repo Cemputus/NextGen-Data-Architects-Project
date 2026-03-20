@@ -110,6 +110,7 @@ export function SciBarChart({
   showLegend = true,
   showGrid = true,
   tooltipNameKey = null,
+  tooltipMode = 'single', // 'single' (old) or 'breakdown' (multi-series breakdown)
   minHeight = chartMinHeight,
   maxHeight = chartMaxHeight,
 }) {
@@ -137,12 +138,22 @@ export function SciBarChart({
       tooltip: {
         ...defaultTooltip,
         formatter: (params) => {
-          const p = Array.isArray(params) ? params[0] : params;
-          const idx = p?.dataIndex ?? 0;
+          const pArr = Array.isArray(params) ? params : [params];
+          const first = pArr[0] || {};
+          const idx = first?.dataIndex ?? 0;
           const raw = Array.isArray(data) && data[idx] ? data[idx] : {};
-          const label =
-            (tooltipNameKey && raw && raw[tooltipNameKey]) || p?.name || '';
-          return `${label}<br/>${yAxisLabel}: ${formatTooltipValue(p.value)}`;
+          const label = (tooltipNameKey && raw && raw[tooltipNameKey]) || first?.name || '';
+
+          if (tooltipMode === 'breakdown' && pArr.length > 1) {
+            // Show all FCW/MEX/FEX series for this category.
+            const breakdown = pArr
+              .map((p) => `${p?.seriesName || ''}: ${formatTooltipValue(p?.value)}`)
+              .filter(Boolean)
+              .join('<br/>');
+            return `${label}<br/>${breakdown}`;
+          }
+
+          return `${label}<br/>${yAxisLabel}: ${formatTooltipValue(first?.value)}`;
         },
       },
       legend: showLegend ? { show: true, bottom: 0, textStyle: defaultTextStyle } : { show: false },

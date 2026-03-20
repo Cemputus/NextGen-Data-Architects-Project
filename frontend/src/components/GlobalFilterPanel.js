@@ -17,7 +17,7 @@ import { useAuth } from '../context/AuthContext';
 
 const GlobalFilterPanel = ({
   onFilterChange,
-  savedFilters = [],
+  savedFilters = {},
   pageName = 'global',
   hideHighSchool = false,
   hideAcademic = false,
@@ -36,10 +36,15 @@ const GlobalFilterPanel = ({
   const effectiveHideDepartment = hideDepartment || isHod;
 
   // Load persisted filters and search term for this page (per-user)
-  const savedFiltersState = loadFilters(pageName, savedFilters || {});
+  // Normalize `savedFilters` to an object because some callers previously passed `[]`.
+  const normalizedSavedFilters =
+    savedFilters && typeof savedFilters === 'object' && !Array.isArray(savedFilters) ? savedFilters : {};
+  const savedFiltersState = loadFilters(pageName, normalizedSavedFilters);
   const savedSearch = loadSearchTerm(pageName, '');
   
-  const [filters, setFilters] = useState(savedFiltersState);
+  const [filters, setFilters] = useState(
+    savedFiltersState && typeof savedFiltersState === 'object' && !Array.isArray(savedFiltersState) ? savedFiltersState : {}
+  );
   const [filterOptions, setFilterOptions] = useState({
     faculties: [],
     departments: [],
@@ -207,9 +212,6 @@ const GlobalFilterPanel = ({
     onFilterChange(newFilters);
     logAuditEvent('filter_applied', 'filters', pageName);
     saveFilters(pageName, newFilters);
-    setTimeout(() => {
-      loadFilterOptions(newFilters);
-    }, 100);
   };
 
   const handleSearch = () => {

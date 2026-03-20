@@ -13,29 +13,14 @@ import PageShell from '../components/shared/PageShell';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
-import { loadPageState, savePageState } from '../utils/statePersistence';
 
 const AnalyticsPage = ({ type = 'general' }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
-  
-  // Treat role analytics pages as "live" views – always start with clean filters
-  // so charts aren't silently filtered out by stale saved state.
-  const isAnalyticsOverviewType = ['analyst', 'senate', 'hod', 'dean', 'hr', 'finance'].includes(type);
 
-  // Load persisted state on mount (only for non-overview uses)
-  const savedState = isAnalyticsOverviewType
-    ? { filters: {} }
-    : loadPageState(`${type}_analytics`, { filters: {} });
-  const [filters, setFilters] = useState(savedState.filters || {});
-
-  // Save state whenever it changes (skip for live analytics overview pages)
-  useEffect(() => {
-    if (!isAnalyticsOverviewType) {
-      savePageState(`${type}_analytics`, { filters });
-    }
-  }, [filters, type, isAnalyticsOverviewType]);
+  // Filters come exclusively from GlobalFilterPanel persistence (statePersistence.loadFilters/saveFilters).
+  const [filters, setFilters] = useState({});
 
   useEffect(() => {
     loadAnalytics();

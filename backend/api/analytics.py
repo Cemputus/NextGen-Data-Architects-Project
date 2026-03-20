@@ -40,6 +40,19 @@ def build_filter_query(filters, base_query, user_scope):
     """Build SQL query with filters and role-based scoping"""
     where_clauses = []
     params = {}
+
+    def _has_value(v):
+        """Return True if the frontend provided a real filter value.
+        The UI uses the string 'all' to mean 'no selection'.
+        """
+        if v is None:
+            return False
+        if isinstance(v, str):
+            if v.strip() == '':
+                return False
+            if v.strip().lower() == 'all':
+                return False
+        return True
     
     # Role-based scoping
     if user_scope['role'] == Role.STUDENT:
@@ -66,47 +79,47 @@ def build_filter_query(filters, base_query, user_scope):
     
     # Apply filters
     if filters:
-        if filters.get('faculty_id'):
+        if _has_value(filters.get('faculty_id')):
             where_clauses.append("df.faculty_id = :filter_faculty_id")
             params['filter_faculty_id'] = filters['faculty_id']
         
-        if filters.get('department_id'):
+        if _has_value(filters.get('department_id')):
             where_clauses.append("ddept.department_id = :filter_department_id")
             params['filter_department_id'] = filters['department_id']
         
-        if filters.get('program_id'):
+        if _has_value(filters.get('program_id')):
             where_clauses.append("dp.program_id = :filter_program_id")
             params['filter_program_id'] = filters['program_id']
         
-        if filters.get('course_code'):
+        if _has_value(filters.get('course_code')):
             where_clauses.append("dc.course_code = :filter_course_code")
             params['filter_course_code'] = filters['course_code']
         
-        if filters.get('access_number'):
+        if _has_value(filters.get('access_number')):
             where_clauses.append("ds.access_number = :filter_access_number")
             params['filter_access_number'] = filters['access_number']
         
-        if filters.get('reg_number'):
+        if _has_value(filters.get('reg_number')):
             where_clauses.append("ds.reg_no = :filter_reg_number")
             params['filter_reg_number'] = str(filters['reg_number']).strip().upper()
         
-        if filters.get('intake_year'):
+        if _has_value(filters.get('intake_year')):
             where_clauses.append("EXTRACT(YEAR FROM ds.admission_date) = :filter_intake_year")
             params['filter_intake_year'] = filters['intake_year']
         
-        if filters.get('semester_id'):
+        if _has_value(filters.get('semester_id')):
             where_clauses.append("fg.semester_id = :filter_semester_id")
             params['filter_semester_id'] = filters['semester_id']
         
-        if filters.get('gender'):
+        if _has_value(filters.get('gender')):
             where_clauses.append("ds.gender = :filter_gender")
             params['filter_gender'] = filters['gender']
         
-        if filters.get('high_school'):
+        if _has_value(filters.get('high_school')):
             where_clauses.append("ds.high_school LIKE :filter_high_school")
             params['filter_high_school'] = f"%{filters['high_school']}%"
         
-        if filters.get('student_name'):
+        if _has_value(filters.get('student_name')):
             where_clauses.append("(ds.first_name LIKE :filter_student_name OR ds.last_name LIKE :filter_student_name OR CONCAT(ds.first_name, ' ', ds.last_name) LIKE :filter_student_name)")
             params['filter_student_name'] = f"%{filters['student_name']}%"
     

@@ -32,16 +32,18 @@ const AcademicRiskDashboard = () => {
     const [correlationData, setCorrelationData] = useState(null);
 
     const savedState = loadPageState('academic_risk_dashboard', { filters: {}, tab: 'summary' });
-    const [filters, setFilters] = useState(savedState.filters || {});
+    // Filters should come exclusively from GlobalFilterPanel persistence (not loadPageState).
+    const [filters, setFilters] = useState({});
     const [activeTab, setActiveTab] = useState(savedState.tab || 'summary');
 
     useEffect(() => {
         loadData();
     }, [filters]);
 
+    // Persist tab only; keep filter persistence handled by GlobalFilterPanel.
     useEffect(() => {
-        savePageState('academic_risk_dashboard', { filters, tab: activeTab });
-    }, [filters, activeTab]);
+        savePageState('academic_risk_dashboard', { filters: {}, tab: activeTab });
+    }, [activeTab]);
 
     const loadData = async () => {
         try {
@@ -115,7 +117,14 @@ const AcademicRiskDashboard = () => {
 
             {/* Filters - role-based: Dean starts at Department, HOD at Program */}
             <GlobalFilterPanel
-                onFilterChange={setFilters}
+                onFilterChange={(next) => {
+                    // KPI requirement: always compute FEX/MEX/FCW for the latest semester.
+                    // UI can persist older semester filters, so we force them to "all" here.
+                    const normalized = { ...(next || {}) };
+                    normalized.semester_id = 'all';
+                    normalized.academic_year = 'all';
+                    setFilters(normalized);
+                }}
                 pageName="academic_risk_dashboard"
                 hideFaculty={isDean || isHod}
                 hideDepartment={isHod}

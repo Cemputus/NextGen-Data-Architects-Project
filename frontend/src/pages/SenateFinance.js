@@ -10,23 +10,16 @@ import ModernStatsCards from '../components/ModernStatsCards';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
-import { loadPageState, savePageState } from '../utils/statePersistence';
 
 const SenateFinance = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
-  
-  // Load persisted state
-  const savedState = loadPageState('senate_finance', { filters: {} });
-  const [filters, setFilters] = useState(savedState.filters || {});
+
+  // Filters come exclusively from GlobalFilterPanel persistence (statePersistence.saveFilters/loadFilters).
+  const [filters, setFilters] = useState({});
 
   useEffect(() => {
     loadFinanceData();
-  }, [filters]);
-
-  // Save state whenever it changes
-  useEffect(() => {
-    savePageState('senate_finance', { filters });
   }, [filters]);
 
   const loadFinanceData = async () => {

@@ -18,12 +18,11 @@ import { loadPageState, savePageState, loadDrilldown, saveDrilldown } from '../u
 
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, PageContent } from '../components/ui/page-header';
-import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { useAuth } from '../context/AuthContext';
 import { CHART_PALETTE } from '../config/designTokens';
 import { Skeleton } from '../components/ui/skeleton';
 
-const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
+const FEXAnalytics = ({ filters: externalFilters, onFilterChange: _externalOnFilterChange }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -31,15 +30,18 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
 
   const savedState = loadPageState('fex_analytics', { filters: {}, drilldown: 'overall', tab: 'distribution' });
   const [drilldown, setDrilldown] = useState(savedState.drilldown || 'overall');
-  const [internalFilters, setInternalFilters] = useState(savedState.filters || {});
+  // Keep filters hydrated by GlobalFilterPanel persistence (statePersistence.loadFilters).
+  // This matches the Analyst Workspace behavior and avoids mixing `loadPageState(filters)`
+  // with `loadFilters(pageName)` which use different localStorage keys.
+  const [internalFilters] = useState({});
   const [activeTab, setActiveTab] = useState(savedState.tab || 'distribution');
 
   const filters = externalFilters != null ? externalFilters : internalFilters;
   const isControlled = externalFilters != null;
 
   useEffect(() => {
-    if (!isControlled) savePageState('fex_analytics', { filters: internalFilters, drilldown, tab: activeTab });
-  }, [isControlled, internalFilters, drilldown, activeTab]);
+    if (!isControlled) savePageState('fex_analytics', { filters: {}, drilldown, tab: activeTab });
+  }, [isControlled, drilldown, activeTab]);
 
   useEffect(() => {
     loadFEXData();
@@ -98,7 +100,31 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
   };
 
   const chartData = fexData?.data || [];
-  const chartContainerClass = "min-h-[200px] max-h-[320px] w-full";
+  const chartContainerClass = "min-h-[320px] max-h-[460px] w-full";
+
+  const abbreviateName = (name) => {
+    if (!name) return '';
+    const trimmed = name.toString().trim();
+    if (!trimmed) return '';
+    const words = trimmed.split(/\s+/);
+    if (words.length === 1) {
+      return trimmed.length > 10 ? `${trimmed.slice(0, 10)}…` : trimmed;
+    }
+    return words.map((w) => w[0]).join('').toUpperCase();
+  };
+
+  // Match “Student distribution labels + tooltip” behavior:
+  // - x-axis uses abbreviated `name`
+  // - tooltip uses full `fullName`
+  const chartDataForChart = (chartData || []).map((row) => {
+    const key = getDataKey();
+    const fullName = row?.[key] ?? '';
+    return {
+      ...row,
+      name: abbreviateName(String(fullName || '')),
+      fullName: String(fullName || ''),
+    };
+  });
 
   const rolePrefix = user?.role?.toLowerCase() === 'sysadmin' ? 'admin' : user?.role?.toLowerCase() || 'dashboard';
 
@@ -143,12 +169,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
         }
       />
 
-      {!isControlled && (
-        <GlobalFilterPanel
-          onFilterChange={setInternalFilters}
-          pageName="fex_analytics"
-        />
-      )}
+      {/* Upper cascading filter removed on purpose (keep only drilldown dropdown next to Risk Analysis). */}
 
       {loading ? (
         <div className="rounded-lg border border-border bg-card p-6 space-y-4">
@@ -170,8 +191,8 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
             <div className={chartContainerClass} data-chart-title={`FEX Distribution by ${drilldown}`} data-chart-container="true">
               {chartData.length > 0 ? (
                 <SciBarChart
-                  data={chartData}
-                  xDataKey={getDataKey()}
+                  data={chartDataForChart}
+                  xDataKey="name"
                   yDataKeys={[
                     { key: 'total_fex', label: 'FEX', color: '#ef4444' },
                     { key: 'total_mex', label: 'MEX', color: '#f59e0b' },
@@ -181,6 +202,10 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
                   yAxisLabel="Count"
                   showLegend={true}
                   showGrid={true}
+                  tooltipNameKey="fullName"
+                  tooltipMode="breakdown"
+                  minHeight={400}
+                  maxHeight={440}
                 />
               ) : (
                 <EmptyState
