@@ -7,41 +7,44 @@ import { motion } from 'framer-motion';
 import { TrendingDown, AlertTriangle, FileText, Download, BarChart3, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Select } from '../components/ui/select';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
 import { SciBarChart, UCU_COLORS } from '../components/charts/EChartsComponents';
 import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
 import { EmptyState } from '../components/ui/state-messages';
 import { Loader2 } from 'lucide-react';
-import { loadPageState, savePageState, loadDrilldown, saveDrilldown } from '../utils/statePersistence';
+import { loadPageState, savePageState } from '../utils/statePersistence';
 
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, PageContent } from '../components/ui/page-header';
+import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { useAuth } from '../context/AuthContext';
 import { CHART_PALETTE } from '../config/designTokens';
 import { Skeleton } from '../components/ui/skeleton';
 
-const FEXAnalytics = ({ filters: externalFilters, onFilterChange: _externalOnFilterChange }) => {
+const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [fexData, setFexData] = useState(null);
 
-  const savedState = loadPageState('fex_analytics', { filters: {}, drilldown: 'overall', tab: 'distribution' });
-  const [drilldown, setDrilldown] = useState(savedState.drilldown || 'overall');
+  // Keep page header uniform with other pages: only the Global cascading Filters panel is user-editable.
+  // Drilldown is fixed.
+  const drilldown = 'faculty';
+
+  const savedState = loadPageState('fex_analytics', { filters: {}, drilldown: 'faculty', tab: 'distribution' });
   // Keep filters hydrated by GlobalFilterPanel persistence (statePersistence.loadFilters).
   // This matches the Analyst Workspace behavior and avoids mixing `loadPageState(filters)`
   // with `loadFilters(pageName)` which use different localStorage keys.
-  const [internalFilters] = useState({});
+  const [internalFilters, setInternalFilters] = useState({});
   const [activeTab, setActiveTab] = useState(savedState.tab || 'distribution');
 
   const filters = externalFilters != null ? externalFilters : internalFilters;
   const isControlled = externalFilters != null;
 
   useEffect(() => {
-    if (!isControlled) savePageState('fex_analytics', { filters: {}, drilldown, tab: activeTab });
-  }, [isControlled, drilldown, activeTab]);
+    if (!isControlled) savePageState('fex_analytics', { filters: {}, tab: activeTab });
+  }, [isControlled, activeTab]);
 
   useEffect(() => {
     loadFEXData();
@@ -84,10 +87,6 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: _externalOnFil
   const COLORS = CHART_PALETTE;
 
   const getDataKey = () => {
-    if (drilldown === 'faculty') return 'faculty_name';
-    if (drilldown === 'department') return 'department';
-    if (drilldown === 'program') return 'program_name';
-    if (drilldown === 'course') return 'course_name';
     return 'faculty_name';
   };
 
@@ -135,21 +134,6 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: _externalOnFil
         description="Deep dive into failed exams and performance bottlenecks, focused on the current semester by default unless you choose a specific period."
         actions={
           <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-            <Select
-              value={drilldown}
-              onChange={(e) => {
-                const newDrilldown = e.target.value;
-                setDrilldown(newDrilldown);
-                saveDrilldown('fex_analytics', newDrilldown);
-              }}
-              className="w-full sm:w-48 h-9"
-            >
-              <option value="overall">Overall</option>
-              <option value="faculty">By Faculty</option>
-              <option value="department">By Department</option>
-              <option value="program">By Program</option>
-              <option value="course">By Course</option>
-            </Select>
             <Button
               variant="outline"
               size="sm"
@@ -169,7 +153,13 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: _externalOnFil
         }
       />
 
-      {/* Upper cascading filter removed on purpose (keep only drilldown dropdown next to Risk Analysis). */}
+      {!isControlled && (
+        <GlobalFilterPanel
+          onFilterChange={setInternalFilters}
+          savedFilters={internalFilters}
+          pageName="fex_analytics"
+        />
+      )}
 
       {loading ? (
         <div className="rounded-lg border border-border bg-card p-6 space-y-4">
@@ -184,7 +174,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: _externalOnFil
               FEX distribution
             </CardTitle>
             <CardDescription className="text-xs">
-              KPI cards were removed to avoid duplicate KPI sections. Use the drilldown selector above.
+              KPI cards were removed to avoid duplicate KPI sections. Use cascading filters to refine scope.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
