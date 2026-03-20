@@ -121,7 +121,9 @@ def build_filter_query(filters, base_query, user_scope):
             params['filter_gender'] = filters['gender']
         
         if _has_value(filters.get('high_school')):
-            where_clauses.append("ds.high_school LIKE :filter_high_school")
+            # Use case-insensitive match to ensure UI-selected values
+            # always filter consistently.
+            where_clauses.append("ds.high_school ILIKE :filter_high_school")
             params['filter_high_school'] = f"%{filters['high_school']}%"
         
         if _has_value(filters.get('student_name')):
