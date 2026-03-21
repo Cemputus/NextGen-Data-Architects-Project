@@ -10,11 +10,12 @@ const chartHeight = 360;
 const chartMinHeight = 300;
 const chartMaxHeight = 480;
 
-/** Line chart */
+/** Line chart — single series (`yDataKey`) or multiple (`yDataKeys` like SciBarChart). */
 export function SciLineChart({
   data = [],
   xDataKey = 'x',
   yDataKey = 'y',
+  yDataKeys = null,
   height = chartHeight,
   xAxisLabel = 'X Axis',
   yAxisLabel = 'Y Axis',
@@ -27,18 +28,50 @@ export function SciLineChart({
 }) {
   const option = useMemo(() => {
     const xValues = data.map((d) => d[xDataKey]);
-    const yValues = data.map((d) => d[yDataKey] ?? 0);
     const x0 = xValues[0];
     const isNumericX = typeof x0 === 'number' && !Number.isNaN(x0);
+    const hasMultiple = yDataKeys && Array.isArray(yDataKeys) && yDataKeys.length > 0;
+
+    const series = hasMultiple
+      ? yDataKeys.map((s, i) => ({
+          name: s.label || s.key,
+          type: 'line',
+          data: isNumericX
+            ? data.map((d) => [d[xDataKey], d[s.key] ?? 0])
+            : data.map((d) => d[s.key] ?? 0),
+          smooth,
+          lineStyle: { width: s.strokeWidth ?? strokeWidth, color: s.color || CHART_PALETTE_THEME[i % CHART_PALETTE_THEME.length] },
+          itemStyle: { color: s.color || CHART_PALETTE_THEME[i % CHART_PALETTE_THEME.length] },
+          symbol: 'circle',
+          symbolSize,
+        }))
+      : [
+          {
+            name: yAxisLabel,
+            type: 'line',
+            data: isNumericX ? data.map((d) => [d[xDataKey], d[yDataKey] ?? 0]) : data.map((d) => d[yDataKey] ?? 0),
+            smooth,
+            lineStyle: { width: strokeWidth, color: strokeColor },
+            itemStyle: { color: strokeColor },
+            symbol: 'circle',
+            symbolSize,
+          },
+        ];
+
     return {
       grid: defaultGrid,
       tooltip: {
         ...defaultTooltip,
         trigger: 'axis',
         formatter: (params) => {
-          const p = Array.isArray(params) ? params[0] : params;
-          const axisLabel = p?.axisValueLabel ?? p?.name ?? '';
-          const rawVal = p?.value;
+          const pArr = Array.isArray(params) ? params : [params];
+          const first = pArr[0] || {};
+          const axisLabel = first?.axisValueLabel ?? first?.name ?? '';
+          if (hasMultiple && pArr.length > 1) {
+            const lines = pArr.map((p) => `${p?.seriesName || ''}: ${formatTooltipValue(p?.value)}`).join('<br/>');
+            return `${axisLabel}<br/>${lines}`;
+          }
+          const rawVal = first?.value;
           const yVal = Array.isArray(rawVal) ? rawVal[1] : rawVal;
           return `${axisLabel}<br/>${yAxisLabel}: ${formatTooltipValue(yVal)}`;
         },
@@ -68,20 +101,22 @@ export function SciLineChart({
         },
         splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
       },
-      series: [
-        {
-          name: yAxisLabel,
-          type: 'line',
-          data: isNumericX ? data.map((d) => [d[xDataKey], d[yDataKey]]) : yValues,
-          smooth,
-          lineStyle: { width: strokeWidth, color: strokeColor },
-          itemStyle: { color: strokeColor },
-          symbol: 'circle',
-          symbolSize,
-        },
-      ],
+      series,
     };
-  }, [data, xDataKey, yDataKey, xAxisLabel, yAxisLabel, strokeColor, strokeWidth, showLegend, showGrid, smooth, symbolSize]);
+  }, [
+    data,
+    xDataKey,
+    yDataKey,
+    yDataKeys,
+    xAxisLabel,
+    yAxisLabel,
+    strokeColor,
+    strokeWidth,
+    showLegend,
+    showGrid,
+    smooth,
+    symbolSize,
+  ]);
 
   if (!data || data.length === 0) {
     return (

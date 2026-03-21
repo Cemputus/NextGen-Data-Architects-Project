@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, X, Filter, Sparkles } from 'lucide-react';
+import { Search, X, Filter } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select } from './ui/select';
@@ -12,6 +12,7 @@ import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import axios from 'axios';
 import { loadFilters, saveFilters, loadSearchTerm, saveSearchTerm } from '../utils/statePersistence';
+import { sanitizeDashboardFilters } from '../utils/filterUtils';
 import { logAuditEvent } from '../utils/audit';
 import { useAuth } from '../context/AuthContext';
 
@@ -49,10 +50,14 @@ const GlobalFilterPanel = ({
     savedFilters && typeof savedFilters === 'object' && !Array.isArray(savedFilters) ? savedFilters : {};
   const savedFiltersState = loadFilters(pageName, normalizedSavedFilters);
   const savedSearch = loadSearchTerm(pageName, '');
-  
-  const [filters, setFilters] = useState(
-    savedFiltersState && typeof savedFiltersState === 'object' && !Array.isArray(savedFiltersState) ? savedFiltersState : {}
-  );
+
+  const [filters, setFilters] = useState(() => {
+    const raw =
+      savedFiltersState && typeof savedFiltersState === 'object' && !Array.isArray(savedFiltersState)
+        ? savedFiltersState
+        : {};
+    return sanitizeDashboardFilters(raw);
+  });
   const [filterOptions, setFilterOptions] = useState({
     faculties: [],
     departments: [],
@@ -180,9 +185,10 @@ const GlobalFilterPanel = ({
       }
 
       if (changed) {
-        setFilters(cleanedFilters);
-        onFilterChange(cleanedFilters);
-        saveFilters(pageName, cleanedFilters);
+        const sanitized = sanitizeDashboardFilters(cleanedFilters);
+        setFilters(sanitized);
+        onFilterChange(sanitized);
+        saveFilters(pageName, sanitized);
       }
     } catch (err) {
       console.error('Error loading filter options:', err);
@@ -208,7 +214,7 @@ const GlobalFilterPanel = ({
     const fid = String(lockedFacultyId);
     setFilters((prev) => {
       if (String(prev.faculty_id) === fid) return prev;
-      const next = { ...prev, faculty_id: fid };
+      const next = sanitizeDashboardFilters({ ...prev, faculty_id: fid });
       onFilterChange(next);
       saveFilters(pageName, next);
       return next;
@@ -221,7 +227,7 @@ const GlobalFilterPanel = ({
     const did = String(lockedDepartmentId);
     setFilters((prev) => {
       if (String(prev.department_id) === did) return prev;
-      const next = { ...prev, department_id: did };
+      const next = sanitizeDashboardFilters({ ...prev, department_id: did });
       onFilterChange(next);
       saveFilters(pageName, next);
       return next;
@@ -245,12 +251,11 @@ const GlobalFilterPanel = ({
     lockedDepartmentId,
   ]);
   
-  // Notify parent of initial filters on mount
+  // Notify parent on mount so charts refetch with the same scope as the panel (including empty = full role/institution view).
   useEffect(() => {
-    if (Object.keys(filters).length > 0) {
-      onFilterChange(filters);
-    }
-  }, []); // Only on mount
+    onFilterChange(sanitizeDashboardFilters(filters));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount with initial persisted filters
+  }, []);
 
   const handleFilterChange = (key, value) => {
     if (key === 'faculty_id' && lockedFacultyId != null && lockedFacultyId !== '') {
@@ -278,14 +283,17 @@ const GlobalFilterPanel = ({
     
     if (value === '' || value === null) {
       delete newFilters[key];
+    } else if (typeof value === 'string' && value.trim().toLowerCase() === 'all') {
+      delete newFilters[key];
     } else {
       newFilters[key] = value;
     }
-    
-    setFilters(newFilters);
-    onFilterChange(newFilters);
+
+    const sanitized = sanitizeDashboardFilters(newFilters);
+    setFilters(sanitized);
+    onFilterChange(sanitized);
     logAuditEvent('filter_applied', 'filters', pageName);
-    saveFilters(pageName, newFilters);
+    saveFilters(pageName, sanitized);
   };
 
   const handleSearch = () => {
@@ -319,16 +327,21 @@ const GlobalFilterPanel = ({
     if (lockedDepartmentId != null && lockedDepartmentId !== '') {
       base.department_id = String(lockedDepartmentId);
     }
-    setFilters(base);
+    const sanitized = sanitizeDashboardFilters(base);
+    setFilters(sanitized);
     setSearchTerm('');
     saveSearchTerm(pageName, '');
-    onFilterChange(base);
+    onFilterChange(sanitized);
     logAuditEvent('filter_cleared', 'filters', pageName);
-    saveFilters(pageName, base);
-    loadFilterOptions(base);
+    saveFilters(pageName, sanitized);
+    loadFilterOptions(sanitized);
   };
 
-  const activeFiltersCount = Object.keys(filters).filter(k => filters[k]).length;
+  const sanitizedForCount = sanitizeDashboardFilters(filters);
+  const activeFiltersCount = Object.keys(sanitizedForCount).filter((k) => {
+    const v = sanitizedForCount[k];
+    return v !== null && v !== undefined && String(v).trim() !== '';
+  }).length;
 
   return (
     <motion.div

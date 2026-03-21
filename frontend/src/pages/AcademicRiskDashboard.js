@@ -4,7 +4,7 @@
  * Includes High School background correlation analysis
  */
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, TrendingDown, School, Users, AlertTriangle, GraduationCap, Calendar } from 'lucide-react';
+import { ShieldAlert, TrendingDown, AlertTriangle, GraduationCap, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
@@ -12,13 +12,11 @@ import ExportButtons from '../components/ExportButtons';
 import { KPICard } from '../components/ui/kpi-card';
 import { DashboardGrid } from '../components/ui/dashboard-grid';
 import axios from 'axios';
-import { SciBarChart, SciDonutChart, SciLineChart, UCU_COLORS } from '../components/charts/EChartsComponents';
-import { Loader2 } from 'lucide-react';
+import { SciBarChart, SciDonutChart, SciLineChart } from '../components/charts/EChartsComponents';
 import { loadPageState, savePageState } from '../utils/statePersistence';
 import { DataTable } from '../components/shared/DataTable';
 import { FilterChips } from '../components/shared/FilterChips';
 import { SkeletonTable } from '../components/ui/skeleton';
-import { AlertBanner } from '../components/ui/alert-banner';
 import { exportTableToExcel } from '../utils/exportUtils';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
@@ -29,12 +27,33 @@ import {
   chartCardDescriptionClass,
   chartEmptyStateClass,
 } from '../lib/analytics-ui';
+import { sanitizeDashboardFilters } from '../utils/filterUtils';
 
 const AcademicRiskDashboard = () => {
     const { user } = useAuth();
     const role = (user?.role || '').toString().toLowerCase();
     const isDean = role === 'dean';
     const isHod = role === 'hod';
+    const lockedFacultyId =
+        isDean && user?.faculty_id != null && user?.faculty_id !== ''
+            ? user.faculty_id
+            : undefined;
+    const lockedDepartmentId =
+        isHod && user?.department_id != null && user?.department_id !== ''
+            ? user.department_id
+            : undefined;
+
+    const filtersWithRoleLocks = (base = {}) => {
+        const next = { ...base };
+        if (lockedFacultyId != null && lockedFacultyId !== '') {
+            next.faculty_id = String(lockedFacultyId);
+        }
+        if (lockedDepartmentId != null && lockedDepartmentId !== '') {
+            next.department_id = String(lockedDepartmentId);
+        }
+        return sanitizeDashboardFilters(next);
+    };
+
     const [loading, setLoading] = useState(true);
     const [riskData, setRiskData] = useState(null);
     const [correlationData, setCorrelationData] = useState(null);
@@ -59,9 +78,10 @@ const AcademicRiskDashboard = () => {
             const token = sessionStorage.getItem('ucu_session_token');
             const headers = { Authorization: `Bearer ${token}` };
 
+            const params = filtersWithRoleLocks(filters);
             const [riskRes, corrRes] = await Promise.all([
-                axios.get('/api/analytics/academic-risk', { headers, params: filters }),
-                axios.get('/api/analytics/high-school-risk-correlation', { headers, params: filters })
+                axios.get('/api/analytics/academic-risk', { headers, params }),
+                axios.get('/api/analytics/high-school-risk-correlation', { headers, params })
             ]);
 
             setRiskData(riskRes.data);
@@ -75,12 +95,27 @@ const AcademicRiskDashboard = () => {
 
     const riskSummary = riskData?.summary || { fcw_count: 0, mex_count: 0, fex_count: 0, total_courses: 0, avg_grade: 0 };
     const correlations = correlationData?.by_school || [];
-    const trend = riskData?.trends || riskData?.trend || riskData?.risk_over_time || [];
+    const rawTrend = riskData?.trends || riskData?.trend || riskData?.risk_over_time || [];
+    // Normalize legacy monthly rows → line chart shape (prefer semester API fields).
+    const trend = rawTrend.map((row) => {
+        if (row.period != null) return row;
+        const period =
+            row.month_name != null && row.year != null
+                ? `${row.month_name} ${row.year}`
+                : String(row.semester_id ?? row.year ?? '');
+        return {
+            ...row,
+            period,
+            fcw_count: row.fcw_count ?? row.fcw ?? 0,
+            mex_count: row.mex_count ?? row.mex ?? 0,
+            fex_count: row.fex_count ?? row.fex ?? 0,
+        };
+    });
 
     const riskDistribution = [
-        { name: 'FCW (Failed Coursework)', value: riskSummary.fcw_count },
-        { name: 'MEX (Missed Exams)', value: riskSummary.mex_count },
-        { name: 'FEX (Failed Exams)', value: riskSummary.fex_count }
+        { name: 'FCW', value: riskSummary.fcw_count },
+        { name: 'MEX', value: riskSummary.mex_count },
+        { name: 'FEX', value: riskSummary.fex_count }
     ];
 
     const studentColumns = [
@@ -125,23 +160,25 @@ const AcademicRiskDashboard = () => {
 
             {/* Filters - role-based: Dean starts at Department, HOD at Program */}
             <GlobalFilterPanel
-                onFilterChange={(next) => {
-                    // KPI requirement: always compute FEX/MEX/FCW for the latest semester.
-                    // UI can persist older semester filters, so we force them to "all" here.
-                    const normalized = { ...(next || {}) };
-                    normalized.semester_id = 'all';
-                    normalized.academic_year = 'all';
-                    setFilters(normalized);
-                }}
+                onFilterChange={(next) => setFilters(filtersWithRoleLocks(next || {}))}
                 pageName="academic_risk_dashboard"
                 hideFaculty={isDean || isHod}
                 hideDepartment={isHod}
+                lockedFacultyId={lockedFacultyId}
+                lockedDepartmentId={lockedDepartmentId}
+                filterHint="Search by access number, reg no, or name. Cascade Faculty → Department → Program → Course → Semester → High School. Summary KPIs default to the latest semester when Semester is “All”."
             />
 
             <FilterChips
                 filters={filters}
-                onRemove={(key) => setFilters((prev) => ({ ...prev, [key]: 'all' }))}
-                onClearAll={() => setFilters({})}
+                onRemove={(key) =>
+                    setFilters((prev) => {
+                        const next = { ...prev };
+                        delete next[key];
+                        return filtersWithRoleLocks(next);
+                    })
+                }
+                onClearAll={() => setFilters(filtersWithRoleLocks({}))}
             />
 
             {loading ? (
@@ -172,10 +209,10 @@ const AcademicRiskDashboard = () => {
                             changeType="neutral"
                         />
                         <KPICard
-                            title="FCW (Financial Retakes)"
+                            title="FCW (failed coursework)"
                             value={riskSummary.fcw_count}
                             icon={TrendingDown}
-                            subtitle="Financial clearance issues"
+                            subtitle="Coursework / clearance flags (FCW)"
                             changeType="negative"
                         />
                         <KPICard
@@ -209,8 +246,7 @@ const AcademicRiskDashboard = () => {
                                                 data={riskDistribution}
                                                 nameKey="name"
                                                 valueKey="value"
-                                                // Requested: FCW=maroon/malon, MEX=orange, FEX=red
-                                                colors={['#8B5CF6', '#F59E0B', '#EF4444']}
+                                                colors={['#7f1d1d', '#F59E0B', '#EF4444']}
                                             />
                                         </div>
                                     </CardContent>
@@ -256,13 +292,13 @@ const AcademicRiskDashboard = () => {
                                             <SciLineChart
                                                 data={trend}
                                                 xDataKey="period"
-                                                series={[
+                                                yDataKeys={[
                                                     { key: 'fex_count', label: 'FEX', color: '#EF4444' },
                                                     { key: 'mex_count', label: 'MEX', color: '#F59E0B' },
-                                                    { key: 'fcw_count', label: 'FCW', color: '#8B5CF6' },
+                                                    { key: 'fcw_count', label: 'FCW', color: '#7f1d1d' },
                                                 ]}
-                                                xAxisLabel="Semester / Academic Year"
-                                                yAxisLabel="Number of events"
+                                                xAxisLabel="Semester"
+                                                yAxisLabel="Count of grade events"
                                                 showLegend
                                             />
                                         ) : (
@@ -346,7 +382,7 @@ const AcademicRiskDashboard = () => {
                                     <DataTable
                                         data={riskData?.at_risk_students || []}
                                         columns={studentColumns}
-                                        itemsPerPage={8}
+                                        itemsPerPage={15}
                                         searchable
                                         searchPlaceholder="Search students..."
                                         onExport={(data) => exportTableToExcel(data, studentColumns, 'academic_risk_students')}

@@ -921,6 +921,7 @@ def get_academic_risk_dashboard():
         LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        LEFT JOIN dim_course dc ON fg.course_code = dc.course_code
         """
 
         q, params = build_filter_query(filters, base_query, user_scope)
@@ -937,50 +938,71 @@ def get_academic_risk_dashboard():
         q += " GROUP BY exam_status"
         
         df = pd.read_sql_query(text(q), engine, params=params)
-        
+
+        def _row_avg(exam_status_key):
+            if df.empty or 'exam_status' not in df.columns:
+                return 0.0
+            sub = df[df['exam_status'] == exam_status_key]
+            if sub.empty or 'avg_grade' not in sub.columns:
+                return 0.0
+            v = sub.iloc[0]['avg_grade']
+            return round(float(v), 2) if pd.notna(v) else 0.0
+
         # Key categories per status
         stats = {
-            'fcw_count': int(df[df['exam_status'] == 'FCW']['count'].sum()) if 'FCW' in df['exam_status'].values else 0,
-            'mex_count': int(df[df['exam_status'] == 'MEX']['count'].sum()) if 'MEX' in df['exam_status'].values else 0,
-            'fex_count': int(df[df['exam_status'] == 'FEX']['count'].sum()) if 'FEX' in df['exam_status'].values else 0,
-            'completed_count': int(df[df['exam_status'] == 'Completed']['count'].sum()) if 'Completed' in df['exam_status'].values else 0,
-            'avg_grade': round(float(df['avg_grade'].mean()), 2) if not df.empty else 0
+            'fcw_count': int(df[df['exam_status'] == 'FCW']['count'].sum()) if not df.empty and 'FCW' in df['exam_status'].values else 0,
+            'mex_count': int(df[df['exam_status'] == 'MEX']['count'].sum()) if not df.empty and 'MEX' in df['exam_status'].values else 0,
+            'fex_count': int(df[df['exam_status'] == 'FEX']['count'].sum()) if not df.empty and 'FEX' in df['exam_status'].values else 0,
+            'completed_count': int(df[df['exam_status'] == 'Completed']['count'].sum()) if not df.empty and 'Completed' in df['exam_status'].values else 0,
+            # Avg academic standing = mean grade on completed exams only (not mean of per-status averages)
+            'avg_grade': _row_avg('Completed'),
         }
-        
-        # Risk distribution over time (by month/year)
+
+        # Risk trend by semester (last 12 semesters in scope) — keys match frontend SciLineChart yDataKeys
         trend_query = """
-        SELECT 
-            dt.year, dt.month, dt.month_name,
-            COUNT(CASE WHEN fg.fcw THEN 1 END) as fcw,
-            COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) as mex,
-            COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END) as fex
+        SELECT
+            fg.semester_id,
+            MAX(sem.academic_year) AS sort_year,
+            COALESCE(MAX(sem.academic_year::text), '') ||
+                CASE WHEN MAX(sem.academic_year) IS NOT NULL AND MAX(sem.semester_name) IS NOT NULL THEN ' · ' ELSE '' END ||
+                COALESCE(MAX(sem.semester_name), 'Semester ' || fg.semester_id::text) AS period,
+            COUNT(CASE WHEN fg.fcw THEN 1 END) AS fcw_count,
+            COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) AS mex_count,
+            COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END) AS fex_count
         FROM fact_grade fg
-        JOIN dim_time dt ON fg.date_key = dt.date_key
+        LEFT JOIN dim_semester sem ON fg.semester_id = sem.semester_id
         JOIN dim_student ds ON fg.student_id = ds.student_id
         LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        LEFT JOIN dim_course dc ON fg.course_code = dc.course_code
         """
         tq, tparams = build_filter_query(filters, trend_query, user_scope)
+        # Do not pin trend to "current semester only" — show historical semesters for the same org filters.
+        if "WHERE" in tq.upper():
+            tq += " AND fg.semester_id IS NOT NULL"
+        else:
+            tq += " WHERE fg.semester_id IS NOT NULL"
+        tq += """
+        GROUP BY fg.semester_id
+        ORDER BY MAX(sem.academic_year) DESC NULLS LAST, fg.semester_id DESC
+        LIMIT 12
+        """
 
-        # Constrain trend window to the same current semester when applicable
-        if current_semester:
-            ay, sem = current_semester
-            tparams['tr_ay'] = ay
-            tparams['tr_sem'] = sem
-            if "WHERE" in tq.upper():
-                tq += " AND ds.academic_year = :tr_ay AND fg.semester_id = :tr_sem"
-            else:
-                tq += " WHERE ds.academic_year = :tr_ay AND fg.semester_id = :tr_sem"
-        tq += " GROUP BY dt.year, dt.month, dt.month_name ORDER BY dt.year DESC, dt.month DESC LIMIT 12"
-        
         trend_df = pd.read_sql_query(text(tq), engine, params=tparams)
-        trend_records = trend_df.sort_values(['year', 'month']).to_dict('records')
+        # Oldest → newest on the X axis (chronological left-to-right)
+        if not trend_df.empty:
+            trend_df = trend_df.sort_values(
+                by=['sort_year', 'semester_id'],
+                ascending=[True, True],
+                na_position='first',
+            )
+        trend_records = trend_df.to_dict('records')
         
         # At-risk breakdown (those with 2+ failures)
         risk_list_query = """
         SELECT 
-            ds.student_id, ds.access_number, ds.first_name, ds.last_name,
+            ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name,
             COUNT(CASE WHEN fg.exam_status IN ('FEX', 'MEX', 'FCW') THEN 1 END) as risk_points,
             AVG(fg.grade) as avg_grade
         FROM fact_grade fg
@@ -988,6 +1010,7 @@ def get_academic_risk_dashboard():
         LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        LEFT JOIN dim_course dc ON fg.course_code = dc.course_code
         """
         rq, rparams = build_filter_query(filters, risk_list_query, user_scope)
 
@@ -1000,7 +1023,7 @@ def get_academic_risk_dashboard():
                 rq += " AND ds.academic_year = :rl_ay AND fg.semester_id = :rl_sem"
             else:
                 rq += " WHERE ds.academic_year = :rl_ay AND fg.semester_id = :rl_sem"
-        rq += " GROUP BY ds.student_id, ds.access_number, ds.first_name, ds.last_name HAVING COUNT(CASE WHEN fg.exam_status IN ('FEX', 'MEX', 'FCW') THEN 1 END) >= 2 ORDER BY risk_points DESC LIMIT 20"
+        rq += " GROUP BY ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name HAVING COUNT(CASE WHEN fg.exam_status IN ('FEX', 'MEX', 'FCW') THEN 1 END) >= 2 ORDER BY risk_points DESC LIMIT 200"
         
         risk_list_df = pd.read_sql_query(text(rq), engine, params=rparams)
         
@@ -3398,9 +3421,11 @@ def get_high_school_risk_correlation():
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
 
-        # Default window: focus on the current semester when no explicit semester/academic_year is provided.
+        # Default window: focus on the current semester when filters are "all" / empty.
         current_semester = None
-        if not filters.get('semester_id') and not filters.get('academic_year'):
+        sem_e = (filters.get('semester_id') or '').strip().lower()
+        ay_e = (filters.get('academic_year') or '').strip().lower()
+        if sem_e in ('', 'all') and ay_e in ('', 'all'):
             try:
                 recent_sql = """
                 SELECT
