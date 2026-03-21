@@ -1556,7 +1556,10 @@ def get_filter_options():
                 )
             options['high_schools'] = df.to_dict('records') if not df.empty else []
         
-        # --- Intake years (normalize to int; role-based) ---
+        # --- Intake years ---
+        # Non-students: always expose the full supported UI window (2021–2026) so the
+        # Year dropdown always shows choices when opened (not only years present in data).
+        # Students: keep years derived from their record(s) only.
         if role == Role.STUDENT:
             if user_scope.get('student_id'):
                 df = pd.read_sql_query(
@@ -1570,51 +1573,26 @@ def get_filter_options():
                 )
             else:
                 df = pd.DataFrame()
-        else:
-            base = (
-                "SELECT DISTINCT EXTRACT(YEAR FROM admission_date) as year "
-                "FROM dim_student WHERE admission_date IS NOT NULL"
-            )
-            if role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id:
-                q = """
-                    SELECT DISTINCT EXTRACT(YEAR FROM ds.admission_date) as year
-                    FROM dim_student ds
-                    JOIN dim_program p ON ds.program_id = p.program_id
-                    JOIN dim_department d ON p.department_id = d.department_id
-                    WHERE ds.admission_date IS NOT NULL AND d.faculty_id = :fac_id
-                    ORDER BY year DESC
-                """
-                df = pd.read_sql_query(text(q), engine, params={'fac_id': user_scope['faculty_id']})
-            elif role == Role.HOD and user_scope.get('department_id') and not department_id:
-                q = """
-                    SELECT DISTINCT EXTRACT(YEAR FROM ds.admission_date) as year
-                    FROM dim_student ds
-                    JOIN dim_program p ON ds.program_id = p.program_id
-                    WHERE ds.admission_date IS NOT NULL AND p.department_id = :dept_id
-                    ORDER BY year DESC
-                """
-                df = pd.read_sql_query(text(q), engine, params={'dept_id': user_scope['department_id']})
+            if not df.empty and 'year' in df.columns:
+                years = []
+                for y in df['year'].tolist():
+                    if y is None or pd.isna(y):
+                        continue
+                    try:
+                        years.append(int(float(y)))
+                    except Exception:
+                        continue
+                base_years = [y for y in years if y is not None and 2021 <= y <= 2026]
+                if semester_id_filter in (2, 3):
+                    base_years = [y for y in base_years if y != 2026]
+                options['intake_years'] = sorted(set(base_years), reverse=True)
             else:
-                df = pd.read_sql_query(text(base + " ORDER BY year DESC"), engine)
-        if not df.empty and 'year' in df.columns:
-            years = []
-            for y in df['year'].tolist():
-                if y is None or pd.isna(y):
-                    continue
-                try:
-                    years.append(int(float(y)))
-                except Exception:
-                    continue
-            # Business rule: only show intake years within the supported window.
-            # Requested UI range: 2021/2 to 2026 (we still store/filter by numeric year).
-            base_years = [y for y in years if y is not None and y >= 2021 and y <= 2026]
-            # If a specific semester is selected:
-            # - For May (2) or September (3), 2026 should not appear
-            if semester_id_filter in (2, 3):
-                base_years = [y for y in base_years if y != 2026]
-            options['intake_years'] = sorted(set(base_years), reverse=True)
+                options['intake_years'] = []
         else:
-            options['intake_years'] = []
+            static_years = list(range(2021, 2027))
+            if semester_id_filter in (2, 3):
+                static_years = [y for y in static_years if y != 2026]
+            options['intake_years'] = sorted(static_years, reverse=True)
 
         # If a specific intake year (e.g., 2026) is selected, restrict semesters accordingly:
         # - For 2026, only January/Easter (semester_id = 1) should be visible

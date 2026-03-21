@@ -85,11 +85,12 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
   });
 
   // Load filter options with cascading support
-  const loadFilterOptions = async (facultyId = null, departmentId = null) => {
+  const loadFilterOptions = async (facultyId = null, departmentId = null, semesterId = null) => {
     setLoading(true);
     const params = {};
     if (facultyId) params.faculty_id = facultyId;
     if (departmentId) params.department_id = departmentId;
+    if (semesterId) params.semester_id = semesterId;
     
     try {
       const res = await axios.get('/api/analytics/filter-options', {
@@ -120,20 +121,14 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
     }
   };
 
+  // Load / refresh options (intake years list respects semester_id for 2026 rule)
   useEffect(() => {
-    // Initial load
-    loadFilterOptions();
-  }, []);
-
-  // Reload options when faculty or department changes
-  useEffect(() => {
-    const facultyId = filters.faculty_id ? parseInt(filters.faculty_id) : null;
-    const departmentId = filters.department_id ? parseInt(filters.department_id) : null;
-    if (facultyId || departmentId) {
-      loadFilterOptions(facultyId, departmentId);
-    }
+    const facultyId = filters.faculty_id ? parseInt(filters.faculty_id, 10) : null;
+    const departmentId = filters.department_id ? parseInt(filters.department_id, 10) : null;
+    const semesterId = filters.semester_id ? parseInt(filters.semester_id, 10) : null;
+    loadFilterOptions(facultyId, departmentId, semesterId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.faculty_id, filters.department_id]);
+  }, [filters.faculty_id, filters.department_id, filters.semester_id]);
 
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters };
@@ -358,7 +353,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
                   onChange={(e) => handleFilterChange('intake_year', e.target.value || null)}
                   className="w-full h-9 text-xs"
                 >
-                  <option value="">All Years</option>
+                  <option value="">All intake years</option>
                   {filterOptions.intake_years?.map((year) => (
                     <option key={year} value={year}>
                       {formatIntakeYearLabel(year)}

@@ -88,6 +88,7 @@ const GlobalFilterPanel = ({
       if (currentFilters.faculty_id) params.faculty_id = currentFilters.faculty_id;
       if (currentFilters.department_id) params.department_id = currentFilters.department_id;
       if (currentFilters.program_id) params.program_id = currentFilters.program_id;
+      if (currentFilters.semester_id) params.semester_id = currentFilters.semester_id;
 
       const res = await axios.get('/api/analytics/filter-options', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
@@ -188,7 +189,7 @@ const GlobalFilterPanel = ({
   // Reload filter options when parent filters change
   useEffect(() => {
     loadFilterOptions(filters);
-  }, [filters.faculty_id, filters.department_id, filters.program_id]);
+  }, [filters.faculty_id, filters.department_id, filters.program_id, filters.semester_id]);
   
   // Notify parent of initial filters on mount
   useEffect(() => {
@@ -410,9 +411,11 @@ const GlobalFilterPanel = ({
                 value={filters.intake_year || ''}
                 onChange={(e) => handleFilterChange('intake_year', e.target.value || null)}
                 disabled={loading}
+                title="Intake year (admission year): 2021/2 through 2026"
+                aria-label="Intake year filter"
                 className="h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary"
               >
-                <option value="">All Years</option>
+                <option value="">All intake years</option>
                 {filterOptions.intake_years?.map((year, idx) => (
                   <option key={`year-${year || idx}`} value={year}>
                     {formatIntakeYearLabel(year)}
