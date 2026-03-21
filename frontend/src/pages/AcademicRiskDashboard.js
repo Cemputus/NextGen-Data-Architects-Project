@@ -21,6 +21,14 @@ import { SkeletonTable } from '../components/ui/skeleton';
 import { AlertBanner } from '../components/ui/alert-banner';
 import { exportTableToExcel } from '../utils/exportUtils';
 import { useAuth } from '../context/AuthContext';
+import { cn } from '../lib/utils';
+import {
+  chartSurfaceCard,
+  chartCardHeaderClass,
+  chartCardTitleClass,
+  chartCardDescriptionClass,
+  chartEmptyStateClass,
+} from '../lib/analytics-ui';
 
 const AcademicRiskDashboard = () => {
     const { user } = useAuth();
@@ -190,10 +198,10 @@ const AcademicRiskDashboard = () => {
 
                         <TabsContent value="summary" className="space-y-4">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                <Card className="border-red-100 shadow-sm border-t-4 border-t-red-500">
-                                    <CardHeader>
-                                        <CardTitle className="text-base font-semibold">Risk Type Distribution</CardTitle>
-                                        <CardDescription>Relative contribution of FCW, MEX, and FEX to overall risk</CardDescription>
+                                <Card className={cn(chartSurfaceCard(), 'border-t-4 border-t-red-500')}>
+                                    <CardHeader className={chartCardHeaderClass}>
+                                        <CardTitle className={chartCardTitleClass}>Risk Type Distribution</CardTitle>
+                                        <CardDescription className={chartCardDescriptionClass}>Relative contribution of FCW, MEX, and FEX to overall risk</CardDescription>
                                     </CardHeader>
                                     <CardContent>
                                         <div className={chartContainerClass}>
@@ -208,10 +216,10 @@ const AcademicRiskDashboard = () => {
                                     </CardContent>
                                 </Card>
 
-                                <Card className="border-indigo-100 shadow-sm border-t-4 border-t-indigo-500">
-                                    <CardHeader>
-                                        <CardTitle className="text-base font-semibold">Institutional Stability</CardTitle>
-                                        <CardDescription>Academic standing overview for the current filter window</CardDescription>
+                                <Card className={cn(chartSurfaceCard(), 'border-t-4 border-t-indigo-500')}>
+                                    <CardHeader className={chartCardHeaderClass}>
+                                        <CardTitle className={chartCardTitleClass}>Institutional Stability</CardTitle>
+                                        <CardDescription className={chartCardDescriptionClass}>Academic standing overview for the current filter window</CardDescription>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="flex flex-col items-center justify-center h-full space-y-6 py-8">
@@ -235,10 +243,10 @@ const AcademicRiskDashboard = () => {
                                     </CardContent>
                                 </Card>
                             </div>
-                            <Card className="border shadow-sm">
-                                <CardHeader>
-                                    <CardTitle className="text-base font-semibold">Risk Trend by Semester</CardTitle>
-                                    <CardDescription>
+                            <Card className={chartSurfaceCard()}>
+                                <CardHeader className={chartCardHeaderClass}>
+                                    <CardTitle className={chartCardTitleClass}>Risk Trend by Semester</CardTitle>
+                                    <CardDescription className={chartCardDescriptionClass}>
                                         How FEX, MEX, and FCW counts evolve over recent semesters for the current scope.
                                     </CardDescription>
                                 </CardHeader>
@@ -258,7 +266,7 @@ const AcademicRiskDashboard = () => {
                                                 showLegend
                                             />
                                         ) : (
-                                            <div className="h-full flex items-center justify-center text-muted-foreground border border-dashed rounded-lg">
+                                            <div className={cn(chartEmptyStateClass, 'min-h-[260px]')}>
                                                 No trend data available for the current filters.
                                             </div>
                                         )}
@@ -268,10 +276,10 @@ const AcademicRiskDashboard = () => {
                         </TabsContent>
 
                         <TabsContent value="hs-correlation" className="space-y-4">
-                            <Card className="border shadow-sm border-t-4 border-t-blue-600">
-                                <CardHeader>
-                                    <CardTitle className="text-base font-semibold">High School Background vs. FCW Rate</CardTitle>
-                                    <CardDescription>Analyzing which schools correlate with higher financial/academic risk</CardDescription>
+                            <Card className={cn(chartSurfaceCard(), 'border-t-4 border-t-blue-600')}>
+                                <CardHeader className={chartCardHeaderClass}>
+                                    <CardTitle className={chartCardTitleClass}>High School Background vs. FCW Rate</CardTitle>
+                                    <CardDescription className={chartCardDescriptionClass}>Analyzing which schools correlate with higher financial/academic risk</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <div className={chartContainerClass}>
@@ -289,7 +297,7 @@ const AcademicRiskDashboard = () => {
                                                 showGrid={true}
                                             />
                                         ) : (
-                                            <div className="h-full flex items-center justify-center text-muted-foreground border border-dashed rounded-lg">
+                                            <div className={cn(chartEmptyStateClass, 'min-h-[260px]')}>
                                                 No correlation data found for current filters.
                                             </div>
                                         )}
@@ -299,10 +307,10 @@ const AcademicRiskDashboard = () => {
                         </TabsContent>
 
                         <TabsContent value="districts" className="space-y-4">
-                            <Card className="border shadow-sm border-t-4 border-t-emerald-600">
-                                <CardHeader>
-                                    <CardTitle className="text-base font-semibold">Risk by High School District</CardTitle>
-                                    <CardDescription>Regional analysis of student failure rates</CardDescription>
+                            <Card className={cn(chartSurfaceCard(), 'border-t-4 border-t-emerald-600')}>
+                                <CardHeader className={chartCardHeaderClass}>
+                                    <CardTitle className={chartCardTitleClass}>Risk by High School District</CardTitle>
+                                    <CardDescription className={chartCardDescriptionClass}>Regional analysis of student failure rates</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <div className={chartContainerClass}>
@@ -319,7 +327,7 @@ const AcademicRiskDashboard = () => {
                                                 showLegend={true}
                                             />
                                         ) : (
-                                            <div className="h-full flex items-center justify-center text-muted-foreground">
+                                            <div className={cn(chartEmptyStateClass, 'min-h-[260px]')}>
                                                 Processing district data...
                                             </div>
                                         )}
@@ -329,10 +337,10 @@ const AcademicRiskDashboard = () => {
                         </TabsContent>
 
                         <TabsContent value="action" className="space-y-4">
-                            <Card className="border shadow-sm">
-                                <CardHeader>
-                                    <CardTitle className="text-base font-semibold">Priority Student List</CardTitle>
-                                    <CardDescription>Top students needing academic intervention</CardDescription>
+                            <Card className={chartSurfaceCard()}>
+                                <CardHeader className={chartCardHeaderClass}>
+                                    <CardTitle className={chartCardTitleClass}>Priority Student List</CardTitle>
+                                    <CardDescription className={chartCardDescriptionClass}>Top students needing academic intervention</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <DataTable

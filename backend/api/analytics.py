@@ -2519,6 +2519,33 @@ def get_enrollment_pipeline():
 
         ds_where = ["COALESCE(ds.year_of_study, 1) = 1"]
         ds_params = {'sem_index': sem_index, 'sem_label': sem_label}
+
+        # RBAC: deans see only their faculty; HODs only their department (dim_student.program_id path).
+        if role == Role.DEAN and user_scope.get('faculty_id'):
+            ds_where.append(
+                "EXISTS (SELECT 1 FROM dim_program dp_rbac "
+                "JOIN dim_department dd_rbac ON dp_rbac.department_id = dd_rbac.department_id "
+                "WHERE dp_rbac.program_id = ds.program_id AND dd_rbac.faculty_id = :rbac_faculty_id)"
+            )
+            ds_params['rbac_faculty_id'] = int(user_scope['faculty_id'])
+        elif role == Role.HOD and user_scope.get('department_id'):
+            ds_where.append(
+                "EXISTS (SELECT 1 FROM dim_program dp_rbac "
+                "WHERE dp_rbac.program_id = ds.program_id "
+                "AND dp_rbac.department_id = :rbac_department_id)"
+            )
+            ds_params['rbac_department_id'] = int(user_scope['department_id'])
+        else:
+            # Optional numeric faculty filter (analyst / senate / sysadmin / finance).
+            q_faculty_id = request.args.get('faculty_id', type=int)
+            if q_faculty_id and role in (Role.ANALYST, Role.SYSADMIN, Role.SENATE, Role.FINANCE):
+                ds_where.append(
+                    "EXISTS (SELECT 1 FROM dim_program dp_f "
+                    "JOIN dim_department dd_f ON dp_f.department_id = dd_f.department_id "
+                    "WHERE dp_f.program_id = ds.program_id AND dd_f.faculty_id = :q_faculty_id)"
+                )
+                ds_params['q_faculty_id'] = q_faculty_id
+
         if faculty_filter:
             ds_where.append("ds.\"FACULTY\" ILIKE :faculty")
             ds_params["faculty"] = f"%{faculty_filter}%"

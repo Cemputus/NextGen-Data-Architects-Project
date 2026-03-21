@@ -3287,9 +3287,9 @@ def get_payment_trends():
             and str(filters['semester_id']).strip().lower() != 'all'
         )
 
-        # Fast path: Analyst/Finance + program-only filter.
+        # Fast path: institution-wide roles + program-only filter.
         # Avoid the expensive LATERAL match for every payment row.
-        if role in [Role.ANALYST, Role.FINANCE] and program_filter and (not faculty_filter) and (not department_filter):
+        if role in [Role.ANALYST, Role.FINANCE, Role.SENATE, Role.SYSADMIN] and program_filter and (not faculty_filter) and (not department_filter):
             program_id = filters['program_id']
             sem_clause = f" AND fp.semester_id = {filters['semester_id']}" if semester_filter else ""
 

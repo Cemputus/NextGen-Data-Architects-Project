@@ -6,7 +6,17 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users, Building2, Activity, Banknote } from 'lucide-react';
+import { KPICard } from '../components/ui/kpi-card';
+import {
+  kpiStripCardClass,
+  chartSurfaceCard,
+  chartCardHeaderClass,
+  chartCardTitleClass,
+  chartCardDescriptionClass,
+  chartEmptyStateClass,
+} from '../lib/analytics-ui';
+import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 
@@ -165,76 +175,68 @@ const HRDashboard = () => {
       ) : (
         <>
           {/* Top HR KPI strip */}
-          <Card className="border shadow-sm">
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-base font-semibold">Workforce overview</CardTitle>
-              <CardDescription className="text-xs">
+          <Card className={kpiStripCardClass}>
+            <CardHeader className={chartCardHeaderClass}>
+              <CardTitle className="text-base font-semibold tracking-tight">Workforce overview</CardTitle>
+              <CardDescription className={chartCardDescriptionClass}>
                 HR KPIs computed from the HR analytics endpoint, scoped by faculty/department filters where applied.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0 pb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Total employees
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.total_employees)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Departments
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.total_departments)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Attendance rate
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatPercent(stats?.attendance_rate)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Total payroll
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.total_payroll)}
-                  </p>
-                </div>
+                <KPICard
+                  title="Total employees"
+                  value={formatNumber(stats?.total_employees)}
+                  icon={Users}
+                  subtitle="Headcount in current filter scope."
+                />
+                <KPICard
+                  title="Departments"
+                  value={formatNumber(stats?.total_departments)}
+                  icon={Building2}
+                  subtitle="Distinct departments represented."
+                />
+                <KPICard
+                  title="Attendance rate"
+                  value={formatPercent(stats?.attendance_rate)}
+                  icon={Activity}
+                  subtitle="From HR attendance analytics."
+                />
+                <KPICard
+                  title="Total payroll"
+                  value={formatNumber(stats?.total_payroll)}
+                  icon={Banknote}
+                  subtitle="Aggregate payroll in scope."
+                />
               </div>
             </CardContent>
           </Card>
 
           {/* Row 1: Headcount distribution */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Employees by faculty</CardTitle>
-                <CardDescription className="text-xs">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Employees by faculty</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
                   Headcount per faculty, built from `employees_by_faculty` and scoped via filters.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                <div className={cn(chartEmptyStateClass, 'min-h-[220px]')}>
                   Bar chart placeholder for employees by faculty.
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Employees by department</CardTitle>
-                <CardDescription className="text-xs">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Employees by department</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
                   Department distribution, using `employees_by_department` filtered by current faculty where set.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                <div className={cn(chartEmptyStateClass, 'min-h-[220px]')}>
                   Bar chart placeholder for employees by department.
                 </div>
               </CardContent>
@@ -243,29 +245,29 @@ const HRDashboard = () => {
 
           {/* Row 2: Role mix & attendance */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Role mix</CardTitle>
-                <CardDescription className="text-xs">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Role mix</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
                   Lecturers, assistant lecturers, HR/finance/admin and other roles, summarised from HR analytics.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                <div className={cn(chartEmptyStateClass, 'min-h-[220px]')}>
                   Donut / stacked bar chart placeholder for role mix.
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Attendance trend</CardTitle>
-                <CardDescription className="text-xs">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Attendance trend</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
                   Employee attendance trend over time from `employee_attendance_trend`.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+                <div className={cn(chartEmptyStateClass, 'min-h-[220px]')}>
                   Line / area chart placeholder for attendance trend.
                 </div>
               </CardContent>
@@ -273,15 +275,15 @@ const HRDashboard = () => {
           </div>
 
           {/* Row 3: Payroll analysis */}
-          <Card className="border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Payroll by role</CardTitle>
-              <CardDescription className="text-xs">
+          <Card className={chartSurfaceCard()}>
+            <CardHeader className={chartCardHeaderClass}>
+              <CardTitle className={chartCardTitleClass}>Payroll by role</CardTitle>
+              <CardDescription className={chartCardDescriptionClass}>
                 High-level view of payroll distribution by role group, based on `payroll_by_role`.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+              <div className={cn(chartEmptyStateClass, 'min-h-[220px]')}>
                 Stacked column / bar chart placeholder for payroll by role.
               </div>
             </CardContent>

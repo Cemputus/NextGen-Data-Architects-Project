@@ -11,6 +11,13 @@ import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import { SciLineChart, SciBarChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import { KPICard } from '../components/ui/kpi-card';
+import {
+  kpiStripCardClass,
+  chartSurfaceCard,
+  chartCardHeaderClass,
+  chartCardTitleClass,
+  chartCardDescriptionClass,
+} from '../lib/analytics-ui';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
@@ -111,10 +118,10 @@ const FinanceDashboard = () => {
       ) : (
         <>
           {/* Top finance KPI strip */}
-          <Card className="border shadow-sm">
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-base font-semibold">Finance overview</CardTitle>
-              <CardDescription className="text-xs">
+          <Card className={kpiStripCardClass}>
+            <CardHeader className={chartCardHeaderClass}>
+              <CardTitle className="text-base font-semibold tracking-tight">Finance overview</CardTitle>
+              <CardDescription className={chartCardDescriptionClass}>
                 Institution-wide finance KPIs, scoped to the Finance role via the finance analytics/dashboard endpoints.
               </CardDescription>
             </CardHeader>
@@ -146,10 +153,10 @@ const FinanceDashboard = () => {
 
           {/* Row 1: Revenue & outstanding */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Revenue trend</CardTitle>
-                <CardDescription className="text-xs">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Revenue trend</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
                   Semester-by-semester revenue trend using payment facts; filters control faculty/department scope.
                 </CardDescription>
               </CardHeader>
@@ -167,10 +174,10 @@ const FinanceDashboard = () => {
               </CardContent>
             </Card>
 
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Outstanding by faculty/program</CardTitle>
-                <CardDescription className="text-xs">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Outstanding by faculty/program</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
                   Breakdown of outstanding balances by faculty and program, supporting drilldowns.
                 </CardDescription>
               </CardHeader>
@@ -191,10 +198,10 @@ const FinanceDashboard = () => {
 
           {/* Row 2: Payment mix & risk */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Payment status mix</CardTitle>
-                <CardDescription className="text-xs">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Payment status mix</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
                   Status distribution (Completed vs Pending vs Partial) from `fact_payment`.
                 </CardDescription>
               </CardHeader>
@@ -209,10 +216,10 @@ const FinanceDashboard = () => {
               </CardContent>
             </Card>
 
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">High-risk debt segments</CardTitle>
-                <CardDescription className="text-xs">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>High-risk debt segments</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
                   Space for cohorts with persistent or large outstanding balances (e.g. by program or intake year).
                 </CardDescription>
               </CardHeader>
