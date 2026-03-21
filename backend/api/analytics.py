@@ -1709,6 +1709,22 @@ def get_faculty_analytics():
                 pass
         params_student = {k: v for k, v in params.items() if k not in ('filter_course_code', 'filter_semester_id')}
 
+        # fact_enrollment KPIs: apply semester/course on `fe` (same as grade queries), not only student scope
+        enroll_params = dict(params_student)
+        enroll_fe_bits = []
+        if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
+            enroll_params['fe_course_code'] = str(filters['course_code']).strip()
+            enroll_fe_bits.append("fe.course_code = :fe_course_code")
+        if filters.get('semester_id') and str(filters.get('semester_id')).strip().lower() not in ('', 'all'):
+            try:
+                enroll_params['fe_semester_id'] = int(filters['semester_id'])
+                enroll_fe_bits.append("fe.semester_id = :fe_semester_id")
+            except (ValueError, TypeError):
+                pass
+        enroll_fe_sql = ""
+        if enroll_fe_bits:
+            enroll_fe_sql = (" AND " if student_where else " WHERE ") + " AND ".join(enroll_fe_bits)
+
         # 1) Total students in scope (faculty / department)
         total_students_q = f"""
         SELECT COUNT(DISTINCT ds.student_id) AS total_students
@@ -1763,9 +1779,9 @@ def get_faculty_analytics():
             LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
             LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
-            {student_where}
+            {student_where}{enroll_fe_sql}
             """
-            enroll_df = pd.read_sql_query(text(enroll_q), engine, params=params_student)
+            enroll_df = pd.read_sql_query(text(enroll_q), engine, params=enroll_params)
             total_enrollments = int(enroll_df['total_enrollments'][0]) if not enroll_df.empty and pd.notna(enroll_df['total_enrollments'][0]) else 0
         except Exception as e:
             print(f"Error getting faculty total_enrollments: {e}")

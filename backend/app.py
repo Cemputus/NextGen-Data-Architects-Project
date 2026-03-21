@@ -1874,6 +1874,26 @@ def get_dashboard_stats():
         all_where = [w for w in [role_where, " AND ".join(filter_where_parts) if filter_where_parts else ""] if w]
         scope_where = f" WHERE {' AND '.join(all_where)} " if all_where else ""
 
+        # Enrollment KPI: count fact_enrollment rows (not unfiltered table when role is wide, e.g. analyst/senate).
+        # Strip semester/course EXISTS (student-level); apply semester/course on `fe` directly.
+        enroll_student_filter_parts = [
+            p for p in filter_where_parts
+            if 'FROM fact_enrollment fe2' not in p and 'FROM fact_enrollment fe3' not in p
+        ]
+        fe_enroll_clauses = []
+        if semester_id_filter is not None:
+            fe_enroll_clauses.append(f"fe.semester_id = {semester_id_filter}")
+        if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
+            cc = str(filters.get('course_code')).replace("'", "''")
+            fe_enroll_clauses.append(f"fe.course_code = '{cc}'")
+        enroll_where_parts = []
+        if role_where:
+            enroll_where_parts.append(role_where)
+        if enroll_student_filter_parts:
+            enroll_where_parts.append("(" + " AND ".join(enroll_student_filter_parts) + ")")
+        if fe_enroll_clauses:
+            enroll_where_parts.append("(" + " AND ".join(fe_enroll_clauses) + ")")
+
         # Restrict payment KPIs to selected semester; else current/latest semester for all users
         current_semester_clause = ""
         if semester_id_filter is not None:
@@ -1926,10 +1946,22 @@ def get_dashboard_stats():
             print(f"Error getting total_courses: {e}")
             total_courses = 0
 
-        # Total enrollments - role scoped
+        # Total enrollments — role + all global filters (faculty/dept/program/HS/intake + semester/course on fe)
         try:
-            if role_where:
-                enroll_q = f"SELECT COUNT(*) as count FROM fact_enrollment fe JOIN dim_student ds ON fe.student_id = ds.student_id{scope_join}{scope_where}"
+            if enroll_where_parts:
+                wsql = " WHERE " + " AND ".join(enroll_where_parts)
+                needs_dim_student = bool(
+                    str(scope_join).strip()
+                    or role_where
+                    or enroll_student_filter_parts
+                )
+                if needs_dim_student:
+                    enroll_q = (
+                        f"SELECT COUNT(*) as count FROM fact_enrollment fe "
+                        f"JOIN dim_student ds ON fe.student_id = ds.student_id{scope_join}{wsql}"
+                    )
+                else:
+                    enroll_q = f"SELECT COUNT(*) as count FROM fact_enrollment fe{wsql}"
             else:
                 enroll_q = "SELECT COUNT(*) as count FROM fact_enrollment"
             total_enrollments_result = pd.read_sql_query(text(enroll_q), engine)
