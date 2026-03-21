@@ -93,10 +93,31 @@ const ModernStatsCards = ({ stats, type = 'general' }) => {
     );
   }
 
-  // Faculty/Dean Dashboard KPIs
-  if (type === 'faculty' || type === 'dean') {
+  // Faculty / Dean / HoD Dashboard KPIs (HoD uses same strip as faculty analytics)
+  if (type === 'faculty' || type === 'dean' || type === 'hod') {
+    const ek = stats?.enrollment_kpi_kind;
+    const enrollmentSubtitle =
+      ek === 'faculty_enrollment_records'
+        ? 'Enrollment rows in your faculty (JWT scope)'
+        : ek === 'department_enrollment_records'
+          ? 'Enrollment rows in your department (JWT scope)'
+          : 'Active enrollments';
+    const gk = stats?.grade_kpi_kind;
+    const gradeSubtitle =
+      gk === 'faculty_grade_average'
+        ? 'Completed exams; faculty scope + filters on grade rows'
+        : gk === 'department_grade_average'
+          ? 'Completed exams; department scope + filters on grade rows'
+          : 'Faculty average (completed exams)';
+    const rk = stats?.retention_kpi_kind;
+    const retentionSubtitle =
+      rk === 'faculty_retention'
+        ? 'Active vs total in faculty scope (same as headcount filters)'
+        : rk === 'department_retention'
+          ? 'Active vs total in department scope (same as headcount filters)'
+          : 'Student retention';
     return (
-      <DashboardGrid cols={{ default: 2, sm: 2, md: 4, lg: 6 }}>
+      <DashboardGrid cols={{ default: 2, sm: 2, md: 4, lg: 5 }}>
         <KPICard
           title="Total Students"
           value={stats.total_students || 0}
@@ -117,7 +138,7 @@ const ModernStatsCards = ({ stats, type = 'general' }) => {
           change={stats.grade_change ? `${stats.grade_change > 0 ? '+' : ''}${stats.grade_change.toFixed(1)}%` : null}
           changeType={stats.grade_change > 0 ? 'positive' : stats.grade_change < 0 ? 'negative' : 'neutral'}
           icon={GraduationCap}
-          subtitle="Faculty average"
+          subtitle={gradeSubtitle}
         />
         <KPICard
           title="Total Revenue"
@@ -129,13 +150,84 @@ const ModernStatsCards = ({ stats, type = 'general' }) => {
           title="Enrollments"
           value={stats.total_enrollments || 0}
           icon={Activity}
-          subtitle="Active enrollments"
+          subtitle={enrollmentSubtitle}
+        />
+        <KPICard
+          title="Retention rate"
+          value={
+            stats.avg_retention_rate != null
+              ? `${Number(stats.avg_retention_rate).toFixed(1)}%`
+              : stats.retention_rate != null
+                ? `${Number(stats.retention_rate).toFixed(1)}%`
+                : '0%'
+          }
+          icon={Target}
+          subtitle={retentionSubtitle}
         />
         <KPICard
           title="Attendance Rate"
           value={stats.avg_attendance ? `${stats.avg_attendance.toFixed(1)}%` : 'N/A'}
           icon={Calendar}
           subtitle="Average attendance"
+        />
+      </DashboardGrid>
+    );
+  }
+
+  // Staff: dashboard stats uses distinct students in assigned classes, not raw enrollment rows
+  if (type === 'staff') {
+    const isClassStudents = stats?.enrollment_kpi_kind === 'assigned_class_students';
+    const assignedClassGrades = stats?.grade_kpi_kind === 'assigned_class_grade_average';
+    const assignedClassRetention = stats?.retention_kpi_kind === 'assigned_class_retention';
+    return (
+      <DashboardGrid cols={{ default: 2, sm: 2, md: 3, lg: 5 }}>
+        <KPICard
+          title="Total Students"
+          value={stats.total_students || 0}
+          icon={Users}
+          subtitle="Students linked to your assigned classes"
+        />
+        <KPICard
+          title={isClassStudents ? 'Students in your classes' : 'Total enrollments'}
+          value={stats.total_enrollments || 0}
+          icon={Activity}
+          subtitle={
+            isClassStudents
+              ? 'Distinct students enrolled in courses assigned to you'
+              : 'Enrollment records'
+          }
+        />
+        <KPICard
+          title="Average Grade"
+          value={stats.avg_grade ? `${stats.avg_grade.toFixed(1)}%` : 'N/A'}
+          icon={GraduationCap}
+          subtitle={
+            assignedClassGrades
+              ? 'Completed exams only in courses assigned to you'
+              : 'Completed exams in your scope'
+          }
+        />
+        <KPICard
+          title="Retention rate"
+          value={
+            stats.avg_retention_rate != null
+              ? `${Number(stats.avg_retention_rate).toFixed(1)}%`
+              : stats.retention_rate != null
+                ? `${Number(stats.retention_rate).toFixed(1)}%`
+                : 'N/A'
+          }
+          icon={Target}
+          subtitle={
+            assignedClassRetention
+              ? 'Active vs total among students in your assigned classes'
+              : 'Active vs total students in scope'
+          }
+        />
+        <KPICard
+          title="Avg Attendance"
+          value={stats.avg_attendance ? `${stats.avg_attendance.toFixed(1)}%` : 'N/A'}
+          icon={Calendar}
+          subtitle="Average attendance (hours)"
         />
       </DashboardGrid>
     );

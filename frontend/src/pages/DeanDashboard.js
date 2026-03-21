@@ -128,7 +128,7 @@ const DeanDashboard = () => {
                     {formatNumber(stats?.total_enrollments)}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Course enrollments across the faculty.
+                    Enrollment rows in your faculty only (dean scope from your account).
                   </p>
                 </div>
                 <div className="border rounded-md px-3 py-2 bg-muted/40">
@@ -139,7 +139,7 @@ const DeanDashboard = () => {
                     {formatNumber(stats?.avg_grade)}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Completed exams only, scoped to faculty.
+                    Completed exams in your faculty; course/semester/program filters apply to grade rows.
                   </p>
                 </div>
                 <div className="border rounded-md px-3 py-2 bg-muted/40">
@@ -157,7 +157,7 @@ const DeanDashboard = () => {
                     })()}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Active vs total students; will be refined to semester windows.
+                    Active vs total students in the same scope as headcount (includes your filters).
                   </p>
                 </div>
                 <div className="border rounded-md px-3 py-2 bg-muted/40">

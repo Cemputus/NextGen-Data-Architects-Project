@@ -21,6 +21,8 @@ import {
 const StatsCards = ({ stats }) => {
   if (!stats) return null;
 
+  const enrollmentIsClassStudents = stats.enrollment_kpi_kind === 'assigned_class_students';
+
   const cards = [
     {
       title: 'Total Students',
@@ -39,7 +41,7 @@ const StatsCards = ({ stats }) => {
       borderColor: '#4CAF50',
     },
     {
-      title: 'Total Enrollments',
+      title: enrollmentIsClassStudents ? 'Students in your classes' : 'Total Enrollments',
       value: stats.total_enrollments,
       icon: FaClipboardList,
       color: '#FF9800',

@@ -127,7 +127,7 @@ const HODDashboard = () => {
                     {formatNumber(stats?.total_enrollments)}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Course enrollments within the department.
+                    Enrollment rows in your department only (HoD scope from your account).
                   </p>
                 </div>
                 <div className="border rounded-md px-3 py-2 bg-muted/40">
@@ -138,7 +138,7 @@ const HODDashboard = () => {
                     {formatNumber(stats?.avg_grade)}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Completed exams only for department courses.
+                    Completed exams in your department; course/semester/program filters apply to grade rows.
                   </p>
                 </div>
                 <div className="border rounded-md px-3 py-2 bg-muted/40">
@@ -156,7 +156,7 @@ const HODDashboard = () => {
                     })()}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Active vs total students in the department.
+                    Active vs total students in the same scope as headcount (includes your filters).
                   </p>
                 </div>
                 <div className="border rounded-md px-3 py-2 bg-muted/40">

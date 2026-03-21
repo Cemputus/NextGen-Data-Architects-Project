@@ -44,8 +44,26 @@ def get_user_scope(claims):
     }
     return scope
 
+
+def _jwt_scope_sanitize_filters(filters, user_scope):
+    """Drop faculty/department query params that would override JWT scope for dean/HOD/staff."""
+    filters = dict(filters or {})
+    role = user_scope.get('role')
+    if role == Role.DEAN and user_scope.get('faculty_id'):
+        filters.pop('faculty_id', None)
+    elif role == Role.HOD and user_scope.get('department_id'):
+        filters.pop('department_id', None)
+        filters.pop('faculty_id', None)
+    elif role == Role.STAFF:
+        filters.pop('faculty_id', None)
+        filters.pop('department_id', None)
+    return filters
+
+
 def build_filter_query(filters, base_query, user_scope):
     """Build SQL query with filters and role-based scoping"""
+    filters = _jwt_scope_sanitize_filters(filters, user_scope)
+
     where_clauses = []
     params = {}
 
@@ -574,7 +592,7 @@ def get_high_school_analytics():
         if not has_permission(user_scope['role'], Resource.HIGH_SCHOOL_ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
         
-        filters = request.args.to_dict()
+        filters = _jwt_scope_sanitize_filters(request.args.to_dict(), user_scope)
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
         query = """
@@ -1642,7 +1660,7 @@ def get_faculty_analytics():
             return jsonify({'error': 'Permission denied'}), 403
 
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        filters = request.args.to_dict()
+        filters = _jwt_scope_sanitize_filters(request.args.to_dict(), user_scope)
 
         # Role / faculty scoping for student-based queries
         where_clauses = []
@@ -1736,6 +1754,26 @@ def get_faculty_analytics():
         """
         ts_df = pd.read_sql_query(text(total_students_q), engine, params=params_student)
         total_students = int(ts_df['total_students'][0]) if not ts_df.empty and pd.notna(ts_df['total_students'][0]) else 0
+
+        # 1b) Retention (active / total) — same student scope as headcount (aligned with /api/dashboard/stats)
+        retention_rate = 0.0
+        try:
+            ret_q = f"""
+            SELECT
+                COUNT(DISTINCT CASE WHEN ds.status = 'Active' THEN ds.student_id END) AS active,
+                COUNT(DISTINCT ds.student_id) AS total
+            FROM dim_student ds
+            LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+            LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+            LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            {student_where}
+            """
+            ret_df = pd.read_sql_query(text(ret_q), engine, params=params_student)
+            if not ret_df.empty and pd.notna(ret_df['total'][0]) and int(ret_df['total'][0]) > 0:
+                retention_rate = (float(ret_df['active'][0]) / float(ret_df['total'][0])) * 100.0
+        except Exception as e:
+            print(f"Error getting faculty retention_rate: {e}")
+            retention_rate = 0.0
 
         # 2) Average grade for students in scope
         avg_grade_q = f"""
@@ -2046,11 +2084,28 @@ def get_faculty_analytics():
         except Exception:
             total_payments = 0.0
 
+        enrollment_kpi_kind = 'enrollment_records'
+        grade_kpi_kind = 'grade_average'
+        retention_kpi_kind = 'retention_rate'
+        if user_scope['role'] == Role.DEAN and user_scope.get('faculty_id'):
+            enrollment_kpi_kind = 'faculty_enrollment_records'
+            grade_kpi_kind = 'faculty_grade_average'
+            retention_kpi_kind = 'faculty_retention'
+        elif user_scope['role'] == Role.HOD and user_scope.get('department_id'):
+            enrollment_kpi_kind = 'department_enrollment_records'
+            grade_kpi_kind = 'department_grade_average'
+            retention_kpi_kind = 'department_retention'
+
         return jsonify({
             'total_students': total_students,
             'total_courses': total_courses,
             'total_enrollments': total_enrollments,
+            'enrollment_kpi_kind': enrollment_kpi_kind,
+            'grade_kpi_kind': grade_kpi_kind,
+            'retention_kpi_kind': retention_kpi_kind,
             'avg_grade': round(avg_grade, 2) if avg_grade else 0,
+            'retention_rate': round(retention_rate, 2),
+            'avg_retention_rate': round(retention_rate, 2),
             'avg_attendance': round(avg_attendance, 2) if avg_attendance else 0,
             'total_payments': total_payments,
             'students_by_department': students_by_department,

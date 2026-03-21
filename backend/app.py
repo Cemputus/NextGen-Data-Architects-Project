@@ -4,7 +4,7 @@ Enhanced with RBAC, Multi-role Support, and Advanced Analytics
 """
 from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager, jwt_required, get_jwt, verify_jwt_in_request
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt, get_jwt_identity, verify_jwt_in_request
 import pandas as pd
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text
@@ -1808,15 +1808,58 @@ def _dashboard_role_scope():
     return '', ''
 
 
+def _staff_assigned_course_fact_where_parts(assigned_course_codes, semester_id_filter, filters, alias='fe'):
+    """
+    Build AND-clauses for fact rows (enrollment or grade) limited to assigned courses.
+    `alias` is the table alias (e.g. 'fe' for fact_enrollment, 'fg' for fact_grade).
+    Returns None if there are no assigned courses; otherwise a non-empty list of SQL fragments.
+    """
+    if not assigned_course_codes:
+        return None
+    safe = [str(c).replace("'", "''")[:50] for c in assigned_course_codes]
+    in_list = "','".join(safe)
+    parts = [f"{alias}.course_code IN ('{in_list}')"]
+    if semester_id_filter is not None:
+        parts.append(f"{alias}.semester_id = {int(semester_id_filter)}")
+    cc_raw = (filters or {}).get('course_code')
+    if cc_raw and str(cc_raw).strip().lower() not in ('', 'all'):
+        cc_norm = str(cc_raw).strip()
+        assigned_set = {str(c).strip() for c in assigned_course_codes}
+        if cc_norm in assigned_set:
+            cc_esc = cc_norm.replace("'", "''")
+            parts.append(f"{alias}.course_code = '{cc_esc}'")
+        else:
+            parts.append('1=0')
+    return parts
+
+
 @app.route('/api/dashboard/stats', methods=['GET'])
 @jwt_required()
 def get_dashboard_stats():
     """Get dashboard statistics (scoped by role and optional faculty/department/program/semester filters)."""
     engine = None
     try:
+        from rbac import Role
+
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         role_join, role_where = _dashboard_role_scope()
+        claims = get_jwt()
+        role_str = (claims.get('role') or '').strip().lower()
+        try:
+            dash_role = Role(role_str)
+        except Exception:
+            dash_role = None
+
         filters = request.args.to_dict()
+        # JWT scope wins: clients cannot override faculty/department for scoped roles
+        if dash_role == Role.DEAN and claims.get('faculty_id') is not None:
+            filters.pop('faculty_id', None)
+        elif dash_role == Role.HOD and claims.get('department_id') is not None:
+            filters.pop('department_id', None)
+            filters.pop('faculty_id', None)
+        elif dash_role == Role.STAFF:
+            filters.pop('faculty_id', None)
+            filters.pop('department_id', None)
         semester_id_filter = None
         intake_year_filter = None
         try:
@@ -1886,13 +1929,12 @@ def get_dashboard_stats():
         if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
             cc = str(filters.get('course_code')).replace("'", "''")
             fe_enroll_clauses.append(f"fe.course_code = '{cc}'")
-        enroll_where_parts = []
-        if role_where:
-            enroll_where_parts.append(role_where)
-        if enroll_student_filter_parts:
-            enroll_where_parts.append("(" + " AND ".join(enroll_student_filter_parts) + ")")
-        if fe_enroll_clauses:
-            enroll_where_parts.append("(" + " AND ".join(fe_enroll_clauses) + ")")
+
+        enrollment_kpi_kind = 'enrollment_records'
+        if dash_role == Role.DEAN and claims.get('faculty_id') is not None:
+            enrollment_kpi_kind = 'faculty_enrollment_records'
+        elif dash_role == Role.HOD and claims.get('department_id') is not None:
+            enrollment_kpi_kind = 'department_enrollment_records'
 
         # Restrict payment KPIs to selected semester; else current/latest semester for all users
         current_semester_clause = ""
@@ -1946,40 +1988,112 @@ def get_dashboard_stats():
             print(f"Error getting total_courses: {e}")
             total_courses = 0
 
-        # Total enrollments — role + all global filters (faculty/dept/program/HS/intake + semester/course on fe)
+        # Total enrollments — dean/HOD/student: enrollment rows scoped by role + filters.
+        # Staff: distinct students in assigned courses only (not institution-wide enrollment rows).
         try:
-            if enroll_where_parts:
-                wsql = " WHERE " + " AND ".join(enroll_where_parts)
-                needs_dim_student = bool(
-                    str(scope_join).strip()
-                    or role_where
-                    or enroll_student_filter_parts
+            if dash_role == Role.STAFF:
+                enrollment_kpi_kind = 'assigned_class_students'
+                assigned = _get_staff_assigned_course_codes(get_jwt_identity())
+                staff_fe_parts = _staff_assigned_course_fact_where_parts(
+                    assigned, semester_id_filter, filters, alias='fe'
                 )
-                if needs_dim_student:
-                    enroll_q = (
-                        f"SELECT COUNT(*) as count FROM fact_enrollment fe "
-                        f"JOIN dim_student ds ON fe.student_id = ds.student_id{scope_join}{wsql}"
-                    )
+                if staff_fe_parts is None:
+                    total_enrollments = 0
                 else:
-                    enroll_q = f"SELECT COUNT(*) as count FROM fact_enrollment fe{wsql}"
+                    staff_where_sql = " AND ".join(staff_fe_parts)
+                    if enroll_student_filter_parts:
+                        staff_where_sql = staff_where_sql + " AND (" + " AND ".join(enroll_student_filter_parts) + ")"
+                    fj = f" {filter_join} " if (filter_join and str(filter_join).strip()) else ""
+                    enroll_q = (
+                        f"SELECT COUNT(DISTINCT fe.student_id) as count FROM fact_enrollment fe "
+                        f"JOIN dim_student ds ON fe.student_id = ds.student_id{fj} WHERE {staff_where_sql}"
+                    )
+                    total_enrollments_result = pd.read_sql_query(text(enroll_q), engine)
+                    total_enrollments = int(total_enrollments_result['count'][0]) if not total_enrollments_result.empty and pd.notna(total_enrollments_result['count'][0]) else 0
             else:
-                enroll_q = "SELECT COUNT(*) as count FROM fact_enrollment"
-            total_enrollments_result = pd.read_sql_query(text(enroll_q), engine)
-            total_enrollments = int(total_enrollments_result['count'][0]) if not total_enrollments_result.empty and pd.notna(total_enrollments_result['count'][0]) else 0
+                enroll_where_parts = []
+                if role_where:
+                    enroll_where_parts.append(role_where)
+                if enroll_student_filter_parts:
+                    enroll_where_parts.append("(" + " AND ".join(enroll_student_filter_parts) + ")")
+                if fe_enroll_clauses:
+                    enroll_where_parts.append("(" + " AND ".join(fe_enroll_clauses) + ")")
+                if enroll_where_parts:
+                    wsql = " WHERE " + " AND ".join(enroll_where_parts)
+                    needs_dim_student = bool(
+                        str(scope_join).strip()
+                        or role_where
+                        or enroll_student_filter_parts
+                    )
+                    if needs_dim_student:
+                        enroll_q = (
+                            f"SELECT COUNT(*) as count FROM fact_enrollment fe "
+                            f"JOIN dim_student ds ON fe.student_id = ds.student_id{scope_join}{wsql}"
+                        )
+                    else:
+                        enroll_q = f"SELECT COUNT(*) as count FROM fact_enrollment fe{wsql}"
+                else:
+                    enroll_q = "SELECT COUNT(*) as count FROM fact_enrollment"
+                total_enrollments_result = pd.read_sql_query(text(enroll_q), engine)
+                total_enrollments = int(total_enrollments_result['count'][0]) if not total_enrollments_result.empty and pd.notna(total_enrollments_result['count'][0]) else 0
         except Exception as e:
             print(f"Error getting total_enrollments: {e}")
             total_enrollments = 0
 
-        # Average grade (only completed exams) - role scoped
+        # Average grade (completed exams): dean/HOD/student use role + same student/course/semester filters as enrollment KPI.
+        # Staff: only grades in assigned courses (not all grades for any student who took an assigned course).
         try:
-            if role_where:
-                sem_grade_clause = f" AND fg.semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
-                avg_q = f"SELECT AVG(fg.grade) as avg FROM fact_grade fg JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join} WHERE fg.exam_status = 'Completed'{sem_grade_clause} AND {role_where}"
+            if dash_role == Role.STAFF:
+                assigned_g = _get_staff_assigned_course_codes(get_jwt_identity())
+                staff_fg_parts = _staff_assigned_course_fact_where_parts(
+                    assigned_g, semester_id_filter, filters, alias='fg'
+                )
+                if staff_fg_parts is None:
+                    avg_grade = 0.0
+                else:
+                    grade_clauses = ["fg.exam_status = 'Completed'"] + staff_fg_parts
+                    if enroll_student_filter_parts:
+                        grade_clauses.append("(" + " AND ".join(enroll_student_filter_parts) + ")")
+                    fj = f" {filter_join} " if (filter_join and str(filter_join).strip()) else ""
+                    wsql = " WHERE " + " AND ".join(grade_clauses)
+                    avg_q = (
+                        f"SELECT AVG(fg.grade) as avg FROM fact_grade fg "
+                        f"JOIN dim_student ds ON fg.student_id = ds.student_id{fj}{wsql}"
+                    )
+                    avg_grade_result = pd.read_sql_query(text(avg_q), engine)
+                    avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
             else:
-                sem_grade_clause = f" AND semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
-                avg_q = f"SELECT AVG(grade) as avg FROM fact_grade WHERE exam_status = 'Completed'{sem_grade_clause}"
-            avg_grade_result = pd.read_sql_query(text(avg_q), engine)
-            avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
+                grade_clauses = ["fg.exam_status = 'Completed'"]
+                if semester_id_filter is not None:
+                    grade_clauses.append(f"fg.semester_id = {semester_id_filter}")
+                if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
+                    cc = str(filters.get('course_code')).replace("'", "''")
+                    grade_clauses.append(f"fg.course_code = '{cc}'")
+                if role_where:
+                    grade_clauses.append(role_where)
+                if enroll_student_filter_parts:
+                    grade_clauses.append("(" + " AND ".join(enroll_student_filter_parts) + ")")
+                needs_grade_ds = bool(
+                    str(scope_join).strip() or role_where or enroll_student_filter_parts
+                )
+                if needs_grade_ds:
+                    wsql = " WHERE " + " AND ".join(grade_clauses)
+                    avg_q = (
+                        f"SELECT AVG(fg.grade) as avg FROM fact_grade fg "
+                        f"JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join}{wsql}"
+                    )
+                else:
+                    sem_grade_clause = f" AND semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                    cc_clause = ""
+                    if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
+                        cc = str(filters.get('course_code')).replace("'", "''")
+                        cc_clause = f" AND course_code = '{cc}'"
+                    avg_q = (
+                        f"SELECT AVG(grade) as avg FROM fact_grade "
+                        f"WHERE exam_status = 'Completed'{sem_grade_clause}{cc_clause}"
+                    )
+                avg_grade_result = pd.read_sql_query(text(avg_q), engine)
+                avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
         except Exception as e:
             print(f"Error getting avg_grade: {e}")
             avg_grade = 0.0
@@ -2110,15 +2224,46 @@ def get_dashboard_stats():
             print(f"Error getting total_high_schools: {e}")
             total_high_schools = 0
 
-        # Average Retention Rate - role scoped
+        # Retention: dean/HOD/student use full scope_where (same as total_students headcount).
+        # Staff: only students with at least one enrollment in an assigned class (same base as enrollment KPI), not all students loosely linked by any past enrollment.
         try:
-            if role_where:
+            if dash_role == Role.STAFF:
+                assigned_r = _get_staff_assigned_course_codes(get_jwt_identity())
+                staff_fe_r = _staff_assigned_course_fact_where_parts(
+                    assigned_r, semester_id_filter, filters, alias='fe'
+                )
+                if staff_fe_r is None:
+                    avg_retention_rate = 0.0
+                else:
+                    fe_where = " AND ".join(staff_fe_r)
+                    if enroll_student_filter_parts:
+                        fe_where = fe_where + " AND (" + " AND ".join(enroll_student_filter_parts) + ")"
+                    fj = f" {filter_join} " if (filter_join and str(filter_join).strip()) else ""
+                    ret_q = f"""
+                    SELECT
+                        COUNT(DISTINCT CASE WHEN ds.status = 'Active' THEN ds.student_id END) as active,
+                        COUNT(DISTINCT ds.student_id) as total
+                    FROM dim_student ds
+                    JOIN fact_enrollment fe ON fe.student_id = ds.student_id{fj}
+                    WHERE {fe_where}
+                    """
+                    retention_result = pd.read_sql_query(text(ret_q), engine)
+                    if not retention_result.empty and pd.notna(retention_result['total'][0]) and retention_result['total'][0] > 0:
+                        avg_retention_rate = (retention_result['active'][0] / retention_result['total'][0]) * 100
+                    else:
+                        avg_retention_rate = 0.0
+            elif all_where:
                 ret_q = f"""
                 SELECT 
                     COUNT(DISTINCT CASE WHEN ds.status = 'Active' THEN ds.student_id END) as active,
                     COUNT(DISTINCT ds.student_id) as total
                 FROM dim_student ds{scope_join}{scope_where}
                 """
+                retention_result = pd.read_sql_query(text(ret_q), engine)
+                if not retention_result.empty and pd.notna(retention_result['total'][0]) and retention_result['total'][0] > 0:
+                    avg_retention_rate = (retention_result['active'][0] / retention_result['total'][0]) * 100
+                else:
+                    avg_retention_rate = 0.0
             else:
                 ret_q = """
                 SELECT 
@@ -2126,11 +2271,11 @@ def get_dashboard_stats():
                     COUNT(DISTINCT student_id) as total
                 FROM dim_student
                 """
-            retention_result = pd.read_sql_query(text(ret_q), engine)
-            if not retention_result.empty and pd.notna(retention_result['total'][0]) and retention_result['total'][0] > 0:
-                avg_retention_rate = (retention_result['active'][0] / retention_result['total'][0]) * 100
-            else:
-                avg_retention_rate = 0.0
+                retention_result = pd.read_sql_query(text(ret_q), engine)
+                if not retention_result.empty and pd.notna(retention_result['total'][0]) and retention_result['total'][0] > 0:
+                    avg_retention_rate = (retention_result['active'][0] / retention_result['total'][0]) * 100
+                else:
+                    avg_retention_rate = 0.0
         except Exception as e:
             print(f"Error getting avg_retention_rate: {e}")
             avg_retention_rate = 0.0
@@ -2184,11 +2329,26 @@ def get_dashboard_stats():
         except Exception as e:
             print(f"Error getting outstanding_payments: {e}")
             outstanding_payments = 0.0
+
+        grade_kpi_kind = 'grade_average'
+        retention_kpi_kind = 'retention_rate'
+        if dash_role == Role.STAFF:
+            grade_kpi_kind = 'assigned_class_grade_average'
+            retention_kpi_kind = 'assigned_class_retention'
+        elif dash_role == Role.DEAN and claims.get('faculty_id') is not None:
+            grade_kpi_kind = 'faculty_grade_average'
+            retention_kpi_kind = 'faculty_retention'
+        elif dash_role == Role.HOD and claims.get('department_id') is not None:
+            grade_kpi_kind = 'department_grade_average'
+            retention_kpi_kind = 'department_retention'
         
         return jsonify({
             'total_students': total_students,
             'total_courses': total_courses,
             'total_enrollments': total_enrollments,
+            'enrollment_kpi_kind': enrollment_kpi_kind,
+            'grade_kpi_kind': grade_kpi_kind,
+            'retention_kpi_kind': retention_kpi_kind,
             'avg_grade': round(avg_grade, 2),
             'total_payments': round(total_payments, 2),
             'outstanding_payments': round(outstanding_payments, 2),
