@@ -24,6 +24,8 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+      # First boot only: creates airflow_meta alongside ucu_datawarehouse (reproducible Airflow DB)
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
@@ -129,6 +131,10 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/airflow_meta
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      # Reproducible admin (override via .env or shell: AIRFLOW_ADMIN_USERNAME / AIRFLOW_ADMIN_PASSWORD)
+      AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+      AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL:-ensubuga019@gmail.com}
       # Create a reusable connection pointing at the warehouse DB
       AIRFLOW_CONN_NEXTGEN_POSTGRES: postgresql+psycopg2://postgres:postgres@postgres:5432/ucu_datawarehouse
     ports:
@@ -137,14 +143,28 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
-    command: >
-      bash -c "airflow db migrate &&
-      if airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin; then
-        echo 'Airflow admin user created';
-      else
-        airflow users reset-password --username admin --password admin || true;
-      fi &&
-      exec airflow webserver"
+    # Idempotent: migrate DB, create admin on first run, reset password on subsequent runs (same creds every compose up)
+    command:
+      - bash
+      - -c
+      - |
+          set -e
+          airflow db migrate
+          U="$${AIRFLOW_ADMIN_USERNAME:-admin}"
+          P="$${AIRFLOW_ADMIN_PASSWORD:-admin}"
+          E="$${AIRFLOW_ADMIN_EMAIL:-ensubuga019@gmail.com}"
+          if airflow users create \
+            --username "$$U" \
+            --firstname Admin \
+            --lastname User \
+            --role Admin \
+            --email "$$E" \
+            --password "$$P"; then
+            echo "Airflow admin user created ($$U)"
+          else
+            airflow users reset-password --username "$$U" --password "$$P" || true
+          fi
+          exec airflow webserver
 
   airflow-scheduler:
     image: apache/airflow:2.10.2

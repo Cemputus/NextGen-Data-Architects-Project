@@ -13,6 +13,14 @@ import os
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/api/analytics')
 
+def _maybe_int(v):
+    """Coerce URL query param IDs to int for reliable PostgreSQL comparisons."""
+    try:
+        return int(str(v).strip())
+    except (ValueError, TypeError, AttributeError):
+        return v
+
+
 def get_user_scope(claims):
     """Get user's data scope based on role"""
     role_str = claims.get('role', 'student')
@@ -81,15 +89,15 @@ def build_filter_query(filters, base_query, user_scope):
     if filters:
         if _has_value(filters.get('faculty_id')):
             where_clauses.append("df.faculty_id = :filter_faculty_id")
-            params['filter_faculty_id'] = filters['faculty_id']
+            params['filter_faculty_id'] = _maybe_int(filters['faculty_id'])
         
         if _has_value(filters.get('department_id')):
             where_clauses.append("ddept.department_id = :filter_department_id")
-            params['filter_department_id'] = filters['department_id']
+            params['filter_department_id'] = _maybe_int(filters['department_id'])
         
         if _has_value(filters.get('program_id')):
             where_clauses.append("dp.program_id = :filter_program_id")
-            params['filter_program_id'] = filters['program_id']
+            params['filter_program_id'] = _maybe_int(filters['program_id'])
         
         if _has_value(filters.get('course_code')):
             where_clauses.append("dc.course_code = :filter_course_code")
@@ -114,17 +122,21 @@ def build_filter_query(filters, base_query, user_scope):
         
         if _has_value(filters.get('semester_id')):
             where_clauses.append("fg.semester_id = :filter_semester_id")
-            params['filter_semester_id'] = filters['semester_id']
+            params['filter_semester_id'] = _maybe_int(filters['semester_id'])
         
         if _has_value(filters.get('gender')):
             where_clauses.append("ds.gender = :filter_gender")
             params['filter_gender'] = filters['gender']
         
         if _has_value(filters.get('high_school')):
-            # Use case-insensitive match to ensure UI-selected values
-            # always filter consistently.
-            where_clauses.append("ds.high_school ILIKE :filter_high_school")
-            params['filter_high_school'] = f"%{filters['high_school']}%"
+            # Dropdown sends the canonical name from dim_student; normalize whitespace
+            # so "Gulu High School" matches stored values with extra spaces.
+            hs = str(filters['high_school']).strip()
+            where_clauses.append(
+                "regexp_replace(lower(trim(coalesce(ds.high_school, ''))), E'\\\\s+', ' ', 'g') = "
+                "regexp_replace(lower(trim(:filter_high_school_exact)), E'\\\\s+', ' ', 'g')"
+            )
+            params['filter_high_school_exact'] = hs
         
         if _has_value(filters.get('student_name')):
             where_clauses.append("(ds.first_name LIKE :filter_student_name OR ds.last_name LIKE :filter_student_name OR CONCAT(ds.first_name, ' ', ds.last_name) LIKE :filter_student_name)")
@@ -261,7 +273,7 @@ def get_fex_analytics():
             {select_cols}
         FROM fact_grade fg
         JOIN dim_student ds ON fg.student_id = ds.student_id
-        JOIN dim_course dc ON fg.course_code = dc.course_code
+        LEFT JOIN dim_course dc ON fg.course_code = dc.course_code
         LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id

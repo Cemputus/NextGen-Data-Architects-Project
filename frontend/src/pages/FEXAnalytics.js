@@ -230,7 +230,12 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
                 <EmptyState
                   icon={FileText}
                   message="No data available"
-                  hint={fexData?.debug_info?.message || 'Try adjusting your drilldown or check if data exists.'}
+                  hint={
+                    fexData?.debug_info?.message
+                    || (fexData?.debug_info?.total_records_in_db === 0
+                      ? 'No grade rows match these filters (including High School). Try clearing High School or widening Faculty / Department / Semester.'
+                      : 'Try adjusting filters or clearing High School to see if results appear.')
+                  }
                   className="border-2 border-dashed rounded-lg"
                 />
               )}
