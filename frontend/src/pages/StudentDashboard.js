@@ -8,7 +8,17 @@ import ExportButtons from '../components/ExportButtons';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import axios from 'axios';
-import { Loader2 } from 'lucide-react';
+import { Loader2, BookOpen, GraduationCap, CalendarCheck, Wallet } from 'lucide-react';
+import { KPICard } from '../components/ui/kpi-card';
+import {
+  kpiStripCardClass,
+  chartSurfaceCard,
+  chartCardHeaderClass,
+  chartCardTitleClass,
+  chartCardDescriptionClass,
+  chartEmptyStateClass,
+} from '../lib/analytics-ui';
+import { cn } from '../lib/utils';
 
 const StudentDashboard = () => {
   const { user } = useAuth();
@@ -212,80 +222,69 @@ const StudentDashboard = () => {
       )}
 
       {/* Top student KPI strip */}
-      <Card className="border shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">My academic overview</CardTitle>
-          <CardDescription className="text-xs">
+      <Card className={kpiStripCardClass}>
+        <CardHeader className={chartCardHeaderClass}>
+          <CardTitle className="text-base font-semibold tracking-tight">My academic overview</CardTitle>
+          <CardDescription className={chartCardDescriptionClass}>
             KPIs are computed strictly from your own records via student analytics and dashboard stats.
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 pb-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="border rounded-md px-3 py-2 bg-muted/40">
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                Courses registered
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {formatNumber(stats?.total_courses || stats?.courses_registered)}
-              </p>
-            </div>
-            <div className="border rounded-md px-3 py-2 bg-muted/40">
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                Average grade
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {formatNumber(stats?.avg_grade)}
-              </p>
-            </div>
-            <div className="border rounded-md px-3 py-2 bg-muted/40">
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                Attendance
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {formatPercent(stats?.avg_attendance)}
-              </p>
-            </div>
-            <div className="border rounded-md px-3 py-2 bg-muted/40">
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                Fees paid vs pending
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {formatPercent(paidPercentage)} paid
-              </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {formatNumber(totalPaid)} paid / {formatNumber(totalPending)} pending
-              </p>
-            </div>
+            <KPICard
+              title="Courses registered"
+              value={formatNumber(stats?.total_courses || stats?.courses_registered)}
+              icon={BookOpen}
+              subtitle="From your enrollment records."
+            />
+            <KPICard
+              title="Average grade"
+              value={formatNumber(stats?.avg_grade)}
+              icon={GraduationCap}
+              subtitle="Across completed assessments."
+            />
+            <KPICard
+              title="Attendance"
+              value={formatPercent(stats?.avg_attendance)}
+              icon={CalendarCheck}
+              subtitle="Average attendance where recorded."
+            />
+            <KPICard
+              title="Fees paid vs pending"
+              value={`${formatPercent(paidPercentage)} paid`}
+              icon={Wallet}
+              subtitle={`${formatNumber(totalPaid)} paid / ${formatNumber(totalPending)} pending`}
+            />
           </div>
         </CardContent>
       </Card>
 
       {/* Academic performance & attendance (placeholders) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="border shadow-sm h-full">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Attendance over time</CardTitle>
-            <CardDescription className="text-xs">
+        <Card className={chartSurfaceCard('h-full')}>
+          <CardHeader className={chartCardHeaderClass}>
+            <CardTitle className={chartCardTitleClass}>Attendance over time</CardTitle>
+            <CardDescription className={chartCardDescriptionClass}>
               Trend of your attendance across weeks/semesters, powered by the attendance trends
               endpoint filtered to your access number.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+            <div className={cn(chartEmptyStateClass, 'min-h-[220px]')}>
               Line / area chart placeholder for attendance trend.
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm h-full">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Grades by course</CardTitle>
-            <CardDescription className="text-xs">
+        <Card className={chartSurfaceCard('h-full')}>
+          <CardHeader className={chartCardHeaderClass}>
+            <CardTitle className={chartCardTitleClass}>Grades by course</CardTitle>
+            <CardDescription className={chartCardDescriptionClass}>
               Distribution of your grades per course and semester based on your `fact_grade` records.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
+            <div className={cn(chartEmptyStateClass, 'min-h-[220px]')}>
               Bar / donut chart placeholder for grade distribution by course.
             </div>
           </CardContent>

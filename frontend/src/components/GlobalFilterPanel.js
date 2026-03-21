@@ -23,6 +23,14 @@ const GlobalFilterPanel = ({
   hideAcademic = false,
   hideFaculty = false,
   hideDepartment = false,
+  /** If set, faculty is fixed (e.g. dean); all cascaded options stay within this faculty. */
+  lockedFacultyId = undefined,
+  /** If set, department is fixed (e.g. HOD); cascaded options stay within this department. */
+  lockedDepartmentId = undefined,
+  /** When the faculty has only one department, hide the department control and start at Program. */
+  skipDepartmentFilter = false,
+  /** Optional: overrides the default role-based filter subtitle (e.g. dean hierarchy hints). */
+  filterHint = '',
 }) => {
   const { user } = useAuth();
   const role = (user?.role || '').toString().toLowerCase();
@@ -33,7 +41,7 @@ const GlobalFilterPanel = ({
   // - Dean is already scoped to a faculty, so filters should start at Department.
   // - HOD is already scoped to a department, so filters should start at Program.
   const effectiveHideFaculty = hideFaculty || isDean || isHod;
-  const effectiveHideDepartment = hideDepartment || isHod;
+  const effectiveHideDepartment = hideDepartment || isHod || skipDepartmentFilter;
 
   // Load persisted filters and search term for this page (per-user)
   const savedFiltersState = loadFilters(pageName, savedFilters || {});
@@ -66,10 +74,17 @@ const GlobalFilterPanel = ({
   const loadFilterOptions = async (currentFilters = {}) => {
     setLoading(true);
     try {
+      const effectiveForRequest = { ...currentFilters };
+      if (lockedFacultyId != null && lockedFacultyId !== '') {
+        effectiveForRequest.faculty_id = String(lockedFacultyId);
+      }
+      if (lockedDepartmentId != null && lockedDepartmentId !== '') {
+        effectiveForRequest.department_id = String(lockedDepartmentId);
+      }
       const params = {};
-      if (currentFilters.faculty_id) params.faculty_id = currentFilters.faculty_id;
-      if (currentFilters.department_id) params.department_id = currentFilters.department_id;
-      if (currentFilters.program_id) params.program_id = currentFilters.program_id;
+      if (effectiveForRequest.faculty_id) params.faculty_id = effectiveForRequest.faculty_id;
+      if (effectiveForRequest.department_id) params.department_id = effectiveForRequest.department_id;
+      if (effectiveForRequest.program_id) params.program_id = effectiveForRequest.program_id;
 
       const res = await axios.get('/api/analytics/filter-options', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
@@ -92,6 +107,10 @@ const GlobalFilterPanel = ({
       // clear it (and its children) so filters remain logically consistent.
       const cleanedFilters = { ...(currentFilters || {}) };
       let changed = false;
+      const lockFid =
+        lockedFacultyId != null && lockedFacultyId !== '' ? String(lockedFacultyId) : null;
+      const lockDid =
+        lockedDepartmentId != null && lockedDepartmentId !== '' ? String(lockedDepartmentId) : null;
 
       const hasId = (list, idKey, selectedValue) =>
         Array.isArray(list) &&
@@ -100,7 +119,8 @@ const GlobalFilterPanel = ({
       if (
         cleanedFilters.faculty_id &&
         nextOptions.faculties.length > 0 &&
-        !hasId(nextOptions.faculties, 'faculty_id', cleanedFilters.faculty_id)
+        !hasId(nextOptions.faculties, 'faculty_id', cleanedFilters.faculty_id) &&
+        !(lockFid && String(cleanedFilters.faculty_id) === lockFid)
       ) {
         delete cleanedFilters.faculty_id;
         delete cleanedFilters.department_id;
@@ -112,7 +132,8 @@ const GlobalFilterPanel = ({
       if (
         cleanedFilters.department_id &&
         nextOptions.departments.length > 0 &&
-        !hasId(nextOptions.departments, 'department_id', cleanedFilters.department_id)
+        !hasId(nextOptions.departments, 'department_id', cleanedFilters.department_id) &&
+        !(lockDid && String(cleanedFilters.department_id) === lockDid)
       ) {
         delete cleanedFilters.department_id;
         delete cleanedFilters.program_id;
@@ -162,6 +183,32 @@ const GlobalFilterPanel = ({
     }
   };
 
+  // Keep faculty locked for dean (or other roles) and notify parent
+  useEffect(() => {
+    if (lockedFacultyId == null || lockedFacultyId === '') return;
+    const fid = String(lockedFacultyId);
+    setFilters((prev) => {
+      if (String(prev.faculty_id) === fid) return prev;
+      const next = { ...prev, faculty_id: fid };
+      onFilterChange(next);
+      saveFilters(pageName, next);
+      return next;
+    });
+  }, [lockedFacultyId, pageName]);
+
+  // Keep department locked for HOD (or other roles) and notify parent
+  useEffect(() => {
+    if (lockedDepartmentId == null || lockedDepartmentId === '') return;
+    const did = String(lockedDepartmentId);
+    setFilters((prev) => {
+      if (String(prev.department_id) === did) return prev;
+      const next = { ...prev, department_id: did };
+      onFilterChange(next);
+      saveFilters(pageName, next);
+      return next;
+    });
+  }, [lockedDepartmentId, pageName]);
+
   // Load filter options on initial mount with saved filters
   useEffect(() => {
     loadFilterOptions(filters);
@@ -170,7 +217,7 @@ const GlobalFilterPanel = ({
   // Reload filter options when parent filters change
   useEffect(() => {
     loadFilterOptions(filters);
-  }, [filters.faculty_id, filters.department_id, filters.program_id]);
+  }, [filters.faculty_id, filters.department_id, filters.program_id, lockedFacultyId, lockedDepartmentId]);
   
   // Notify parent of initial filters on mount
   useEffect(() => {
@@ -180,6 +227,12 @@ const GlobalFilterPanel = ({
   }, []); // Only on mount
 
   const handleFilterChange = (key, value) => {
+    if (key === 'faculty_id' && lockedFacultyId != null && lockedFacultyId !== '') {
+      return;
+    }
+    if (key === 'department_id' && lockedDepartmentId != null && lockedDepartmentId !== '') {
+      return;
+    }
     const newFilters = { ...filters };
     
     // Clear child filters when parent changes
@@ -236,13 +289,20 @@ const GlobalFilterPanel = ({
   };
 
   const clearFilters = () => {
-    setFilters({});
+    const base = {};
+    if (lockedFacultyId != null && lockedFacultyId !== '') {
+      base.faculty_id = String(lockedFacultyId);
+    }
+    if (lockedDepartmentId != null && lockedDepartmentId !== '') {
+      base.department_id = String(lockedDepartmentId);
+    }
+    setFilters(base);
     setSearchTerm('');
     saveSearchTerm(pageName, '');
-    onFilterChange({});
+    onFilterChange(base);
     logAuditEvent('filter_cleared', 'filters', pageName);
-    saveFilters(pageName, {});
-    loadFilterOptions({});
+    saveFilters(pageName, base);
+    loadFilterOptions(base);
   };
 
   const activeFiltersCount = Object.keys(filters).filter(k => filters[k]).length;
@@ -265,9 +325,13 @@ const GlobalFilterPanel = ({
                 <div>
                   <h3 className="text-lg font-bold text-foreground">Filters</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {isDean && 'Scoped to your faculty. Start from Department, then Program, Course, Semester, High School.'}
-                    {isHod && 'Scoped to your department. Start from Program, then Course, Semester, High School.'}
-                    {!isDean && !isHod && 'Search by Access Number, Reg No, or Name. Filter by Faculty → Department → Program → Course → Semester → High School.'}
+                    {filterHint
+                      ? filterHint
+                      : isDean &&
+                          'Scoped to your faculty. Start from Department, then Program, Course, Semester, High School.'}
+                    {!filterHint && isHod && 'Scoped to your department. Start from Program, then Course, Semester, High School.'}
+                    {!filterHint && !isDean && !isHod &&
+                      'Search by Access Number, Reg No, or Name. Filter by Faculty → Department → Program → Course → Semester → High School.'}
                   </p>
                 </div>
               </div>

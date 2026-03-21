@@ -17,6 +17,12 @@ import { Button } from '../components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
+import {
+  chartSurfaceCard,
+  chartCardHeaderClass,
+  chartCardTitleClass,
+  chartCardDescriptionClass,
+} from '../lib/analytics-ui';
 
 const CONSOLE_KPI_POLL_INTERVAL_MS = 30000; // 30s - live KPIs refresh when new data or users are added
 
@@ -237,10 +243,10 @@ const AdminDashboard = () => {
 
           {/* User distribution by role */}
           {userRoleDistribution.length > 0 && (
-            <Card className="border shadow-sm">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-base font-semibold">User distribution by role</CardTitle>
-                <CardDescription className="text-xs">
+            <Card className={chartSurfaceCard()}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className="text-base font-semibold tracking-tight">User distribution by role</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
                   Snapshot of users by role (students + app users). Open Users tab for full management.
                 </CardDescription>
                 <div className="mt-2">
@@ -316,10 +322,10 @@ const AdminDashboard = () => {
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">System Settings</CardTitle>
-                  <CardDescription className="text-xs">Configure system parameters and preferences</CardDescription>
+              <Card className={chartSurfaceCard()}>
+                <CardHeader className={chartCardHeaderClass}>
+                  <CardTitle className="text-base font-semibold tracking-tight">System Settings</CardTitle>
+                  <CardDescription className={chartCardDescriptionClass}>Configure system parameters and preferences</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
                   <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground text-sm">
@@ -338,10 +344,10 @@ const AdminDashboard = () => {
             </TabsContent>
 
             <TabsContent value="etl" className="space-y-3">
-              <Card className="border shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-base font-semibold">Data Warehouse & ETL Overview</CardTitle>
-                  <CardDescription className="text-xs">
+              <Card className={chartSurfaceCard()}>
+                <CardHeader className={chartCardHeaderClass}>
+                  <CardTitle className="text-base font-semibold tracking-tight">Data Warehouse & ETL Overview</CardTitle>
+                  <CardDescription className={chartCardDescriptionClass}>
                     Live counts for core dimension/fact tables and the last ETL run. Full tracking on ETL Jobs page.
                   </CardDescription>
                 </CardHeader>

@@ -7,7 +7,7 @@
  * All dashboard management (current vs custom, preview, swap, edit content)
  * lives in the dedicated Dashboard Manager page.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, Loader2, Users, Activity, GraduationCap, Target, Receipt, Award } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -22,16 +22,41 @@ import {
   SciPieChart,
   Sci3DPieChart,
   SciStackedColumnChart,
-  SciAreaChart,
   UCU_COLORS,
 } from '../components/charts/EChartsComponents';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { KPICard } from '../components/ui/kpi-card';
+import { cn } from '../lib/utils';
+import {
+  kpiStripCardClass,
+  chartSurfaceCard,
+  chartCardHeaderClass,
+  chartCardTitleClass,
+  chartCardDescriptionClass,
+  chartEmptyStateClass,
+} from '../lib/analytics-ui';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
-const AnalystDashboard = () => {
+const AnalystDashboard = ({
+  title = "Analytics Workspace",
+  defaultSubtitle = "Institution-wide analytics workspace",
+  exportFilename = "analyst_workspace",
+  filterPageName = "analyst_analytics",
+  /** When set (e.g. deans), every chart/API call includes this faculty_id; user cannot pick another faculty. */
+  lockedFacultyId = undefined,
+  /** When set (e.g. HODs), every chart/API call includes this department_id; user cannot pick another department. */
+  lockedDepartmentId = undefined,
+} = {}) => {
   const { user } = useAuth();
+  // Senate reuses this page with its own filter persistence key (`senate_dashboard`).
+  const isSenateWorkspace = filterPageName === 'senate_dashboard';
+  const isDeanWorkspace = filterPageName === 'dean_analytics';
+  const isHodWorkspace = filterPageName === 'hod_analytics';
+  /** Dean / HOD: no payment KPIs or payment charts (finance stays in Finance role). */
+  const hidePaymentsAnalysis =
+    filterPageName === 'dean_analytics' || filterPageName === 'hod_analytics';
+
   const [loadingStats, setLoadingStats] = useState(true);
   const [stats, setStats] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,14 +72,133 @@ const AnalystDashboard = () => {
   const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
   const [loadingPipeline, setLoadingPipeline] = useState(true);
   const [globalFilters, setGlobalFilters] = useState({});
+  /** For deans: department/program counts in their faculty → drives default distribution dimension. */
+  const [facultyShape, setFacultyShape] = useState({
+    loaded: false,
+    deptCount: 0,
+    programCount: 0,
+  });
+  /** For HODs: program count in their department → program vs year-of-study default. */
+  const [deptScopeShape, setDeptScopeShape] = useState({
+    loaded: false,
+    programCount: 0,
+  });
 
-  const distributionGroupBy = globalFilters?.program_id
-    ? 'year_of_study'
-    : globalFilters?.department_id
-      ? 'program'
-      : globalFilters?.faculty_id
-        ? 'department'
-        : 'faculty';
+  const apiFilters = useMemo(() => {
+    const f = { ...globalFilters };
+    if (lockedFacultyId != null && lockedFacultyId !== '') {
+      f.faculty_id = String(lockedFacultyId);
+    }
+    if (lockedDepartmentId != null && lockedDepartmentId !== '') {
+      f.department_id = String(lockedDepartmentId);
+    }
+    return f;
+  }, [globalFilters, lockedFacultyId, lockedDepartmentId]);
+
+  const distributionGroupBy = useMemo(() => {
+    // User chose a program → always show year-of-study breakdown
+    if (apiFilters?.program_id) return 'year_of_study';
+
+    const hasDeptLock = lockedDepartmentId != null && lockedDepartmentId !== '';
+    if (hasDeptLock && deptScopeShape.loaded) {
+      const np = deptScopeShape.programCount;
+      if (np > 1) return 'program';
+      return 'year_of_study';
+    }
+    if (hasDeptLock && !deptScopeShape.loaded) return 'program';
+
+    const hasFacultyLock = lockedFacultyId != null && lockedFacultyId !== '';
+
+    if (hasFacultyLock && facultyShape.loaded) {
+      // User narrowed to one department (multi-department faculty) → next level is programs
+      if (apiFilters?.department_id) return 'program';
+
+      const nd = facultyShape.deptCount;
+      const np = facultyShape.programCount;
+      if (nd > 1) return 'department';
+      if (nd === 1 && np > 1) return 'program';
+      return 'year_of_study';
+    }
+
+    if (hasFacultyLock && !facultyShape.loaded) return 'department';
+
+    if (apiFilters?.department_id) return 'program';
+    if (apiFilters?.faculty_id) return 'department';
+    return 'faculty';
+  }, [
+    apiFilters,
+    lockedFacultyId,
+    lockedDepartmentId,
+    facultyShape.loaded,
+    facultyShape.deptCount,
+    facultyShape.programCount,
+    deptScopeShape.loaded,
+    deptScopeShape.programCount,
+  ]);
+
+  useEffect(() => {
+    if (lockedFacultyId == null || lockedFacultyId === '') {
+      setFacultyShape({ loaded: false, deptCount: 0, programCount: 0 });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = sessionStorage.getItem('ucu_session_token');
+        const res = await axios.get('/api/analytics/filter-options', {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { faculty_id: lockedFacultyId },
+        });
+        if (cancelled) return;
+        const depts = res.data?.departments || [];
+        const progs = res.data?.programs || [];
+        setFacultyShape({
+          loaded: true,
+          deptCount: depts.length,
+          programCount: progs.length,
+        });
+      } catch (e) {
+        if (!cancelled) {
+          console.error('Error loading faculty shape for distribution chart:', e);
+          setFacultyShape({ loaded: true, deptCount: 2, programCount: 2 });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lockedFacultyId]);
+
+  useEffect(() => {
+    if (lockedDepartmentId == null || lockedDepartmentId === '') {
+      setDeptScopeShape({ loaded: false, programCount: 0 });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = sessionStorage.getItem('ucu_session_token');
+        const res = await axios.get('/api/analytics/filter-options', {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { department_id: lockedDepartmentId },
+        });
+        if (cancelled) return;
+        const progs = res.data?.programs || [];
+        setDeptScopeShape({
+          loaded: true,
+          programCount: progs.length,
+        });
+      } catch (e) {
+        if (!cancelled) {
+          console.error('Error loading department scope for distribution chart:', e);
+          setDeptScopeShape({ loaded: true, programCount: 2 });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lockedDepartmentId]);
 
   const loadStats = async () => {
     try {
@@ -63,7 +207,7 @@ const AnalystDashboard = () => {
       }
       const response = await axios.get('/api/dashboard/stats', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: globalFilters,
+        params: apiFilters,
       });
       setStats(response.data);
     } catch (err) {
@@ -85,50 +229,120 @@ const AnalystDashboard = () => {
     return words.map((w) => w[0]).join('').toUpperCase();
   };
 
+  /** Short axis labels for year-of-study bars: Y1, Y2, … */
+  const formatDistributionShortLabel = (raw, groupBy) => {
+    if (groupBy !== 'year_of_study' || raw == null) return String(raw);
+    const s = String(raw).trim();
+    const m = /^Year\s*(\d+)/i.exec(s);
+    if (m) return `Y${m[1]}`;
+    const n = parseInt(s, 10);
+    if (!Number.isNaN(n) && n > 0) return `Y${n}`;
+    return s;
+  };
+
+  const distributionCardTitle = useMemo(() => {
+    if (isHodWorkspace) {
+      if (!deptScopeShape.loaded) return 'Student distribution (your department)';
+      if (deptScopeShape.programCount > 1) {
+        return 'Student distribution by program (in your department)';
+      }
+      return 'Student distribution by year of study (Y1–Y4)';
+    }
+    if (!isDeanWorkspace) {
+      return 'Student distribution by faculty/program';
+    }
+    if (!facultyShape.loaded) {
+      return 'Student distribution (your faculty)';
+    }
+    if (facultyShape.deptCount > 1) {
+      return 'Student distribution by department';
+    }
+    if (facultyShape.deptCount === 1 && facultyShape.programCount > 1) {
+      return 'Student distribution by program';
+    }
+    return 'Student distribution by year of study (Y1–Y4)';
+  }, [
+    isDeanWorkspace,
+    isHodWorkspace,
+    facultyShape.loaded,
+    facultyShape.deptCount,
+    facultyShape.programCount,
+    deptScopeShape.loaded,
+    deptScopeShape.programCount,
+  ]);
+
+  const skipDepartmentFilterDean =
+    isDeanWorkspace && facultyShape.loaded && facultyShape.deptCount === 1;
+
+  const leaderFilterHint = useMemo(() => {
+    if (isDeanWorkspace) {
+      if (!facultyShape.loaded) return 'Scoped to your faculty — preparing filters…';
+      return skipDepartmentFilterDean
+        ? 'Single department — start from Program, then Course, Semester, High School.'
+        : 'Multiple departments — start from Department, then Program, Course, Semester, High School.';
+    }
+    if (isHodWorkspace) {
+      if (!deptScopeShape.loaded) return 'Scoped to your department — preparing filters…';
+      return 'Your department is fixed — use Program and other filters to narrow charts. You cannot view other departments.';
+    }
+    return '';
+  }, [
+    isDeanWorkspace,
+    isHodWorkspace,
+    facultyShape.loaded,
+    skipDepartmentFilterDean,
+    deptScopeShape.loaded,
+  ]);
+
   const loadCharts = async () => {
     try {
       setLoadingCharts(true);
       const token = sessionStorage.getItem('ucu_session_token');
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [
-        gradesRes,
-        gradeDistRes,
-        riskRes,
-        paymentStatusRes,
-        paymentTrendsRes,
-      ] = await Promise.all([
+      const baseRequests = [
         axios
           .get('/api/dashboard/grades-over-time', {
             headers,
-            params: { period: 'quarterly', ...globalFilters },
+            params: { period: 'quarterly', ...apiFilters },
           })
           .catch(() => ({ data: { periods: [], grades: [] } })),
         axios
           .get('/api/dashboard/grade-distribution', {
             headers,
-            params: globalFilters,
+            params: apiFilters,
           })
           .catch(() => ({ data: { grades: [], counts: [] } })),
         axios
           .get('/api/analytics/academic-risk-summary', {
             headers,
-            params: globalFilters,
+            params: apiFilters,
           })
           .catch(() => ({ data: { summary: null } })),
-        axios
-          .get('/api/dashboard/payment-status', {
-            headers,
-            params: globalFilters,
-          })
-          .catch(() => ({ data: { statuses: [], counts: [] } })),
-        axios
-          .get('/api/dashboard/payment-trends', {
-            headers,
-            params: { period: 'quarterly', ...globalFilters },
-          })
-          .catch(() => ({ data: { periods: [], amounts: [] } })),
-      ]);
+      ];
+
+      const paymentRequests = hidePaymentsAnalysis
+        ? []
+        : [
+            axios
+              .get('/api/dashboard/payment-status', {
+                headers,
+                params: apiFilters,
+              })
+              .catch(() => ({ data: { statuses: [], counts: [] } })),
+            axios
+              .get('/api/dashboard/payment-trends', {
+                headers,
+                params: { period: 'quarterly', ...apiFilters },
+              })
+              .catch(() => ({ data: { periods: [], amounts: [] } })),
+          ];
+
+      const results = await Promise.all([...baseRequests, ...paymentRequests]);
+
+      const [gradesRes, gradeDistRes, riskRes, paymentStatusRes, paymentTrendsRes] = hidePaymentsAnalysis
+        ? [...results, { data: { statuses: [], counts: [] } }, { data: { periods: [], amounts: [] } }]
+        : results;
 
       setGradesOverTime(
         (gradesRes.data.periods || []).map((period, idx) => ({
@@ -146,19 +360,24 @@ const AnalystDashboard = () => {
 
       setRiskSummary(riskRes.data.summary || null);
 
-      setPaymentStatus(
-        (paymentStatusRes.data.statuses || []).map((status, idx) => ({
-          name: status,
-          value: paymentStatusRes.data.counts?.[idx] || 0,
-        })),
-      );
+      if (hidePaymentsAnalysis) {
+        setPaymentStatus([]);
+        setPaymentTrends([]);
+      } else {
+        setPaymentStatus(
+          (paymentStatusRes.data.statuses || []).map((status, idx) => ({
+            name: status,
+            value: paymentStatusRes.data.counts?.[idx] || 0,
+          })),
+        );
 
-      setPaymentTrends(
-        (paymentTrendsRes.data.periods || []).map((period, idx) => ({
-          period,
-          amount: paymentTrendsRes.data.amounts?.[idx] || 0,
-        })),
-      );
+        setPaymentTrends(
+          (paymentTrendsRes.data.periods || []).map((period, idx) => ({
+            period,
+            amount: paymentTrendsRes.data.amounts?.[idx] || 0,
+          })),
+        );
+      }
     } catch (err) {
       console.error('Error loading analyst charts:', err);
     } finally {
@@ -187,17 +406,24 @@ const AnalystDashboard = () => {
       const res = await axios
         .get('/api/dashboard/students-by-department', {
           headers,
-          params: { group_by: distributionGroupBy, ...globalFilters },
+          params: { group_by: distributionGroupBy, ...apiFilters },
         })
         .catch(() => ({ data: { labels: [], counts: [] } }));
       const enrollLabels = res.data.labels || res.data.departments || [];
       const enrollCounts = res.data.counts || [];
+      const gb = distributionGroupBy;
       setEnrollmentByFaculty(
-        enrollLabels.map((name, idx) => ({
-          name: abbreviateName(name),
-          fullName: name,
-          students: enrollCounts[idx] || 0,
-        })),
+        enrollLabels.map((name, idx) => {
+          const short =
+            gb === 'year_of_study'
+              ? formatDistributionShortLabel(name, gb)
+              : abbreviateName(name);
+          return {
+            name: short,
+            fullName: gb === 'year_of_study' ? String(name) : name,
+            students: enrollCounts[idx] || 0,
+          };
+        }),
       );
     } catch (err) {
       console.error('Error loading student distribution chart:', err);
@@ -212,28 +438,7 @@ const AnalystDashboard = () => {
       setLoadingPipeline(true);
       const token = sessionStorage.getItem('ucu_session_token');
       const headers = { Authorization: `Bearer ${token}` };
-      const params = {};
-      if (globalFilters.faculty_id) {
-        params.faculty_id = globalFilters.faculty_id;
-      }
-      if (globalFilters.department_id) {
-        params.department_id = globalFilters.department_id;
-      }
-      if (globalFilters.program_id) {
-        params.program_id = globalFilters.program_id;
-      }
-      if (globalFilters.semester_id) {
-        params.semester_id = globalFilters.semester_id;
-      }
-      if (globalFilters.high_school) {
-        params.high_school = globalFilters.high_school;
-      }
-      if (globalFilters.intake_year) {
-        params.intake_year = globalFilters.intake_year;
-      }
-      if (globalFilters.course_code) {
-        params.course_code = globalFilters.course_code;
-      }
+      const params = { ...apiFilters };
       const res = await axios
         .get('/api/analytics/enrollment-pipeline', {
           headers,
@@ -271,7 +476,7 @@ const AnalystDashboard = () => {
     loadStudentDistributionChart();
     loadPipelineChart();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalFilters, distributionGroupBy]);
+  }, [globalFilters, distributionGroupBy, lockedFacultyId, lockedDepartmentId, facultyShape.loaded, deptScopeShape.loaded]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -312,11 +517,11 @@ const AnalystDashboard = () => {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Analytics Workspace"
+        title={title}
         subtitle={
           showWelcome && lastName
             ? `Welcome back ${lastName} 🤗!`
-            : 'Institution-wide analytics workspace'
+            : defaultSubtitle
         }
         actions={
           <>
@@ -332,7 +537,7 @@ const AnalystDashboard = () => {
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing || loadingStats ? 'Refreshing…' : 'Refresh KPIs'}
             </Button>
-            <ExportButtons filename="analyst_workspace" />
+            <ExportButtons filename={exportFilename} stats={stats} filters={apiFilters} />
           </>
         }
       />
@@ -342,16 +547,25 @@ const AnalystDashboard = () => {
         onFilterChange={(next) => {
           setGlobalFilters(next || {});
         }}
-        pageName="analyst_analytics"
+        pageName={filterPageName}
+        lockedFacultyId={lockedFacultyId}
+        lockedDepartmentId={lockedDepartmentId}
+        skipDepartmentFilter={skipDepartmentFilterDean}
+        filterHint={leaderFilterHint}
       />
 
       {/* Top KPI strip */}
-      <Card className="border shadow-sm">
-        <CardHeader className="p-4 pb-2">
-          <CardTitle className="text-base font-semibold">Executive overview</CardTitle>
-          <CardDescription className="text-xs">
-            High-level KPIs scoped by your analyst role. Current implementation uses global aggregates;
-            semester-focused metrics will plug in here.
+      <Card className={kpiStripCardClass}>
+        <CardHeader className={chartCardHeaderClass}>
+          <CardTitle className="text-base font-semibold tracking-tight">Executive overview</CardTitle>
+          <CardDescription className={chartCardDescriptionClass}>
+            {isSenateWorkspace
+              ? 'Institution-wide KPIs for Senate users, driven by the global filters above and your permissions.'
+              : isDeanWorkspace
+                ? 'KPIs for your faculty only. Use Department and Program filters to narrow charts; you cannot view other faculties.'
+                : isHodWorkspace
+                  ? 'KPIs for your department only. Use Program and other filters to narrow charts; you cannot view other departments.'
+                  : 'High-level KPIs scoped by your role. Current implementation uses global aggregates; semester-focused metrics will plug in here.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0 pb-4">
@@ -400,10 +614,10 @@ const AnalystDashboard = () => {
 
       {/* Section A – Enrollment & pipeline */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="border shadow-sm h-full">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-semibold">Enrollment pipeline</CardTitle>
-            <CardDescription className="text-xs">
+        <Card className={chartSurfaceCard('h-full')}>
+          <CardHeader className={chartCardHeaderClass}>
+            <CardTitle className={chartCardTitleClass}>Enrollment pipeline</CardTitle>
+            <CardDescription className={chartCardDescriptionClass}>
               Trend of first-year, first-semester students across academic years.
             </CardDescription>
           </CardHeader>
@@ -413,7 +627,7 @@ const AnalystDashboard = () => {
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : enrollmentPipeline.length === 0 ? (
-              <div className="min-h-[260px] flex items-center justify-center text-xs text-muted-foreground border border-dashed rounded-md">
+              <div className={cn(chartEmptyStateClass, 'min-h-[260px]')}>
                 Chart coming soon.
               </div>
             ) : (
@@ -430,9 +644,9 @@ const AnalystDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm h-full">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-semibold">Student distribution by faculty/program</CardTitle>
+        <Card className={chartSurfaceCard('h-full')}>
+          <CardHeader className={chartCardHeaderClass}>
+            <CardTitle className={chartCardTitleClass}>{distributionCardTitle}</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             {loadingStudentDist ? (
@@ -446,7 +660,9 @@ const AnalystDashboard = () => {
                 yDataKey="students"
                 xAxisLabel={
                   distributionGroupBy === 'year_of_study'
-                    ? 'Year of Study'
+                    ? isDeanWorkspace
+                      ? 'Year of study (Y1, Y2, …)'
+                      : 'Year of Study'
                     : distributionGroupBy === 'program'
                       ? 'Program'
                       : distributionGroupBy === 'department'
@@ -466,10 +682,10 @@ const AnalystDashboard = () => {
 
       {/* Section B – Performance & risk */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="border shadow-sm h-full">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-semibold">Performance & grade distribution</CardTitle>
-            <CardDescription className="text-xs">
+        <Card className={chartSurfaceCard('h-full')}>
+          <CardHeader className={chartCardHeaderClass}>
+            <CardTitle className={chartCardTitleClass}>Performance & grade distribution</CardTitle>
+            <CardDescription className={chartCardDescriptionClass}>
               GPA/grade distribution and pass/fail ratios across faculties, departments and programs.
             </CardDescription>
           </CardHeader>
@@ -489,10 +705,10 @@ const AnalystDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm h-full">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-semibold">Risk & FCW/MEX/FEX segments</CardTitle>
-            <CardDescription className="text-xs">
+        <Card className={chartSurfaceCard('h-full')}>
+          <CardHeader className={chartCardHeaderClass}>
+            <CardTitle className={chartCardTitleClass}>Risk & FCW/MEX/FEX segments</CardTitle>
+            <CardDescription className={chartCardDescriptionClass}>
               Concentration of FCW/MEX/FEX across courses and programs. Driven by FCW/MEX/FEX
               flags in `fact_grade` and risk endpoints.
             </CardDescription>
@@ -523,13 +739,15 @@ const AnalystDashboard = () => {
         </Card>
       </div>
 
-      {/* Section C – Payments & finance (analyst scope) */}
-      <Card className="border shadow-sm">
-        <CardHeader className="p-4 pb-2">
-          <CardTitle className="text-sm font-semibold">Payments & outstanding balances</CardTitle>
-          <CardDescription className="text-xs">
-            High-level finance view for analysts. Full finance dashboards remain in the dedicated
-            Finance role area.
+      {/* Section C – Payments & finance (not shown for Dean / HOD workspaces) */}
+      {!hidePaymentsAnalysis && (
+      <Card className={chartSurfaceCard()}>
+        <CardHeader className={chartCardHeaderClass}>
+          <CardTitle className={chartCardTitleClass}>Payments & outstanding balances</CardTitle>
+          <CardDescription className={chartCardDescriptionClass}>
+            {isSenateWorkspace
+              ? 'Institution-wide payment summary for Senate. Detailed finance operations remain in the Finance role area.'
+              : 'High-level finance view for your role. Full finance dashboards remain in the dedicated Finance role area.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
@@ -576,6 +794,7 @@ const AnalystDashboard = () => {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 };
