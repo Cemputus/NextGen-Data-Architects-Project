@@ -20,13 +20,24 @@ import { PageHeader, PageContent } from '../components/ui/page-header';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { useAuth } from '../context/AuthContext';
 import { CHART_PALETTE } from '../config/designTokens';
+import { sanitizeDashboardFilters } from '../utils/filterUtils';
 import { Skeleton } from '../components/ui/skeleton';
 
 const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const role = (user?.role || '').toString().toLowerCase();
+  const isDean = role === 'dean';
+  const isHod = role === 'hod';
+  const lockedFacultyId =
+    isDean && user?.faculty_id != null && user?.faculty_id !== '' ? user.faculty_id : undefined;
+  const lockedDepartmentId =
+    isHod && user?.department_id != null && user?.department_id !== ''
+      ? user.department_id
+      : undefined;
   const [loading, setLoading] = useState(true);
   const [fexData, setFexData] = useState(null);
+  const [scopeError, setScopeError] = useState(null);
 
   const savedState = loadPageState('fex_analytics', { filters: {}, drilldown: 'faculty', tab: 'distribution' });
   // Keep filters hydrated by GlobalFilterPanel persistence (statePersistence.loadFilters).
@@ -63,9 +74,21 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
   const loadFEXData = async () => {
     try {
       setLoading(true);
+      setScopeError(null);
+      if (isDean && (user?.faculty_id == null || user?.faculty_id === '')) {
+        setScopeError('Your account has no faculty assigned. Ask an administrator to set your faculty for scoped FEX analytics.');
+        setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
+        return;
+      }
+      if (isHod && (user?.department_id == null || user?.department_id === '')) {
+        setScopeError('Your account has no department assigned. Ask an administrator to set your department for scoped FEX analytics.');
+        setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
+        return;
+      }
+
       const response = await axios.get('/api/analytics/fex', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: { ...filters, drilldown }
+        params: { ...sanitizeDashboardFilters(filters), drilldown },
       });
 
       if (response.data && response.data.data) {
@@ -86,7 +109,14 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
       }
     } catch (err) {
       console.error('Error loading FEX data:', err);
-      if (!fexData) {
+      if (err.response?.status === 403) {
+        const msg =
+          err.response?.data?.detail ||
+          err.response?.data?.error ||
+          'Not allowed to view FEX for this scope.';
+        setScopeError(msg);
+        setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
+      } else if (!fexData) {
         setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
       }
     } finally {
@@ -179,11 +209,48 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
       />
 
       {!isControlled && (
-        <GlobalFilterPanel
-          onFilterChange={setInternalFilters}
-          savedFilters={internalFilters}
-          pageName="fex_analytics"
-        />
+        <>
+          {(isDean && (user?.faculty_id == null || user?.faculty_id === '')) ||
+          (isHod && (user?.department_id == null || user?.department_id === '')) ? (
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100 dark:border-amber-800">
+              {isDean ? (
+                <>
+                  Your account has no <strong>faculty</strong> assigned. FEX analytics will stay empty until an
+                  administrator sets your faculty.
+                </>
+              ) : (
+                <>
+                  Your account has no <strong>department</strong> assigned. FEX analytics will stay empty until an
+                  administrator sets your department.
+                </>
+              )}
+            </div>
+          ) : null}
+          {scopeError &&
+          !(
+            (isDean && (user?.faculty_id == null || user?.faculty_id === '')) ||
+            (isHod && (user?.department_id == null || user?.department_id === ''))
+          ) ? (
+            <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+              {scopeError}
+            </div>
+          ) : null}
+          <GlobalFilterPanel
+            onFilterChange={setInternalFilters}
+            pageName="fex_analytics"
+            hideFaculty={isDean || isHod}
+            hideDepartment={isHod}
+            lockedFacultyId={lockedFacultyId}
+            lockedDepartmentId={lockedDepartmentId}
+            filterHint={
+              isHod
+                ? 'Scoped to your department. Cascade Program → Course → Semester; chart drilldown follows your selections.'
+                : isDean
+                  ? 'Scoped to your faculty. Cascade Department → Program → Semester; chart drilldown follows your selections.'
+                  : 'Senate: institution-wide FEX. Use Faculty → Department → Program → Semester to narrow; chart groups by the next level down.'
+            }
+          />
+        </>
       )}
 
       {loading ? (

@@ -241,6 +241,23 @@ def get_fex_analytics():
         # Check permission
         if not has_permission(user_scope['role'], Resource.FEX_ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
+
+        # Deans / HoDs must be scoped to JWT faculty or department (no institution-wide FEX).
+        role = user_scope.get('role')
+        if role == Role.DEAN:
+            fid = user_scope.get('faculty_id')
+            if fid is None or (isinstance(fid, str) and str(fid).strip() == ''):
+                return jsonify({
+                    'error': 'No faculty assigned',
+                    'detail': 'Your account has no faculty; ask an administrator to assign one for FEX analytics.',
+                }), 403
+        elif role == Role.HOD:
+            did = user_scope.get('department_id')
+            if did is None or (isinstance(did, str) and str(did).strip() == ''):
+                return jsonify({
+                    'error': 'No department assigned',
+                    'detail': 'Your account has no department; ask an administrator to assign one for FEX analytics.',
+                }), 403
         
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)

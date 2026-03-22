@@ -70,26 +70,22 @@ const Layout = ({ children }) => {
       staff: [
         { path: '/staff/dashboard', label: 'Dashboard', icon: FaHome },
         { path: '/staff/classes', label: 'My Classes', icon: FaHome },
-        { path: '/staff/analytics', label: 'Class Analytics', icon: FaHome },
         { path: '/staff/predictions', label: 'Predictions', icon: FaHome },
         { path: '/staff/user-info', label: 'User Info', icon: FaUser },
       ],
       hod: [
         { path: '/hod/dashboard', label: 'Department Dashboard', icon: FaHome },
         { path: '/hod/assign-classes', label: 'Assign classes', icon: FaHome },
-        { path: '/hod/analytics', label: 'Department Analytics', icon: FaHome },
         { path: '/hod/fex', label: 'FEX Analysis', icon: FaHome },
         { path: '/hod/user-info', label: 'User Info', icon: FaUser },
       ],
       dean: [
         { path: '/dean/dashboard', label: 'Faculty Dashboard', icon: FaHome },
-        { path: '/dean/analytics', label: 'Faculty Analytics', icon: FaHome },
         { path: '/dean/fex', label: 'FEX Analysis', icon: FaHome },
         { path: '/dean/user-info', label: 'User Info', icon: FaUser },
       ],
       senate: [
         { path: '/senate/dashboard', label: 'Institution Dashboard', icon: FaHome },
-        { path: '/senate/analytics', label: 'Analytics', icon: FaHome },
         { path: '/senate/fex', label: 'FEX Analysis', icon: FaHome },
         { path: '/senate/predictions', label: 'Predictions', icon: FaHome },
         { path: '/senate/reports', label: 'Reports', icon: FaHome },
@@ -97,7 +93,6 @@ const Layout = ({ children }) => {
       ],
       analyst: [
         { path: '/analyst/dashboard', label: 'Analyst Workspace', icon: FaHome },
-        { path: '/analyst/analytics', label: 'Create Analytics', icon: FaHome },
         { path: '/analyst/query', label: 'NextGen Query', icon: FaHome },
         { path: '/analyst/fex', label: 'FEX Analysis', icon: FaHome },
         { path: '/analyst/predictions', label: 'Predictions', icon: FaHome },
@@ -114,13 +109,11 @@ const Layout = ({ children }) => {
       ],
       hr: [
         { path: '/hr/dashboard', label: 'HR Dashboard', icon: FaHome },
-        { path: '/hr/analytics', label: 'HR Analytics', icon: FaHome },
         { path: '/hr/staff', label: 'Staff Management', icon: FaHome },
         { path: '/hr/user-info', label: 'User Info', icon: FaUser },
       ],
       finance: [
         { path: '/finance/dashboard', label: 'Finance Dashboard', icon: FaHome },
-        { path: '/finance/analytics', label: 'Finance Analytics', icon: FaHome },
         { path: '/finance/payments', label: 'Payments', icon: FaHome },
         { path: '/finance/user-info', label: 'User Info', icon: FaUser },
       ],

@@ -34,7 +34,6 @@ import FEXAnalytics from './pages/FEXAnalytics';
 import RecruitmentAnalytics from './pages/RecruitmentAnalytics';
 import ProfilePage from './pages/ProfilePage';
 import PredictionPage from './pages/PredictionPage';
-import AnalyticsPage from './pages/AnalyticsPage';
 import ReportsPage from './pages/ReportsPage';
 import NextGenQueryPage from './pages/NextGenQueryPage';
 import AnalystDashboardsPage from './pages/AnalystDashboardsPage';
@@ -47,8 +46,6 @@ import StudentPayments from './pages/StudentPayments';
 
 // Staff Pages
 import StaffClasses from './pages/StaffClasses';
-import StaffAnalytics from './pages/StaffAnalytics';
-
 // Admin Pages
 import AdminUsers from './pages/AdminUsers';
 import AdminSettings from './pages/AdminSettings';
