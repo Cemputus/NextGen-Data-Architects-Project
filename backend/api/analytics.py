@@ -161,12 +161,12 @@ def build_filter_query(filters, base_query, user_scope):
     elif user_scope['role'] == Role.HOD:
         if user_scope['department_id']:
             where_clauses.append("ddept.department_id = :department_id")
-            params['department_id'] = user_scope['department_id']
+            params['department_id'] = _maybe_int(user_scope['department_id'])
     
     elif user_scope['role'] == Role.DEAN:
         if user_scope['faculty_id']:
             where_clauses.append("df.faculty_id = :faculty_id")
-            params['faculty_id'] = user_scope['faculty_id']
+            params['faculty_id'] = _maybe_int(user_scope['faculty_id'])
     
     # Apply filters
     if filters:
@@ -230,6 +230,56 @@ def build_filter_query(filters, base_query, user_scope):
     
     return base_query, params
 
+
+def _fex_default_semester_window(engine, user_scope):
+    """
+    Latest (academic_year, semester_id) for FEX when the client sends no semester filter.
+
+    For DEAN/HOD, restrict the ORDER BY ... LIMIT 1 subquery to their faculty/department so we
+    don't pick a globally-latest semester where their scope has zero grade rows (empty charts).
+    Senate/analyst/etc. use institution-wide latest semester.
+    """
+    role = user_scope.get('role')
+    extra_where = ""
+    params = {}
+    if role == Role.DEAN and user_scope.get("faculty_id") not in (None, ""):
+        extra_where = " AND df.faculty_id = :window_faculty_id"
+        params["window_faculty_id"] = _maybe_int(user_scope["faculty_id"])
+    elif role == Role.HOD and user_scope.get("department_id") not in (None, ""):
+        extra_where = " AND ddept.department_id = :window_department_id"
+        params["window_department_id"] = _maybe_int(user_scope["department_id"])
+
+    sql = f"""
+        SELECT
+            ds.academic_year,
+            fg.semester_id
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        WHERE fg.semester_id IS NOT NULL
+          AND ds.academic_year IS NOT NULL
+          {extra_where}
+        GROUP BY ds.academic_year, fg.semester_id
+        ORDER BY ds.academic_year DESC, fg.semester_id DESC
+        LIMIT 1
+    """
+    try:
+        recent_df = pd.read_sql_query(text(sql), engine, params=params)
+        if recent_df.empty:
+            return None
+        row = recent_df.iloc[0]
+        ay = str(row.get("academic_year") or "").strip()
+        sem_raw = row.get("semester_id")
+        sem = int(sem_raw) if sem_raw is not None and not pd.isna(sem_raw) else None
+        if ay and sem is not None:
+            return (ay, sem)
+    except Exception as exc:
+        _analytics_log.warning("FEX default semester window query failed: %s", exc, exc_info=True)
+    return None
+
+
 @analytics_bp.route('/fex', methods=['GET'])
 @jwt_required()
 def get_fex_analytics():
@@ -263,31 +313,10 @@ def get_fex_analytics():
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
         # When no explicit semester/academic_year filter is provided, focus on the
-        # most recent academic period: the current semester only.
+        # most recent academic period for this user's scope (dean/HoD: within faculty/dept).
         current_semester = None
         if not filters.get('semester_id') and not filters.get('academic_year'):
-            try:
-                recent_sql = """
-                SELECT
-                    ds.academic_year,
-                    fg.semester_id
-                FROM fact_grade fg
-                JOIN dim_student ds ON fg.student_id = ds.student_id
-                WHERE fg.semester_id IS NOT NULL
-                  AND ds.academic_year IS NOT NULL
-                GROUP BY ds.academic_year, fg.semester_id
-                ORDER BY ds.academic_year DESC, fg.semester_id DESC
-                LIMIT 1
-                """
-                recent_df = pd.read_sql_query(text(recent_sql), engine)
-                if not recent_df.empty:
-                    row = recent_df.iloc[0]
-                    ay = str(row.get('academic_year') or '').strip()
-                    sem = int(row.get('semester_id')) if row.get('semester_id') is not None else None
-                    if ay and sem is not None:
-                        current_semester = (ay, sem)
-            except Exception:
-                current_semester = None
+            current_semester = _fex_default_semester_window(engine, user_scope)
         
         # Base query for FEX analytics
         # Note: We use LEFT JOINs to ensure we get all grade records even if some dimension data is missing
