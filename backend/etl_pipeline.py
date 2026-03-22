@@ -1615,7 +1615,19 @@ class ETLPipeline:
             except Exception as e:
                 # Non-fatal: API has fallbacks if views aren't present.
                 self.logger.warning("  → Analytical views SQL failed (non-fatal): %s", e)
-        
+
+        # HR mirror + employee_attendance: run after dim_time and facts so date range aligns with warehouse data.
+        try:
+            from hr_warehouse_mirror import seed_hr_admin_mirror
+
+            hr_stats = seed_hr_admin_mirror(engine)
+            if not hr_stats.get("skipped"):
+                self.logger.info("  -> HR admin mirror (attendance trend): %s", hr_stats)
+                print(f"  -> HR admin mirror (attendance trend): {hr_stats}")
+        except Exception as e:
+            self.logger.warning("  -> HR admin mirror skipped: %s", e)
+            print(f"  -> HR admin mirror skipped: {e}")
+
         engine.dispose()
         self.logger.info("=" * 60)
         self.logger.info("ETL PIPELINE COMPLETED SUCCESSFULLY")
@@ -1957,7 +1969,18 @@ class ETLPipeline:
                 employees_dim['contract_type'] = employees_dim['ContractType']
             if 'Status' in employees_dim.columns:
                 employees_dim['status'] = employees_dim['Status']
-            emp_cols = ['employee_id', 'full_name', 'position_id', 'department_id', 'contract_type', 'status']
+            # HR analytics: title from source or synthetic position_id map
+            if 'PositionTitle' in employees_dim.columns:
+                employees_dim['position_title'] = employees_dim['PositionTitle'].astype(str)
+            elif 'position_id' in employees_dim.columns:
+                _pid_map = {1: 'Lecturer', 2: 'Assistant Lecturer', 3: 'Administrative Staff'}
+                employees_dim['position_title'] = employees_dim['position_id'].map(_pid_map).fillna('Staff')
+            else:
+                employees_dim['position_title'] = 'Staff'
+            emp_cols = [
+                'employee_id', 'full_name', 'position_id', 'department_id',
+                'contract_type', 'status', 'position_title',
+            ]
             available_emp_cols = [c for c in emp_cols if c in employees_dim.columns]
             if available_emp_cols:
                 employees_dim = employees_dim[available_emp_cols].drop_duplicates(subset=['employee_id'], keep='first')
@@ -1969,9 +1992,13 @@ class ETLPipeline:
                             position_id INT,
                             department_id INT,
                             contract_type VARCHAR(50),
-                            status VARCHAR(50)
+                            status VARCHAR(50),
+                            position_title VARCHAR(200)
                         )
                     """))
+                    conn.execute(text(
+                        "ALTER TABLE dim_employee ADD COLUMN IF NOT EXISTS position_title VARCHAR(200)"
+                    ))
                     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_de_department ON dim_employee(department_id)"))
                     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_de_status ON dim_employee(status)"))
                     conn.commit()
@@ -2003,7 +2030,7 @@ class ETLPipeline:
                         pass  # index already exists
                     else:
                         self.logger.warning("  → Index creation: %s", e)
-        
+
     def _populate_time_dimension(self, engine):
         """Populate time dimension table"""
         self.logger.info("Populating time dimension...")

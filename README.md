@@ -218,6 +218,7 @@ Expected ETL behavior:
 
 - Loads dimensions and facts from synthetic files
 - Refreshes warehouse tables used by dashboards and analytics
+- After **dimensions, `dim_time`, and facts** are loaded, mirrors `dim_faculty` / `dim_department` / `dim_employee` into `ucu_sourcedb1` / `ucu_sourcedb2` and seeds `employee_attendance` (dates aligned to warehouse timelines; see `docs/hr-attendance-trend.md`; set `SKIP_HR_ADMIN_MIRROR=1` to disable)
 - Supports reproducible app user seeding from:
   - `backend/etl_seeds/user_snapshot.json`
 
@@ -225,6 +226,7 @@ Related utilities:
 
 - `backend/export_user_snapshot.py`
 - `backend/export_faculty_departments.py`
+- `cd backend` then `python -m hr_warehouse_mirror` — refreshes HR admin mirror + `employee_attendance` from current `dim_*` (same DB as the warehouse)
 
 ---
 

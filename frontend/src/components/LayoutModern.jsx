@@ -59,6 +59,7 @@ const LayoutModern = ({ children }) => {
         { path: '/staff/classes', label: 'My Classes', icon: GraduationCap },
         { path: '/staff/analytics', label: 'Analytics', icon: Database },
         { path: '/staff/predictions', label: 'Predictions', icon: TrendingUp },
+        { path: '/staff/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/staff/user-info', label: 'User Info', icon: User },
       ],
       hod: [
@@ -70,6 +71,7 @@ const LayoutModern = ({ children }) => {
         { path: '/hod/risk', label: 'Risk Analysis', icon: ShieldAlert },
         { path: '/hod/fex', label: 'FEX Analysis', icon: Shield },
         { path: '/hod/predictions', label: 'Predictions', icon: TrendingUp },
+        { path: '/hod/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/hod/user-info', label: 'User Info', icon: User },
       ],
       dean: [
@@ -79,6 +81,7 @@ const LayoutModern = ({ children }) => {
         { path: '/dean/risk', label: 'Risk Analysis', icon: ShieldAlert },
         { path: '/dean/fex', label: 'FEX Analysis', icon: Shield },
         { path: '/dean/predictions', label: 'Predictions', icon: TrendingUp },
+        { path: '/dean/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/dean/user-info', label: 'User Info', icon: User },
       ],
       senate: [
@@ -90,6 +93,7 @@ const LayoutModern = ({ children }) => {
         { path: '/senate/finance', label: 'Finance BI', icon: DollarSign },
         { path: '/senate/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/senate/reports', label: 'Reports', icon: History },
+        { path: '/senate/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/senate/user-info', label: 'User Info', icon: User },
       ],
       analyst: [
@@ -102,6 +106,7 @@ const LayoutModern = ({ children }) => {
         { path: '/analyst/fex', label: 'FEX Analysis', icon: Shield },
         { path: '/analyst/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/analyst/reports', label: 'Reports', icon: History },
+        { path: '/analyst/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/analyst/user-info', label: 'User Info', icon: User },
       ],
       sysadmin: [
@@ -113,6 +118,7 @@ const LayoutModern = ({ children }) => {
         { path: '/admin/etl', label: 'ETL Jobs', icon: Database },
         { path: '/admin/etl-notifications', label: 'ETL Notifications', icon: Bell },
         { path: '/admin/audit', label: 'Audit Logs', icon: History },
+        { path: '/admin/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/admin/user-info', label: 'User Info', icon: User },
       ],
       hr: [
@@ -132,6 +138,7 @@ const LayoutModern = ({ children }) => {
         { path: '/finance/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/finance/payments', label: 'Payments', icon: DollarSign },
         { path: '/finance/predictions', label: 'Predictions', icon: TrendingUp },
+        { path: '/finance/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/finance/user-info', label: 'User Info', icon: User },
       ],
     };

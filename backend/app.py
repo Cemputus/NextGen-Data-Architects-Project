@@ -1220,6 +1220,26 @@ def hr_my_employment():
         return jsonify({'status': 'Active', 'role': role})
 
 
+# Roles that may view org-wide leave directory (on leave today + all requests read-only). Students excluded.
+_LEAVE_DIRECTORY_ROLES = frozenset(
+    {'staff', 'hod', 'dean', 'senate', 'finance', 'hr', 'analyst', 'sysadmin', 'admin'}
+)
+
+
+def _leave_can_view_directory() -> bool:
+    from flask_jwt_extended import get_jwt
+
+    r = (get_jwt().get('role') or '').strip().lower()
+    return r in _LEAVE_DIRECTORY_ROLES
+
+
+def _leave_can_review_requests() -> bool:
+    from flask_jwt_extended import get_jwt
+
+    r = (get_jwt().get('role') or '').strip().lower()
+    return r in ('hr', 'sysadmin', 'admin')
+
+
 def _ensure_leave_requests_table(engine):
     """Create leave_requests table in RBAC DB if not present."""
     try:
@@ -1297,6 +1317,9 @@ def hr_submit_leave_request():
     username = (get_jwt().get('username') or '').strip()
     if not username:
         return jsonify({'error': 'Not authenticated'}), 401
+    role_claim = (get_jwt().get('role') or '').strip().lower()
+    if role_claim not in _LEAVE_DIRECTORY_ROLES:
+        return jsonify({'error': 'Leave requests are only available for staff and employee roles.'}), 403
     body = request.get_json(silent=True) or {}
     start_date_s = body.get('start_date') or ''
     end_date_s = body.get('end_date') or ''
@@ -1341,10 +1364,9 @@ def hr_submit_leave_request():
 @app.route('/api/hr/leave-requests', methods=['GET'])
 @jwt_required()
 def hr_list_leave_requests():
-    """List all leave requests for HR review."""
-    from flask_jwt_extended import get_jwt
-    if (get_jwt().get('role') or '').strip().lower() != 'hr':
-        return jsonify({'error': 'HR only'}), 403
+    """List all leave requests (read-only for staff/managers; HR/sysadmin/admin may review via POST)."""
+    if not _leave_can_view_directory():
+        return jsonify({'error': 'Not authorized to view leave directory'}), 403
     try:
         engine = create_engine(RBAC_CONN_STRING)
         _ensure_leave_requests_table(engine)
@@ -1378,9 +1400,9 @@ def hr_review_leave_request(leave_id):
     if request.method == 'OPTIONS':
         return '', 204
     verify_jwt_in_request()
+    if not _leave_can_review_requests():
+        return jsonify({'error': 'Only HR or administrators can approve or reject leave'}), 403
     from flask_jwt_extended import get_jwt
-    if (get_jwt().get('role') or '').strip().lower() != 'hr':
-        return jsonify({'error': 'HR only'}), 403
     body = request.get_json(silent=True) or {}
     action = (body.get('action') or '').strip().lower()
     if action not in ('approve', 'reject'):
@@ -1404,10 +1426,9 @@ def hr_review_leave_request(leave_id):
 @app.route('/api/hr/employees-on-leave', methods=['GET'])
 @jwt_required()
 def hr_employees_on_leave():
-    """HR: list employees currently on approved leave (today between start and end)."""
-    from flask_jwt_extended import get_jwt
-    if (get_jwt().get('role') or '').strip().lower() != 'hr':
-        return jsonify({'error': 'HR only'}), 403
+    """List employees currently on approved leave (today between start and end). Same audience as leave directory."""
+    if not _leave_can_view_directory():
+        return jsonify({'error': 'Not authorized to view leave directory'}), 403
     try:
         engine = create_engine(RBAC_CONN_STRING)
         _ensure_leave_requests_table(engine)
@@ -1442,11 +1463,32 @@ def hr_employees_on_leave():
 @app.route('/api/hr/payroll-overview', methods=['GET'])
 @jwt_required()
 def hr_payroll_overview():
-    """HR: paid vs pending payroll overview. Stub until payroll status per employee is available."""
+    """HR: payroll by role for latest period, paid vs pending employees (mirror or dim fallback)."""
     from flask_jwt_extended import get_jwt
     if (get_jwt().get('role') or '').strip().lower() != 'hr':
         return jsonify({'error': 'HR only'}), 403
-    return jsonify({'payroll_by_role': [], 'total_payroll': 0, 'paid': [], 'pending': []})
+    try:
+        from hr_payroll_overview import build_hr_payroll_overview
+
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        try:
+            payload = build_hr_payroll_overview(engine)
+        finally:
+            engine.dispose()
+        return jsonify(payload), 200
+    except Exception as e:
+        return jsonify(
+            {
+                'error': str(e),
+                'payroll_by_role': [],
+                'total_payroll': 0,
+                'paid': [],
+                'pending': [],
+                'latest_pay_period': None,
+                'paid_count': 0,
+                'pending_count': 0,
+            }
+        ), 500
 
 
 @app.route('/api/hod/staff-assignments/<int:staff_id>', methods=['GET'], strict_slashes=False)
