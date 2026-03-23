@@ -25,6 +25,10 @@ export function SciLineChart({
   showGrid = true,
   smooth = true,
   symbolSize = 6,
+  minHeight = chartMinHeight,
+  maxHeight = chartMaxHeight,
+  /** Merge into ECharts grid (e.g. { bottom: 72, top: 48 }) */
+  gridPadding = null,
 }) {
   const option = useMemo(() => {
     const xValues = data.map((d) => d[xDataKey]);
@@ -58,8 +62,15 @@ export function SciLineChart({
           },
         ];
 
+    const pad = gridPadding && typeof gridPadding === 'object' ? gridPadding : {};
+    const grid = {
+      ...defaultGrid,
+      ...pad,
+      bottom: pad.bottom ?? defaultGrid.bottom,
+    };
+
     return {
-      grid: defaultGrid,
+      grid,
       tooltip: {
         ...defaultTooltip,
         trigger: 'axis',
@@ -116,19 +127,20 @@ export function SciLineChart({
     showGrid,
     smooth,
     symbolSize,
+    gridPadding,
   ]);
 
   if (!data || data.length === 0) {
     return (
-      <BaseChart option={{}} loading={false} minHeight={chartMinHeight} maxHeight={chartMaxHeight} />
+      <BaseChart option={{}} loading={false} minHeight={minHeight} maxHeight={maxHeight} />
     );
   }
 
   return (
     <BaseChart
       option={option}
-      minHeight={chartMinHeight}
-      maxHeight={chartMaxHeight}
+      minHeight={minHeight}
+      maxHeight={maxHeight}
     />
   );
 }

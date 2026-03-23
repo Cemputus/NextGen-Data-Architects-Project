@@ -2911,6 +2911,203 @@ def get_payment_status():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/dashboard/outstanding-by-faculty-program', methods=['GET'])
+@jwt_required()
+def get_outstanding_by_faculty_program():
+    """
+    Outstanding by faculty/program:
+    Sum of pending/failed tuition payments grouped by (faculty, program).
+    The semester is chosen as the latest semester in scope unless `semester_id` is explicitly provided.
+    """
+    try:
+        from flask_jwt_extended import get_jwt
+
+        claims = get_jwt()
+        filters = request.args.to_dict()
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+
+        # Limit / pagination (frontend charts only need a small top-N list)
+        raw_limit = filters.get('limit', None)
+        try:
+            limit = int(raw_limit) if raw_limit is not None else 15
+        except Exception:
+            limit = 15
+        limit = max(5, min(limit, 25))
+
+        # User-provided semester filter (optional)
+        semester_id_filter = filters.get('semester_id', None)
+        if semester_id_filter and str(semester_id_filter).strip().lower() in ('all', ''):
+            semester_id_filter = None
+
+        # Role-based scope (returns where_sql that references ds/fp as appropriate)
+        _, role_where = _dashboard_role_scope()
+
+        join_clause = """
+        JOIN dim_student ds ON fp.student_id = ds.student_id
+        JOIN dim_program dp ON ds.program_id = dp.program_id
+        JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        """
+
+        # Base filter: only outstanding statuses
+        where_clauses = ["fp.status IN ('Pending','FAILED')"]
+        if role_where:
+            where_clauses.append(f"({role_where})")
+
+        # Apply request filters
+        if filters.get('faculty_id') and str(filters['faculty_id']).strip().lower() not in ('', 'all'):
+            where_clauses.append(f"df.faculty_id = {int(filters['faculty_id'])}")
+        if filters.get('department_id') and str(filters['department_id']).strip().lower() not in ('', 'all'):
+            where_clauses.append(f"ddept.department_id = {int(filters['department_id'])}")
+        if filters.get('program_id') and str(filters['program_id']).strip().lower() not in ('', 'all'):
+            where_clauses.append(f"dp.program_id = {int(filters['program_id'])}")
+
+        # Pick latest semester in scope if not explicitly filtered
+        if semester_id_filter is not None:
+            latest_sem = int(semester_id_filter)
+        else:
+            latest_where = " AND ".join(where_clauses + ["fp.semester_id IS NOT NULL"])
+            latest_sql = f"""
+            SELECT MAX(fp.semester_id) AS sem
+            FROM fact_payment fp
+            {join_clause}
+            WHERE {latest_where}
+            """
+            latest_df = pd.read_sql_query(text(latest_sql), engine)
+            latest_sem = int(latest_df['sem'].iloc[0]) if not latest_df.empty and pd.notna(latest_df['sem'].iloc[0]) else None
+
+        if latest_sem is None:
+            engine.dispose()
+            return jsonify({'outstanding_by_faculty_program': []}), 200
+
+        where_clauses.append(f"fp.semester_id = {latest_sem}")
+
+        query = f"""
+        SELECT
+            CONCAT(df.faculty_name, ' / ', dp.program_name) AS name,
+            SUM(fp.amount) AS value
+        FROM fact_payment fp
+        {join_clause}
+        WHERE {' AND '.join(where_clauses)}
+        GROUP BY df.faculty_name, dp.program_name
+        ORDER BY value DESC
+        LIMIT {limit}
+        """
+
+        df = pd.read_sql_query(text(query), engine)
+        engine.dispose()
+
+        return jsonify({
+            'outstanding_by_faculty_program': df.to_dict('records'),
+            'semester_id': latest_sem,
+        }), 200
+    except Exception as e:
+        print(f"Error in get_outstanding_by_faculty_program: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/dashboard/high-risk-debt-segments', methods=['GET'])
+@jwt_required()
+def get_high_risk_debt_segments():
+    """
+    High-risk debt segments:
+    Top cohorts (by intake year) with the largest outstanding balances (Pending/FAILED).
+    Uses latest semester in scope unless `semester_id` is explicitly provided.
+    """
+    try:
+        from flask_jwt_extended import get_jwt
+
+        claims = get_jwt()
+        filters = request.args.to_dict()
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+
+        raw_limit = filters.get('limit', None)
+        try:
+            limit = int(raw_limit) if raw_limit is not None else 10
+        except Exception:
+            limit = 10
+        limit = max(5, min(limit, 20))
+
+        semester_id_filter = filters.get('semester_id', None)
+        if semester_id_filter and str(semester_id_filter).strip().lower() in ('', 'all'):
+            semester_id_filter = None
+
+        # Role scoping (references ds alias, so keep ds joined in query)
+        _, role_where = _dashboard_role_scope()
+
+        base_join = """
+        JOIN dim_student ds ON fp.student_id = ds.student_id
+        JOIN dim_program dp ON ds.program_id = dp.program_id
+        JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        """
+
+        where_clauses = ["fp.status IN ('Pending','FAILED')"]
+        if role_where:
+            where_clauses.append(f"({role_where})")
+
+        if filters.get('faculty_id') and str(filters['faculty_id']).strip().lower() not in ('', 'all'):
+            where_clauses.append(f"df.faculty_id = {int(filters['faculty_id'])}")
+        if filters.get('department_id') and str(filters['department_id']).strip().lower() not in ('', 'all'):
+            where_clauses.append(f"ddept.department_id = {int(filters['department_id'])}")
+        if filters.get('program_id') and str(filters['program_id']).strip().lower() not in ('', 'all'):
+            where_clauses.append(f"dp.program_id = {int(filters['program_id'])}")
+
+        if filters.get('intake_year') and str(filters['intake_year']).strip().lower() not in ('', 'all'):
+            # If intake_year filter is set, restrict output to that cohort only.
+            where_clauses.append(
+                f"EXTRACT(YEAR FROM CAST(ds.admission_date AS DATE)) = {int(filters['intake_year'])}"
+            )
+
+        if semester_id_filter is not None:
+            latest_sem = int(semester_id_filter)
+        else:
+            latest_where = " AND ".join(where_clauses + ["fp.semester_id IS NOT NULL"])
+            latest_sql = f"""
+            SELECT MAX(fp.semester_id) AS sem
+            FROM fact_payment fp
+            {base_join}
+            WHERE {latest_where}
+            """
+            latest_df = pd.read_sql_query(text(latest_sql), engine)
+            latest_sem = int(latest_df['sem'].iloc[0]) if not latest_df.empty and pd.notna(latest_df['sem'].iloc[0]) else None
+
+        if latest_sem is None:
+            engine.dispose()
+            return jsonify({'high_risk_debt_segments': [], 'semester_id': None}), 200
+
+        where_clauses.append(f"fp.semester_id = {latest_sem}")
+
+        # Group by intake year derived from admission_date
+        query = f"""
+        SELECT
+            CONCAT(
+              'Intake ',
+              CAST(EXTRACT(YEAR FROM CAST(ds.admission_date AS DATE)) AS TEXT)
+            ) AS segment,
+            SUM(COALESCE(fp.amount, 0)) AS outstanding
+        FROM fact_payment fp
+        {base_join}
+        WHERE {' AND '.join(where_clauses)}
+        GROUP BY EXTRACT(YEAR FROM CAST(ds.admission_date AS DATE))
+        ORDER BY outstanding DESC
+        LIMIT {limit}
+        """
+
+        df = pd.read_sql_query(text(query), engine)
+        engine.dispose()
+
+        return jsonify({
+            'high_risk_debt_segments': df.to_dict('records'),
+            'semester_id': latest_sem,
+        }), 200
+    except Exception as e:
+        print(f"Error in get_high_risk_debt_segments: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/dashboard/attendance-by-course', methods=['GET'])
 @jwt_required()
 def get_attendance_by_course():
@@ -3513,6 +3710,327 @@ def get_payment_trends():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/dashboard/tuition-defaulters', methods=['GET'])
+@jwt_required()
+def get_tuition_defaulters():
+    """
+    Tuition/fees defaulters (pending/failed payments) by Faculty / Department / Program.
+    Returns a combined bar-friendly list:
+      - name: 'Faculty: ...' | 'Department: ...' | 'Program: ...'
+      - value: distinct defaulter student count (latest semester in scope)
+    """
+    try:
+        from flask_jwt_extended import get_jwt
+        from rbac import Role
+
+        claims = get_jwt()
+        role_str = claims.get('role', 'finance')
+        try:
+            role = Role(role_str.lower())
+        except Exception:
+            role = Role.FINANCE
+
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        filters = request.args.to_dict()
+
+        def _int_or_none(v):
+            if v is None:
+                return None
+            s = str(v).strip()
+            if not s or s.lower() == 'all':
+                return None
+            try:
+                return int(s)
+            except Exception:
+                return None
+
+        faculty_id = _int_or_none(filters.get('faculty_id'))
+        department_id = _int_or_none(filters.get('department_id'))
+        program_id = _int_or_none(filters.get('program_id'))
+        requested_semester_id = _int_or_none(filters.get('semester_id'))
+
+        # Scope to role (similar spirit to /api/dashboard/payment-trends)
+        where_clauses = []
+        if role == Role.DEAN and claims.get('faculty_id') is not None:
+            where_clauses.append(f"df.faculty_id = {int(claims['faculty_id'])}")
+        elif role in (Role.HOD, Role.STAFF) and claims.get('department_id') is not None:
+            where_clauses.append(f"ddept.department_id = {int(claims['department_id'])}")
+        elif role == Role.STUDENT:
+            if claims.get('student_id') is not None:
+                where_clauses.append(f"ds.student_id = '{claims['student_id']}'")
+            elif claims.get('access_number'):
+                where_clauses.append(f"ds.access_number = '{claims['access_number']}'")
+
+        if faculty_id is not None:
+            where_clauses.append(f"df.faculty_id = {faculty_id}")
+        if department_id is not None:
+            where_clauses.append(f"ddept.department_id = {department_id}")
+        if program_id is not None:
+            where_clauses.append(f"dp.program_id = {program_id}")
+
+        where_sql = " AND ".join(where_clauses)
+        where_sql = f" AND {where_sql}" if where_sql else ""
+
+        # Pick latest semester in scope (if not explicitly filtered)
+        if requested_semester_id is not None:
+            latest_sem = requested_semester_id
+        else:
+            sem_sql = f"""
+                SELECT MAX(fp.semester_id) AS sem
+                FROM fact_payment fp
+                JOIN dim_student ds ON fp.student_id = ds.student_id
+                LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+                LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+                LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+                WHERE fp.semester_id IS NOT NULL
+                {where_sql}
+            """
+            sem_df = pd.read_sql_query(text(sem_sql), engine)
+            latest_sem = int(sem_df.iloc[0]['sem']) if not sem_df.empty and pd.notna(sem_df.iloc[0]['sem']) else None
+
+        if latest_sem is None:
+            return jsonify({
+                'semester_id': None,
+                'tuition_defaulters': [],
+            }), 200
+
+        status_sql = "('Pending','FAILED')"
+        faculty_sql = f"""
+            SELECT COALESCE(df.faculty_name, 'Unknown') AS name,
+                   COUNT(DISTINCT ds.student_id) AS defaulters
+            FROM fact_payment fp
+            JOIN dim_student ds ON fp.student_id = ds.student_id
+            LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+            LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+            LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            WHERE fp.semester_id = :sem
+              AND fp.status IN {status_sql}
+              {where_sql}
+            GROUP BY df.faculty_name
+            ORDER BY defaulters DESC
+            LIMIT 8
+        """
+        department_sql = f"""
+            SELECT COALESCE(ddept.department_name, 'Unknown') AS name,
+                   COUNT(DISTINCT ds.student_id) AS defaulters
+            FROM fact_payment fp
+            JOIN dim_student ds ON fp.student_id = ds.student_id
+            LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+            LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+            LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            WHERE fp.semester_id = :sem
+              AND fp.status IN {status_sql}
+              {where_sql}
+            GROUP BY ddept.department_name
+            ORDER BY defaulters DESC
+            LIMIT 8
+        """
+        program_sql = f"""
+            SELECT COALESCE(dp.program_name, 'Unknown') AS name,
+                   COUNT(DISTINCT ds.student_id) AS defaulters
+            FROM fact_payment fp
+            JOIN dim_student ds ON fp.student_id = ds.student_id
+            LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+            LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+            LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            WHERE fp.semester_id = :sem
+              AND fp.status IN {status_sql}
+              {where_sql}
+            GROUP BY dp.program_name
+            ORDER BY defaulters DESC
+            LIMIT 8
+        """
+
+        faculty_df = pd.read_sql_query(text(faculty_sql), engine, params={'sem': latest_sem})
+        dept_df = pd.read_sql_query(text(department_sql), engine, params={'sem': latest_sem})
+        program_df = pd.read_sql_query(text(program_sql), engine, params={'sem': latest_sem})
+
+        combined = []
+        if not faculty_df.empty:
+            for _, r in faculty_df.iterrows():
+                combined.append({
+                    'name': f"Faculty: {r.get('name') or 'Unknown'}",
+                    'value': int(r.get('defaulters') or 0),
+                    'dimension': 'faculty',
+                })
+        if not dept_df.empty:
+            for _, r in dept_df.iterrows():
+                combined.append({
+                    'name': f"Department: {r.get('name') or 'Unknown'}",
+                    'value': int(r.get('defaulters') or 0),
+                    'dimension': 'department',
+                })
+        if not program_df.empty:
+            for _, r in program_df.iterrows():
+                combined.append({
+                    'name': f"Program: {r.get('name') or 'Unknown'}",
+                    'value': int(r.get('defaulters') or 0),
+                    'dimension': 'program',
+                })
+
+        combined = [c for c in combined if c['value'] > 0]
+        combined.sort(key=lambda x: -x['value'])
+        combined = combined[:15]
+
+        return jsonify({
+            'semester_id': latest_sem,
+            'tuition_defaulters': combined,
+        }), 200
+    except Exception as e:
+        import traceback
+        print(f"Error in get_tuition_defaulters: {e}")
+        print(traceback.format_exc())
+        return jsonify({'tuition_defaulters': [], 'semester_id': None, 'error': str(e)}), 500
+    finally:
+        try:
+            engine.dispose()
+        except Exception:
+            pass
+
+
+@app.route('/api/dashboard/tuition-payment-trends-dimensions', methods=['GET'])
+@jwt_required()
+def get_tuition_payment_trends_dimensions():
+    """
+    Tuition payment trends over time, showing a 3-line series for:
+      - Faculty average completed amount per faculty unit
+      - Department average completed amount per department unit
+      - Program average completed amount per program unit
+    """
+    try:
+        from flask_jwt_extended import get_jwt
+        from rbac import Role
+
+        claims = get_jwt()
+        role_str = claims.get('role', 'finance')
+        try:
+            role = Role(role_str.lower())
+        except Exception:
+            role = Role.FINANCE
+
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        filters = request.args.to_dict()
+
+        def _int_or_none(v):
+            if v is None:
+                return None
+            s = str(v).strip()
+            if not s or s.lower() == 'all':
+                return None
+            try:
+                return int(s)
+            except Exception:
+                return None
+
+        faculty_id = _int_or_none(filters.get('faculty_id'))
+        department_id = _int_or_none(filters.get('department_id'))
+        program_id = _int_or_none(filters.get('program_id'))
+        semester_id = _int_or_none(filters.get('semester_id'))
+
+        period = (filters.get('period') or 'quarterly').strip().lower()
+        if period not in ('monthly', 'quarterly', 'yearly'):
+            period = 'quarterly'
+
+        min_year = 2020 if period == 'yearly' else 2023
+
+        where_clauses = [f"dt.year >= {min_year}"]
+
+        # Role-based scoping
+        if role == Role.DEAN and claims.get('faculty_id') is not None:
+            where_clauses.append(f"df.faculty_id = {int(claims['faculty_id'])}")
+        elif role in (Role.HOD, Role.STAFF) and claims.get('department_id') is not None:
+            where_clauses.append(f"ddept.department_id = {int(claims['department_id'])}")
+        elif role == Role.STUDENT:
+            if claims.get('student_id') is not None:
+                where_clauses.append(f"fp.student_id = '{claims['student_id']}'")
+            elif claims.get('access_number'):
+                where_clauses.append(f"ds.access_number = '{claims['access_number']}'")
+
+        if faculty_id is not None:
+            where_clauses.append(f"df.faculty_id = {faculty_id}")
+        if department_id is not None:
+            where_clauses.append(f"ddept.department_id = {department_id}")
+        if program_id is not None:
+            where_clauses.append(f"dp.program_id = {program_id}")
+        if semester_id is not None:
+            where_clauses.append(f"fp.semester_id = {semester_id}")
+
+        where_sql = " AND ".join(where_clauses)
+
+        if period == 'monthly':
+            period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS TEXT))"
+            group_by = "dt.year, dt.month, dt.month_name"
+            order_by = "dt.year, dt.month"
+        elif period == 'yearly':
+            period_select = "CAST(dt.year AS TEXT)"
+            group_by = "dt.year"
+            order_by = "dt.year"
+        else:
+            period_select = "CONCAT('Q', CAST(dt.quarter AS TEXT), ' ', CAST(dt.year AS TEXT))"
+            group_by = "dt.year, dt.quarter"
+            order_by = "dt.year, dt.quarter"
+
+        query = f"""
+        SELECT
+            {period_select} AS period,
+            SUM(CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN fp.amount ELSE 0 END) AS total_completed_amount,
+            COUNT(DISTINCT CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN df.faculty_id END) AS faculty_units,
+            COUNT(DISTINCT CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN ddept.department_id END) AS department_units,
+            COUNT(DISTINCT CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN dp.program_id END) AS program_units
+        FROM fact_payment fp
+        JOIN dim_time dt ON fp.date_key = dt.date_key
+        JOIN dim_student ds ON fp.student_id = ds.student_id
+        LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+        WHERE {where_sql}
+        GROUP BY {group_by}
+        ORDER BY {order_by}
+        """
+
+        df = pd.read_sql_query(text(query), engine)
+        periods = []
+        faculty_amounts = []
+        department_amounts = []
+        program_amounts = []
+
+        if not df.empty:
+            for _, r in df.iterrows():
+                periods.append(r.get('period'))
+                total_amt = float(r.get('total_completed_amount') or 0.0)
+
+                fu = r.get('faculty_units') or 0
+                du = r.get('department_units') or 0
+                pu = r.get('program_units') or 0
+
+                faculty_amounts.append(round(total_amt / fu, 2) if fu else 0.0)
+                department_amounts.append(round(total_amt / du, 2) if du else 0.0)
+                program_amounts.append(round(total_amt / pu, 2) if pu else 0.0)
+
+        return jsonify({
+            'periods': periods,
+            'faculty_amounts': faculty_amounts,
+            'department_amounts': department_amounts,
+            'program_amounts': program_amounts,
+        }), 200
+    except Exception as e:
+        import traceback
+        print(f"Error in get_tuition_payment_trends_dimensions: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'periods': [],
+            'faculty_amounts': [],
+            'department_amounts': [],
+            'program_amounts': [],
+            'error': str(e),
+        }), 500
+    finally:
+        try:
+            engine.dispose()
+        except Exception:
+            pass
 
 
 @app.route('/api/dashboard/student-payment-breakdown', methods=['GET'])
