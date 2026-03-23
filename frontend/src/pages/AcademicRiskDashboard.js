@@ -59,11 +59,12 @@ const AcademicRiskDashboard = () => {
     const [correlationData, setCorrelationData] = useState(null);
 
     const savedState = loadPageState('academic_risk_dashboard', { filters: {}, tab: 'summary' });
+    const safeInitialTab = RISK_TAB_SET.has(savedState?.tab) ? savedState.tab : 'summary';
     // Filters should come exclusively from GlobalFilterPanel persistence (not loadPageState).
     const [filters, setFilters] = useState({});
     /** Remount GlobalFilterPanel after chip-based clears so UI matches parent filter state (avoids blank / inconsistent views). */
     const [filterPanelKey, setFilterPanelKey] = useState(0);
-    const [activeTab, setActiveTab] = useState(savedState.tab || 'summary');
+    const [activeTab, setActiveTab] = useState(safeInitialTab);
 
     const FILTER_PAGE = 'academic_risk_dashboard';
 
@@ -74,6 +75,13 @@ const AcademicRiskDashboard = () => {
     // Persist tab only; keep filter persistence handled by GlobalFilterPanel.
     useEffect(() => {
         savePageState('academic_risk_dashboard', { filters: {}, tab: activeTab });
+    }, [activeTab]);
+
+    // Radix Tabs shows no panel content if `value` does not match any TabsTrigger (stale localStorage etc.).
+    useEffect(() => {
+        if (!RISK_TAB_SET.has(activeTab)) {
+            setActiveTab('summary');
+        }
     }, [activeTab]);
 
     const loadData = async () => {
@@ -98,6 +106,8 @@ const AcademicRiskDashboard = () => {
     };
 
     const riskSummary = riskData?.summary || { fcw_count: 0, mex_count: 0, fex_count: 0, total_courses: 0, avg_grade: 0 };
+    const avgGradeNum = Number(riskSummary.avg_grade);
+    const avgGradeSafe = Number.isFinite(avgGradeNum) ? avgGradeNum : 0;
     const correlations = correlationData?.by_school || [];
 
     /** API returns fcw_rate as 0–1 proportion; avg_gpa is ~0–100. Single axis made FCW bars invisible — scale FCW to % and use dual y-axis. */
@@ -270,15 +280,19 @@ const AcademicRiskDashboard = () => {
                         />
                         <KPICard
                             title="Avg Academic Standing"
-                            value={`${(riskSummary.avg_grade || 0).toFixed(1)}%`}
+                            value={`${avgGradeSafe.toFixed(1)}%`}
                             icon={GraduationCap}
                             subtitle="Institutional average"
-                            changeType={riskSummary.avg_grade > 60 ? 'positive' : 'negative'}
+                            changeType={avgGradeSafe > 60 ? 'positive' : 'negative'}
                         />
                     </DashboardGrid>
 
                     {/* Main Content Tabs */}
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+                    <Tabs
+                        value={RISK_TAB_SET.has(activeTab) ? activeTab : 'summary'}
+                        onValueChange={setActiveTab}
+                        className="space-y-4"
+                    >
                         <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 gap-1 p-1">
                             <TabsTrigger value="summary">Risk Summary</TabsTrigger>
                             <TabsTrigger value="hs-correlation">High School Correlation</TabsTrigger>

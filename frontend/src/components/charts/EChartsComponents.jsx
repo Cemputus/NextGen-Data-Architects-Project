@@ -211,17 +211,23 @@ export function SciBarChart({
     }
 
     const series = hasMultiple
-      ? yDataKeys.map((s, i) => ({
-          name: s.label || s.key,
-          type: 'bar',
-          yAxisIndex: Number(s.yAxisIndex) === 1 ? 1 : 0,
-          data: data.map((d) => {
-            const v = d[s.key];
-            const n = typeof v === 'number' ? v : Number(v);
-            return Number.isFinite(n) ? n : 0;
-          }),
-          itemStyle: { color: s.color || CHART_PALETTE_THEME[i % CHART_PALETTE_THEME.length] },
-        }))
+      ? yDataKeys.map((s, i) => {
+          const item = {
+            name: s.label || s.key,
+            type: 'bar',
+            data: data.map((d) => {
+              const v = d[s.key];
+              const n = typeof v === 'number' ? v : Number(v);
+              return Number.isFinite(n) ? n : 0;
+            }),
+            itemStyle: { color: s.color || CHART_PALETTE_THEME[i % CHART_PALETTE_THEME.length] },
+          };
+          // Only set yAxisIndex when using two y-axes; some ECharts builds mis-handle yAxisIndex:0 with a single axis.
+          if (useDualY) {
+            item.yAxisIndex = Number(s.yAxisIndex) === 1 ? 1 : 0;
+          }
+          return item;
+        })
       : [
           {
             name: yAxisLabel,
@@ -633,12 +639,37 @@ export function SciDonutChart({
       // Allow callers to override colors per-slice (e.g. grade distribution).
       itemStyle: { color: d.color ?? colors[i % colors.length] },
     })).filter((d) => d.value > 0);
+
+    // Empty pie data crashes or blanks some ECharts builds (e.g. all-zero risk slices).
+    if (seriesData.length === 0) {
+      return {
+        tooltip: { show: false },
+        legend: { show: false },
+        series: [
+          {
+            type: 'pie',
+            radius: [innerRadius, '72%'],
+            center: ['50%', '42%'],
+            silent: true,
+            data: [{ name: 'No data', value: 1, itemStyle: { color: '#e5e7eb' } }],
+            label: {
+              show: true,
+              fontSize: 12,
+              color: '#9ca3af',
+              formatter: () => 'No data',
+            },
+            labelLine: { show: false },
+          },
+        ],
+      };
+    }
+
     return {
       tooltip: {
         ...defaultTooltip,
         trigger: 'item',
         formatter: ({ name, value, percent }) =>
-          `${name}: ${formatTooltipValue(value)} (${percent}%)`,
+          `${name}: ${formatTooltipValue(value)} (${percent ?? 0}%)`,
       },
       legend: {
         show: true,
