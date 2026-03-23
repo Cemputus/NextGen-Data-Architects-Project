@@ -154,10 +154,16 @@ export function SciBarChart({
   xAxisLabelRotate = null,
   /** Merge into ECharts grid (e.g. { bottom: 72, top: 48 }) for tall charts / legend. */
   gridPadding = null,
+  /** When any `yDataKeys` item has `yAxisIndex: 1`, render a second y-axis (e.g. % vs GPA scale). */
+  secondaryYAxisLabel = null,
 }) {
   const option = useMemo(() => {
     const categories = data.map((d) => String(d[xDataKey] ?? ''));
     const hasMultiple = yDataKeys && Array.isArray(yDataKeys) && yDataKeys.length > 0;
+    const useDualY =
+      hasMultiple && yDataKeys.some((s) => Number(s?.yAxisIndex) === 1);
+    /** FEX-style charts: legend under axis — always leave room and tilt labels to avoid collision. */
+    const multiSeriesLegend = hasMultiple && showLegend;
     const fs = axisFontSize != null ? axisFontSize : defaultTextStyle.fontSize;
     const axisTextStyle = { ...defaultTextStyle, fontSize: fs };
     const nameTextStyle = { ...defaultTextStyle, fontSize: fs, fontWeight: 500 };
@@ -165,27 +171,55 @@ export function SciBarChart({
     const rotate =
       xAxisLabelRotate != null
         ? xAxisLabelRotate
-        : categories.length > 10
-          ? 40
-          : categories.length > 6
-            ? 28
-            : 0;
+        : multiSeriesLegend
+          ? categories.length > 12
+            ? 48
+            : categories.length > 8
+              ? 40
+              : 38
+          : categories.length > 10
+            ? 40
+            : categories.length > 6
+              ? 28
+              : 0;
 
     const pad = gridPadding && typeof gridPadding === 'object' ? gridPadding : {};
+    const minBottomPx = multiSeriesLegend ? 118 : showLegend ? 78 : null;
     const grid = {
       ...defaultGrid,
       ...pad,
-      bottom: showLegend ? Math.max(pad.bottom ?? defaultGrid.bottom, 58) : (pad.bottom ?? defaultGrid.bottom),
       top: pad.top ?? defaultGrid.top,
       left: pad.left ?? defaultGrid.left,
       right: pad.right ?? defaultGrid.right,
     };
+    // Avoid Math.max('%', px) → NaN; use pixel reserve when legend + multi-series need space.
+    if (minBottomPx != null) {
+      const pb = pad.bottom;
+      if (pb == null) {
+        grid.bottom = minBottomPx;
+      } else if (typeof pb === 'number') {
+        grid.bottom = Math.max(pb, minBottomPx);
+      } else {
+        grid.bottom = pb;
+      }
+    } else {
+      grid.bottom = pad.bottom ?? defaultGrid.bottom;
+    }
+
+    if (useDualY && pad.right == null) {
+      grid.right = '14%';
+    }
 
     const series = hasMultiple
       ? yDataKeys.map((s, i) => ({
           name: s.label || s.key,
           type: 'bar',
-          data: data.map((d) => d[s.key] ?? 0),
+          yAxisIndex: Number(s.yAxisIndex) === 1 ? 1 : 0,
+          data: data.map((d) => {
+            const v = d[s.key];
+            const n = typeof v === 'number' ? v : Number(v);
+            return Number.isFinite(n) ? n : 0;
+          }),
           itemStyle: { color: s.color || CHART_PALETTE_THEME[i % CHART_PALETTE_THEME.length] },
         }))
       : [
@@ -234,36 +268,80 @@ export function SciBarChart({
         },
       },
       legend: showLegend
-        ? { show: true, bottom: 4, textStyle: axisTextStyle, itemGap: 16 }
+        ? {
+            show: true,
+            type: 'plain',
+            orient: 'horizontal',
+            left: 'center',
+            bottom: 0,
+            itemGap: multiSeriesLegend ? 40 : 22,
+            itemWidth: 16,
+            itemHeight: 12,
+            textStyle: axisTextStyle,
+            padding: multiSeriesLegend ? [4, 20, 10, 20] : [2, 12, 6, 12],
+          }
         : { show: false },
       xAxis: {
         type: 'category',
         data: categories,
         name: xAxisLabel,
         nameLocation: 'middle',
-        nameGap: rotate > 0 ? 42 : 28,
+        nameGap: rotate > 0 ? (multiSeriesLegend ? 52 : 44) : multiSeriesLegend ? 36 : 28,
         nameTextStyle,
         axisLabel: {
           ...axisTextStyle,
           rotate,
+          margin: rotate > 0 ? (multiSeriesLegend ? 16 : 12) : 8,
           interval: 0,
           hideOverlap: true,
           formatter: (value) => String(value),
         },
         splitLine: { show: false },
       },
-      yAxis: {
-        type: 'value',
-        name: yAxisLabel,
-        nameLocation: 'middle',
-        nameGap: 36,
-        nameTextStyle,
-        axisLabel: {
-          ...axisTextStyle,
-          formatter: (value) => formatTooltipValue(value),
-        },
-        splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
-      },
+      yAxis: useDualY
+        ? [
+            {
+              type: 'value',
+              name: yAxisLabel,
+              position: 'left',
+              nameLocation: 'middle',
+              nameGap: 48,
+              nameTextStyle,
+              axisLabel: {
+                ...axisTextStyle,
+                formatter: (value) => formatTooltipValue(value),
+              },
+              splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
+            },
+            {
+              type: 'value',
+              name:
+                secondaryYAxisLabel ||
+                yDataKeys.find((s) => Number(s?.yAxisIndex) === 1)?.label ||
+                'Series 2',
+              position: 'right',
+              nameLocation: 'middle',
+              nameGap: 48,
+              nameTextStyle,
+              axisLabel: {
+                ...axisTextStyle,
+                formatter: (value) => formatTooltipValue(value),
+              },
+              splitLine: { show: false },
+            },
+          ]
+        : {
+            type: 'value',
+            name: yAxisLabel,
+            nameLocation: 'middle',
+            nameGap: 36,
+            nameTextStyle,
+            axisLabel: {
+              ...axisTextStyle,
+              formatter: (value) => formatTooltipValue(value),
+            },
+            splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
+          },
       series,
     };
   }, [
@@ -281,6 +359,7 @@ export function SciBarChart({
     axisFontSize,
     xAxisLabelRotate,
     gridPadding,
+    secondaryYAxisLabel,
   ]);
 
   if (!data || data.length === 0) {

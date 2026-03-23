@@ -125,6 +125,7 @@ function App() {
                 element={
                   <PrivateRoute requiredRole="student">
                     <Routes>
+                      <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<StudentDashboard />} />
                       <Route path="grades" element={<StudentGrades />} />
                       <Route path="attendance" element={<StudentAttendance />} />
@@ -146,6 +147,7 @@ function App() {
                 element={
                   <PrivateRoute requiredRole="staff">
                     <Routes>
+                      <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<StaffDashboard />} />
                       <Route path="classes" element={<StaffClasses />} />
                       <Route path="analytics" element={<Navigate to="/staff/dashboard" replace />} />
@@ -167,6 +169,7 @@ function App() {
                 element={
                   <PrivateRoute requiredRole="hod">
                     <Routes>
+                      <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<HODDashboard />} />
                       <Route path="assign-classes" element={<HODAssignClasses />} />
                       <Route path="analytics" element={<Navigate to="/hod/dashboard" replace />} />
@@ -191,6 +194,7 @@ function App() {
                 element={
                   <PrivateRoute requiredRole="dean">
                     <Routes>
+                      <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<DeanDashboard />} />
                       <Route path="analytics" element={<Navigate to="/dean/dashboard" replace />} />
                       <Route path="fex" element={<FEXAnalytics />} />
@@ -213,6 +217,7 @@ function App() {
                 element={
                   <PrivateRoute requiredRole="senate">
                     <Routes>
+                      <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<SenateDashboard />} />
                       <Route path="analytics" element={<Navigate to="/senate/dashboard" replace />} />
                       <Route path="fex" element={<FEXAnalytics />} />
@@ -238,6 +243,7 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={['analyst', 'sysadmin']}>
                     <Routes>
+                      <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<AnalystDashboard />} />
                       <Route path="analytics" element={<Navigate to="/analyst/dashboard" replace />} />
                       <Route path="dashboards" element={<AnalystDashboardsPage />} />
@@ -264,6 +270,7 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={['sysadmin', 'admin']}>
                     <Routes>
+                      <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<AdminDashboard />} />
                       <Route path="users" element={<AdminUsers />} />
                       <Route path="settings" element={<AdminSettings />} />
@@ -287,6 +294,7 @@ function App() {
                 element={
                   <PrivateRoute requiredRole="hr">
                     <Routes>
+                      <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<HRDashboard />} />
                       <Route path="analytics" element={<Navigate to="/hr/dashboard" replace />} />
                       <Route path="employees" element={<HREmployeesPage />} />
@@ -310,6 +318,7 @@ function App() {
                 element={
                   <PrivateRoute requiredRole="finance">
                     <Routes>
+                      <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<FinanceDashboard />} />
                       <Route path="analytics" element={<Navigate to="/finance/dashboard" replace />} />
                       <Route path="payments" element={<FinancePayments />} />

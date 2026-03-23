@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { useProfilePhoto } from '../hooks/useProfilePhoto';
 import CountdownTimer from './admin/CountdownTimer';
+import PageErrorBoundary from './PageErrorBoundary';
 import axios from 'axios';
 
 const LayoutModern = ({ children }) => {
@@ -800,7 +801,7 @@ const LayoutModern = ({ children }) => {
         {/* Page Content - responsive padding, no overflow-x; compact density */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-muted/30">
           <div className="w-full max-w-7xl mx-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-5">
-            {children}
+            <PageErrorBoundary userRole={user?.role}>{children}</PageErrorBoundary>
           </div>
         </main>
       </div>

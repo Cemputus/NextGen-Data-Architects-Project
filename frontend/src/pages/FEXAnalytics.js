@@ -131,16 +131,21 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
       }
     } catch (err) {
       console.error('Error loading FEX data:', err);
+      const empty = {
+        data: [],
+        summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 },
+      };
       if (err.response?.status === 403) {
         const msg =
           err.response?.data?.detail ||
           err.response?.data?.error ||
           'Not allowed to view FEX for this scope.';
         setScopeError(msg);
-        setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
-      } else if (!fexData) {
-        setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
+      } else {
+        setScopeError(null);
       }
+      // Always reset chart state so the page never renders with stale/undefined series after filter clears or network errors.
+      setFexData(empty);
     } finally {
       setLoading(false);
     }
@@ -325,8 +330,10 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
                   showGrid={true}
                   tooltipNameKey="fullName"
                   tooltipMode="breakdown"
-                  minHeight={400}
-                  maxHeight={440}
+                  xAxisLabelRotate={42}
+                  gridPadding={{ bottom: 132 }}
+                  minHeight={420}
+                  maxHeight={460}
                 />
               ) : (
                 <EmptyState

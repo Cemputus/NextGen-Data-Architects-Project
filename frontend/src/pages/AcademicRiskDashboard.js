@@ -3,7 +3,7 @@
  * Comprehensive analysis of students at risk (FCW, MEX, FEX)
  * Includes High School background correlation analysis
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ShieldAlert, TrendingDown, AlertTriangle, GraduationCap, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -13,7 +13,7 @@ import { KPICard } from '../components/ui/kpi-card';
 import { DashboardGrid } from '../components/ui/dashboard-grid';
 import axios from 'axios';
 import { SciBarChart, SciDonutChart, SciLineChart } from '../components/charts/EChartsComponents';
-import { loadPageState, savePageState } from '../utils/statePersistence';
+import { loadPageState, savePageState, saveFilters } from '../utils/statePersistence';
 import { DataTable } from '../components/shared/DataTable';
 import { FilterChips } from '../components/shared/FilterChips';
 import { SkeletonTable } from '../components/ui/skeleton';
@@ -61,7 +61,11 @@ const AcademicRiskDashboard = () => {
     const savedState = loadPageState('academic_risk_dashboard', { filters: {}, tab: 'summary' });
     // Filters should come exclusively from GlobalFilterPanel persistence (not loadPageState).
     const [filters, setFilters] = useState({});
+    /** Remount GlobalFilterPanel after chip-based clears so UI matches parent filter state (avoids blank / inconsistent views). */
+    const [filterPanelKey, setFilterPanelKey] = useState(0);
     const [activeTab, setActiveTab] = useState(savedState.tab || 'summary');
+
+    const FILTER_PAGE = 'academic_risk_dashboard';
 
     useEffect(() => {
         loadData();
@@ -95,9 +99,49 @@ const AcademicRiskDashboard = () => {
 
     const riskSummary = riskData?.summary || { fcw_count: 0, mex_count: 0, fex_count: 0, total_courses: 0, avg_grade: 0 };
     const correlations = correlationData?.by_school || [];
+
+    /** API returns fcw_rate as 0–1 proportion; avg_gpa is ~0–100. Single axis made FCW bars invisible — scale FCW to % and use dual y-axis. */
+    const hsCorrelationChartData = useMemo(() => {
+        const list = correlationData?.by_school;
+        if (!Array.isArray(list)) return [];
+        return list.slice(0, 15).map((row) => {
+            const raw = Number(row.fcw_rate);
+            let fcwPct = 0;
+            if (Number.isFinite(raw)) {
+                fcwPct = raw >= 0 && raw <= 1 ? raw * 100 : raw;
+            }
+            const gpa = Number(row.avg_gpa);
+            return {
+                ...row,
+                school: row.school,
+                fcw_rate_pct: Math.round(fcwPct * 1000) / 1000,
+                avg_gpa: Number.isFinite(gpa) ? Math.round(gpa * 1000) / 1000 : 0,
+            };
+        });
+    }, [correlationData?.by_school]);
+
+    const districtChartData = useMemo(() => {
+        const list = correlationData?.by_district;
+        if (!Array.isArray(list)) return [];
+        return list.slice(0, 12).map((row) => {
+            const raw = Number(row.avg_fcw_rate);
+            let fcwPct = 0;
+            if (Number.isFinite(raw)) {
+                fcwPct = raw >= 0 && raw <= 1 ? raw * 100 : raw;
+            }
+            const grade = Number(row.avg_grade);
+            return {
+                ...row,
+                district: row.district,
+                avg_fcw_rate_pct: Math.round(fcwPct * 1000) / 1000,
+                avg_grade: Number.isFinite(grade) ? Math.round(grade * 1000) / 1000 : 0,
+            };
+        });
+    }, [correlationData?.by_district]);
     const rawTrend = riskData?.trends || riskData?.trend || riskData?.risk_over_time || [];
+    const trendSource = Array.isArray(rawTrend) ? rawTrend : [];
     // Normalize legacy monthly rows → line chart shape (prefer semester API fields).
-    const trend = rawTrend.map((row) => {
+    const trend = trendSource.map((row) => {
         if (row.period != null) return row;
         const period =
             row.month_name != null && row.year != null
@@ -160,8 +204,9 @@ const AcademicRiskDashboard = () => {
 
             {/* Filters - role-based: Dean starts at Department, HOD at Program */}
             <GlobalFilterPanel
+                key={filterPanelKey}
                 onFilterChange={(next) => setFilters(filtersWithRoleLocks(next || {}))}
-                pageName="academic_risk_dashboard"
+                pageName={FILTER_PAGE}
                 hideFaculty={isDean || isHod}
                 hideDepartment={isHod}
                 lockedFacultyId={lockedFacultyId}
@@ -171,14 +216,22 @@ const AcademicRiskDashboard = () => {
 
             <FilterChips
                 filters={filters}
-                onRemove={(key) =>
+                onRemove={(key) => {
                     setFilters((prev) => {
                         const next = { ...prev };
                         delete next[key];
-                        return filtersWithRoleLocks(next);
-                    })
-                }
-                onClearAll={() => setFilters(filtersWithRoleLocks({}))}
+                        const locked = filtersWithRoleLocks(next);
+                        saveFilters(FILTER_PAGE, locked);
+                        return locked;
+                    });
+                    setFilterPanelKey((k) => k + 1);
+                }}
+                onClearAll={() => {
+                    const locked = filtersWithRoleLocks({});
+                    saveFilters(FILTER_PAGE, locked);
+                    setFilters(locked);
+                    setFilterPanelKey((k) => k + 1);
+                }}
             />
 
             {loading ? (
@@ -318,22 +371,37 @@ const AcademicRiskDashboard = () => {
                                     <CardDescription className={chartCardDescriptionClass}>Analyzing which schools correlate with higher financial/academic risk</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className={chartContainerClass}>
-                                        {correlations.length > 0 ? (
+                                    <div className="min-h-[460px] w-full">
+                                        {hsCorrelationChartData.length > 0 ? (
                                             <SciBarChart
-                                                data={correlations.slice(0, 15)}
+                                                data={hsCorrelationChartData}
                                                 xDataKey="school"
                                                 yDataKeys={[
-                                                    { key: 'fcw_rate', label: 'FCW Rate (%)', color: '#EF4444' },
-                                                    { key: 'avg_gpa', label: 'Avg GPA', color: '#3B82F6' }
+                                                    {
+                                                        key: 'fcw_rate_pct',
+                                                        label: 'FCW Rate (%)',
+                                                        color: '#EF4444',
+                                                        yAxisIndex: 0,
+                                                    },
+                                                    {
+                                                        key: 'avg_gpa',
+                                                        label: 'Avg GPA',
+                                                        color: '#3B82F6',
+                                                        yAxisIndex: 1,
+                                                    },
                                                 ]}
                                                 xAxisLabel="High School"
-                                                yAxisLabel="Percentage / GPA"
+                                                yAxisLabel="FCW rate (%)"
+                                                secondaryYAxisLabel="Avg GPA (score)"
                                                 showLegend={true}
                                                 showGrid={true}
+                                                xAxisLabelRotate={32}
+                                                gridPadding={{ bottom: 120 }}
+                                                minHeight={480}
+                                                maxHeight={560}
                                             />
                                         ) : (
-                                            <div className={cn(chartEmptyStateClass, 'min-h-[260px]')}>
+                                            <div className={cn(chartEmptyStateClass, 'min-h-[460px]')}>
                                                 No correlation data found for current filters.
                                             </div>
                                         )}
@@ -350,16 +418,27 @@ const AcademicRiskDashboard = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className={chartContainerClass}>
-                                        {correlationData?.by_district ? (
+                                        {districtChartData.length > 0 ? (
                                             <SciBarChart
-                                                data={correlationData.by_district.slice(0, 12)}
+                                                data={districtChartData}
                                                 xDataKey="district"
                                                 yDataKeys={[
-                                                    { key: 'avg_fcw_rate', label: 'Avg FCW Rate (%)', color: '#10B981' },
-                                                    { key: 'avg_grade', label: 'Avg Grade %', color: '#F59E0B' }
+                                                    {
+                                                        key: 'avg_fcw_rate_pct',
+                                                        label: 'Avg FCW Rate (%)',
+                                                        color: '#10B981',
+                                                        yAxisIndex: 0,
+                                                    },
+                                                    {
+                                                        key: 'avg_grade',
+                                                        label: 'Avg Grade %',
+                                                        color: '#F59E0B',
+                                                        yAxisIndex: 1,
+                                                    },
                                                 ]}
                                                 xAxisLabel="District"
-                                                yAxisLabel="Percentage"
+                                                yAxisLabel="FCW rate (%)"
+                                                secondaryYAxisLabel="Avg grade (%)"
                                                 showLegend={true}
                                             />
                                         ) : (
