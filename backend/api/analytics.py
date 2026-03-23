@@ -1632,20 +1632,76 @@ def get_filter_options():
         
         # --- Semesters (fallback from fact_grade if dim_semester empty) ---
         try:
-            df = pd.read_sql_query(
-                text("SELECT semester_id, semester_name FROM dim_semester ORDER BY semester_id"),
-                engine,
-            )
-            options['semesters'] = df.to_dict('records') if not df.empty else []
-            if not options['semesters']:
-                df2 = pd.read_sql_query(
-                    text(
-                        "SELECT DISTINCT semester_id, 'Semester ' || semester_id as semester_name "
-                        "FROM fact_grade WHERE semester_id IS NOT NULL ORDER BY semester_id"
-                    ),
+            if role == Role.STUDENT:
+                # Students: keep full semester list (student scoping is already used in other filters).
+                df = pd.read_sql_query(
+                    text("SELECT semester_id, semester_name FROM dim_semester ORDER BY semester_id"),
                     engine,
                 )
-                options['semesters'] = df2.to_dict('records') if not df2.empty else []
+                options['semesters'] = df.to_dict('records') if not df.empty else []
+                if not options['semesters']:
+                    df2 = pd.read_sql_query(
+                        text(
+                            "SELECT DISTINCT semester_id, 'Semester ' || semester_id as semester_name "
+                            "FROM fact_grade WHERE semester_id IS NOT NULL ORDER BY semester_id"
+                        ),
+                        engine,
+                    )
+                    options['semesters'] = df2.to_dict('records') if not df2.empty else []
+            else:
+                # Non-student: filter semesters by the currently selected scope so cascade feels active.
+                # (Dean/HOD locked faculty/department are passed from frontend as request params.)
+                sem_where = []
+                sem_params = {}
+
+                if role == Role.HOD and user_scope.get('department_id') and not department_id:
+                    sem_where.append("ddept.department_id = :scope_dept_id")
+                    sem_params['scope_dept_id'] = int(user_scope['department_id'])
+                elif role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id:
+                    sem_where.append("df.faculty_id = :scope_faculty_id")
+                    sem_params['scope_faculty_id'] = int(user_scope['faculty_id'])
+
+                if faculty_id:
+                    sem_where.append("df.faculty_id = :fac_id")
+                    sem_params['fac_id'] = faculty_id
+                if department_id:
+                    sem_where.append("ddept.department_id = :dept_id")
+                    sem_params['dept_id'] = department_id
+                if program_id:
+                    sem_where.append("dp.program_id = :prog_id")
+                    sem_params['prog_id'] = program_id
+
+                # `fg.semester_id IS NOT NULL` is already in the WHERE clause above.
+                # When sem_where is present, we only append additional conditions with AND.
+                where_clause = (" AND " + " AND ".join(sem_where)) if sem_where else ""
+                sem_sql = f"""
+                    SELECT DISTINCT
+                        fg.semester_id,
+                        COALESCE(sem.semester_name, 'Semester ' || fg.semester_id::text) as semester_name
+                    FROM fact_grade fg
+                    JOIN dim_student ds ON fg.student_id = ds.student_id
+                    LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+                    LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+                    LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+                    LEFT JOIN dim_semester sem ON fg.semester_id = sem.semester_id
+                    WHERE fg.semester_id IS NOT NULL
+                    {where_clause}
+                    ORDER BY fg.semester_id
+                """
+
+                df = pd.read_sql_query(text(sem_sql), engine, params=sem_params or None)
+                options['semesters'] = df.to_dict('records') if not df.empty else []
+
+                # Safety fallback: if filter scope returns nothing, show full supported semesters.
+                if not options['semesters']:
+                    df2 = pd.read_sql_query(
+                        text(
+                            "SELECT semester_id, semester_name FROM dim_semester ORDER BY semester_id"
+                        ),
+                        engine,
+                    )
+                    options['semesters'] = df2.to_dict('records') if not df2.empty else []
+
             for r in options['semesters']:
                 if r.get('semester_id') is not None and isinstance(r['semester_id'], (float,)):
                     r['semester_id'] = int(r['semester_id'])
