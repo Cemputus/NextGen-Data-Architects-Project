@@ -29,6 +29,9 @@ import {
 } from '../lib/analytics-ui';
 import { sanitizeDashboardFilters } from '../utils/filterUtils';
 
+const RISK_TAB_VALUES = ['summary', 'hs-correlation', 'districts', 'action'];
+const RISK_TAB_SET = new Set(RISK_TAB_VALUES);
+
 const AcademicRiskDashboard = () => {
     const { user } = useAuth();
     const role = (user?.role || '').toString().toLowerCase();
