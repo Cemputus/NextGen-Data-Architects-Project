@@ -2,7 +2,7 @@
  * Global Filter Panel - Smooth, Professional UI with Synced Filters
  * Filters sync: selecting faculty filters departments, selecting department filters programs
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Search, X, Filter } from 'lucide-react';
 import { Button } from './ui/button';
@@ -70,6 +70,7 @@ const GlobalFilterPanel = ({
   });
   const [searchTerm, setSearchTerm] = useState(savedSearch);
   const [loading, setLoading] = useState(false);
+  const optionsRequestSeqRef = useRef(0);
 
   const emptyOptions = {
     faculties: [],
@@ -97,6 +98,7 @@ const GlobalFilterPanel = ({
 
   // Load filter options with current filter values for cascading (faculties -> departments -> programs -> courses)
   const loadFilterOptions = async (currentFilters = {}) => {
+    const requestSeq = ++optionsRequestSeqRef.current;
     setLoading(true);
     try {
       const effectiveForRequest = { ...currentFilters };
@@ -116,6 +118,7 @@ const GlobalFilterPanel = ({
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params,
       });
+      if (requestSeq !== optionsRequestSeqRef.current) return;
       const data = res?.data || {};
       const nextOptions = {
         faculties: Array.isArray(data.faculties) ? data.faculties : emptyOptions.faculties,
@@ -204,6 +207,7 @@ const GlobalFilterPanel = ({
         saveFilters(pageName, sanitized);
       }
     } catch (err) {
+      if (requestSeq !== optionsRequestSeqRef.current) return;
       console.error('Error loading filter options:', err);
       setFilterOptions((prev) => ({
         ...emptyOptions,
@@ -218,7 +222,9 @@ const GlobalFilterPanel = ({
         year_of_studies: Array.isArray(prev?.year_of_studies) ? prev.year_of_studies : [],
       }));
     } finally {
-      setLoading(false);
+      if (requestSeq === optionsRequestSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -248,19 +254,18 @@ const GlobalFilterPanel = ({
     });
   }, [lockedDepartmentId, pageName]);
 
-  // Load filter options on initial mount with saved filters
+  // Reload filter options when parent filters change (debounced to avoid request storms).
   useEffect(() => {
-    loadFilterOptions(filters);
-  }, []); // Only run on mount
-
-  // Reload filter options when parent filters change
-  useEffect(() => {
-    loadFilterOptions(filters);
+    const t = setTimeout(() => {
+      loadFilterOptions(filters);
+    }, 180);
+    return () => clearTimeout(t);
   }, [
     filters.faculty_id,
     filters.department_id,
     filters.program_id,
     filters.semester_id,
+    filters.year_of_study,
     lockedFacultyId,
     lockedDepartmentId,
   ]);

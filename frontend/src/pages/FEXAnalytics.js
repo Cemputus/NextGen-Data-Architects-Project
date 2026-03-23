@@ -200,6 +200,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
             : 'Year of Study';
 
   const rolePrefix = user?.role?.toLowerCase() === 'sysadmin' ? 'admin' : user?.role?.toLowerCase() || 'dashboard';
+  const filterPageKey = `${role || 'user'}_fex_analytics`;
 
   return (
     <PageContent>
@@ -256,7 +257,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
           ) : null}
           <GlobalFilterPanel
             onFilterChange={setInternalFilters}
-            pageName="fex_analytics"
+            pageName={filterPageKey}
             hideFaculty={isDean || isHod}
             hideDepartment={isHod}
             lockedFacultyId={lockedFacultyId}
