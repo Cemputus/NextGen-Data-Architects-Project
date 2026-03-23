@@ -9,6 +9,9 @@ import { UCU_COLORS, CHART_PALETTE_THEME, defaultGrid, defaultTooltip, defaultTe
 const chartHeight = 360;
 const chartMinHeight = 300;
 const chartMaxHeight = 480;
+/** Slightly taller defaults for bar charts (plot + axis labels). */
+const barChartMinHeight = 340;
+const barChartMaxHeight = 520;
 
 /** Line chart — single series (`yDataKey`) or multiple (`yDataKeys` like SciBarChart). */
 export function SciLineChart({
@@ -158,8 +161,8 @@ export function SciBarChart({
   showGrid = true,
   tooltipNameKey = null,
   tooltipMode = 'single', // 'single' (old) or 'breakdown' (multi-series breakdown)
-  minHeight = chartMinHeight,
-  maxHeight = chartMaxHeight,
+  minHeight = barChartMinHeight,
+  maxHeight = barChartMaxHeight,
   /** Axis tick / name font size (px); default follows theme (11). */
   axisFontSize = null,
   /** X-axis label rotation in degrees; null = auto from category count. */
@@ -213,6 +216,15 @@ export function SciBarChart({
       grid,
       tooltip: {
         ...defaultTooltip,
+        trigger: 'axis',
+        axisPointer: {
+          type: 'line',
+          lineStyle: {
+            color: 'rgba(148, 163, 184, 0.85)',
+            width: 1,
+            type: 'dashed',
+          },
+        },
         formatter: (params) => {
           if (params == null) return '';
           const arr = Array.isArray(params) ? params : [params];
@@ -220,8 +232,12 @@ export function SciBarChart({
           const first = arr[0] || {};
           const idx = first?.dataIndex ?? 0;
           const raw = Array.isArray(data) && data[idx] ? data[idx] : {};
+          const fromTooltipKey =
+            tooltipNameKey && raw && raw[tooltipNameKey] != null
+              ? String(raw[tooltipNameKey]).trim()
+              : '';
           const title =
-            (tooltipNameKey && raw && raw[tooltipNameKey] != null && String(raw[tooltipNameKey])) ||
+            fromTooltipKey ||
             first?.axisValueLabel ||
             first?.name ||
             '';
@@ -242,7 +258,10 @@ export function SciBarChart({
             return `<strong>${title}</strong><br/>${lines.join('<br/>')}`;
           }
 
-          return `${title}<br/>${yAxisLabel}: ${formatTooltipValue(first?.value)}`;
+          const valueStr = formatTooltipValue(first?.value);
+          return title
+            ? `<strong>${title}</strong><br/>${yAxisLabel}: ${valueStr}`
+            : `${yAxisLabel}: ${valueStr}`;
         },
       },
       legend: showLegend

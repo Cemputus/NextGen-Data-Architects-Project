@@ -1202,9 +1202,21 @@ def get_finance_analytics():
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
 
+        def _filter_value_meaningful(v):
+            if v is None:
+                return False
+            s = str(v).strip()
+            return bool(s) and s.lower() != 'all'
+
+        # build_filter_query uses `fg.semester_id` which does not exist on finance payment queries.
+        # Strip semester / academic_year here and apply with fp / ds below.
+        pay_filters = {k: v for k, v in filters.items() if k not in ('semester_id', 'academic_year')}
+        explicit_sem = filters.get('semester_id') if _filter_value_meaningful(filters.get('semester_id')) else None
+        explicit_ay = filters.get('academic_year') if _filter_value_meaningful(filters.get('academic_year')) else None
+
         # Determine current semester window (academic_year + semester_id) when no explicit filters exist.
         current_semester = None
-        if not filters.get('semester_id') and not filters.get('academic_year'):
+        if not explicit_sem and not explicit_ay:
             try:
                 recent_sql = """
                 SELECT
@@ -1229,18 +1241,35 @@ def get_finance_analytics():
                 current_semester = None
 
         # Base payment query: scoped to role and filters via build_filter_query (using dim_student joins).
+        # Align paid / outstanding statuses with fact_payment + /api/dashboard/stats (Completed + SUCCESS, etc.).
         base_q = """
         SELECT
-            SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) AS total_payments,
-            SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END)   AS total_pending,
-            SUM(fp.amount)                                                   AS total_required
+            SUM(CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN fp.amount ELSE 0 END) AS total_payments,
+            SUM(CASE WHEN fp.status IN ('Pending', 'FAILED') THEN fp.amount ELSE 0 END) AS total_pending,
+            SUM(fp.amount) AS total_required
         FROM fact_payment fp
         JOIN dim_student ds ON fp.student_id = ds.student_id
         LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
-        pay_q, pay_params = build_filter_query(filters, base_q, user_scope)
+        pay_q, pay_params = build_filter_query(pay_filters, base_q, user_scope)
+
+        if explicit_sem is not None:
+            try:
+                pay_params['fin_explicit_sem'] = int(str(explicit_sem).strip())
+                if "WHERE" in pay_q.upper():
+                    pay_q += " AND fp.semester_id = :fin_explicit_sem"
+                else:
+                    pay_q += " WHERE fp.semester_id = :fin_explicit_sem"
+            except (ValueError, TypeError):
+                pass
+        if explicit_ay is not None:
+            pay_params['fin_explicit_ay'] = str(explicit_ay).strip()
+            if "WHERE" in pay_q.upper():
+                pay_q += " AND ds.academic_year = :fin_explicit_ay"
+            else:
+                pay_q += " WHERE ds.academic_year = :fin_explicit_ay"
 
         if current_semester:
             ay, sem = current_semester
@@ -1274,11 +1303,29 @@ def get_finance_analytics():
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
-        stu_q, stu_params = build_filter_query(filters, students_q, user_scope)
+        stu_q, stu_params = build_filter_query(pay_filters, students_q, user_scope)
+        if explicit_sem is not None:
+            try:
+                stu_params['stu_exist_sem'] = int(str(explicit_sem).strip())
+                clause = (
+                    "EXISTS (SELECT 1 FROM fact_enrollment fe "
+                    "WHERE fe.student_id = ds.student_id AND fe.semester_id = :stu_exist_sem)"
+                )
+                if "WHERE" in stu_q.upper():
+                    stu_q += f" AND {clause}"
+                else:
+                    stu_q += f" WHERE {clause}"
+            except (ValueError, TypeError):
+                pass
+        if explicit_ay is not None:
+            stu_params['stu_explicit_ay'] = str(explicit_ay).strip()
+            if "WHERE" in stu_q.upper():
+                stu_q += " AND ds.academic_year = :stu_explicit_ay"
+            else:
+                stu_q += " WHERE ds.academic_year = :stu_explicit_ay"
         if current_semester:
             ay, sem = current_semester
             stu_params['stu_ay'] = ay
-            stu_params['stu_sem'] = sem
             if "WHERE" in stu_q.upper():
                 stu_q += " AND ds.academic_year = :stu_ay"
             else:

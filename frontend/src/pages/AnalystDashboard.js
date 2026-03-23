@@ -35,6 +35,7 @@ import {
   chartCardDescriptionClass,
   chartEmptyStateClass,
 } from '../lib/analytics-ui';
+import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -70,6 +71,7 @@ const AnalystDashboard = ({
   const [paymentStatus, setPaymentStatus] = useState([]);
   const [paymentTrends, setPaymentTrends] = useState([]);
   const [tuitionDefaultersBar, setTuitionDefaultersBar] = useState([]);
+  const [tuitionDefaultersBreakdown, setTuitionDefaultersBreakdown] = useState('faculty');
   const [tuitionPaymentTrendsDim, setTuitionPaymentTrendsDim] = useState([]);
   const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
   const [loadingPipeline, setLoadingPipeline] = useState(true);
@@ -445,6 +447,7 @@ const AnalystDashboard = ({
         setPaymentStatus([]);
         setPaymentTrends([]);
         setTuitionDefaultersBar([]);
+        setTuitionDefaultersBreakdown('faculty');
         setTuitionPaymentTrendsDim([]);
       } else {
         setPaymentStatus(
@@ -461,11 +464,18 @@ const AnalystDashboard = ({
           })),
         );
 
+        setTuitionDefaultersBreakdown(
+          tuitionDefaultersRes.data?.breakdown || deriveFinanceBreakdown(apiFilters),
+        );
         setTuitionDefaultersBar(
-          (tuitionDefaultersRes.data?.tuition_defaulters || []).map((r) => ({
-            ...r,
-            name: abbreviateTuitionDefaulterLabel(r),
-          })),
+          (tuitionDefaultersRes.data?.tuition_defaulters || []).map((r) => {
+            const fullName = String(r?.name ?? '').trim() || '—';
+            return {
+              ...r,
+              fullName,
+              name: abbreviateTuitionDefaulterLabel({ ...r, name: fullName }),
+            };
+          }),
         );
 
         const periods = tuitionTrendsRes.data?.periods || [];
@@ -775,8 +785,8 @@ const AnalystDashboard = ({
                 yAxisLabel="Number of students"
                 showLegend={false}
                 tooltipNameKey="fullName"
-                minHeight={360}
-                maxHeight={380}
+                minHeight={400}
+                maxHeight={420}
               />
             )}
           </CardContent>
@@ -905,7 +915,9 @@ const AnalystDashboard = ({
                 <CardHeader className={chartCardHeaderClass}>
                   <CardTitle className={chartCardTitleClass}>Tuition/fees defaulters</CardTitle>
                   <CardDescription className={chartCardDescriptionClass}>
-                    Bar chart of students with pending/failed tuition payments by faculty, department, and program.
+                    Distinct defaulters in the latest semester by{' '}
+                    {FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown]?.toLowerCase() || 'unit'} only, matching
+                    your filters.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -913,7 +925,8 @@ const AnalystDashboard = ({
                     data={tuitionDefaultersBar}
                     xDataKey="name"
                     yDataKey="value"
-                    xAxisLabel="Faculty / Department / Program"
+                    tooltipNameKey="fullName"
+                    xAxisLabel={FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown] || 'Unit'}
                     yAxisLabel="Defaulters"
                     showLegend={false}
                     xAxisLabelRotate={35}
@@ -921,8 +934,8 @@ const AnalystDashboard = ({
                     showGrid
                     gridPadding={{ bottom: 125 }}
                     fillColor={UCU_COLORS.cyan}
-                    minHeight={440}
-                    maxHeight={620}
+                    minHeight={480}
+                    maxHeight={660}
                   />
                 </CardContent>
               </Card>

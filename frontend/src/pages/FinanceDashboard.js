@@ -19,6 +19,7 @@ import {
   chartCardDescriptionClass,
 } from '../lib/analytics-ui';
 import { MODERN_CHART_PALETTE } from '../lib/chartTheme';
+import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
@@ -35,6 +36,8 @@ const FinanceDashboard = () => {
   const [highRiskDebtSegments, setHighRiskDebtSegments] = useState([]);
   const [tuitionDefaultersBar, setTuitionDefaultersBar] = useState([]);
   const [tuitionPaymentTrendsDim, setTuitionPaymentTrendsDim] = useState([]);
+  /** faculty | department | program — aligned with global filters (API + fallback). */
+  const [financeBreakdown, setFinanceBreakdown] = useState('faculty');
 
   useEffect(() => {
     loadFinanceData();
@@ -65,12 +68,25 @@ const FinanceDashboard = () => {
           params: filters
         });
       });
-      
+
+      const d = response?.data || {};
+      // Primary: /api/analytics/finance (total_payments, total_pending). Fallback: /api/dashboard/stats (outstanding_payments, no payment_rate).
+      const totalPaymentsRaw = d.total_payments ?? d.total_revenue;
+      const totalPayments = Number(totalPaymentsRaw);
+      const outstandingRaw = d.total_pending ?? d.outstanding_payments;
+      const outstanding = Number(outstandingRaw);
+      const paymentRateRaw = d.payment_rate;
+      const paymentRate =
+        paymentRateRaw !== undefined && paymentRateRaw !== null && String(paymentRateRaw).trim() !== ''
+          ? Number(paymentRateRaw)
+          : null;
+      const totalStudents = Number(d.total_students ?? 0);
+
       setStats({
-        total_revenue: response.data.total_payments,
-        outstanding: response.data.total_pending,
-        payment_rate: response.data.payment_rate,
-        total_students: response.data.total_students
+        total_revenue: Number.isFinite(totalPayments) ? totalPayments : 0,
+        outstanding: Number.isFinite(outstanding) ? outstanding : 0,
+        payment_rate: Number.isFinite(paymentRate) ? paymentRate : null,
+        total_students: Number.isFinite(totalStudents) ? totalStudents : 0,
       });
 
       const tuitionTrendPeriod = (() => {
@@ -141,10 +157,14 @@ const FinanceDashboard = () => {
       ]);
 
       setTuitionDefaultersBar(
-        (defRes.data?.tuition_defaulters || []).map((r) => ({
-          ...r,
-          name: abbreviateTuitionDefaulterLabel(r),
-        })),
+        (defRes.data?.tuition_defaulters || []).map((r) => {
+          const fullName = String(r?.name ?? '').trim() || '—';
+          return {
+            ...r,
+            fullName,
+            name: abbreviateTuitionDefaulterLabel({ ...r, name: fullName }),
+          };
+        }),
       );
 
       const periods = trendsRes.data?.periods || [];
@@ -167,11 +187,22 @@ const FinanceDashboard = () => {
         })),
       );
 
+      const breakdown =
+        outstandingRes.data?.breakdown ||
+        defRes.data?.breakdown ||
+        highRiskRes.data?.breakdown ||
+        deriveFinanceBreakdown(filters);
+      setFinanceBreakdown(breakdown);
+
       setOutstandingFacultyProgram(
-        (outstandingRes.data?.outstanding_by_faculty_program || []).map((r) => ({
-          ...r,
-          name: abbreviateFacultyProgramLabel(r),
-        })),
+        (outstandingRes.data?.outstanding_by_faculty_program || []).map((r) => {
+          const fullName = String(r?.name ?? '').trim() || '—';
+          return {
+            ...r,
+            fullName,
+            name: abbreviateEntityBarLabel({ name: fullName }),
+          };
+        }),
       );
 
       const statusPairs = (paymentStatusRes.data?.statuses || []).map((s, idx) => ({
@@ -189,21 +220,29 @@ const FinanceDashboard = () => {
         .filter((x) => x.status.toLowerCase() === 'partial')
         .reduce((acc, x) => acc + x.count, 0);
 
+      // Per-slice colors (SciDonutChart uses `color` on each item) so order stays correct when some slices are 0.
       setPaymentStatusMix(
         [
-          { name: 'Completed', value: completed },
-          { name: 'Pending', value: pending },
-          { name: 'Partial', value: partial },
+          { name: 'Completed', value: completed, color: MODERN_CHART_PALETTE[0] },
+          { name: 'Pending', value: pending, color: MODERN_CHART_PALETTE[2] }, // orange
+          { name: 'Partial', value: partial, color: MODERN_CHART_PALETTE[1] },
         ].filter((d) => d.value > 0),
       );
 
       setHighRiskDebtSegments(
-        (highRiskRes.data?.high_risk_debt_segments || []).map((r) => ({
-          ...r,
-          // Backend already sends labels like "Intake 2024"
-          segment: String(r?.segment ?? r?.name ?? '').trim() || 'Intake',
-          outstanding: Number(r?.outstanding ?? r?.value ?? 0) || 0,
-        })),
+        (highRiskRes.data?.high_risk_debt_segments || []).map((r) => {
+          const segment = String(r?.segment ?? r?.name ?? '').trim() || 'Unit';
+          const val = Number(r?.outstanding ?? r?.value ?? 0) || 0;
+          return {
+            ...r,
+            segment,
+            outstanding: val,
+            fullName: segment,
+            // Same shape as "Outstanding" bar chart (screenshot parity: name/value + abbreviations)
+            name: abbreviateEntityBarLabel({ name: segment }),
+            value: val,
+          };
+        }),
       );
     } catch (err) {
       console.error('Error loading finance data:', err);
@@ -268,16 +307,10 @@ const FinanceDashboard = () => {
     return shortSuffix || rawName;
   };
 
-  const abbreviateFacultyProgramLabel = (row) => {
+  const abbreviateEntityBarLabel = (row) => {
     const raw = String(row?.name ?? '').trim();
     if (!raw) return raw;
-    const parts = raw.split(' / ');
-    const fac = parts[0] ?? '';
-    const prog = parts.slice(1).join(' / ');
-    const shortFac = abbreviateName(fac);
-    const shortProg = abbreviateName(prog);
-    if (shortFac && shortProg) return `${shortFac} / ${shortProg}`;
-    return shortFac || shortProg || raw;
+    return abbreviateName(raw) || raw;
   };
 
   return (
@@ -372,9 +405,17 @@ const FinanceDashboard = () => {
 
             <Card className={chartSurfaceCard('h-full')}>
               <CardHeader className={chartCardHeaderClass}>
-                <CardTitle className={chartCardTitleClass}>Outstanding by faculty/program</CardTitle>
+                <CardTitle className={chartCardTitleClass}>
+                  {financeBreakdown === 'faculty'
+                    ? 'Outstanding by faculty'
+                    : financeBreakdown === 'department'
+                      ? 'Outstanding by department'
+                      : 'Outstanding by program'}
+                </CardTitle>
                 <CardDescription className={chartCardDescriptionClass}>
-                  Breakdown of outstanding balances by faculty and program, supporting drilldowns.
+                  Pending/failed tuition balances grouped by{' '}
+                  {FINANCE_BREAKDOWN_AXIS[financeBreakdown] || 'unit'}, matching your faculty / department /
+                  program filters.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
@@ -382,7 +423,8 @@ const FinanceDashboard = () => {
                   data={outstandingFacultyProgram}
                   xDataKey="name"
                   yDataKey="value"
-                  xAxisLabel="Faculty / Program"
+                  tooltipNameKey="fullName"
+                  xAxisLabel={FINANCE_BREAKDOWN_AXIS[financeBreakdown] || 'Unit'}
                   yAxisLabel="Outstanding"
                   showLegend={false}
                   xAxisLabelRotate={35}
@@ -390,8 +432,8 @@ const FinanceDashboard = () => {
                   showGrid
                   gridPadding={{ bottom: 115 }}
                   fillColor={MODERN_CHART_PALETTE[4]}
-                  minHeight={420}
-                  maxHeight={620}
+                  minHeight={460}
+                  maxHeight={660}
                 />
               </CardContent>
             </Card>
@@ -410,38 +452,37 @@ const FinanceDashboard = () => {
                 <SciDonutChart
                   data={paymentStatusMix}
                   title="Payment status"
-                  colors={[
-                    MODERN_CHART_PALETTE[0], // Completed
-                    MODERN_CHART_PALETTE[1], // Pending
-                    MODERN_CHART_PALETTE[2], // Partial
-                  ]}
+                  colors={MODERN_CHART_PALETTE}
                 />
               </CardContent>
             </Card>
 
             <Card className={chartSurfaceCard('h-full')}>
               <CardHeader className={chartCardHeaderClass}>
-                <CardTitle className={chartCardTitleClass}>High-risk debt segments</CardTitle>
+                <CardTitle className={chartCardTitleClass}>High outstanding by unit</CardTitle>
                 <CardDescription className={chartCardDescriptionClass}>
-                  Space for cohorts with persistent or large outstanding balances (e.g. by program or intake year).
+                  Largest outstanding balances (pending/failed) by{' '}
+                  {FINANCE_BREAKDOWN_AXIS[financeBreakdown]?.toLowerCase() || 'unit'}, following the same filter
+                  depth as other finance bars.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 {highRiskDebtSegments.length > 0 ? (
                   <SciBarChart
                     data={highRiskDebtSegments}
-                    xDataKey="segment"
-                    yDataKey="outstanding"
-                    xAxisLabel="Cohort (intake year)"
+                    xDataKey="name"
+                    yDataKey="value"
+                    tooltipNameKey="fullName"
+                    xAxisLabel={FINANCE_BREAKDOWN_AXIS[financeBreakdown] || 'Unit'}
                     yAxisLabel="Outstanding"
                     showLegend={false}
                     xAxisLabelRotate={35}
                     axisFontSize={11}
                     showGrid
                     gridPadding={{ bottom: 115 }}
-                    fillColor={MODERN_CHART_PALETTE[2]}
-                    minHeight={420}
-                    maxHeight={620}
+                    fillColor={MODERN_CHART_PALETTE[4]}
+                    minHeight={460}
+                    maxHeight={660}
                   />
                 ) : (
                   <p className="text-xs text-muted-foreground px-2 py-8 text-center">
@@ -458,7 +499,8 @@ const FinanceDashboard = () => {
               <CardHeader className={chartCardHeaderClass}>
                 <CardTitle className={chartCardTitleClass}>Tuition/fees defaulters</CardTitle>
                 <CardDescription className={chartCardDescriptionClass}>
-                  Bar chart of students with pending/failed tuition payments by faculty, department, and program.
+                  Distinct students with pending/failed tuition in the latest semester, shown by{' '}
+                  {FINANCE_BREAKDOWN_AXIS[financeBreakdown]?.toLowerCase() || 'unit'} only (no mixed dimensions).
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
@@ -466,7 +508,8 @@ const FinanceDashboard = () => {
                   data={tuitionDefaultersBar}
                   xDataKey="name"
                   yDataKey="value"
-                  xAxisLabel="Faculty / Department / Program"
+                  tooltipNameKey="fullName"
+                  xAxisLabel={FINANCE_BREAKDOWN_AXIS[financeBreakdown] || 'Unit'}
                   yAxisLabel="Defaulters"
                   showLegend={false}
                   xAxisLabelRotate={35}
@@ -474,8 +517,8 @@ const FinanceDashboard = () => {
                   showGrid
                   gridPadding={{ bottom: 125 }}
                   fillColor={MODERN_CHART_PALETTE[0]}
-                  minHeight={440}
-                  maxHeight={620}
+                  minHeight={480}
+                  maxHeight={660}
                 />
               </CardContent>
             </Card>

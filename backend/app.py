@@ -1850,6 +1850,38 @@ def _dashboard_role_scope():
     return '', ''
 
 
+def _filter_query_int(filters, key):
+    """Parse a query param as int, or None if missing / 'all' / invalid."""
+    if not filters:
+        return None
+    v = filters.get(key)
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s or s.lower() == 'all':
+        return None
+    try:
+        return int(s)
+    except Exception:
+        return None
+
+
+def _finance_chart_breakdown(filters):
+    """
+    Bar-chart grouping aligned with global filter depth (Finance / role dashboards):
+      - No faculty filter → group by faculty
+      - Faculty selected (no department) → group by department
+      - Department or program selected → group by program
+    """
+    if _filter_query_int(filters, 'program_id') is not None:
+        return 'program'
+    if _filter_query_int(filters, 'department_id') is not None:
+        return 'program'
+    if _filter_query_int(filters, 'faculty_id') is not None:
+        return 'department'
+    return 'faculty'
+
+
 def _staff_assigned_course_fact_where_parts(assigned_course_codes, semester_id_filter, filters, alias='fe'):
     """
     Build AND-clauses for fact rows (enrollment or grade) limited to assigned courses.
@@ -2915,8 +2947,8 @@ def get_payment_status():
 @jwt_required()
 def get_outstanding_by_faculty_program():
     """
-    Outstanding by faculty/program:
-    Sum of pending/failed tuition payments grouped by (faculty, program).
+    Outstanding balances (Pending/FAILED), grouped to match filter depth:
+      institution → by faculty; faculty → by department; department/program → by program.
     The semester is chosen as the latest semester in scope unless `semester_id` is explicitly provided.
     """
     try:
@@ -2982,14 +3014,25 @@ def get_outstanding_by_faculty_program():
 
         where_clauses.append(f"fp.semester_id = {latest_sem}")
 
+        breakdown = _finance_chart_breakdown(filters)
+        if breakdown == 'faculty':
+            name_expr = "COALESCE(df.faculty_name, 'Unknown') AS name"
+            group_by = "df.faculty_name"
+        elif breakdown == 'department':
+            name_expr = "COALESCE(ddept.department_name, 'Unknown') AS name"
+            group_by = "ddept.department_name"
+        else:
+            name_expr = "COALESCE(dp.program_name, 'Unknown') AS name"
+            group_by = "dp.program_name"
+
         query = f"""
         SELECT
-            CONCAT(df.faculty_name, ' / ', dp.program_name) AS name,
+            {name_expr},
             SUM(fp.amount) AS value
         FROM fact_payment fp
         {join_clause}
         WHERE {' AND '.join(where_clauses)}
-        GROUP BY df.faculty_name, dp.program_name
+        GROUP BY {group_by}
         ORDER BY value DESC
         LIMIT {limit}
         """
@@ -3000,6 +3043,7 @@ def get_outstanding_by_faculty_program():
         return jsonify({
             'outstanding_by_faculty_program': df.to_dict('records'),
             'semester_id': latest_sem,
+            'breakdown': breakdown,
         }), 200
     except Exception as e:
         print(f"Error in get_outstanding_by_faculty_program: {e}")
@@ -3011,8 +3055,8 @@ def get_outstanding_by_faculty_program():
 @jwt_required()
 def get_high_risk_debt_segments():
     """
-    High-risk debt segments:
-    Top cohorts (by intake year) with the largest outstanding balances (Pending/FAILED).
+    Largest outstanding balances (Pending/FAILED), grouped like other finance bars:
+    by faculty, department, or program according to global filter depth.
     Uses latest semester in scope unless `semester_id` is explicitly provided.
     """
     try:
@@ -3079,18 +3123,25 @@ def get_high_risk_debt_segments():
 
         where_clauses.append(f"fp.semester_id = {latest_sem}")
 
-        # Group by intake year derived from admission_date
+        breakdown = _finance_chart_breakdown(filters)
+        if breakdown == 'faculty':
+            seg_expr = "COALESCE(df.faculty_name, 'Unknown') AS segment"
+            group_by = "df.faculty_name"
+        elif breakdown == 'department':
+            seg_expr = "COALESCE(ddept.department_name, 'Unknown') AS segment"
+            group_by = "ddept.department_name"
+        else:
+            seg_expr = "COALESCE(dp.program_name, 'Unknown') AS segment"
+            group_by = "dp.program_name"
+
         query = f"""
         SELECT
-            CONCAT(
-              'Intake ',
-              CAST(EXTRACT(YEAR FROM CAST(ds.admission_date AS DATE)) AS TEXT)
-            ) AS segment,
+            {seg_expr},
             SUM(COALESCE(fp.amount, 0)) AS outstanding
         FROM fact_payment fp
         {base_join}
         WHERE {' AND '.join(where_clauses)}
-        GROUP BY EXTRACT(YEAR FROM CAST(ds.admission_date AS DATE))
+        GROUP BY {group_by}
         ORDER BY outstanding DESC
         LIMIT {limit}
         """
@@ -3101,6 +3152,7 @@ def get_high_risk_debt_segments():
         return jsonify({
             'high_risk_debt_segments': df.to_dict('records'),
             'semester_id': latest_sem,
+            'breakdown': breakdown,
         }), 200
     except Exception as e:
         print(f"Error in get_high_risk_debt_segments: {e}")
@@ -3716,10 +3768,8 @@ def get_payment_trends():
 @jwt_required()
 def get_tuition_defaulters():
     """
-    Tuition/fees defaulters (pending/failed payments) by Faculty / Department / Program.
-    Returns a combined bar-friendly list:
-      - name: 'Faculty: ...' | 'Department: ...' | 'Program: ...'
-      - value: distinct defaulter student count (latest semester in scope)
+    Tuition/fees defaulters (pending/failed payments), one dimension at a time:
+    faculty vs department vs program rows according to global filter depth (same as other finance charts).
     """
     try:
         from flask_jwt_extended import get_jwt
@@ -3847,27 +3897,21 @@ def get_tuition_defaulters():
         dept_df = pd.read_sql_query(text(department_sql), engine, params={'sem': latest_sem})
         program_df = pd.read_sql_query(text(program_sql), engine, params={'sem': latest_sem})
 
+        breakdown = _finance_chart_breakdown(filters)
+        if breakdown == 'faculty':
+            src_df = faculty_df
+        elif breakdown == 'department':
+            src_df = dept_df
+        else:
+            src_df = program_df
+
         combined = []
-        if not faculty_df.empty:
-            for _, r in faculty_df.iterrows():
+        if not src_df.empty:
+            for _, r in src_df.iterrows():
                 combined.append({
-                    'name': f"Faculty: {r.get('name') or 'Unknown'}",
+                    'name': r.get('name') or 'Unknown',
                     'value': int(r.get('defaulters') or 0),
-                    'dimension': 'faculty',
-                })
-        if not dept_df.empty:
-            for _, r in dept_df.iterrows():
-                combined.append({
-                    'name': f"Department: {r.get('name') or 'Unknown'}",
-                    'value': int(r.get('defaulters') or 0),
-                    'dimension': 'department',
-                })
-        if not program_df.empty:
-            for _, r in program_df.iterrows():
-                combined.append({
-                    'name': f"Program: {r.get('name') or 'Unknown'}",
-                    'value': int(r.get('defaulters') or 0),
-                    'dimension': 'program',
+                    'dimension': breakdown,
                 })
 
         combined = [c for c in combined if c['value'] > 0]
@@ -3877,6 +3921,7 @@ def get_tuition_defaulters():
         return jsonify({
             'semester_id': latest_sem,
             'tuition_defaulters': combined,
+            'breakdown': breakdown,
         }), 200
     except Exception as e:
         import traceback
