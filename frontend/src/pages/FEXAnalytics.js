@@ -54,14 +54,30 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
   // - Program selected => chart groups by Year of Study
   // - Faculty selected (fallback) => chart groups by Department
   // - Nothing selected => chart groups by Faculty
-  const drilldown =
-    filters.program_id
-      ? 'year_of_study'
-      : filters.department_id
-        ? 'program'
-        : filters.faculty_id
-          ? 'department'
-          : 'faculty';
+  // Role-aware drilldown:
+  // - Senate: starts at Faculty
+  // - Dean: faculty is fixed (JWT) so start at Department
+  // - HoD: department is fixed (JWT) so start at Program
+  // - If a deeper cascading filter exists (e.g. course_code), group by it.
+  const drilldown = (() => {
+    if (filters.course_code) return 'course';
+
+    if (isHod) {
+      if (filters.program_id) return 'year_of_study';
+      return 'program';
+    }
+
+    if (isDean) {
+      if (filters.program_id) return 'year_of_study';
+      if (filters.department_id) return 'program';
+      return 'department';
+    }
+
+    if (filters.program_id) return 'year_of_study';
+    if (filters.department_id) return 'program';
+    if (filters.faculty_id) return 'department';
+    return 'faculty';
+  })();
 
   useEffect(() => {
     if (!isControlled) savePageState('fex_analytics', { filters: {}, tab: activeTab });
@@ -131,6 +147,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
     if (drilldown === 'department') return 'department';
     if (drilldown === 'program') return 'program_name';
     if (drilldown === 'year_of_study') return 'year_label';
+    if (drilldown === 'course') return 'course_name';
     return 'faculty_name';
   };
 
@@ -178,7 +195,9 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
         ? 'Department'
         : drilldown === 'program'
           ? 'Program'
-          : 'Year of Study';
+          : drilldown === 'course'
+            ? 'Course'
+            : 'Year of Study';
 
   const rolePrefix = user?.role?.toLowerCase() === 'sysadmin' ? 'admin' : user?.role?.toLowerCase() || 'dashboard';
 
