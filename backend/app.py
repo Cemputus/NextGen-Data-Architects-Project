@@ -2137,7 +2137,8 @@ def get_dashboard_stats():
                     avg_grade_result = pd.read_sql_query(text(avg_q), engine)
                     avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
             else:
-                grade_clauses = ["fg.exam_status = 'Completed'"]
+                # Case-insensitive: warehouse may store 'Completed' or 'COMPLETED'
+                grade_clauses = ["UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED'"]
                 if semester_id_filter is not None:
                     grade_clauses.append(f"fg.semester_id = {semester_id_filter}")
                 if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
@@ -2164,7 +2165,7 @@ def get_dashboard_stats():
                         cc_clause = f" AND course_code = '{cc}'"
                     avg_q = (
                         f"SELECT AVG(grade) as avg FROM fact_grade "
-                        f"WHERE exam_status = 'Completed'{sem_grade_clause}{cc_clause}"
+                        f"WHERE UPPER(TRIM(COALESCE(exam_status, ''))) = 'COMPLETED'{sem_grade_clause}{cc_clause}"
                     )
                 avg_grade_result = pd.read_sql_query(text(avg_q), engine)
                 avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
@@ -2415,8 +2416,8 @@ def get_dashboard_stats():
         elif dash_role == Role.HOD and claims.get('department_id') is not None:
             grade_kpi_kind = 'department_grade_average'
             retention_kpi_kind = 'department_retention'
-        
-        return jsonify({
+
+        response_payload = {
             'total_students': total_students,
             'total_courses': total_courses,
             'total_enrollments': total_enrollments,
@@ -2435,8 +2436,55 @@ def get_dashboard_stats():
             'avg_retention_rate': round(avg_retention_rate, 2),
             'retention_rate': round(avg_retention_rate, 2),
             'avg_graduation_rate': round(avg_graduation_rate, 2),
-            'graduation_rate': round(avg_graduation_rate, 2)
-        })
+            'graduation_rate': round(avg_graduation_rate, 2),
+        }
+
+        # Student "My dashboard" fallback: same KPI semantics as /api/analytics/student (distinct courses, grades, attendance).
+        if dash_role == Role.STUDENT and role_where:
+            try:
+                skidf = pd.read_sql_query(
+                    text(f"""
+                    SELECT
+                      (SELECT COUNT(*)::int FROM (
+                        SELECT DISTINCT NULLIF(TRIM(fe.course_code), '') AS cc
+                        FROM fact_enrollment fe
+                        JOIN dim_student ds ON fe.student_id = ds.student_id
+                        WHERE {role_where} AND NULLIF(TRIM(fe.course_code), '') IS NOT NULL
+                        UNION
+                        SELECT DISTINCT NULLIF(TRIM(fg.course_code), '') AS cc
+                        FROM fact_grade fg
+                        JOIN dim_student ds ON fg.student_id = ds.student_id
+                        WHERE {role_where} AND NULLIF(TRIM(fg.course_code), '') IS NOT NULL
+                      ) z) AS courses_registered,
+                      (SELECT COUNT(*)::int FROM fact_grade fg
+                        JOIN dim_student ds ON fg.student_id = ds.student_id
+                        WHERE {role_where}) AS total_grades,
+                      (SELECT COUNT(*)::int FROM fact_grade fg
+                        JOIN dim_student ds ON fg.student_id = ds.student_id
+                        WHERE {role_where}
+                          AND UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED') AS completed_exams,
+                      (SELECT COUNT(*)::int FROM fact_attendance fa
+                        JOIN dim_student ds ON fa.student_id = ds.student_id
+                        WHERE {role_where}) AS attendance_sessions_recorded,
+                      (SELECT 100.0 * COALESCE(AVG(fa.days_present::double precision), 0) FROM fact_attendance fa
+                        JOIN dim_student ds ON fa.student_id = ds.student_id
+                        WHERE {role_where}) AS attendance_rate
+                    """),
+                    engine,
+                )
+                if not skidf.empty:
+                    row = skidf.iloc[0]
+                    response_payload['courses_registered'] = int(row['courses_registered'] or 0)
+                    response_payload['total_grades'] = int(row['total_grades'] or 0)
+                    response_payload['completed_exams'] = int(row['completed_exams'] or 0)
+                    response_payload['attendance_sessions_recorded'] = int(row['attendance_sessions_recorded'] or 0)
+                    ar_stu = float(row['attendance_rate'] or 0)
+                    response_payload['attendance_rate'] = round(max(0.0, min(100.0, ar_stu)), 1)
+                    response_payload['student_scoped_dashboard'] = True
+            except Exception as e:
+                print(f"Error getting student_scoped_dashboard KPIs: {e}")
+
+        return jsonify(response_payload)
     except Exception as e:
         import traceback
         print(f"Error in get_dashboard_stats: {e}")

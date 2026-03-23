@@ -2292,30 +2292,49 @@ def get_student_analytics():
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
-        
+        role = user_scope['role']
+
         # Check permission
-        if not has_permission(user_scope['role'], Resource.ANALYTICS, Permission.READ, user_scope):
+        if not has_permission(role, Resource.ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
-        
+
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        
-        # Get student identifier
-        access_number = request.args.get('access_number') or user_scope.get('access_number')
-        student_id = user_scope.get('student_id')
-        
+
+        # Students may only ever see their own record (ignore forged query params).
+        if role == Role.STUDENT:
+            access_number = user_scope.get('access_number')
+            student_id = user_scope.get('student_id')
+        else:
+            access_number = request.args.get('access_number') or user_scope.get('access_number')
+            student_id = request.args.get('student_id') or user_scope.get('student_id')
+
         if not access_number and not student_id:
             return jsonify({'error': 'Student identifier required'}), 400
-        
+
         # Build query to get student data
         if student_id:
             where_clause = "WHERE ds.student_id = :student_id"
-            params = {'student_id': student_id}
+            params = {'student_id': str(student_id).strip()}
         else:
-            where_clause = "WHERE ds.access_number = :access_number"
-            params = {'access_number': access_number.upper()}
-        
+            where_clause = "WHERE UPPER(TRIM(ds.access_number)) = UPPER(TRIM(:access_number))"
+            params = {'access_number': str(access_number).strip()}
+
+        # Facts often store student as warehouse id, reg_no, or access_number (same as payment KPI join).
+        # Use correlated subqueries so SUM/AVG are not inflated by fe×fg×fp Cartesian products.
+        def _fact_match(alias: str) -> str:
+            return f"""(
+                ({alias}.student_id = ds.student_id)
+                OR (ds.reg_no IS NOT NULL AND TRIM(COALESCE(ds.reg_no::text, '')) <> ''
+                    AND TRIM({alias}.student_id) = TRIM(ds.reg_no))
+                OR (ds.access_number IS NOT NULL AND TRIM(COALESCE(ds.access_number::text, '')) <> ''
+                    AND UPPER(TRIM({alias}.student_id)) = UPPER(TRIM(ds.access_number)))
+            )"""
+
+        _mfe, _mfg, _mfp, _mfa = _fact_match('fe'), _fact_match('fg'), _fact_match('fp'), _fact_match('fa')
+
+        # Courses registered: distinct course codes from enrollment ∪ grade facts (realistic when ids differ).
         query = f"""
-        SELECT 
+        SELECT
             ds.student_id,
             ds.access_number,
             ds.reg_no,
@@ -2325,37 +2344,65 @@ def get_student_analytics():
             ds.high_school,
             ds.year_of_study,
             ds.status,
+            ds.admission_date,
             dp.program_name,
             ddept.department_name,
             df.faculty_name,
-            -- Academic stats
-            COUNT(DISTINCT fe.course_code) as total_courses,
-            COUNT(DISTINCT fg.grade_id) as total_grades,
-            AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) as avg_grade,
-            COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END) as failed_exams,
-            COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) as missed_exams,
-            COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) as completed_exams,
-            -- Payment stats
-            SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) as total_paid,
-            SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END) as total_pending,
-            COUNT(DISTINCT fp.payment_id) as total_payments,
-            -- Attendance stats
-            AVG(fa.total_hours) as avg_attendance_hours,
-            SUM(fa.days_present) as total_days_present
+            (SELECT COUNT(*)::int FROM (
+                SELECT DISTINCT NULLIF(TRIM(fe.course_code), '') AS cc
+                FROM fact_enrollment fe
+                WHERE {_mfe} AND NULLIF(TRIM(fe.course_code), '') IS NOT NULL
+                UNION
+                SELECT DISTINCT NULLIF(TRIM(fg.course_code), '')
+                FROM fact_grade fg
+                WHERE {_mfg} AND NULLIF(TRIM(fg.course_code), '') IS NOT NULL
+            ) course_union) AS total_courses,
+            (SELECT COUNT(DISTINCT fg.grade_id) FROM fact_grade fg WHERE {_mfg}) AS total_grades,
+            (SELECT AVG(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED' AND fg.grade IS NOT NULL
+                THEN fg.grade END) FROM fact_grade fg WHERE {_mfg}) AS avg_grade,
+            (SELECT AVG(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED' AND fg.grade_points IS NOT NULL
+                THEN fg.grade_points END) FROM fact_grade fg WHERE {_mfg}) AS avg_gpa,
+            (SELECT COUNT(*) FROM fact_grade fg WHERE {_mfg} AND UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'FEX') AS failed_exams,
+            (SELECT COUNT(*) FROM fact_grade fg WHERE {_mfg} AND UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'MEX') AS missed_exams,
+            (SELECT COUNT(*) FROM fact_grade fg WHERE {_mfg} AND UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED') AS completed_exams,
+            (SELECT COALESCE(SUM(CASE WHEN UPPER(TRIM(COALESCE(fp.status, ''))) IN ('COMPLETED', 'SUCCESS')
+                THEN fp.amount ELSE 0 END), 0) FROM fact_payment fp WHERE {_mfp}) AS total_paid,
+            (SELECT COALESCE(SUM(CASE WHEN UPPER(TRIM(COALESCE(fp.status, ''))) IN ('PENDING', 'FAILED')
+                THEN fp.amount ELSE 0 END), 0) FROM fact_payment fp WHERE {_mfp}) AS total_pending,
+            (SELECT COUNT(DISTINCT fp.payment_id) FROM fact_payment fp WHERE {_mfp}) AS payment_transaction_count,
+            (SELECT AVG(fa.total_hours) FROM fact_attendance fa WHERE {_mfa}) AS avg_attendance_hours,
+            (SELECT COALESCE(SUM(fa.days_present), 0) FROM fact_attendance fa WHERE {_mfa}) AS total_days_present,
+            (SELECT COUNT(fa.attendance_id) FROM fact_attendance fa WHERE {_mfa}) AS attendance_session_rows,
+            (SELECT 100.0 * COALESCE(AVG(fa.days_present::double precision), 0) FROM fact_attendance fa WHERE {_mfa}) AS attendance_rate_pct
         FROM dim_student ds
         LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
-        LEFT JOIN fact_enrollment fe ON ds.student_id = fe.student_id
-        LEFT JOIN fact_grade fg ON ds.student_id = fg.student_id
-        LEFT JOIN fact_payment fp ON ds.student_id = fp.student_id
-        LEFT JOIN fact_attendance fa ON ds.student_id = fa.student_id
         {where_clause}
-        GROUP BY ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name,
-                 ds.gender, ds.nationality, ds.high_school, ds.year_of_study, ds.status,
-                 dp.program_name, ddept.department_name, df.faculty_name
         """
-        
+
+        join_fg_ds = f"""(
+            fg.student_id = ds.student_id
+            OR (ds.reg_no IS NOT NULL AND TRIM(COALESCE(ds.reg_no::text, '')) <> ''
+                AND TRIM(fg.student_id) = TRIM(ds.reg_no))
+            OR (ds.access_number IS NOT NULL AND TRIM(COALESCE(ds.access_number::text, '')) <> ''
+                AND UPPER(TRIM(fg.student_id)) = UPPER(TRIM(ds.access_number)))
+        )"""
+        join_fp_ds = f"""(
+            fp.student_id = ds.student_id
+            OR (ds.reg_no IS NOT NULL AND TRIM(COALESCE(ds.reg_no::text, '')) <> ''
+                AND TRIM(fp.student_id) = TRIM(ds.reg_no))
+            OR (ds.access_number IS NOT NULL AND TRIM(COALESCE(ds.access_number::text, '')) <> ''
+                AND UPPER(TRIM(fp.student_id)) = UPPER(TRIM(ds.access_number)))
+        )"""
+        join_fe_ds = f"""(
+            fe.student_id = ds.student_id
+            OR (ds.reg_no IS NOT NULL AND TRIM(COALESCE(ds.reg_no::text, '')) <> ''
+                AND TRIM(fe.student_id) = TRIM(ds.reg_no))
+            OR (ds.access_number IS NOT NULL AND TRIM(COALESCE(ds.access_number::text, '')) <> ''
+                AND UPPER(TRIM(fe.student_id)) = UPPER(TRIM(ds.access_number)))
+        )"""
+
         df = pd.read_sql_query(text(query), engine, params=params)
         
         if df.empty:
@@ -2369,9 +2416,9 @@ def get_student_analytics():
             letter_grade,
             COUNT(*) as count
         FROM fact_grade fg
-        JOIN dim_student ds ON fg.student_id = ds.student_id
+        JOIN dim_student ds ON {join_fg_ds}
         {where_clause}
-        AND fg.exam_status = 'Completed'
+        AND UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED'
         GROUP BY letter_grade
         ORDER BY 
             CASE letter_grade
@@ -2392,10 +2439,10 @@ def get_student_analytics():
         # Get grades over time
         time_query = f"""
         SELECT 
-            CONCAT(dt.month_name, ' ', CAST(dt.year AS CHAR)) as period,
-            AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) as avg_grade
+            CONCAT(dt.month_name, ' ', CAST(dt.year AS TEXT)) as period,
+            AVG(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED' THEN fg.grade ELSE NULL END) as avg_grade
         FROM fact_grade fg
-        JOIN dim_student ds ON fg.student_id = ds.student_id
+        JOIN dim_student ds ON {join_fg_ds}
         JOIN dim_time dt ON fg.date_key = dt.date_key
         {where_clause}
         GROUP BY dt.year, dt.month, dt.month_name
@@ -2403,23 +2450,66 @@ def get_student_analytics():
         """
         
         time_df = pd.read_sql_query(text(time_query), engine, params=params)
+
+        # Semester-based trend (many ETL loads use one date_key → monthly GROUP BY yields 1 point).
+        sem_trend_query = f"""
+        SELECT
+            fg.semester_id,
+            MAX(COALESCE(NULLIF(TRIM(sem.academic_year), ''), '')) AS academic_year,
+            MAX(COALESCE(sem.semester_name, CONCAT('Semester ', COALESCE(CAST(fg.semester_id AS TEXT), '—')))) AS semester_name,
+            AVG(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED' THEN fg.grade ELSE NULL END) AS avg_grade,
+            MIN(fg.date_key) AS sort_key
+        FROM fact_grade fg
+        JOIN dim_student ds ON {join_fg_ds}
+        LEFT JOIN dim_semester sem ON fg.semester_id = sem.semester_id
+        {where_clause}
+        GROUP BY fg.semester_id
+        HAVING COUNT(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED' THEN 1 END) > 0
+        ORDER BY sort_key NULLS LAST, fg.semester_id
+        """
+        sem_trend_df = pd.read_sql_query(text(sem_trend_query), engine, params=params)
         
-        # Course-level performance (per course unit)
+        # Course-level performance per course + semester (for student dashboard chart)
         course_query = f"""
         SELECT 
             fg.course_code,
             COALESCE(dc.course_name, '') AS course_name,
-            AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) AS avg_grade,
+            fg.semester_id,
+            MAX(COALESCE(sem.semester_name, CONCAT('Semester ', COALESCE(CAST(fg.semester_id AS TEXT), '—')))) AS semester_name,
+            AVG(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED' THEN fg.grade ELSE NULL END) AS avg_grade,
             COUNT(*) AS total_attempts,
-            COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) AS completed_exams
+            COUNT(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED' THEN 1 END) AS completed_exams,
+            MAX(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED' THEN fg.letter_grade END) AS letter_grade
         FROM fact_grade fg
-        JOIN dim_student ds ON fg.student_id = ds.student_id
+        JOIN dim_student ds ON {join_fg_ds}
         LEFT JOIN dim_course dc ON fg.course_code = dc.course_code
+        LEFT JOIN dim_semester sem ON fg.semester_id = sem.semester_id
         {where_clause}
-        GROUP BY fg.course_code, dc.course_name
-        ORDER BY dc.course_name, fg.course_code
+        GROUP BY fg.course_code, dc.course_name, fg.semester_id
+        HAVING COUNT(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED' THEN 1 END) > 0
+        ORDER BY fg.semester_id DESC NULLS LAST, dc.course_name, fg.course_code
         """
         course_df = pd.read_sql_query(text(course_query), engine, params=params)
+
+        # One row per completed grade (for trend when bucket averages are identical → flat line).
+        grade_detail_query = f"""
+        SELECT
+            fg.grade_id,
+            fg.course_code,
+            fg.grade,
+            fg.date_key,
+            fg.semester_id,
+            dt.month_name,
+            dt.year
+        FROM fact_grade fg
+        JOIN dim_student ds ON {join_fg_ds}
+        LEFT JOIN dim_time dt ON fg.date_key = dt.date_key
+        {where_clause}
+        AND UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED'
+        AND fg.grade IS NOT NULL
+        ORDER BY fg.date_key NULLS LAST, fg.semester_id NULLS LAST, fg.course_code NULLS LAST, fg.grade_id
+        """
+        grade_detail_df = pd.read_sql_query(text(grade_detail_query), engine, params=params)
 
         # Tuition by semester (all semesters studied so far)
         tuition_query = f"""
@@ -2427,11 +2517,11 @@ def get_student_analytics():
             fp.year,
             fp.semester_id,
             ds_sem.semester_name,
-            COALESCE(SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END), 0) AS total_paid,
-            COALESCE(SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END), 0) AS total_pending,
+            COALESCE(SUM(CASE WHEN UPPER(TRIM(COALESCE(fp.status, ''))) IN ('COMPLETED', 'SUCCESS') THEN fp.amount ELSE 0 END), 0) AS total_paid,
+            COALESCE(SUM(CASE WHEN UPPER(TRIM(COALESCE(fp.status, ''))) IN ('PENDING', 'FAILED') THEN fp.amount ELSE 0 END), 0) AS total_pending,
             COALESCE(SUM(fp.amount), 0) AS total_amount
         FROM fact_payment fp
-        JOIN dim_student ds ON fp.student_id = ds.student_id
+        JOIN dim_student ds ON {join_fp_ds}
         LEFT JOIN dim_semester ds_sem ON fp.semester_id = ds_sem.semester_id
         {where_clause}
         GROUP BY fp.year, fp.semester_id, ds_sem.semester_name
@@ -2449,7 +2539,7 @@ def get_student_analytics():
             fp.year,
             fp.semester_id
         FROM fact_payment fp
-        JOIN dim_student ds ON fp.student_id = ds.student_id
+        JOIN dim_student ds ON {join_fp_ds}
         {where_clause}
         ORDER BY fp.payment_timestamp ASC
         LIMIT 200
@@ -2463,7 +2553,7 @@ def get_student_analytics():
             SELECT 
                 COALESCE(MAX(fp.student_type), 'national') AS student_type
             FROM fact_payment fp
-            JOIN dim_student ds ON fp.student_id = ds.student_id
+            JOIN dim_student ds ON {join_fp_ds}
             {where_clause}
             """
             res_df = pd.read_sql_query(text(residence_query), engine, params=params)
@@ -2475,37 +2565,290 @@ def get_student_analytics():
                     residence_status = 'Resident'
         except Exception:
             residence_status = 'Unknown'
-        
+
+        # Explicit enrollment stats (backup if correlated subquery count is wrong / driver quirk).
+        enroll_distinct_courses = 0
+        enroll_row_count = 0
+        try:
+            enroll_stats_sql = f"""
+            SELECT
+                COUNT(DISTINCT NULLIF(TRIM(fe.course_code), '')) AS distinct_course_codes,
+                COUNT(*)::bigint AS enrollment_rows
+            FROM fact_enrollment fe
+            JOIN dim_student ds ON {join_fe_ds}
+            {where_clause}
+            """
+            esdf = pd.read_sql_query(text(enroll_stats_sql), engine, params=params)
+            if not esdf.empty:
+                dcc = esdf['distinct_course_codes'].iloc[0]
+                er = esdf['enrollment_rows'].iloc[0]
+                enroll_distinct_courses = int(dcc) if pd.notna(dcc) else 0
+                enroll_row_count = int(er) if pd.notna(er) else 0
+        except Exception as ex:
+            _analytics_log.warning("student analytics enroll_stats_sql: %s", ex)
+
         engine.dispose()
-        
-        return jsonify({
-            'student_id': int(student_data['student_id']) if pd.notna(student_data['student_id']) else None,
+
+        def _num(row, key, default=0):
+            v = row.get(key)
+            if v is None or (isinstance(v, float) and pd.isna(v)):
+                return default
+            return v
+
+        def _safe_int(v, default=0):
+            try:
+                if v is None or (isinstance(v, float) and pd.isna(v)):
+                    return default
+                return int(float(v))
+            except (TypeError, ValueError):
+                return default
+
+        tc = _safe_int(_num(student_data, 'total_courses', 0), 0)
+        tc = max(tc, enroll_distinct_courses)
+        if not course_df.empty and 'course_code' in course_df.columns:
+            try:
+                gdc = (
+                    course_df['course_code']
+                    .dropna()
+                    .astype(str)
+                    .map(lambda x: x.strip())
+                    .replace('', pd.NA)
+                    .dropna()
+                    .nunique()
+                )
+                tc = max(tc, int(gdc))
+            except Exception:
+                pass
+        ar_raw = student_data.get('attendance_rate_pct')
+        try:
+            ar_pct = float(ar_raw) if ar_raw is not None and pd.notna(ar_raw) else 0.0
+        except (TypeError, ValueError):
+            ar_pct = 0.0
+        ar_pct = max(0.0, min(100.0, round(ar_pct, 1)))
+        avg_g = student_data.get('avg_grade')
+        avg_gpa_v = student_data.get('avg_gpa')
+        pay_count = int(_num(student_data, 'payment_transaction_count', 0) or 0)
+
+        def _rows_grade_trend_monthly(df):
+            rows = []
+            if df is None or df.empty:
+                return rows
+            for _, r in df.iterrows():
+                g = r.get('avg_grade')
+                if g is None or (isinstance(g, float) and pd.isna(g)):
+                    continue
+                p = str(r.get('period') or '').strip()
+                if not p:
+                    continue
+                rows.append({'period': p, 'avg_grade': round(float(g), 2)})
+            return rows
+
+        def _rows_grade_trend_semester(df):
+            rows = []
+            if df is None or df.empty:
+                return rows
+            for _, r in df.iterrows():
+                g = r.get('avg_grade')
+                if g is None or (isinstance(g, float) and pd.isna(g)):
+                    continue
+                ay = str(r.get('academic_year') or '').strip()
+                sn = str(r.get('semester_name') or '').strip()
+                sid = r.get('semester_id')
+                if ay and sn:
+                    period = f"{ay} · {sn}"
+                elif sn:
+                    period = sn
+                elif sid is not None and not (isinstance(sid, float) and pd.isna(sid)):
+                    try:
+                        period = f"Semester {int(float(sid))}"
+                    except (TypeError, ValueError):
+                        period = f"Semester {sid}"
+                else:
+                    period = "Semester"
+                rows.append({'period': period, 'avg_grade': round(float(g), 2)})
+            return rows
+
+        def _rows_grade_trend_by_course(course_perf_df):
+            """One point per course×semester, chronological — shows a trend when calendar month is degenerate."""
+            rows = []
+            if course_perf_df is None or course_perf_df.empty:
+                return rows
+            try:
+                cp = course_perf_df.copy()
+                if 'completed_exams' in cp.columns:
+                    cp = cp[pd.to_numeric(cp['completed_exams'], errors='coerce').fillna(0) > 0]
+                cp = cp.dropna(subset=['avg_grade'])
+                if cp.empty:
+                    return rows
+                sort_cols = [c for c in ('semester_id', 'course_code') if c in cp.columns]
+                if sort_cols:
+                    cp = cp.sort_values(sort_cols, ascending=True, na_position='last')
+                for _, r in cp.iterrows():
+                    g = r.get('avg_grade')
+                    if g is None or (isinstance(g, float) and pd.isna(g)):
+                        continue
+                    sid = r.get('semester_id')
+                    cc = str(r.get('course_code') or '').strip() or '—'
+                    try:
+                        s_lab = int(float(sid)) if sid is not None and not (isinstance(sid, float) and pd.isna(sid)) else None
+                    except (TypeError, ValueError):
+                        s_lab = None
+                    period = f"Sem {s_lab if s_lab is not None else '?'} · {cc}"
+                    rows.append({'period': period, 'avg_grade': round(float(g), 2)})
+            except Exception as ex:
+                _analytics_log.warning("student grade trend by course: %s", ex)
+            return rows
+
+        month_rows = _rows_grade_trend_monthly(time_df)
+        sem_rows = _rows_grade_trend_semester(sem_trend_df)
+
+        if len(month_rows) >= 2:
+            grades_over_time_payload = month_rows
+        elif len(sem_rows) >= 2:
+            grades_over_time_payload = sem_rows
+        else:
+            merged = []
+            seen = set()
+            for row in month_rows + sem_rows:
+                pk = row.get('period')
+                if not pk or pk in seen:
+                    continue
+                seen.add(pk)
+                merged.append(row)
+            grades_over_time_payload = merged
+
+        if len(grades_over_time_payload) < 2:
+            by_course = _rows_grade_trend_by_course(course_df)
+            if len(by_course) >= 2:
+                grades_over_time_payload = by_course
+            elif len(by_course) == 1 and not grades_over_time_payload:
+                grades_over_time_payload = by_course
+
+        if not grades_over_time_payload:
+            grades_over_time_payload = month_rows or sem_rows or _rows_grade_trend_by_course(course_df)
+
+        def _grade_trend_is_flat(rows, key='avg_grade', eps=0.05):
+            if not rows or len(rows) < 2:
+                return True
+            vals = []
+            for r in rows:
+                v = r.get(key)
+                if v is None:
+                    continue
+                try:
+                    vals.append(float(v))
+                except (TypeError, ValueError):
+                    continue
+            if len(vals) < 2:
+                return True
+            return (max(vals) - min(vals)) <= eps
+
+        def _rows_each_completed_grade(detail_df):
+            rows = []
+            if detail_df is None or detail_df.empty:
+                return rows
+            for n, (_, r) in enumerate(detail_df.iterrows(), start=1):
+                g = r.get('grade')
+                if g is None or (isinstance(g, float) and pd.isna(g)):
+                    continue
+                mn, yr = r.get('month_name'), r.get('year')
+                dk = r.get('date_key')
+                cc = str(r.get('course_code') or '').strip() or '—'
+                try:
+                    if mn is not None and not (isinstance(mn, float) and pd.isna(mn)) and yr is not None and not pd.isna(yr):
+                        head = f"{str(mn).strip()} {int(float(yr))}"
+                    elif dk is not None and not (isinstance(dk, float) and pd.isna(dk)):
+                        head = str(dk).strip()
+                    else:
+                        sid = r.get('semester_id')
+                        head = f"Sem {int(float(sid))}" if sid is not None and not (isinstance(sid, float) and pd.isna(sid)) else 'Record'
+                except (TypeError, ValueError):
+                    head = str(dk or 'Record')
+                period = f"{n}. {head} · {cc}"[:120]
+                rows.append({'period': period, 'avg_grade': round(float(g), 2)})
+            return rows
+
+        def _rows_running_mean_grade(rows):
+            out = []
+            s = 0.0
+            for i, r in enumerate(rows):
+                s += float(r['avg_grade'])
+                out.append({'period': r['period'], 'avg_grade': round(s / (i + 1), 2)})
+            return out
+
+        each_grade_rows = _rows_each_completed_grade(grade_detail_df)
+
+        def _pick_grade_trend(bucket_rows, detail_rows):
+            br = bucket_rows or []
+            dr = detail_rows or []
+            if len(dr) >= 2:
+                if len(br) < 2:
+                    return dr
+                if _grade_trend_is_flat(br) and not _grade_trend_is_flat(dr):
+                    return dr
+                if _grade_trend_is_flat(br) and _grade_trend_is_flat(dr):
+                    return _rows_running_mean_grade(dr)
+            return br
+
+        grades_over_time_payload = _pick_grade_trend(grades_over_time_payload, each_grade_rows)
+
+        grades_trend_note = None
+        if len(grades_over_time_payload) >= 2 and _grade_trend_is_flat(grades_over_time_payload):
+            grades_trend_note = (
+                'Every recorded score in this series is the same, so the line is flat. '
+                'When grades differ, you will see ups and downs.'
+            )
+
+        def _str_field(key, default=None):
+            v = student_data.get(key)
+            if v is None or (isinstance(v, float) and pd.isna(v)):
+                return default
+            s = str(v).strip()
+            return s if s else default
+
+        adm = student_data.get('admission_date')
+        admission_out = None
+        if adm is not None and not (isinstance(adm, float) and pd.isna(adm)):
+            admission_out = str(adm).split(' ')[0][:10]
+
+        payload = {
+            # Lets the frontend distinguish this from /api/dashboard/stats (also returns total_students=1 for students).
+            'student_analytics': True,
+            'student_id': str(student_data['student_id']).strip() if pd.notna(student_data.get('student_id')) else None,
             'access_number': student_data.get('access_number'),
             'reg_number': student_data.get('reg_no'),
             'full_name': student_data.get('full_name'),
+            'student_status': _str_field('status'),
+            'gender': _str_field('gender'),
+            'nationality': _str_field('nationality'),
+            'high_school': _str_field('high_school'),
+            'admission_date': admission_out,
             'program': student_data.get('program_name'),
             'department': student_data.get('department_name'),
             'faculty': student_data.get('faculty_name'),
-            'year_of_study': int(student_data['year_of_study']) if pd.notna(student_data['year_of_study']) else None,
-            'total_courses': int(student_data['total_courses']) if pd.notna(student_data['total_courses']) else 0,
-            'total_grades': int(student_data['total_grades']) if pd.notna(student_data['total_grades']) else 0,
-            'avg_grade': round(float(student_data['avg_grade']), 2) if pd.notna(student_data['avg_grade']) else 0,
-            'failed_exams': int(student_data['failed_exams']) if pd.notna(student_data['failed_exams']) else 0,
-            'missed_exams': int(student_data['missed_exams']) if pd.notna(student_data['missed_exams']) else 0,
-            'completed_exams': int(student_data['completed_exams']) if pd.notna(student_data['completed_exams']) else 0,
-            'total_paid': round(float(student_data['total_paid']), 2) if pd.notna(student_data['total_paid']) else 0,
-            'total_pending': round(float(student_data['total_pending']), 2) if pd.notna(student_data['total_pending']) else 0,
-            'total_payments': int(student_data['total_payments']) if pd.notna(student_data['total_payments']) else 0,
-            'avg_attendance_hours': round(float(student_data['avg_attendance_hours']), 2) if pd.notna(student_data['avg_attendance_hours']) else 0,
-            'total_days_present': int(student_data['total_days_present']) if pd.notna(student_data['total_days_present']) else 0,
+            'year_of_study': int(student_data['year_of_study']) if pd.notna(student_data.get('year_of_study')) else None,
+            'total_courses': int(tc),
+            'courses_registered': int(tc),
+            'enrollment_distinct_courses': int(enroll_distinct_courses),
+            'enrollment_row_count': int(enroll_row_count),
+            'total_enrollments': int(enroll_row_count),
+            'total_grades': int(_num(student_data, 'total_grades', 0) or 0),
+            'avg_grade': round(float(avg_g), 2) if avg_g is not None and pd.notna(avg_g) else 0.0,
+            'avg_gpa': round(float(avg_gpa_v), 2) if avg_gpa_v is not None and pd.notna(avg_gpa_v) else None,
+            'failed_exams': int(_num(student_data, 'failed_exams', 0) or 0),
+            'missed_exams': int(_num(student_data, 'missed_exams', 0) or 0),
+            'completed_exams': int(_num(student_data, 'completed_exams', 0) or 0),
+            'total_paid': round(float(_num(student_data, 'total_paid', 0.0)), 2),
+            'total_pending': round(float(_num(student_data, 'total_pending', 0.0)), 2),
+            'payment_transaction_count': pay_count,
+            'avg_attendance_hours': round(float(_num(student_data, 'avg_attendance_hours', 0.0)), 2),
+            'total_days_present': int(_num(student_data, 'total_days_present', 0) or 0),
+            'attendance_sessions_recorded': int(_num(student_data, 'attendance_session_rows', 0) or 0),
+            'attendance_rate': ar_pct,
             'grade_distribution': grade_df.to_dict('records'),
-            'grades_over_time': time_df.to_dict('records'),
+            'grades_over_time': grades_over_time_payload,
+            'grades_trend_note': grades_trend_note,
             'total_students': 1,
-            'total_courses': int(student_data['total_courses']) if pd.notna(student_data['total_courses']) else 0,
-            'total_enrollments': int(student_data['total_courses']) if pd.notna(student_data['total_courses']) else 0,
-            'avg_grade': round(float(student_data['avg_grade']), 2) if pd.notna(student_data['avg_grade']) else 0,
-            'total_payments': round(float(student_data['total_paid']), 2) if pd.notna(student_data['total_paid']) else 0,
-            'avg_attendance': round(float(student_data['avg_attendance_hours']), 2) if pd.notna(student_data['avg_attendance_hours']) else 0,
             'residence_status': residence_status,
             'course_performance': course_df.to_dict('records') if not course_df.empty else [],
             'payments_by_semester': tuition_df.to_dict('records') if not tuition_df.empty else [],
@@ -2520,7 +2863,8 @@ def get_student_analytics():
                 }
                 for _, row in timeline_df.iterrows()
             ] if not timeline_df.empty else [],
-        }), 200
+        }
+        return jsonify(payload), 200
         
     except Exception as e:
         import traceback

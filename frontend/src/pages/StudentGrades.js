@@ -26,7 +26,6 @@ const StudentGrades = () => {
       setLoading(true);
       const response = await axios.get('/api/analytics/student', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: { access_number: user?.access_number || user?.username }
       });
       setStats(response.data);
       setGrades(response.data.grade_distribution || []);
@@ -111,7 +110,10 @@ const StudentGrades = () => {
           <Card>
             <CardHeader>
               <CardTitle>Grade Breakdown</CardTitle>
-              <CardDescription>Your performance across all courses over time</CardDescription>
+              <CardDescription>
+                Each point is a score for a completed attempt (ordered in time). If semester/month averages were all
+                the same, the API switches from bucket averages to this record-by-record view so the line can move.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {stats?.grades_over_time?.length ? (
@@ -125,7 +127,7 @@ const StudentGrades = () => {
                     xDataKey="period"
                     yDataKey="avg_grade"
                     xAxisLabel="Time"
-                    yAxisLabel="Average grade (%)"
+                    yAxisLabel="Average score"
                     strokeColor="#8B5CF6"
                     strokeWidth={3}
                     showLegend={false}
@@ -137,6 +139,9 @@ const StudentGrades = () => {
                   No grade trend data available yet.
                 </div>
               )}
+              {stats?.grades_trend_note ? (
+                <p className="text-xs text-muted-foreground mt-2 border-t border-border pt-2">{stats.grades_trend_note}</p>
+              ) : null}
             </CardContent>
           </Card>
         </TabsContent>
@@ -184,7 +189,7 @@ const StudentGrades = () => {
                     xDataKey="period"
                     yDataKey="avg_grade"
                     xAxisLabel="Time"
-                    yAxisLabel="Average grade (%)"
+                    yAxisLabel="Average score"
                     strokeColor="#3B82F6"
                     strokeWidth={3}
                     showLegend={false}
@@ -196,6 +201,9 @@ const StudentGrades = () => {
                   No grade trend data available yet.
                 </div>
               )}
+              {stats?.grades_trend_note ? (
+                <p className="text-xs text-muted-foreground mt-2 border-t border-border pt-2">{stats.grades_trend_note}</p>
+              ) : null}
             </CardContent>
           </Card>
         </TabsContent>
@@ -218,7 +226,7 @@ const StudentGrades = () => {
                     xDataKey={(stats.semester_performance || []).length ? 'semester_name' : 'period'}
                     yDataKey="avg_grade"
                     xAxisLabel="Semester / Period"
-                    yAxisLabel="Average grade (%)"
+                    yAxisLabel="Average score"
                     strokeColor="#8B5CF6"
                     strokeWidth={3}
                     showLegend={false}
@@ -246,7 +254,7 @@ const StudentGrades = () => {
                     xDataKey="course_name"
                     yDataKey="avg_grade"
                     xAxisLabel="Course"
-                    yAxisLabel="Average grade (%)"
+                    yAxisLabel="Average score"
                     fillColor="#4F46E5"
                     showLegend={false}
                     showGrid={true}

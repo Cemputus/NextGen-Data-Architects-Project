@@ -1,6 +1,5 @@
 /**
- * User Info – Profile picture, employment status, leave requests, payroll (HR-managed).
- * Available to all authenticated users. Merged with profile picture for all roles including student.
+ * User Info – Profile picture and employment snapshot; staff see leave + payroll (students do not).
  */
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -12,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
-import { Loader2, User, Calendar, DollarSign } from 'lucide-react';
+import { Loader2, User, Calendar, DollarSign, GraduationCap } from 'lucide-react';
 
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
@@ -22,6 +21,9 @@ export default function UserInfoPage() {
   const location = useLocation();
   const profilePhotoUrl = useProfilePhoto(user?.profile_picture_url);
   const [employment, setEmployment] = useState(null);
+  /** Warehouse student row from /api/analytics/student (students only). */
+  const [studentRecord, setStudentRecord] = useState(null);
+  const [studentRecordLoadFailed, setStudentRecordLoadFailed] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [payroll, setPayroll] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -31,16 +33,37 @@ export default function UserInfoPage() {
   const [leaveForm, setLeaveForm] = usePersistedState('user_info_leaveForm', { start_date: '', end_date: '', reason: '', request_type: 'new', parent_leave_id: null });
 
   useEffect(() => {
+    const role = (user?.role || '').toString().toLowerCase();
+    const isStud = role === 'student';
+
+    if (isStud) {
+      setStudentRecordLoadFailed(false);
+      axios
+        .get('/api/analytics/student', auth())
+        .then((r) => {
+          setStudentRecord(r.data);
+          setStudentRecordLoadFailed(false);
+        })
+        .catch(() => {
+          setStudentRecord(null);
+          setStudentRecordLoadFailed(true);
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
+
     Promise.all([
       axios.get('/api/hr/my-employment', auth()).then((r) => r.data).catch(() => ({ status: 'Active' })),
       axios.get('/api/hr/my-leave-requests', auth()).then((r) => r.data?.requests || []).catch(() => []),
       axios.get('/api/hr/my-payroll', auth()).then((r) => r.data).catch(() => ({})),
-    ]).then(([emp, leave, pay]) => {
-      setEmployment(emp);
-      setLeaveRequests(leave);
-      setPayroll(pay);
-    }).finally(() => setLoading(false));
-  }, []);
+    ])
+      .then(([emp, leave, pay]) => {
+        setEmployment(emp);
+        setLeaveRequests(leave);
+        setPayroll(pay);
+      })
+      .finally(() => setLoading(false));
+  }, [user?.role]);
 
   const handleSubmitLeave = async (e) => {
     e.preventDefault();
@@ -135,172 +158,245 @@ export default function UserInfoPage() {
         </div>
       </button>
 
-      <Card className="border shadow-sm">
-        <CardHeader className="p-4 pb-2">
-          <CardTitle className="text-base font-semibold">Employment status</CardTitle>
-          <CardDescription className="text-xs">Current role and assignment</CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 pt-0">
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-            <dt className="text-muted-foreground">Status</dt>
-            <dd className="font-medium">{employment?.status ?? '—'}</dd>
-            <dt className="text-muted-foreground">Role</dt>
-            <dd className="font-medium capitalize">{employment?.role ?? '—'}</dd>
-            {employment?.faculty_name != null && (
-              <>
-                <dt className="text-muted-foreground">Faculty</dt>
-                <dd>{employment.faculty_name || '—'}</dd>
-              </>
+      {isStudent ? (
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <GraduationCap className="h-4 w-4" />
+              Student record
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Status and details from <code className="text-[10px] bg-muted/80 px-1 rounded">dim_student</code> in the
+              data warehouse (same source as your academic dashboard).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-3">
+            {studentRecordLoadFailed && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/25 rounded-md px-3 py-2">
+                Could not load your warehouse record. Showing account details only where available.
+              </p>
             )}
-            {employment?.department_name != null && (
-              <>
-                <dt className="text-muted-foreground">Department</dt>
-                <dd>{employment.department_name || '—'}</dd>
-              </>
-            )}
-          </dl>
-        </CardContent>
-      </Card>
-
-      <Card className="border shadow-sm">
-        <CardHeader className="p-4 pb-2">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Leave requests
-          </CardTitle>
-          <CardDescription className="text-xs">Apply for leave; HR will review</CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 pt-0 space-y-4">
-          {leaveRequests.length > 0 && (
-            <div className="space-y-2 mb-4">
-              <p className="text-xs font-medium text-muted-foreground">Your requests</p>
-              <ul className="space-y-2 text-sm">
-                {leaveRequests.map((req) => {
-                  const today = new Date().toISOString().slice(0, 10);
-                  const status = (req.status || 'pending').toLowerCase();
-                  const statusLabel = status === 'pending' ? 'Pending' : status === 'approved' ? 'Approved' : 'Rejected';
-                  const isActive = status === 'approved' && req.start_date <= today && req.end_date >= today;
-                  const isRejected = status === 'rejected';
-                  return (
-                    <li key={req.id} className="p-2 rounded-lg border bg-muted/20">
-                      <span className="font-medium">{req.start_date} – {req.end_date}</span>: {req.reason || '—'}{' '}
-                      <span className={status === 'approved' ? 'text-green-600 dark:text-green-400' : status === 'rejected' ? 'text-destructive' : 'text-amber-600 dark:text-amber-400'}>
-                        ({statusLabel})
-                      </span>
-                      {req.request_type === 'extension' && <span className="text-muted-foreground ml-1">(extension)</span>}
-                      {isActive && (
-                        <Button
-                          type="button"
-                          variant="link"
-                          className="h-auto p-0 ml-2 text-xs"
-                          onClick={() => setLeaveForm((f) => ({ ...f, request_type: 'extension', parent_leave_id: req.id, reason: f.reason || 'Extension of current leave' }))}
-                        >
-                          Request extension
-                        </Button>
-                      )}
-                      {isRejected && (
-                        <p className="text-xs text-muted-foreground mt-1">You can apply again below.</p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-
-          {(() => {
-            const hasPending = leaveRequests.some((r) => (r.status || '').toLowerCase() === 'pending');
-            return (
-              <>
-                {hasPending && (
-                  <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
-                    You have a request waiting for approval. The form below is inactive until HR approves or rejects it.
-                  </p>
-                )}
-                <form onSubmit={handleSubmitLeave} className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label htmlFor="leave-start-date" className="text-xs font-medium">Start date</label>
-                      <Input
-                        id="leave-start-date"
-                        type="date"
-                        value={leaveForm.start_date}
-                        onChange={(e) => setLeaveForm((f) => ({ ...f, start_date: e.target.value }))}
-                        className="mt-1 h-9"
-                        disabled={hasPending}
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="leave-end-date" className="text-xs font-medium">End date</label>
-                      <Input
-                        id="leave-end-date"
-                        type="date"
-                        value={leaveForm.end_date}
-                        onChange={(e) => setLeaveForm((f) => ({ ...f, end_date: e.target.value }))}
-                        className="mt-1 h-9"
-                        disabled={hasPending}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="leave-reason" className="text-xs font-medium">Reason</label>
-                    <Input
-                      id="leave-reason"
-                      value={leaveForm.reason}
-                      onChange={(e) => setLeaveForm((f) => ({ ...f, reason: e.target.value }))}
-                      placeholder="Brief reason for leave"
-                      className="mt-1 h-9"
-                      disabled={hasPending}
-                    />
-                  </div>
-                  {leaveError && <p className="text-sm text-destructive">{leaveError}</p>}
-                  {leaveSuccess && <p className="text-sm text-green-600 dark:text-green-400">{leaveSuccess}</p>}
-                  <Button type="submit" disabled={leaveSubmitting || hasPending}>
-                    {leaveSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    {hasPending ? 'Submit leave request (inactive — pending approval)' : 'Submit leave request'}
-                  </Button>
-                </form>
-              </>
-            );
-          })()}
-        </CardContent>
-      </Card>
-
-      <Card className="border shadow-sm">
-        <CardHeader className="p-4 pb-2">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <DollarSign className="h-4 w-4" />
-            Payroll
-          </CardTitle>
-          <CardDescription className="text-xs">Payment status (HR-managed)</CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 pt-0">
-          {payroll?.status != null || payroll?.last_payment_date != null ? (
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">Student status</dt>
+              <dd className="font-medium">
+                {studentRecord?.student_status ?? '—'}
+              </dd>
+              <dt className="text-muted-foreground">Student ID</dt>
+              <dd className="font-mono text-xs sm:text-sm">
+                {studentRecord?.student_id ?? user?.id ?? '—'}
+              </dd>
+              <dt className="text-muted-foreground">Access number</dt>
+              <dd className="font-mono text-xs sm:text-sm">
+                {studentRecord?.access_number ?? user?.access_number ?? '—'}
+              </dd>
+              <dt className="text-muted-foreground">Registration number</dt>
+              <dd className="font-mono text-xs sm:text-sm">
+                {studentRecord?.reg_number ?? user?.reg_number ?? '—'}
+              </dd>
+              <dt className="text-muted-foreground">Full name</dt>
+              <dd className="font-medium">
+                {studentRecord?.full_name ||
+                  [user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
+                  user?.username ||
+                  '—'}
+              </dd>
+              <dt className="text-muted-foreground">Gender</dt>
+              <dd>{studentRecord?.gender ?? '—'}</dd>
+              <dt className="text-muted-foreground">Nationality</dt>
+              <dd>{studentRecord?.nationality ?? '—'}</dd>
+              <dt className="text-muted-foreground">High school</dt>
+              <dd className="break-words">{studentRecord?.high_school ?? '—'}</dd>
+              <dt className="text-muted-foreground">Admission date</dt>
+              <dd>{studentRecord?.admission_date ?? '—'}</dd>
+              <dt className="text-muted-foreground">Faculty</dt>
+              <dd className="break-words">{studentRecord?.faculty ?? '—'}</dd>
+              <dt className="text-muted-foreground">Department</dt>
+              <dd className="break-words">{studentRecord?.department ?? '—'}</dd>
+              <dt className="text-muted-foreground">Program</dt>
+              <dd className="break-words">{studentRecord?.program ?? '—'}</dd>
+              <dt className="text-muted-foreground">Year of study</dt>
+              <dd className="font-medium">
+                {studentRecord?.year_of_study != null && !Number.isNaN(Number(studentRecord.year_of_study))
+                  ? `Year ${Number(studentRecord.year_of_study)}`
+                  : '—'}
+              </dd>
+              <dt className="text-muted-foreground">Residence (fees)</dt>
+              <dd>{studentRecord?.residence_status ?? '—'}</dd>
+            </dl>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold">Employment status</CardTitle>
+            <CardDescription className="text-xs">Current role and assignment</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-              {payroll.status != null && (
+              <dt className="text-muted-foreground">Status</dt>
+              <dd className="font-medium">{employment?.status ?? '—'}</dd>
+              <dt className="text-muted-foreground">Role</dt>
+              <dd className="font-medium capitalize">{employment?.role ?? '—'}</dd>
+              {employment?.faculty_name != null && (
                 <>
-                  <dt className="text-muted-foreground">Status</dt>
-                  <dd className="font-medium">{payroll.status}</dd>
+                  <dt className="text-muted-foreground">Faculty</dt>
+                  <dd>{employment.faculty_name || '—'}</dd>
                 </>
               )}
-              {payroll.last_payment_date != null && (
+              {employment?.department_name != null && (
                 <>
-                  <dt className="text-muted-foreground">Last payment</dt>
-                  <dd>{payroll.last_payment_date}</dd>
-                </>
-              )}
-              {payroll.pending != null && (
-                <>
-                  <dt className="text-muted-foreground">Pending</dt>
-                  <dd>{payroll.pending}</dd>
+                  <dt className="text-muted-foreground">Department</dt>
+                  <dd>{employment.department_name || '—'}</dd>
                 </>
               )}
             </dl>
-          ) : (
-            <p className="text-sm text-muted-foreground">No payroll record yet. HR manages payments.</p>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isStudent && (
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Leave requests
+            </CardTitle>
+            <CardDescription className="text-xs">Apply for leave; HR will review</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-4">
+            {leaveRequests.length > 0 && (
+              <div className="space-y-2 mb-4">
+                <p className="text-xs font-medium text-muted-foreground">Your requests</p>
+                <ul className="space-y-2 text-sm">
+                  {leaveRequests.map((req) => {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const status = (req.status || 'pending').toLowerCase();
+                    const statusLabel = status === 'pending' ? 'Pending' : status === 'approved' ? 'Approved' : 'Rejected';
+                    const isActive = status === 'approved' && req.start_date <= today && req.end_date >= today;
+                    const isRejected = status === 'rejected';
+                    return (
+                      <li key={req.id} className="p-2 rounded-lg border bg-muted/20">
+                        <span className="font-medium">{req.start_date} – {req.end_date}</span>: {req.reason || '—'}{' '}
+                        <span className={status === 'approved' ? 'text-green-600 dark:text-green-400' : status === 'rejected' ? 'text-destructive' : 'text-amber-600 dark:text-amber-400'}>
+                          ({statusLabel})
+                        </span>
+                        {req.request_type === 'extension' && <span className="text-muted-foreground ml-1">(extension)</span>}
+                        {isActive && (
+                          <Button
+                            type="button"
+                            variant="link"
+                            className="h-auto p-0 ml-2 text-xs"
+                            onClick={() => setLeaveForm((f) => ({ ...f, request_type: 'extension', parent_leave_id: req.id, reason: f.reason || 'Extension of current leave' }))}
+                          >
+                            Request extension
+                          </Button>
+                        )}
+                        {isRejected && (
+                          <p className="text-xs text-muted-foreground mt-1">You can apply again below.</p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {(() => {
+              const hasPending = leaveRequests.some((r) => (r.status || '').toLowerCase() === 'pending');
+              return (
+                <>
+                  {hasPending && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+                      You have a request waiting for approval. The form below is inactive until HR approves or rejects it.
+                    </p>
+                  )}
+                  <form onSubmit={handleSubmitLeave} className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label htmlFor="leave-start-date" className="text-xs font-medium">Start date</label>
+                        <Input
+                          id="leave-start-date"
+                          type="date"
+                          value={leaveForm.start_date}
+                          onChange={(e) => setLeaveForm((f) => ({ ...f, start_date: e.target.value }))}
+                          className="mt-1 h-9"
+                          disabled={hasPending}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="leave-end-date" className="text-xs font-medium">End date</label>
+                        <Input
+                          id="leave-end-date"
+                          type="date"
+                          value={leaveForm.end_date}
+                          onChange={(e) => setLeaveForm((f) => ({ ...f, end_date: e.target.value }))}
+                          className="mt-1 h-9"
+                          disabled={hasPending}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label htmlFor="leave-reason" className="text-xs font-medium">Reason</label>
+                      <Input
+                        id="leave-reason"
+                        value={leaveForm.reason}
+                        onChange={(e) => setLeaveForm((f) => ({ ...f, reason: e.target.value }))}
+                        placeholder="Brief reason for leave"
+                        className="mt-1 h-9"
+                        disabled={hasPending}
+                      />
+                    </div>
+                    {leaveError && <p className="text-sm text-destructive">{leaveError}</p>}
+                    {leaveSuccess && <p className="text-sm text-green-600 dark:text-green-400">{leaveSuccess}</p>}
+                    <Button type="submit" disabled={leaveSubmitting || hasPending}>
+                      {leaveSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {hasPending ? 'Submit leave request (inactive — pending approval)' : 'Submit leave request'}
+                    </Button>
+                  </form>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
+      {!isStudent && (
+        <Card className="border shadow-sm">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Payroll
+            </CardTitle>
+            <CardDescription className="text-xs">Payment status (HR-managed)</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            {payroll?.status != null || payroll?.last_payment_date != null ? (
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                {payroll.status != null && (
+                  <>
+                    <dt className="text-muted-foreground">Status</dt>
+                    <dd className="font-medium">{payroll.status}</dd>
+                  </>
+                )}
+                {payroll.last_payment_date != null && (
+                  <>
+                    <dt className="text-muted-foreground">Last payment</dt>
+                    <dd>{payroll.last_payment_date}</dd>
+                  </>
+                )}
+                {payroll.pending != null && (
+                  <>
+                    <dt className="text-muted-foreground">Pending</dt>
+                    <dd>{payroll.pending}</dd>
+                  </>
+                )}
+              </dl>
+            ) : (
+              <p className="text-sm text-muted-foreground">No payroll record yet. HR manages payments.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

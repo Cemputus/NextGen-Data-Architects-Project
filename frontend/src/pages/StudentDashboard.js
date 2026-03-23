@@ -16,12 +16,13 @@ import {
   chartCardHeaderClass,
   chartCardTitleClass,
   chartCardDescriptionClass,
-  chartEmptyStateClass,
 } from '../lib/analytics-ui';
-import { cn } from '../lib/utils';
+import { StudentAttendanceTrendChart } from '../components/charts/StudentAttendanceTrendChart';
+import { StudentGradesByCourseChart } from '../components/charts/StudentGradesByCourseChart';
 
 const StudentDashboard = () => {
   const { user } = useAuth();
+  const isStudentRole = (user?.role || '').toString().toLowerCase() === 'student';
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
@@ -45,16 +46,15 @@ const StudentDashboard = () => {
       // Try student analytics endpoint first
       let response;
       try {
+        // Backend scopes students by JWT only; no need to pass access_number (ignored for student role).
         response = await axios.get('/api/analytics/student', {
           headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-          params: { access_number: user?.access_number || user?.username }
         });
         setStats(response.data);
       } catch (err) {
-        // Fallback to dashboard stats with student scope
+        // Fallback: institution-style stats (KPIs may not match student semantics); prefer fixing /api/analytics/student.
         response = await axios.get('/api/dashboard/stats', {
           headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-          params: { access_number: user?.access_number || user?.username }
         });
         setStats(response.data);
       }
@@ -62,13 +62,20 @@ const StudentDashboard = () => {
       // Load attendance trends for this student only
       try {
         const trendsRes = await axios.get('/api/dashboard/attendance-trends', {
+          params: { period: 'monthly' },
           headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         });
         if (trendsRes.data && Array.isArray(trendsRes.data.periods)) {
-          const mapped = trendsRes.data.periods.map((period, idx) => ({
-            period,
-            attendance: trendsRes.data.attendance?.[idx] ?? 0,
-          }));
+          const mapped = trendsRes.data.periods.map((period, idx) => {
+            const avgDaysPresent = Number(trendsRes.data.days_present?.[idx] ?? 0);
+            // fact_attendance.days_present is 0/1 per row; AVG → share of sessions present (0–1)
+            const pctPresent = Math.min(100, Math.max(0, avgDaysPresent * 100));
+            return {
+              period,
+              avgHours: Number(trendsRes.data.attendance?.[idx] ?? 0),
+              pctPresent,
+            };
+          });
           setAttendanceTrends(mapped);
         } else {
           setAttendanceTrends([]);
@@ -124,12 +131,11 @@ const StudentDashboard = () => {
     );
   }
 
-  // Derived payment metrics for the logged-in student
-  const totalPaid = stats?.total_paid || 0;
-  const totalPending = stats?.total_pending || 0;
+  // Derived payment metrics for the logged-in student (from student analytics when available)
+  const totalPaid = Number(stats?.total_paid) || 0;
+  const totalPending = Number(stats?.total_pending) || 0;
   const totalRequired = totalPaid + totalPending;
   const paidPercentage = totalRequired > 0 ? (totalPaid / totalRequired) * 100 : 0;
-  const pendingPercentage = totalRequired > 0 ? (totalPending / totalRequired) * 100 : 0;
 
   const formatNumber = (value) => {
     if (value === null || value === undefined) return '–';
@@ -143,6 +149,86 @@ const StudentDashboard = () => {
     if (Number.isNaN(num)) return '–';
     return `${num.toFixed(1)}%`;
   };
+
+  /** True only for `/api/analytics/student` — NOT dashboard stats (both can have total_students === 1). */
+  const isStudentAnalyticsPayload = stats?.student_analytics === true;
+  const isStudentScopedDashboard = isStudentRole && stats?.student_scoped_dashboard === true;
+
+  /** 0–100: % of attendance fact rows marked present (days_present 0/1), when backend sends attendance_rate. */
+  const attendanceRatePct = (() => {
+    const ar = stats?.attendance_rate;
+    if (ar !== undefined && ar !== null && String(ar).trim() !== '') {
+      const n = Number(ar);
+      if (Number.isFinite(n)) return Math.min(100, Math.max(0, n));
+    }
+    return null;
+  })();
+
+  /** Distinct course codes: prefer explicit KPI fields; never use institution dim_course total_courses first. */
+  const coursesRegistered = (() => {
+    if (!stats) return null;
+    let n = Number(
+      stats.courses_registered ??
+        stats.enrollment_distinct_courses ??
+        stats.total_courses
+    );
+    if (!Number.isFinite(n)) n = NaN;
+    if (
+      (isStudentAnalyticsPayload || isStudentScopedDashboard) &&
+      (!Number.isFinite(n) || n === 0)
+    ) {
+      const perf = stats.course_performance;
+      if (Array.isArray(perf) && perf.length > 0) {
+        const codes = new Set(perf.map((r) => r?.course_code).filter(Boolean));
+        if (codes.size > 0) n = codes.size;
+      }
+    }
+    if (!Number.isFinite(n) || n < 0) {
+      if (isStudentAnalyticsPayload || isStudentScopedDashboard) return 0;
+      return null;
+    }
+    return Math.floor(n);
+  })();
+
+  const gradeSignals =
+    (stats?.total_grades ?? 0) > 0 ||
+    (stats?.completed_exams ?? 0) > 0 ||
+    (Array.isArray(stats?.grade_distribution) && stats.grade_distribution.length > 0) ||
+    (Array.isArray(stats?.course_performance) && stats.course_performance.length > 0);
+
+  const avgGradeNum = Number(stats?.avg_grade);
+  const showAverageGrade =
+    (isStudentAnalyticsPayload || isStudentScopedDashboard || isStudentRole) &&
+    Number.isFinite(avgGradeNum) &&
+    (gradeSignals || avgGradeNum > 0);
+
+  const avgGpa = stats?.avg_gpa;
+
+  /** Attendance KPI: prefer % sessions present; if only avg hours exist (legacy), show hours. */
+  const attendanceKpi = (() => {
+    if (attendanceRatePct !== null) {
+      return {
+        value: formatPercent(attendanceRatePct),
+        subtitle:
+          stats?.attendance_sessions_recorded != null && stats.attendance_sessions_recorded > 0
+            ? `${stats.attendance_sessions_recorded} session(s) on record; % = sessions marked present.`
+            : stats?.attendance_sessions_recorded === 0
+              ? 'No attendance sessions linked to your student record in facts yet.'
+              : '% of attendance fact rows marked present.',
+      };
+    }
+    const hrs = Number(stats?.avg_attendance);
+    if (isStudentRole && Number.isFinite(hrs) && hrs > 0) {
+      return {
+        value: `${hrs.toFixed(1)} hrs`,
+        subtitle: 'Average hours per attendance record (scoped to you). Use analytics student API for session %.',
+      };
+    }
+    return {
+      value: '–',
+      subtitle: 'No attendance sessions linked to your student ID yet.',
+    };
+  })();
 
   return (
     <div className="space-y-4">
@@ -226,34 +312,44 @@ const StudentDashboard = () => {
         <CardHeader className={chartCardHeaderClass}>
           <CardTitle className="text-base font-semibold tracking-tight">My academic overview</CardTitle>
           <CardDescription className={chartCardDescriptionClass}>
-            KPIs are computed strictly from your own records via student analytics and dashboard stats.
+            KPIs use your enrollment, grades, attendance sessions, and tuition payments from the data warehouse.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0 pb-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <KPICard
               title="Courses registered"
-              value={formatNumber(stats?.total_courses || stats?.courses_registered)}
+              value={coursesRegistered !== null ? formatNumber(coursesRegistered) : '–'}
               icon={BookOpen}
-              subtitle="From your enrollment records."
+              subtitle={
+                isStudentAnalyticsPayload && stats?.enrollment_row_count != null
+                  ? `${coursesRegistered ?? 0} distinct course code(s) · ${stats.enrollment_row_count} enrollment row(s) in facts.`
+                  : isStudentScopedDashboard
+                    ? 'Distinct course codes from your enrollments and grades (dashboard scope).'
+                    : 'Distinct course codes from enrollments and grades (matched by student ID, reg. no., or access number).'
+              }
             />
             <KPICard
               title="Average grade"
-              value={formatNumber(stats?.avg_grade)}
+              value={showAverageGrade ? formatNumber(stats?.avg_grade) : '–'}
               icon={GraduationCap}
-              subtitle="Across completed assessments."
+              subtitle={
+                avgGpa != null && Number(avgGpa) > 0
+                  ? `Numeric average on completed attempts · GPA ${Number(avgGpa).toFixed(2)}`
+                  : 'Mean numeric score (coursework + exam) where the attempt is completed.'
+              }
             />
             <KPICard
               title="Attendance"
-              value={formatPercent(stats?.avg_attendance)}
+              value={attendanceKpi.value}
               icon={CalendarCheck}
-              subtitle="Average attendance where recorded."
+              subtitle={attendanceKpi.subtitle}
             />
             <KPICard
               title="Fees paid vs pending"
               value={`${formatPercent(paidPercentage)} paid`}
               icon={Wallet}
-              subtitle={`${formatNumber(totalPaid)} paid / ${formatNumber(totalPending)} pending`}
+              subtitle={`${formatNumber(totalPaid)} paid / ${formatNumber(totalPending)} pending (successful vs outstanding)`}
             />
           </div>
         </CardContent>
@@ -265,14 +361,12 @@ const StudentDashboard = () => {
           <CardHeader className={chartCardHeaderClass}>
             <CardTitle className={chartCardTitleClass}>Attendance over time</CardTitle>
             <CardDescription className={chartCardDescriptionClass}>
-              Trend of your attendance across weeks/semesters, powered by the attendance trends
-              endpoint filtered to your access number.
+              Monthly buckets from the warehouse (dim_time), scoped to your JWT (student ID / access number).
+              Green area: % of attendance records marked present; cyan: average hours per record in each month.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className={cn(chartEmptyStateClass, 'min-h-[220px]')}>
-              Line / area chart placeholder for attendance trend.
-            </div>
+            <StudentAttendanceTrendChart data={attendanceTrends} />
           </CardContent>
         </Card>
 
@@ -280,13 +374,13 @@ const StudentDashboard = () => {
           <CardHeader className={chartCardHeaderClass}>
             <CardTitle className={chartCardTitleClass}>Grades by course</CardTitle>
             <CardDescription className={chartCardDescriptionClass}>
-              Distribution of your grades per course and semester based on your `fact_grade` records.
+              Average numeric score (completed attempts only) for each course × semester from{' '}
+              <code className="text-[11px] bg-muted/80 px-1 rounded">fact_grade</code>. Bars are colored by
+              score band (60 / 70 / 80).
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className={cn(chartEmptyStateClass, 'min-h-[220px]')}>
-              Bar / donut chart placeholder for grade distribution by course.
-            </div>
+            <StudentGradesByCourseChart rows={stats?.course_performance} />
           </CardContent>
         </Card>
       </div>
