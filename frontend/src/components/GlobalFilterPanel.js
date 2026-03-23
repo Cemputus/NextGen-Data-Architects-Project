@@ -30,6 +30,8 @@ const GlobalFilterPanel = ({
   lockedDepartmentId = undefined,
   /** When the faculty has only one department, hide the department control and start at Program. */
   skipDepartmentFilter = false,
+  /** Hide intake-year dropdown (e.g. FEX page uses Year of Study on axis; avoids two “year” controls). */
+  hideIntakeYear = false,
   /** Optional: overrides the default role-based filter subtitle (e.g. dean hierarchy hints). */
   filterHint = '',
 }) => {
@@ -43,6 +45,13 @@ const GlobalFilterPanel = ({
   // - HOD is already scoped to a department, so filters should start at Program.
   const effectiveHideFaculty = hideFaculty || isDean || isHod;
   const effectiveHideDepartment = hideDepartment || isHod || skipDepartmentFilter;
+
+  // Dean (and similar): faculty is implicit; department is visible → require department before Program cascades.
+  const requireDepartmentBeforeProgram =
+    effectiveHideFaculty &&
+    !effectiveHideDepartment &&
+    !skipDepartmentFilter &&
+    (lockedDepartmentId == null || lockedDepartmentId === '');
 
   // Load persisted filters and search term for this page (per-user)
   // Normalize `savedFilters` to an object because some callers previously passed `[]`.
@@ -464,13 +473,26 @@ const GlobalFilterPanel = ({
               <Select
                 value={filters.program_id || ''}
                 onChange={(e) => handleFilterChange('program_id', e.target.value || null)}
-                disabled={loading || (!effectiveHideFaculty && !filters.faculty_id)}
+                disabled={
+                  loading ||
+                  (!effectiveHideFaculty && !filters.faculty_id) ||
+                  (requireDepartmentBeforeProgram && !filters.department_id)
+                }
                 className={`h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary ${
-                  !effectiveHideFaculty && !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
+                  (!effectiveHideFaculty && !filters.faculty_id) ||
+                  (requireDepartmentBeforeProgram && !filters.department_id)
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
                 }`}
               >
                 <option value="">
-                  {effectiveHideDepartment ? 'All Programs' : (filters.faculty_id || effectiveHideFaculty ? 'All Programs' : 'Select Faculty First')}
+                  {requireDepartmentBeforeProgram && !filters.department_id
+                    ? 'Select Department First'
+                    : effectiveHideDepartment
+                      ? 'All Programs'
+                      : filters.faculty_id || effectiveHideFaculty
+                        ? 'All Programs'
+                        : 'Select Faculty First'}
                 </option>
                 {filterOptions.programs?.map((p, idx) => (
                   <option key={`prog-${p.program_id || idx}`} value={p.program_id}>
@@ -530,7 +552,7 @@ const GlobalFilterPanel = ({
                 </Select>
               )}
 
-              {!hideAcademic && (
+              {!hideAcademic && !hideIntakeYear && (
               <Select
                 value={filters.intake_year || ''}
                 onChange={(e) => handleFilterChange('intake_year', e.target.value || null)}

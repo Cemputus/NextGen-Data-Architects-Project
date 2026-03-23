@@ -1471,6 +1471,18 @@ def get_filter_options():
             'year_of_studies': [],
         }
         role = user_scope['role']
+
+        # Academic leaders: lock scope from JWT (do not trust faculty_id / department_id query params).
+        if role == Role.DEAN and user_scope.get('faculty_id') is not None:
+            try:
+                faculty_id = int(user_scope['faculty_id'])
+            except Exception:
+                pass
+        if role == Role.HOD and user_scope.get('department_id') is not None:
+            try:
+                department_id = int(user_scope['department_id'])
+            except Exception:
+                pass
         
         # --- Faculties (with fallback from student data) ---
         if role == Role.STUDENT:
@@ -1543,13 +1555,11 @@ def get_filter_options():
                 prog_where = []
                 if role == Role.HOD and user_scope.get('department_id') and not department_id:
                     prog_where.append(f"p.department_id = {user_scope['department_id']}")
-                elif role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id and not department_id:
+                # Dean: always constrain programs to JWT faculty (even when only department_id is sent).
+                if role == Role.DEAN and user_scope.get('faculty_id'):
                     prog_where.append(f"d.faculty_id = {user_scope['faculty_id']}")
                 if department_id:
                     prog_where.append(f"p.department_id = {department_id}")
-                # For DEAN, always enforce faculty scope even when department_id is provided.
-                if role == Role.DEAN and faculty_id:
-                    prog_where.append(f"d.faculty_id = {faculty_id}")
                 if prog_where:
                     prog_query += " WHERE " + " AND ".join(prog_where)
                 prog_query += " ORDER BY p.program_name"

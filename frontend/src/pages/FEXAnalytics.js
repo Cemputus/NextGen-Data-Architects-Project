@@ -102,9 +102,15 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
         return;
       }
 
+      const sanitized = sanitizeDashboardFilters(filters);
+      const fexParams = { ...sanitized, drilldown };
+      // When chart groups by year of study, don't also filter to a single YoS (would collapse bars).
+      if (drilldown === 'year_of_study') {
+        delete fexParams.year_of_study;
+      }
       const response = await axios.get('/api/analytics/fex', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: { ...sanitizeDashboardFilters(filters), drilldown },
+        params: fexParams,
       });
 
       if (response.data && response.data.data) {
@@ -260,6 +266,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
             pageName={filterPageKey}
             hideFaculty={isDean || isHod}
             hideDepartment={isHod}
+            hideIntakeYear
             lockedFacultyId={lockedFacultyId}
             lockedDepartmentId={lockedDepartmentId}
             filterHint={
@@ -283,16 +290,24 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-red-700">
-              FEX distribution
+              {drilldown === 'year_of_study'
+                ? 'Retakes by year of study (FEX · MEX · FCW)'
+                : 'FEX distribution'}
             </CardTitle>
             <CardDescription className="text-xs">
-              KPI cards were removed to avoid duplicate KPI sections. Use cascading filters to refine scope.
+              {drilldown === 'year_of_study'
+                ? 'Counts of failed / missed / coursework retakes grouped by student year of study for the selected program and other filters.'
+                : 'KPI cards were removed to avoid duplicate KPI sections. Use cascading filters to refine scope.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div
               className={chartContainerClass}
-              data-chart-title={`FEX Distribution by ${xAxisLabel}`}
+              data-chart-title={
+                drilldown === 'year_of_study'
+                  ? 'Retakes (FEX / MEX / FCW) by year of study'
+                  : `FEX Distribution by ${xAxisLabel}`
+              }
               data-chart-container="true"
             >
               {chartData.length > 0 ? (
