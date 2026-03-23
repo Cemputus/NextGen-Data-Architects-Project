@@ -206,6 +206,13 @@ def build_filter_query(filters, base_query, user_scope):
         if _has_value(filters.get('semester_id')):
             where_clauses.append("fg.semester_id = :filter_semester_id")
             params['filter_semester_id'] = _maybe_int(filters['semester_id'])
+
+        if _has_value(filters.get('year_of_study')):
+            where_clauses.append("COALESCE(ds.year_of_study, 1) = :filter_year_of_study")
+            try:
+                params['filter_year_of_study'] = int(filters['year_of_study'])
+            except (ValueError, TypeError):
+                params['filter_year_of_study'] = _maybe_int(filters['year_of_study'])
         
         if _has_value(filters.get('gender')):
             where_clauses.append("ds.gender = :filter_gender")
@@ -1446,7 +1453,8 @@ def get_filter_options():
             'courses': [],
             'semesters': [],
             'high_schools': [],
-            'intake_years': []
+            'intake_years': [],
+            'year_of_studies': [],
         }
         role = user_scope['role']
         
@@ -1643,6 +1651,68 @@ def get_filter_options():
                     r['semester_id'] = int(r['semester_id'])
         except Exception:
             options['semesters'] = []
+
+        # --- Year of study ---
+        # Used mainly by FEX/Risk drilldowns and to allow explicit filtering.
+        try:
+            if role == Role.STUDENT:
+                options['year_of_studies'] = []
+            else:
+                y_where = []
+                y_params = {}
+
+                # Role-based scoping (in addition to any explicit request params).
+                if role == Role.HOD and user_scope.get('department_id') and not department_id:
+                    y_where.append("ddept.department_id = :scope_dept_id")
+                    y_params['scope_dept_id'] = int(user_scope['department_id'])
+                elif role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id:
+                    y_where.append("df.faculty_id = :scope_faculty_id")
+                    y_params['scope_faculty_id'] = int(user_scope['faculty_id'])
+
+                if faculty_id:
+                    y_where.append("df.faculty_id = :fac_id")
+                    y_params['fac_id'] = faculty_id
+                if department_id:
+                    y_where.append("ddept.department_id = :dept_id")
+                    y_params['dept_id'] = department_id
+                if program_id:
+                    y_where.append("dp.program_id = :program_id")
+                    y_params['program_id'] = program_id
+                if semester_id_filter:
+                    y_where.append("fg.semester_id = :sem_id")
+                    y_params['sem_id'] = semester_id_filter
+
+                yq = """
+                    SELECT DISTINCT COALESCE(ds.year_of_study, 1) as year_of_study
+                    FROM fact_grade fg
+                    JOIN dim_student ds ON fg.student_id = ds.student_id
+                    LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
+                    LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+                    LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+                """
+                if y_where:
+                    yq += " WHERE " + " AND ".join(y_where)
+                yq += " ORDER BY year_of_study"
+
+                dfy = pd.read_sql_query(text(yq), engine, params=y_params or None)
+                years_raw = []
+                if not dfy.empty and 'year_of_study' in dfy.columns:
+                    years_raw = dfy['year_of_study'].tolist()
+
+                years = []
+                for y in years_raw:
+                    if y is None or pd.isna(y):
+                        continue
+                    try:
+                        yi = int(float(y))
+                        if 1 <= yi <= 4:
+                            years.append(yi)
+                    except Exception:
+                        continue
+
+                options['year_of_studies'] = sorted(set(years)) if years else [1, 2, 3, 4]
+        except Exception:
+            options['year_of_studies'] = [1, 2, 3, 4]
         
         # --- High schools (role-based; fallback all students) ---
         if role == Role.STUDENT:
@@ -1743,7 +1813,8 @@ def get_filter_options():
                 pass
         fallback_options = locals().get('options') or {
             'faculties': [], 'departments': [], 'programs': [], 'courses': [],
-            'semesters': [], 'high_schools': [], 'intake_years': []
+            'semesters': [], 'high_schools': [], 'intake_years': [],
+            'year_of_studies': [],
         }
         # Return safe payload so the frontend filter panel does not break hard.
         return jsonify(fallback_options), 200

@@ -263,9 +263,9 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
             lockedDepartmentId={lockedDepartmentId}
             filterHint={
               isHod
-                ? 'Scoped to your department. Cascade Program → Course → Semester; chart drilldown follows your selections.'
+                ? 'Scoped to your department. Cascade Program → Semester → Year of Study; chart drilldown follows your selections.'
                 : isDean
-                  ? 'Scoped to your faculty. Cascade Department → Program → Semester; chart drilldown follows your selections.'
+                  ? 'Scoped to your faculty. Cascade Department → Program → Semester → Year of Study; chart drilldown follows your selections.'
                   : 'Senate: institution-wide FEX. Use Faculty → Department → Program → Semester to narrow; chart groups by the next level down.'
             }
           />
