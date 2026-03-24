@@ -56,6 +56,12 @@ const AnalystDashboard = ({
   /** Dean / HOD: no payment KPIs or payment charts (finance stays in Finance role). */
   const hidePaymentsAnalysis =
     filterPageName === 'dean_analytics' || filterPageName === 'hod_analytics';
+  const scopeNoun = isDeanWorkspace ? 'faculty' : isHodWorkspace ? 'department' : 'institution';
+  const leaderScopeHint = isDeanWorkspace
+    ? 'Use Department and Program filters to narrow charts; you cannot view other faculties.'
+    : isHodWorkspace
+      ? 'Use Program and other filters to narrow charts; you cannot view other departments.'
+      : 'Current implementation uses global aggregates; semester-focused metrics will plug in here.';
 
   const [loadingStats, setLoadingStats] = useState(true);
   const [stats, setStats] = useState(null);
@@ -561,11 +567,9 @@ const AnalystDashboard = ({
           <CardDescription className={chartCardDescriptionClass}>
             {isSenateWorkspace
               ? 'Institution-wide KPIs for Senate users, driven by the global filters above and your permissions.'
-              : isDeanWorkspace
-                ? 'KPIs for your faculty only. Use Department and Program filters to narrow charts; you cannot view other faculties.'
-                : isHodWorkspace
-                  ? 'KPIs for your department only. Use Program and other filters to narrow charts; you cannot view other departments.'
-                  : 'High-level KPIs scoped by your role. Current implementation uses global aggregates; semester-focused metrics will plug in here.'}
+              : isDeanWorkspace || isHodWorkspace
+                ? `KPIs for your ${scopeNoun} only. ${leaderScopeHint}`
+                : `High-level KPIs scoped by your role at ${scopeNoun} level. ${leaderScopeHint}`}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0 pb-4">
@@ -579,19 +583,19 @@ const AnalystDashboard = ({
                 title="Total students (scoped)"
                 value={formatNumber(stats?.total_students)}
                 icon={Users}
-                subtitle="From `dim_student` with role-based scope."
+                subtitle={`From dim_student within your ${scopeNoun} scope.`}
               />
               <KPICard
                 title="Total enrollments"
                 value={formatNumber(stats?.total_enrollments)}
                 icon={Activity}
-                subtitle="Count of `fact_enrollment` records in scope."
+                subtitle={`Count of fact_enrollment records within your ${scopeNoun} scope.`}
               />
               <KPICard
                 title="Average grade (completed)"
                 value={formatNumber(stats?.avg_grade)}
                 icon={GraduationCap}
-                subtitle="AVG(`fact_grade.grade`) where exam_status = Completed."
+                subtitle={`Average fact_grade.grade (Completed) for your ${scopeNoun} scope.`}
               />
               <KPICard
                 title="Retention rate (all-time)"
