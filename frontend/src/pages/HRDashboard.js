@@ -364,7 +364,7 @@ const HRDashboard = () => {
                   </span>
                 ) : null}
               </CardDescription>
-            </CardHeader>
+                </CardHeader>
             <CardContent className="pt-0 pb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <KPICard
@@ -400,8 +400,8 @@ const HRDashboard = () => {
                   }
                 />
               </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
 
           {/* Row 1: Headcount distribution */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -413,8 +413,8 @@ const HRDashboard = () => {
                   <span className="font-medium text-foreground/90">Lec.</span> lecturers,{' '}
                   <span className="font-medium text-foreground/90">Asst.</span> assistant lecturers,{' '}
                   <span className="font-medium text-foreground/90">Other</span> remaining staff.
-                </CardDescription>
-              </CardHeader>
+                  </CardDescription>
+                </CardHeader>
               <CardContent className="pt-0">
                 {employeesByFacultyChartData.length > 0 ? (
                   <div className={chartWrapClass}>
@@ -492,7 +492,7 @@ const HRDashboard = () => {
                 )}
               </CardContent>
             </Card>
-          </div>
+                  </div>
 
           {/* Row 2: Role mix & attendance */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -517,16 +517,16 @@ const HRDashboard = () => {
                       innerRadius="52%"
                       minHeight={400}
                       maxHeight={520}
-                    />
-                  </div>
+                      />
+                    </div>
                 ) : (
                   <div className={cn(chartEmptyStateClass, 'min-h-[300px]')}>
                     No role breakdown for the current faculty/department filters. Run ETL to load employees or clear
                     filters.
                   </div>
                 )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
             <Card className={chartSurfaceCard('h-full')}>
               <CardHeader className={chartCardHeaderClass}>
@@ -536,8 +536,8 @@ const HRDashboard = () => {
                   Absent, Late, On leave). Scoped by faculty/department filters; employee-role filter does not apply.
                   Each point also carries <code className="text-[10px]">present_rate</code> (% present vs absent) in
                   the API for exports.
-                </CardDescription>
-              </CardHeader>
+                  </CardDescription>
+                </CardHeader>
               <CardContent className="pt-0">
                 {attendanceTrendChartData.length > 0 ? (
                   <div className={attendanceTrendWrapClass}>
@@ -557,10 +557,10 @@ const HRDashboard = () => {
                     No attendance series yet — needs staff in <code className="text-xs">dim_employee</code> (run
                     ETL) or administration <code className="text-xs">ucu_sourcedb2.employee_attendance</code>. When
                     dims exist but admin tables are empty, the API derives the trend from warehouse employees.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
           </div>
 
           {/* Row 3: Payroll analysis */}
@@ -572,7 +572,7 @@ const HRDashboard = () => {
                 category from <code className="text-xs">payroll_by_role</code>. When administration payroll is empty,
                 amounts are estimated from scoped warehouse employees (same role buckets as HR analytics).
               </CardDescription>
-            </CardHeader>
+                </CardHeader>
             <CardContent className="pt-0">
               {payrollByRoleChartData.length > 0 ? (
                 <div className={cn(payrollByRoleWrapClass, 'w-full')} data-chart-container>
@@ -592,10 +592,10 @@ const HRDashboard = () => {
                   No payroll by role yet — needs staff in <code className="text-xs">dim_employee</code> (run ETL) or
                   rows in <code className="text-xs">ucu_sourcedb2.payroll</code>. With dims only, the API estimates
                   payroll by role for the chart and total payroll KPI.
-                </div>
+                  </div>
               )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
         </>
       )}
     </div>

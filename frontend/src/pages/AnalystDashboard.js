@@ -691,31 +691,31 @@ const AnalystDashboard = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0 pb-4">
-          {loadingStats && !stats ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
+      {loadingStats && !stats ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <KPICard
+          <KPICard
                 title="Total students (scoped)"
                 value={formatNumber(stats?.total_students)}
-                icon={Users}
+            icon={Users}
                 subtitle={`From dim_student within your ${scopeNoun} scope.`}
-              />
-              <KPICard
+          />
+          <KPICard
                 title="Total enrollments"
                 value={formatNumber(stats?.total_enrollments)}
-                icon={Activity}
+            icon={Activity}
                 subtitle={`Count of fact_enrollment records within your ${scopeNoun} scope.`}
-              />
-              <KPICard
+          />
+          <KPICard
                 title="Average grade (completed)"
                 value={formatNumber(stats?.avg_grade)}
                 icon={GraduationCap}
                 subtitle={`Average fact_grade.grade (Completed) for your ${scopeNoun} scope.`}
-              />
-              <KPICard
+          />
+          <KPICard
                 title="Retention rate (all-time)"
                 value={(() => {
                   const raw = stats?.retention_rate ?? stats?.avg_retention_rate;
@@ -741,8 +741,8 @@ const AnalystDashboard = ({
             <CardTitle className={chartCardTitleClass}>Enrollment pipeline</CardTitle>
             <CardDescription className={chartCardDescriptionClass}>
               Trend of first-year, first-semester students across academic years.
-            </CardDescription>
-          </CardHeader>
+              </CardDescription>
+            </CardHeader>
           <CardContent className="pt-0">
             {loadingPipeline ? (
               <div className="min-h-[260px] flex items-center justify-center">
@@ -763,13 +763,13 @@ const AnalystDashboard = ({
                 symbolSize={5}
               />
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
         <Card className={chartSurfaceCard('h-full')}>
           <CardHeader className={chartCardHeaderClass}>
             <CardTitle className={chartCardTitleClass}>{distributionCardTitle}</CardTitle>
-          </CardHeader>
+            </CardHeader>
           <CardContent className="pt-0">
             {loadingStudentDist ? (
               <div className="min-h-[320px] flex items-center justify-center">
@@ -798,8 +798,8 @@ const AnalystDashboard = ({
                 maxHeight={420}
               />
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
       </div>
 
       {/* Section B – Performance & risk */}
@@ -809,8 +809,8 @@ const AnalystDashboard = ({
             <CardTitle className={chartCardTitleClass}>Performance & grade distribution</CardTitle>
             <CardDescription className={chartCardDescriptionClass}>
               GPA/grade distribution and pass/fail ratios across faculties, departments and programs.
-            </CardDescription>
-          </CardHeader>
+              </CardDescription>
+            </CardHeader>
           <CardContent className="pt-0">
             {loadingCharts ? (
               <div className="min-h-[220px] flex items-center justify-center">
@@ -827,8 +827,8 @@ const AnalystDashboard = ({
                 title="Grade distribution"
               />
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
         <Card className={chartSurfaceCard('h-full')}>
           <CardHeader className={chartCardHeaderClass}>
@@ -836,8 +836,8 @@ const AnalystDashboard = ({
             <CardDescription className={chartCardDescriptionClass}>
               Concentration of FCW/MEX/FEX across courses and programs. Driven by FCW/MEX/FEX
               flags in `fact_grade` and risk endpoints.
-            </CardDescription>
-          </CardHeader>
+              </CardDescription>
+            </CardHeader>
           <CardContent className="pt-0">
             {loadingCharts ? (
               <div className="min-h-[220px] flex items-center justify-center">
@@ -917,7 +917,6 @@ const AnalystDashboard = ({
               />
             </div>
           )}
-
           {!hidePaymentsAnalysis ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
               <Card className={chartSurfaceCard()}>

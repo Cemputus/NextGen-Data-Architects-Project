@@ -224,7 +224,7 @@ export default function ManagedSharedChartsPage() {
         </div>
         <span className="text-xs text-muted-foreground shrink-0">
           {viz.updatedAt || viz.createdAt}
-        </span>
+                </span>
         <div className="flex items-center gap-2 shrink-0">
           {showSharedActions && canSeeSaved && (
             <Button
@@ -235,9 +235,9 @@ export default function ManagedSharedChartsPage() {
               onClick={() => handleEdit(viz)}
               title="Edit in NextGen Query and update this chart"
             >
-              <Edit3 className="h-3 w-3" /> Edit
-            </Button>
-          )}
+                      <Edit3 className="h-3 w-3" /> Edit
+                    </Button>
+                  )}
           {showSharedActions && canEditDescriptionOnly && (
             <Button
               type="button"
@@ -258,57 +258,57 @@ export default function ManagedSharedChartsPage() {
               className="gap-1 h-8 text-xs text-destructive"
               onClick={() => setDeleteConfirm(viz)}
             >
-              <Trash2 className="h-3 w-3" /> Delete
-            </Button>
+                    <Trash2 className="h-3 w-3" /> Delete
+                  </Button>
           )}
           {showSharedActions && !isSavedOnly(viz) && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1 h-8 text-xs"
-              onClick={() => {
-                setExpandedViz((prev) => (prev === viz.id ? null : viz.id));
-                if (expandedViz !== viz.id) loadFeedback(viz.id);
-              }}
-            >
-              <MessageSquare className="h-3 w-3" /> Feedback
-            </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1 h-8 text-xs"
+                    onClick={() => {
+                      setExpandedViz((prev) => (prev === viz.id ? null : viz.id));
+                      if (expandedViz !== viz.id) loadFeedback(viz.id);
+                    }}
+                  >
+                    <MessageSquare className="h-3 w-3" /> Feedback
+                  </Button>
           )}
-        </div>
-      </div>
-      <div className="p-3">
-        <VizCard viz={viz} chartHeight={CHART_HEIGHT} />
-      </div>
-      {expandedViz === viz.id && (
-        <div className="p-3 border-t bg-muted/10 space-y-3">
-          <p className="text-sm font-medium">Feedback</p>
-          {(feedbackByViz[viz.id] || []).length === 0 ? (
-            <p className="text-xs text-muted-foreground">No feedback yet.</p>
-          ) : (
+                </div>
+              </div>
+              <div className="p-3">
+                <VizCard viz={viz} chartHeight={CHART_HEIGHT} />
+              </div>
+              {expandedViz === viz.id && (
+                <div className="p-3 border-t bg-muted/10 space-y-3">
+                  <p className="text-sm font-medium">Feedback</p>
+                  {(feedbackByViz[viz.id] || []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No feedback yet.</p>
+                  ) : (
             <>
               {(feedbackByViz[viz.id] || []).map((fb) => (
-                <div key={fb.id} className="pl-2 border-l-2 border-primary/30 space-y-1">
+                      <div key={fb.id} className="pl-2 border-l-2 border-primary/30 space-y-1">
                   <p className="text-xs text-muted-foreground">
                     {fb.authorUsername} · {fb.createdAt}
                   </p>
-                  <p className="text-sm">{fb.message}</p>
-                  {(fb.replies || []).map((rep) => (
-                    <div key={rep.id} className="pl-3 text-sm text-muted-foreground">
-                      <span className="font-medium">{rep.authorUsername}:</span> {rep.message}
-                      <span className="text-xs ml-1">({rep.createdAt})</span>
-                    </div>
-                  ))}
+                        <p className="text-sm">{fb.message}</p>
+                        {(fb.replies || []).map((rep) => (
+                          <div key={rep.id} className="pl-3 text-sm text-muted-foreground">
+                            <span className="font-medium">{rep.authorUsername}:</span> {rep.message}
+                            <span className="text-xs ml-1">({rep.createdAt})</span>
+                          </div>
+                        ))}
                 </div>
               ))}
               {/* Single reply box for the latest feedback in this conversation */}
               <div className="flex gap-2 items-center mt-2 pt-2 border-t border-border/60">
-                <Input
-                  placeholder="Reply..."
+                          <Input
+                            placeholder="Reply..."
                   value={newReplyMsg['__thread'] || ''}
                   onChange={(e) => setNewReplyMsg((prev) => ({ ...prev, __thread: e.target.value }))}
-                  className="flex-1 h-8 text-sm"
-                />
+                            className="flex-1 h-8 text-sm"
+                          />
                 <Button
                   size="sm"
                   className="h-8 gap-1"
@@ -324,14 +324,14 @@ export default function ManagedSharedChartsPage() {
                   }}
                   disabled={replySubmitting}
                 >
-                  <Send className="h-3 w-3" /> Reply
-                </Button>
-              </div>
+                            <Send className="h-3 w-3" /> Reply
+                          </Button>
+                        </div>
             </>
-          )}
-        </div>
-      )}
-    </div>
+                  )}
+                </div>
+              )}
+            </div>
   );
 
   return (

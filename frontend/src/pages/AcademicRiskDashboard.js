@@ -434,7 +434,7 @@ const AcademicRiskDashboard = () => {
                                     <CardDescription className={chartCardDescriptionClass}>Regional analysis of student failure rates</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className={chartContainerClass}>
+                                    <div className="min-h-[460px] w-full">
                                         {districtChartData.length > 0 ? (
                                             <SciBarChart
                                                 data={districtChartData}
@@ -443,13 +443,13 @@ const AcademicRiskDashboard = () => {
                                                     {
                                                         key: 'avg_fcw_rate_pct',
                                                         label: 'Avg FCW Rate (%)',
-                                                        color: '#10B981',
+                                                    color: '#f59e0b',
                                                         yAxisIndex: 0,
                                                     },
                                                     {
                                                         key: 'avg_grade',
                                                         label: 'Avg Grade %',
-                                                        color: '#F59E0B',
+                                                    color: '#3B82F6',
                                                         yAxisIndex: 1,
                                                     },
                                                 ]}
@@ -457,9 +457,14 @@ const AcademicRiskDashboard = () => {
                                                 yAxisLabel="FCW rate (%)"
                                                 secondaryYAxisLabel="Avg grade (%)"
                                                 showLegend={true}
+                                                xAxisLabelRotate={32}
+                                                gridPadding={{ bottom: 120 }}
+                                                minHeight={480}
+                                                maxHeight={560}
+                                                showGrid={true}
                                             />
                                         ) : (
-                                            <div className={cn(chartEmptyStateClass, 'min-h-[260px]')}>
+                                            <div className={cn(chartEmptyStateClass, 'min-h-[460px]')}>
                                                 Processing district data...
                                             </div>
                                         )}

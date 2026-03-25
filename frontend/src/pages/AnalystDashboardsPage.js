@@ -587,7 +587,7 @@ const AnalystDashboardsPage = () => {
         setCustomDashboards((prev) => [created, ...prev]);
       }
       try {
-        await loadData();
+      await loadData();
       } finally {
         // Keep created dashboard in list if GET /custom didn't return it (timing/filter)
         if (created && created.id) {
@@ -1159,8 +1159,8 @@ const AnalystDashboardsPage = () => {
             {(contentDashboard?.previewOnly || (contentPageKey && contentPageViewOnly)) && (
               <div className="px-4 py-2 bg-muted/50 border-b text-xs text-muted-foreground shrink-0">
                 This is a preview. No changes will be saved.
-              </div>
-            )}
+                  </div>
+                )}
             <div className="flex-1 min-h-0 overflow-auto">
               {(() => {
                 const isPageConfig = !!contentPageKey;
@@ -1194,58 +1194,58 @@ const AnalystDashboardsPage = () => {
                           {!isPageConfig && <span className="text-[10px] text-muted-foreground"> (role: {firstRole})</span>}
                         </p>
                         <div className="grid grid-cols-1 gap-1 max-h-32 overflow-auto border border-border rounded-md px-2 py-1.5">
-                          {allowedKpis.map((key) => (
+                        {allowedKpis.map((key) => (
                             <label key={key} className="flex items-center gap-1.5 text-[11px] cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="h-3 w-3"
+                            <input
+                              type="checkbox"
+                              className="h-3 w-3"
                                 disabled={readOnly}
-                                checked={contentForm.kpis.includes(key)}
-                                onChange={(e) => {
+                              checked={contentForm.kpis.includes(key)}
+                              onChange={(e) => {
                                   if (readOnly) return;
-                                  const checkedNow = e.target.checked;
-                                  setContentForm((prev) => {
-                                    const setVals = new Set(prev.kpis);
+                                const checkedNow = e.target.checked;
+                                setContentForm((prev) => {
+                                  const setVals = new Set(prev.kpis);
                                     if (checkedNow) setVals.add(key);
                                     else setVals.delete(key);
-                                    return { ...prev, kpis: Array.from(setVals) };
-                                  });
-                                }}
-                              />
-                              <span>{labelForKpi(key)}</span>
-                            </label>
-                          ))}
-                        </div>
+                                  return { ...prev, kpis: Array.from(setVals) };
+                                });
+                              }}
+                            />
+                            <span>{labelForKpi(key)}</span>
+                          </label>
+                        ))}
                       </div>
+                    </div>
                       <div className="space-y-2">
                         <p className="text-[11px] font-medium">
                           Charts
                           {!isPageConfig && <span className="text-[10px] text-muted-foreground"> (role: {firstRole})</span>}
                         </p>
                         <div className="grid grid-cols-1 gap-1 max-h-32 overflow-auto border border-border rounded-md px-2 py-1.5">
-                          {allowedCharts.map((key) => (
+                        {allowedCharts.map((key) => (
                             <label key={key} className="flex items-center gap-1.5 text-[11px] cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="h-3 w-3"
+                            <input
+                              type="checkbox"
+                              className="h-3 w-3"
                                 disabled={readOnly}
-                                checked={contentForm.charts.includes(key)}
-                                onChange={(e) => {
+                              checked={contentForm.charts.includes(key)}
+                              onChange={(e) => {
                                   if (readOnly) return;
-                                  const checkedNow = e.target.checked;
-                                  setContentForm((prev) => {
-                                    const setVals = new Set(prev.charts);
+                                const checkedNow = e.target.checked;
+                                setContentForm((prev) => {
+                                  const setVals = new Set(prev.charts);
                                     if (checkedNow) setVals.add(key);
                                     else setVals.delete(key);
-                                    return { ...prev, charts: Array.from(setVals) };
-                                  });
-                                }}
-                              />
-                              <span>{labelForChart(key)}</span>
-                            </label>
-                          ))}
-                        </div>
+                                  return { ...prev, charts: Array.from(setVals) };
+                                });
+                              }}
+                            />
+                            <span>{labelForChart(key)}</span>
+                          </label>
+                        ))}
                       </div>
+                    </div>
                       {canManage && (
                         <div className="space-y-2">
                           <p className="text-[11px] font-medium">NextGen Query visualizations</p>
@@ -1289,24 +1289,24 @@ const AnalystDashboardsPage = () => {
                       <div className="border border-border rounded-lg bg-muted/20 p-3 min-h-[200px] space-y-3">
                         <div>
                           <p className="text-[10px] uppercase text-muted-foreground mb-1">KPIs</p>
-                          <div className="grid grid-cols-2 gap-1">
+                        <div className="grid grid-cols-2 gap-1">
                             {contentForm.kpis.filter((k) => allowedKpis.includes(k)).map((k) => (
                               <div key={k} className="rounded-md border px-2 py-1.5 text-[11px] bg-muted/40">
                                 {labelForKpi(k)}
                               </div>
                             ))}
-                          </div>
                         </div>
+                      </div>
                         <div>
                           <p className="text-[10px] uppercase text-muted-foreground mb-1">Charts</p>
-                          <div className="space-y-1">
+                      <div className="space-y-1">
                             {contentForm.charts.filter((c) => allowedCharts.includes(c)).map((c) => (
                               <div key={c} className="rounded-md border px-2 py-2 text-[11px] bg-muted/30">
                                 {labelForChart(c)} (chart area)
                               </div>
                             ))}
-                          </div>
                         </div>
+                      </div>
                         {Array.isArray(contentForm.visualizationIds) && contentForm.visualizationIds.length > 0 && (
                           <div>
                             <p className="text-[10px] uppercase text-muted-foreground mb-1">NextGen Query visualizations</p>
@@ -1316,10 +1316,10 @@ const AnalystDashboardsPage = () => {
                                 return (
                                   <div key={id} className="rounded-md border px-2 py-1.5 text-[11px] bg-muted/30">
                                     {viz ? (viz.title || 'Untitled') : id}
-                                  </div>
-                                );
+                    </div>
+                );
                               })}
-                            </div>
+            </div>
                           </div>
                         )}
                       </div>
@@ -1369,33 +1369,33 @@ const AnalystDashboardsPage = () => {
                             </p>
                           )}
                           <div className="pt-2 flex flex-col gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
+                <Button
+                  variant="outline"
+                  size="sm"
                               className="w-full"
                               onClick={() => {
                                 setContentDashboard(null);
                                 setContentPageKey(null);
                                 setContentPageViewOnly(false);
                               }}
-                              disabled={savingContent}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              size="sm"
+                  disabled={savingContent}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
                               className="w-full gap-2"
-                              disabled={
+                  disabled={
                                 savingContent || !hasContent
-                              }
-                              onClick={handleSaveContent}
-                            >
-                              {savingContent && <Loader2 className="h-3 w-3 animate-spin" />}
-                              Save content
-                            </Button>
-                          </div>
+                  }
+                  onClick={handleSaveContent}
+                >
+                  {savingContent && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Save content
+                </Button>
+              </div>
                         </>
-                      )}
+            )}
                     </div>
                   </div>
                 );
