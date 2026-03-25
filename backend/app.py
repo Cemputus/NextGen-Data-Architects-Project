@@ -1925,6 +1925,7 @@ def get_dashboard_stats():
             dash_role = None
 
         filters = request.args.to_dict()
+        lite = str(filters.get('lite') or '').strip().lower() in ('1', 'true', 'yes')
         # JWT scope wins: clients cannot override faculty/department for scoped roles
         if dash_role == Role.DEAN and claims.get('faculty_id') is not None:
             filters.pop('faculty_id', None)
@@ -2003,6 +2004,85 @@ def get_dashboard_stats():
         if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
             cc = str(filters.get('course_code')).replace("'", "''")
             fe_enroll_clauses.append(f"fe.course_code = '{cc}'")
+
+        # Fast path: KPI strip only (saves multiple heavy warehouse queries).
+        # Returns the fields used by the "Executive overview" cards.
+        if lite:
+            total_students = 0
+            total_enrollments = 0
+            avg_grade = 0.0
+            avg_retention_rate = 0.0
+            try:
+                total_students_result = pd.read_sql_query(
+                    text(f"SELECT COUNT(DISTINCT ds.student_id) as count FROM dim_student ds{scope_join}{scope_where}"),
+                    engine
+                )
+                total_students = int(total_students_result['count'][0]) if not total_students_result.empty and pd.notna(total_students_result['count'][0]) else 0
+            except Exception as e:
+                print(f"Error getting total_students (lite): {e}")
+            try:
+                enroll_where_parts = []
+                if role_where:
+                    enroll_where_parts.append(role_where)
+                if enroll_student_filter_parts:
+                    enroll_where_parts.append("(" + " AND ".join(enroll_student_filter_parts) + ")")
+                if fe_enroll_clauses:
+                    enroll_where_parts.append("(" + " AND ".join(fe_enroll_clauses) + ")")
+                if enroll_where_parts:
+                    wsql = " WHERE " + " AND ".join(enroll_where_parts)
+                    enroll_q = (
+                        f"SELECT COUNT(*) as count FROM fact_enrollment fe "
+                        f"JOIN dim_student ds ON fe.student_id = ds.student_id{scope_join}{wsql}"
+                    )
+                else:
+                    enroll_q = "SELECT COUNT(*) as count FROM fact_enrollment"
+                total_enrollments_result = pd.read_sql_query(text(enroll_q), engine)
+                total_enrollments = int(total_enrollments_result['count'][0]) if not total_enrollments_result.empty and pd.notna(total_enrollments_result['count'][0]) else 0
+            except Exception as e:
+                print(f"Error getting total_enrollments (lite): {e}")
+            try:
+                grade_clauses = ["UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED'"]
+                if semester_id_filter is not None:
+                    grade_clauses.append(f"fg.semester_id = {semester_id_filter}")
+                if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
+                    cc = str(filters.get('course_code')).replace("'", "''")
+                    grade_clauses.append(f"fg.course_code = '{cc}'")
+                if role_where:
+                    grade_clauses.append(role_where)
+                if enroll_student_filter_parts:
+                    grade_clauses.append("(" + " AND ".join(enroll_student_filter_parts) + ")")
+                wsql = " WHERE " + " AND ".join(grade_clauses)
+                avg_q = (
+                    f"SELECT AVG(fg.grade) as avg FROM fact_grade fg "
+                    f"JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join}{wsql}"
+                )
+                avg_grade_result = pd.read_sql_query(text(avg_q), engine)
+                avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
+            except Exception as e:
+                print(f"Error getting avg_grade (lite): {e}")
+            try:
+                ret_q = f"""
+                SELECT 
+                    COUNT(DISTINCT CASE WHEN ds.status = 'Active' THEN ds.student_id END) as active,
+                    COUNT(DISTINCT ds.student_id) as total
+                FROM dim_student ds{scope_join}{scope_where}
+                """
+                retention_result = pd.read_sql_query(text(ret_q), engine)
+                if not retention_result.empty and pd.notna(retention_result['total'][0]) and retention_result['total'][0] > 0:
+                    avg_retention_rate = (retention_result['active'][0] / retention_result['total'][0]) * 100
+                else:
+                    avg_retention_rate = 0.0
+            except Exception as e:
+                print(f"Error getting avg_retention_rate (lite): {e}")
+
+            return jsonify({
+                'total_students': total_students,
+                'total_enrollments': total_enrollments,
+                'avg_grade': round(avg_grade, 2),
+                'avg_retention_rate': round(avg_retention_rate, 2),
+                'retention_rate': round(avg_retention_rate, 2),
+                'lite': True,
+            })
 
         enrollment_kpi_kind = 'enrollment_records'
         if dash_role == Role.DEAN and claims.get('faculty_id') is not None:

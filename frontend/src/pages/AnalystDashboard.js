@@ -217,7 +217,7 @@ const AnalystDashboard = ({
       }
       const response = await axios.get('/api/dashboard/stats', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: apiFilters,
+        params: { ...apiFilters, lite: 1 },
       });
       setStats(response.data);
     } catch (err) {
@@ -587,13 +587,18 @@ const AnalystDashboard = ({
     loadStudentDistributionChart();
     const interval = setInterval(loadStats, ANALYST_KPI_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    loadStats();
-    loadCharts();
-    loadStudentDistributionChart();
-    loadPipelineChart();
+    // Debounce filter-driven reloads so we don't fire multiple heavy requests while filters initialize.
+    const t = setTimeout(() => {
+      loadStats();
+      loadCharts();
+      loadStudentDistributionChart();
+      loadPipelineChart();
+    }, 250);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalFilters, distributionGroupBy, lockedFacultyId, lockedDepartmentId, facultyShape.loaded, deptScopeShape.loaded]);
 
