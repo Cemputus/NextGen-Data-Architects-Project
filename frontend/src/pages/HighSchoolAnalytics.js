@@ -25,21 +25,21 @@ const HighSchoolAnalytics = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      try {
-        setLoading(true);
+    try {
+      setLoading(true);
         setError(null);
         const res = await axios.get('/api/analytics/high-school-risk-correlation', {
-          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         });
         setBySchool(res.data?.by_school || []);
         setByDistrict(res.data?.by_district || []);
-      } catch (err) {
+    } catch (err) {
         console.error('Error loading high school analytics:', err);
         setError(err.response?.data?.error || 'Failed to load high school analytics.');
-      } finally {
-        setLoading(false);
-      }
-    };
+    } finally {
+      setLoading(false);
+    }
+  };
     loadData();
   }, []);
 
@@ -98,14 +98,14 @@ const HighSchoolAnalytics = () => {
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-          </div>
-        </CardHeader>
-        <CardContent className="p-4 pt-0">
+        </div>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
           {error && (
             <div className="mb-4 text-sm text-destructive">
               {error}
-            </div>
-          )}
+                            </div>
+                          )}
           {loading ? (
             <SkeletonTable rows={6} cols={columns.length} />
           ) : (
@@ -118,8 +118,8 @@ const HighSchoolAnalytics = () => {
               onExport={(rows) => exportTableToExcel(rows, columns, `high_school_${drilldown}`)}
             />
           )}
-        </CardContent>
-      </Card>
+                </CardContent>
+              </Card>
     </div>
   );
 };

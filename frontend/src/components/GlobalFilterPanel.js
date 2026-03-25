@@ -59,7 +59,7 @@ const GlobalFilterPanel = ({
     savedFilters && typeof savedFilters === 'object' && !Array.isArray(savedFilters) ? savedFilters : {};
   const savedFiltersState = loadFilters(pageName, normalizedSavedFilters);
   const savedSearch = loadSearchTerm(pageName, '');
-
+  
   const [filters, setFilters] = useState(() => {
     const raw =
       savedFiltersState && typeof savedFiltersState === 'object' && !Array.isArray(savedFiltersState)
@@ -122,7 +122,7 @@ const GlobalFilterPanel = ({
       if (effectiveForRequest.department_id) params.department_id = effectiveForRequest.department_id;
       if (effectiveForRequest.program_id) params.program_id = effectiveForRequest.program_id;
       if (effectiveForRequest.semester_id) params.semester_id = effectiveForRequest.semester_id;
-
+      
       const res = await axios.get('/api/analytics/filter-options', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params,
@@ -232,7 +232,7 @@ const GlobalFilterPanel = ({
       }));
     } finally {
       if (requestSeq === optionsRequestSeqRef.current) {
-        setLoading(false);
+      setLoading(false);
       }
     }
   };
@@ -266,7 +266,7 @@ const GlobalFilterPanel = ({
   // Reload filter options when parent filters change (debounced to avoid request storms).
   useEffect(() => {
     const t = setTimeout(() => {
-      loadFilterOptions(filters);
+    loadFilterOptions(filters);
     }, 180);
     return () => clearTimeout(t);
   }, [
@@ -319,7 +319,7 @@ const GlobalFilterPanel = ({
     } else {
       newFilters[key] = value;
     }
-
+    
     const sanitized = sanitizeDashboardFilters(newFilters);
     setFilters(sanitized);
     onFilterChange(sanitized);
