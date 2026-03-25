@@ -20,13 +20,26 @@ import { PageHeader, PageContent } from '../components/ui/page-header';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { useAuth } from '../context/AuthContext';
 import { CHART_PALETTE } from '../config/designTokens';
+import { sanitizeDashboardFilters } from '../utils/filterUtils';
 import { Skeleton } from '../components/ui/skeleton';
 
 const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilterChange }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const role = (user?.role || '').toString().toLowerCase();
+  const isDean = role === 'dean';
+  const isHod = role === 'hod';
+  const deanFacultyNum = Number(user?.faculty_id);
+  const hasDeanFacultyScope = isDean ? Number.isFinite(deanFacultyNum) && deanFacultyNum > 0 : true;
+  const lockedFacultyId =
+    isDean && hasDeanFacultyScope ? user.faculty_id : undefined;
+  const lockedDepartmentId =
+    isHod && user?.department_id != null && user?.department_id !== ''
+      ? user.department_id
+      : undefined;
   const [loading, setLoading] = useState(true);
   const [fexData, setFexData] = useState(null);
+  const [scopeError, setScopeError] = useState(null);
 
   const savedState = loadPageState('fex_analytics', { filters: {}, drilldown: 'faculty', tab: 'distribution' });
   // Keep filters hydrated by GlobalFilterPanel persistence (statePersistence.loadFilters).
@@ -43,14 +56,30 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
   // - Program selected => chart groups by Year of Study
   // - Faculty selected (fallback) => chart groups by Department
   // - Nothing selected => chart groups by Faculty
-  const drilldown =
-    filters.program_id
-      ? 'year_of_study'
-      : filters.department_id
-        ? 'program'
-        : filters.faculty_id
-          ? 'department'
-          : 'faculty';
+  // Role-aware drilldown:
+  // - Senate: starts at Faculty
+  // - Dean: faculty is fixed (JWT) so start at Department
+  // - HoD: department is fixed (JWT) so start at Program
+  // - If a deeper cascading filter exists (e.g. course_code), group by it.
+  const drilldown = (() => {
+    if (filters.course_code) return 'course';
+
+    if (isHod) {
+      if (filters.program_id) return 'year_of_study';
+      return 'program';
+    }
+
+    if (isDean) {
+      if (filters.program_id) return 'year_of_study';
+      if (filters.department_id) return 'program';
+      return 'department';
+    }
+
+    if (filters.program_id) return 'year_of_study';
+    if (filters.department_id) return 'program';
+    if (filters.faculty_id) return 'department';
+    return 'faculty';
+  })();
 
   useEffect(() => {
     if (!isControlled) savePageState('fex_analytics', { filters: {}, tab: activeTab });
@@ -63,9 +92,27 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
   const loadFEXData = async () => {
     try {
       setLoading(true);
+      setScopeError(null);
+      if (isDean && !hasDeanFacultyScope) {
+        setScopeError('Your account has no faculty assigned. Ask an administrator to set your faculty for scoped FEX analytics.');
+        setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
+        return;
+      }
+      if (isHod && (user?.department_id == null || user?.department_id === '')) {
+        setScopeError('Your account has no department assigned. Ask an administrator to set your department for scoped FEX analytics.');
+        setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
+        return;
+      }
+
+      const sanitized = sanitizeDashboardFilters(filters);
+      const fexParams = { ...sanitized, drilldown };
+      // When chart groups by year of study, don't also filter to a single YoS (would collapse bars).
+      if (drilldown === 'year_of_study') {
+        delete fexParams.year_of_study;
+      }
       const response = await axios.get('/api/analytics/fex', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: { ...filters, drilldown }
+        params: fexParams,
       });
 
       if (response.data && response.data.data) {
@@ -86,9 +133,21 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
       }
     } catch (err) {
       console.error('Error loading FEX data:', err);
-      if (!fexData) {
-        setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
+      const empty = {
+        data: [],
+        summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 },
+      };
+      if (err.response?.status === 403) {
+        const msg =
+          err.response?.data?.detail ||
+          err.response?.data?.error ||
+          'Not allowed to view FEX for this scope.';
+        setScopeError(msg);
+      } else {
+        setScopeError(null);
       }
+      // Always reset chart state so the page never renders with stale/undefined series after filter clears or network errors.
+      setFexData(empty);
     } finally {
       setLoading(false);
     }
@@ -101,6 +160,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
     if (drilldown === 'department') return 'department';
     if (drilldown === 'program') return 'program_name';
     if (drilldown === 'year_of_study') return 'year_label';
+    if (drilldown === 'course') return 'course_name';
     return 'faculty_name';
   };
 
@@ -148,9 +208,12 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
         ? 'Department'
         : drilldown === 'program'
           ? 'Program'
-          : 'Year of Study';
+          : drilldown === 'course'
+            ? 'Course'
+            : 'Year of Study';
 
   const rolePrefix = user?.role?.toLowerCase() === 'sysadmin' ? 'admin' : user?.role?.toLowerCase() || 'dashboard';
+  const filterPageKey = `${role || 'user'}_fex_analytics`;
 
   return (
     <PageContent>
@@ -179,11 +242,49 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
       />
 
       {!isControlled && (
-        <GlobalFilterPanel
-          onFilterChange={setInternalFilters}
-          savedFilters={internalFilters}
-          pageName="fex_analytics"
-        />
+        <>
+          {(isDean && !hasDeanFacultyScope) ||
+          (isHod && (user?.department_id == null || user?.department_id === '')) ? (
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100 dark:border-amber-800">
+              {isDean ? (
+                <>
+                  Your account has no <strong>faculty</strong> assigned. FEX analytics will stay empty until an
+                  administrator sets your faculty.
+                </>
+              ) : (
+                <>
+                  Your account has no <strong>department</strong> assigned. FEX analytics will stay empty until an
+                  administrator sets your department.
+                </>
+              )}
+            </div>
+          ) : null}
+          {scopeError &&
+          !(
+            (isDean && !hasDeanFacultyScope) ||
+            (isHod && (user?.department_id == null || user?.department_id === ''))
+          ) ? (
+            <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+              {scopeError}
+            </div>
+          ) : null}
+          <GlobalFilterPanel
+            onFilterChange={setInternalFilters}
+            pageName={filterPageKey}
+            hideFaculty={isDean || isHod}
+            hideDepartment={isHod}
+            hideIntakeYear
+            lockedFacultyId={lockedFacultyId}
+            lockedDepartmentId={lockedDepartmentId}
+            filterHint={
+              isHod
+                ? 'Scoped to your department. Cascade Program → Semester → Year of Study; chart drilldown follows your selections.'
+                : isDean
+                  ? 'Scoped to your faculty. Cascade Department → Program → Semester → Year of Study; chart drilldown follows your selections.'
+                  : 'Senate: institution-wide FEX. Use Faculty → Department → Program → Semester to narrow; chart groups by the next level down.'
+            }
+          />
+        </>
       )}
 
       {loading ? (
@@ -196,16 +297,24 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-red-700">
-              FEX distribution
+              {drilldown === 'year_of_study'
+                ? 'Retakes by year of study (FEX · MEX · FCW)'
+                : 'FEX distribution'}
             </CardTitle>
             <CardDescription className="text-xs">
-              KPI cards were removed to avoid duplicate KPI sections. Use cascading filters to refine scope.
+              {drilldown === 'year_of_study'
+                ? 'Counts of failed / missed / coursework retakes grouped by student year of study for the selected program and other filters.'
+                : 'KPI cards were removed to avoid duplicate KPI sections. Use cascading filters to refine scope.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div
               className={chartContainerClass}
-              data-chart-title={`FEX Distribution by ${xAxisLabel}`}
+              data-chart-title={
+                drilldown === 'year_of_study'
+                  ? 'Retakes (FEX / MEX / FCW) by year of study'
+                  : `FEX Distribution by ${xAxisLabel}`
+              }
               data-chart-container="true"
             >
               {chartData.length > 0 ? (
@@ -223,8 +332,10 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
                   showGrid={true}
                   tooltipNameKey="fullName"
                   tooltipMode="breakdown"
-                  minHeight={400}
-                  maxHeight={440}
+                  xAxisLabelRotate={42}
+                  gridPadding={{ bottom: 132 }}
+                  minHeight={420}
+                  maxHeight={460}
                 />
               ) : (
                 <EmptyState

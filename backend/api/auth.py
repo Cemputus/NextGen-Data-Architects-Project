@@ -250,7 +250,7 @@ def login():
             return jsonify({'error': 'Identifier and password required'}), 400
         
         identifier_lower = identifier.lower()
-
+        
         # Check app_users first so app users (including sysadmin) use their DB credentials and get the same privileges as demo
         for attempt in (1, 2):
             try:
@@ -452,8 +452,8 @@ def login():
                     'faculty_id': 1,
                     'department_id': 1,
                 }
-                }), 200
-
+            }), 200
+        
         # Check if it's an Access Number (student login)
         if validate_access_number(identifier):
             # Student login with Access Number - check against student table

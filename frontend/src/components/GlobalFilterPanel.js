@@ -2,7 +2,7 @@
  * Global Filter Panel - Smooth, Professional UI with Synced Filters
  * Filters sync: selecting faculty filters departments, selecting department filters programs
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Search, X, Filter } from 'lucide-react';
 import { Button } from './ui/button';
@@ -30,6 +30,8 @@ const GlobalFilterPanel = ({
   lockedDepartmentId = undefined,
   /** When the faculty has only one department, hide the department control and start at Program. */
   skipDepartmentFilter = false,
+  /** Hide intake-year dropdown (e.g. FEX page uses Year of Study on axis; avoids two “year” controls). */
+  hideIntakeYear = false,
   /** Optional: overrides the default role-based filter subtitle (e.g. dean hierarchy hints). */
   filterHint = '',
 }) => {
@@ -43,6 +45,13 @@ const GlobalFilterPanel = ({
   // - HOD is already scoped to a department, so filters should start at Program.
   const effectiveHideFaculty = hideFaculty || isDean || isHod;
   const effectiveHideDepartment = hideDepartment || isHod || skipDepartmentFilter;
+
+  // Dean (and similar): faculty is implicit; department is visible → require department before Program cascades.
+  const requireDepartmentBeforeProgram =
+    effectiveHideFaculty &&
+    !effectiveHideDepartment &&
+    !skipDepartmentFilter &&
+    (lockedDepartmentId == null || lockedDepartmentId === '');
 
   // Load persisted filters and search term for this page (per-user)
   // Normalize `savedFilters` to an object because some callers previously passed `[]`.
@@ -66,9 +75,11 @@ const GlobalFilterPanel = ({
     semesters: [],
     high_schools: [],
     intake_years: [],
+    year_of_studies: [],
   });
   const [searchTerm, setSearchTerm] = useState(savedSearch);
   const [loading, setLoading] = useState(false);
+  const optionsRequestSeqRef = useRef(0);
 
   const emptyOptions = {
     faculties: [],
@@ -78,6 +89,7 @@ const GlobalFilterPanel = ({
     semesters: [],
     high_schools: [],
     intake_years: [],
+    year_of_studies: [],
   };
 
   const formatIntakeYearLabel = (rawYear) => {
@@ -95,6 +107,7 @@ const GlobalFilterPanel = ({
 
   // Load filter options with current filter values for cascading (faculties -> departments -> programs -> courses)
   const loadFilterOptions = async (currentFilters = {}) => {
+    const requestSeq = ++optionsRequestSeqRef.current;
     setLoading(true);
     try {
       const effectiveForRequest = { ...currentFilters };
@@ -114,6 +127,7 @@ const GlobalFilterPanel = ({
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params,
       });
+      if (requestSeq !== optionsRequestSeqRef.current) return;
       const data = res?.data || {};
       const nextOptions = {
         faculties: Array.isArray(data.faculties) ? data.faculties : emptyOptions.faculties,
@@ -123,6 +137,7 @@ const GlobalFilterPanel = ({
         semesters: Array.isArray(data.semesters) ? data.semesters : emptyOptions.semesters,
         high_schools: Array.isArray(data.high_schools) ? data.high_schools : emptyOptions.high_schools,
         intake_years: Array.isArray(data.intake_years) ? data.intake_years : emptyOptions.intake_years,
+        year_of_studies: Array.isArray(data.year_of_studies) ? data.year_of_studies : emptyOptions.year_of_studies,
       };
       setFilterOptions(nextOptions);
 
@@ -184,6 +199,16 @@ const GlobalFilterPanel = ({
         changed = true;
       }
 
+      if (
+        cleanedFilters.year_of_study &&
+        Array.isArray(nextOptions.year_of_studies) &&
+        nextOptions.year_of_studies.length > 0 &&
+        !nextOptions.year_of_studies.some((y) => String(y) === String(cleanedFilters.year_of_study))
+      ) {
+        delete cleanedFilters.year_of_study;
+        changed = true;
+      }
+
       if (changed) {
         const sanitized = sanitizeDashboardFilters(cleanedFilters);
         setFilters(sanitized);
@@ -191,6 +216,7 @@ const GlobalFilterPanel = ({
         saveFilters(pageName, sanitized);
       }
     } catch (err) {
+      if (requestSeq !== optionsRequestSeqRef.current) return;
       console.error('Error loading filter options:', err);
       setFilterOptions((prev) => ({
         ...emptyOptions,
@@ -202,9 +228,12 @@ const GlobalFilterPanel = ({
         semesters: Array.isArray(prev?.semesters) ? prev.semesters : [],
         high_schools: Array.isArray(prev?.high_schools) ? prev.high_schools : [],
         intake_years: Array.isArray(prev?.intake_years) ? prev.intake_years : [],
+        year_of_studies: Array.isArray(prev?.year_of_studies) ? prev.year_of_studies : [],
       }));
     } finally {
-      setLoading(false);
+      if (requestSeq === optionsRequestSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -234,19 +263,18 @@ const GlobalFilterPanel = ({
     });
   }, [lockedDepartmentId, pageName]);
 
-  // Load filter options on initial mount with saved filters
+  // Reload filter options when parent filters change (debounced to avoid request storms).
   useEffect(() => {
-    loadFilterOptions(filters);
-  }, []); // Only run on mount
-
-  // Reload filter options when parent filters change
-  useEffect(() => {
-    loadFilterOptions(filters);
+    const t = setTimeout(() => {
+      loadFilterOptions(filters);
+    }, 180);
+    return () => clearTimeout(t);
   }, [
     filters.faculty_id,
     filters.department_id,
     filters.program_id,
     filters.semester_id,
+    filters.year_of_study,
     lockedFacultyId,
     lockedDepartmentId,
   ]);
@@ -272,13 +300,16 @@ const GlobalFilterPanel = ({
       delete newFilters.department_id;
       delete newFilters.program_id;
       delete newFilters.course_code; // Also clear course when faculty changes
+      delete newFilters.year_of_study;
     } else if (key === 'department_id') {
       // Clear program and course when department changes
       delete newFilters.program_id;
       delete newFilters.course_code;
+      delete newFilters.year_of_study;
     } else if (key === 'program_id') {
       // Clear course when program changes (optional - you may want to keep this)
       // delete newFilters.course_code;
+      delete newFilters.year_of_study;
     }
     
     if (value === '' || value === null) {
@@ -442,13 +473,26 @@ const GlobalFilterPanel = ({
               <Select
                 value={filters.program_id || ''}
                 onChange={(e) => handleFilterChange('program_id', e.target.value || null)}
-                disabled={loading || (!effectiveHideFaculty && !filters.faculty_id)}
+                disabled={
+                  loading ||
+                  (!effectiveHideFaculty && !filters.faculty_id) ||
+                  (requireDepartmentBeforeProgram && !filters.department_id)
+                }
                 className={`h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary ${
-                  !effectiveHideFaculty && !filters.faculty_id ? 'opacity-50 cursor-not-allowed' : ''
+                  (!effectiveHideFaculty && !filters.faculty_id) ||
+                  (requireDepartmentBeforeProgram && !filters.department_id)
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
                 }`}
               >
                 <option value="">
-                  {effectiveHideDepartment ? 'All Programs' : (filters.faculty_id || effectiveHideFaculty ? 'All Programs' : 'Select Faculty First')}
+                  {requireDepartmentBeforeProgram && !filters.department_id
+                    ? 'Select Department First'
+                    : effectiveHideDepartment
+                      ? 'All Programs'
+                      : filters.faculty_id || effectiveHideFaculty
+                        ? 'All Programs'
+                        : 'Select Faculty First'}
                 </option>
                 {filterOptions.programs?.map((p, idx) => (
                   <option key={`prog-${p.program_id || idx}`} value={p.program_id}>
@@ -474,6 +518,24 @@ const GlobalFilterPanel = ({
               </Select>
               )}
 
+              {!hideAcademic && (
+              <Select
+                value={filters.year_of_study || ''}
+                onChange={(e) => handleFilterChange('year_of_study', e.target.value || null)}
+                disabled={loading}
+                aria-label="Year of study filter"
+                title="Student year of study (Year 1–4) within the selected scope"
+                className="h-11 border-2 border-input rounded-lg shadow-sm hover:shadow-md transition-all focus:border-primary"
+              >
+                <option value="">All Year(s) of Study</option>
+                {filterOptions.year_of_studies?.map((y, idx) => (
+                  <option key={`yos-${y}-${idx}`} value={y}>
+                    {`Year ${y}`}
+                  </option>
+                ))}
+              </Select>
+              )}
+
               {!hideHighSchool && (
                 <Select
                   value={filters.high_school || ''}
@@ -490,7 +552,7 @@ const GlobalFilterPanel = ({
                 </Select>
               )}
 
-              {!hideAcademic && (
+              {!hideAcademic && !hideIntakeYear && (
               <Select
                 value={filters.intake_year || ''}
                 onChange={(e) => handleFilterChange('intake_year', e.target.value || null)}
@@ -538,6 +600,8 @@ const GlobalFilterPanel = ({
                         filterOptions.semesters?.find((s) => String(s.semester_id) === String(value))?.semester_name || value;
                     } else if (key === 'intake_year') {
                       displayValue = formatIntakeYearLabel(value);
+                    } else if (key === 'year_of_study') {
+                      displayValue = `Year ${value}`;
                     }
                     return (
                       <Badge

@@ -206,6 +206,13 @@ def build_filter_query(filters, base_query, user_scope):
         if _has_value(filters.get('semester_id')):
             where_clauses.append("fg.semester_id = :filter_semester_id")
             params['filter_semester_id'] = _maybe_int(filters['semester_id'])
+
+        if _has_value(filters.get('year_of_study')):
+            where_clauses.append("COALESCE(ds.year_of_study, 1) = :filter_year_of_study")
+            try:
+                params['filter_year_of_study'] = int(filters['year_of_study'])
+            except (ValueError, TypeError):
+                params['filter_year_of_study'] = _maybe_int(filters['year_of_study'])
         
         if _has_value(filters.get('gender')):
             where_clauses.append("ds.gender = :filter_gender")
@@ -241,6 +248,23 @@ def get_fex_analytics():
         # Check permission
         if not has_permission(user_scope['role'], Resource.FEX_ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
+
+        # Deans / HoDs must be scoped to JWT faculty or department (no institution-wide FEX).
+        role = user_scope.get('role')
+        if role == Role.DEAN:
+            fid = user_scope.get('faculty_id')
+            if fid is None or (isinstance(fid, str) and str(fid).strip() == ''):
+                return jsonify({
+                    'error': 'No faculty assigned',
+                    'detail': 'Your account has no faculty; ask an administrator to assign one for FEX analytics.',
+                }), 403
+        elif role == Role.HOD:
+            did = user_scope.get('department_id')
+            if did is None or (isinstance(did, str) and str(did).strip() == ''):
+                return jsonify({
+                    'error': 'No department assigned',
+                    'detail': 'Your account has no department; ask an administrator to assign one for FEX analytics.',
+                }), 403
         
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
@@ -585,6 +609,20 @@ def get_enrollment_by_year():
         user_scope = get_user_scope(claims)
 
         role = user_scope['role']
+
+        # Enforce RBAC on dropdown scoping:
+        # Dean must not be able to override faculty scope, and HOD must not be able to override department scope.
+        # We overwrite the incoming request-scoped ids with JWT scope when available.
+        if role == Role.DEAN and user_scope.get('faculty_id') is not None:
+            try:
+                faculty_id = int(user_scope.get('faculty_id'))
+            except Exception:
+                pass
+        if role == Role.HOD and user_scope.get('department_id') is not None:
+            try:
+                department_id = int(user_scope.get('department_id'))
+            except Exception:
+                pass
         # Allow only analytics-facing roles
         if role not in {Role.SENATE, Role.SYSADMIN, Role.ANALYST, Role.DEAN, Role.HOD, Role.FINANCE}:
             return jsonify({'error': 'Permission denied'}), 403
@@ -1476,9 +1514,22 @@ def get_filter_options():
             'courses': [],
             'semesters': [],
             'high_schools': [],
-            'intake_years': []
+            'intake_years': [],
+            'year_of_studies': [],
         }
         role = user_scope['role']
+
+        # Academic leaders: lock scope from JWT (do not trust faculty_id / department_id query params).
+        if role == Role.DEAN and user_scope.get('faculty_id') is not None:
+            try:
+                faculty_id = int(user_scope['faculty_id'])
+            except Exception:
+                pass
+        if role == Role.HOD and user_scope.get('department_id') is not None:
+            try:
+                department_id = int(user_scope['department_id'])
+            except Exception:
+                pass
         
         # --- Faculties (with fallback from student data) ---
         if role == Role.STUDENT:
@@ -1551,12 +1602,11 @@ def get_filter_options():
                 prog_where = []
                 if role == Role.HOD and user_scope.get('department_id') and not department_id:
                     prog_where.append(f"p.department_id = {user_scope['department_id']}")
-                elif role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id and not department_id:
+                # Dean: always constrain programs to JWT faculty (even when only department_id is sent).
+                if role == Role.DEAN and user_scope.get('faculty_id'):
                     prog_where.append(f"d.faculty_id = {user_scope['faculty_id']}")
                 if department_id:
                     prog_where.append(f"p.department_id = {department_id}")
-                elif faculty_id:
-                    prog_where.append(f"d.faculty_id = {faculty_id}")
                 if prog_where:
                     prog_query += " WHERE " + " AND ".join(prog_where)
                 prog_query += " ORDER BY p.program_name"
@@ -1597,7 +1647,33 @@ def get_filter_options():
                 course_query = "SELECT DISTINCT course_code, course_name FROM dim_course ORDER BY course_code"
                 params = {}
 
-                if department_id:
+                if program_id:
+                    # When Program is selected, derive courses from fact_grade so the list cascades correctly.
+                    scope_clause = ""
+                    params = {'prog_id': program_id}
+                    if role == Role.DEAN and faculty_id:
+                        scope_clause = " AND df.faculty_id = :fac_id"
+                        params['fac_id'] = faculty_id
+                    elif role == Role.HOD and department_id:
+                        scope_clause = " AND ddept.department_id = :dept_id"
+                        params['dept_id'] = department_id
+
+                    course_query = f"""
+                        SELECT DISTINCT
+                            fg.course_code,
+                            COALESCE(c.course_name, fg.course_code) as course_name
+                        FROM fact_grade fg
+                        JOIN dim_student ds ON fg.student_id = ds.student_id
+                        LEFT JOIN dim_course c ON fg.course_code = c.course_code
+                        JOIN dim_program dp ON ds.program_id = dp.program_id
+                        LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+                        LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+                        WHERE ds.program_id = :prog_id
+                          AND fg.course_code IS NOT NULL
+                        {scope_clause}
+                        ORDER BY fg.course_code
+                    """
+                elif department_id:
                     course_query = """
                         SELECT DISTINCT c.course_code, c.course_name
                         FROM dim_course c
@@ -1652,7 +1728,8 @@ def get_filter_options():
         except Exception:
             options['courses'] = []
         
-        # --- Semesters (fallback from fact_grade if dim_semester empty) ---
+        # --- Semesters ---
+        # Keep this lightweight/stable like analyst flow; expensive scoped joins here can cause worker timeouts.
         try:
             df = pd.read_sql_query(
                 text("SELECT semester_id, semester_name FROM dim_semester ORDER BY semester_id"),
@@ -1669,34 +1746,106 @@ def get_filter_options():
                 )
                 options['semesters'] = df2.to_dict('records') if not df2.empty else []
             for r in options['semesters']:
-                if r.get('semester_id') is not None and isinstance(r['semester_id'], (float,)):
+                if r.get('semester_id') is not None and isinstance(r['semester_id'], float):
                     r['semester_id'] = int(r['semester_id'])
         except Exception:
             options['semesters'] = []
+
+        # --- Year of study ---
+        # Scope by faculty/department/program from dim_student (cheap). Avoid heavy fact_grade joins.
+        try:
+            if role == Role.STUDENT:
+                options['year_of_studies'] = []
+            else:
+                y_where = []
+                y_params = {}
+                if faculty_id:
+                    y_where.append("d.faculty_id = :fac_id")
+                    y_params['fac_id'] = faculty_id
+                if department_id:
+                    y_where.append("p.department_id = :dept_id")
+                    y_params['dept_id'] = department_id
+                if program_id:
+                    y_where.append("ds.program_id = :prog_id")
+                    y_params['prog_id'] = program_id
+
+                yq = """
+                    SELECT DISTINCT COALESCE(ds.year_of_study, 1) as year_of_study
+                    FROM dim_student ds
+                    LEFT JOIN dim_program p ON ds.program_id = p.program_id
+                    LEFT JOIN dim_department d ON p.department_id = d.department_id
+                """
+                if y_where:
+                    yq += " WHERE " + " AND ".join(y_where)
+                yq += " ORDER BY year_of_study"
+
+                dfy = pd.read_sql_query(text(yq), engine, params=y_params or None)
+                years = []
+                if not dfy.empty and 'year_of_study' in dfy.columns:
+                    for y in dfy['year_of_study'].tolist():
+                        if y is None or pd.isna(y):
+                            continue
+                        try:
+                            yi = int(float(y))
+                            if 1 <= yi <= 8:
+                                years.append(yi)
+                        except Exception:
+                            continue
+                options['year_of_studies'] = sorted(set(years)) if years else [1, 2, 3, 4]
+        except Exception:
+            options['year_of_studies'] = [1, 2, 3, 4]
         
         # --- High schools (role-based; fallback all students) ---
         if role == Role.STUDENT:
             options['high_schools'] = []
         else:
-            if role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id:
+            # Prefer request-scoped filters so dropdowns cascade consistently for dean/hod/analyst.
+            if program_id:
+                scope_clause = ""
+                params = {'program_id': program_id}
+                if role == Role.DEAN and faculty_id:
+                    scope_clause = " AND df.faculty_id = :fac_id"
+                    params['fac_id'] = faculty_id
+                elif role == Role.HOD and department_id:
+                    scope_clause = " AND ddept.department_id = :dept_id"
+                    params['dept_id'] = department_id
+
+                q = f"""
+                    SELECT DISTINCT ds.high_school, ds.high_school_district
+                    FROM dim_student ds
+                    JOIN dim_program dp ON ds.program_id = dp.program_id
+                    LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
+                    LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+                    WHERE ds.high_school IS NOT NULL
+                      AND ds.high_school != ''
+                      AND ds.program_id = :program_id
+                    {scope_clause}
+                    ORDER BY ds.high_school
+                """
+                df = pd.read_sql_query(text(q), engine, params=params)
+            elif department_id:
+                q = """
+                    SELECT DISTINCT ds.high_school, ds.high_school_district
+                    FROM dim_student ds
+                    JOIN dim_program p ON ds.program_id = p.program_id
+                    WHERE ds.high_school IS NOT NULL
+                      AND ds.high_school != ''
+                      AND p.department_id = :dept_id
+                    ORDER BY ds.high_school
+                """
+                df = pd.read_sql_query(text(q), engine, params={'dept_id': department_id})
+            elif faculty_id:
                 q = """
                     SELECT DISTINCT ds.high_school, ds.high_school_district
                     FROM dim_student ds
                     JOIN dim_program p ON ds.program_id = p.program_id
                     JOIN dim_department d ON p.department_id = d.department_id
-                    WHERE ds.high_school IS NOT NULL AND ds.high_school != '' AND d.faculty_id = :fac_id
+                    WHERE ds.high_school IS NOT NULL
+                      AND ds.high_school != ''
+                      AND d.faculty_id = :fac_id
                     ORDER BY ds.high_school
                 """
-                df = pd.read_sql_query(text(q), engine, params={'fac_id': user_scope['faculty_id']})
-            elif role == Role.HOD and user_scope.get('department_id') and not department_id:
-                q = """
-                    SELECT DISTINCT ds.high_school, ds.high_school_district
-                    FROM dim_student ds
-                    JOIN dim_program p ON ds.program_id = p.program_id
-                    WHERE ds.high_school IS NOT NULL AND ds.high_school != '' AND p.department_id = :dept_id
-                    ORDER BY ds.high_school
-                """
-                df = pd.read_sql_query(text(q), engine, params={'dept_id': user_scope['department_id']})
+                df = pd.read_sql_query(text(q), engine, params={'fac_id': faculty_id})
             else:
                 df = pd.read_sql_query(
                     text(
@@ -1773,7 +1922,8 @@ def get_filter_options():
                 pass
         fallback_options = locals().get('options') or {
             'faculties': [], 'departments': [], 'programs': [], 'courses': [],
-            'semesters': [], 'high_schools': [], 'intake_years': []
+            'semesters': [], 'high_schools': [], 'intake_years': [],
+            'year_of_studies': [],
         }
         # Return safe payload so the frontend filter panel does not break hard.
         return jsonify(fallback_options), 200

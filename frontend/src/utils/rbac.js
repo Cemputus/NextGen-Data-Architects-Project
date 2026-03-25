@@ -9,15 +9,15 @@ export const rbac = {
   canAccess: (userRole, resource, permission = 'read') => {
     // Simplified frontend check - full validation on backend
     const permissions = {
-      senate: ['dashboard', 'analytics', 'reports', 'fex', 'profile'],
+      senate: ['dashboard', 'reports', 'fex', 'profile'],
       sysadmin: ['dashboard', 'users', 'settings', 'etl', 'audit', 'profile'],
-      analyst: ['dashboard', 'analytics', 'fex', 'reports', 'profile'],
+      analyst: ['dashboard', 'fex', 'reports', 'profile'],
       student: ['dashboard', 'grades', 'attendance', 'payments', 'profile'],
-      staff: ['dashboard', 'classes', 'analytics', 'profile'],
-      dean: ['dashboard', 'analytics', 'fex', 'profile'],
-      hod: ['dashboard', 'assign-classes', 'analytics', 'fex', 'profile'],
-      hr: ['dashboard', 'analytics', 'staff', 'profile'],
-      finance: ['dashboard', 'analytics', 'payments', 'profile'],
+      staff: ['dashboard', 'classes', 'profile'],
+      dean: ['dashboard', 'fex', 'profile'],
+      hod: ['dashboard', 'assign-classes', 'fex', 'profile'],
+      hr: ['dashboard', 'staff', 'profile'],
+      finance: ['dashboard', 'payments', 'profile'],
     };
 
     return permissions[userRole]?.includes(resource) || false;

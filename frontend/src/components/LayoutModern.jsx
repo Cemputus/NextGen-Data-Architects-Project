@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { useProfilePhoto } from '../hooks/useProfilePhoto';
 import CountdownTimer from './admin/CountdownTimer';
+import PageErrorBoundary from './PageErrorBoundary';
 import axios from 'axios';
 
 const LayoutModern = ({ children }) => {
@@ -57,7 +58,6 @@ const LayoutModern = ({ children }) => {
         { path: '/staff/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/staff/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/staff/classes', label: 'My Classes', icon: GraduationCap },
-        { path: '/staff/analytics', label: 'Analytics', icon: Database },
         { path: '/staff/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/staff/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/staff/user-info', label: 'User Info', icon: User },
@@ -67,7 +67,6 @@ const LayoutModern = ({ children }) => {
         { path: '/hod/shared-views', label: 'Views shared with you', icon: Share2 },
         { path: '/hod/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/hod/assign-classes', label: 'Assign classes', icon: GraduationCap },
-        { path: '/hod/analytics', label: 'Analytics', icon: Database },
         { path: '/hod/risk', label: 'Risk Analysis', icon: ShieldAlert },
         { path: '/hod/fex', label: 'FEX Analysis', icon: Shield },
         { path: '/hod/predictions', label: 'Predictions', icon: TrendingUp },
@@ -801,7 +800,7 @@ const LayoutModern = ({ children }) => {
         {/* Page Content - responsive padding, no overflow-x; compact density */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-muted/30">
           <div className="w-full max-w-7xl mx-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-5">
-            {children}
+            <PageErrorBoundary userRole={user?.role}>{children}</PageErrorBoundary>
           </div>
         </main>
       </div>

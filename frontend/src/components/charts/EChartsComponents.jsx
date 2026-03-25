@@ -169,10 +169,29 @@ export function SciBarChart({
   xAxisLabelRotate = null,
   /** Merge into ECharts grid (e.g. { bottom: 72, top: 48 }) for tall charts / legend. */
   gridPadding = null,
+  /** When any `yDataKeys` item has `yAxisIndex: 1`, render a second y-axis (e.g. % vs GPA scale). */
+  secondaryYAxisLabel = null,
 }) {
   const option = useMemo(() => {
+    const toFiniteNumber = (value) => {
+      if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+      if (value == null) return 0;
+      if (typeof value === 'string') {
+        // Accept formatted payloads like "1,467", "12.5%", " 300 ".
+        const cleaned = value.replace(/,/g, '').replace(/%/g, '').trim();
+        const n = Number(cleaned);
+        return Number.isFinite(n) ? n : 0;
+      }
+      const n = Number(value);
+      return Number.isFinite(n) ? n : 0;
+    };
+
     const categories = data.map((d) => String(d[xDataKey] ?? ''));
     const hasMultiple = yDataKeys && Array.isArray(yDataKeys) && yDataKeys.length > 0;
+    const useDualY =
+      hasMultiple && yDataKeys.some((s) => Number(s?.yAxisIndex) === 1);
+    /** FEX-style charts: legend under axis — always leave room and tilt labels to avoid collision. */
+    const multiSeriesLegend = hasMultiple && showLegend;
     const fs = axisFontSize != null ? axisFontSize : defaultTextStyle.fontSize;
     const axisTextStyle = { ...defaultTextStyle, fontSize: fs };
     const nameTextStyle = { ...defaultTextStyle, fontSize: fs, fontWeight: 500 };
@@ -180,34 +199,64 @@ export function SciBarChart({
     const rotate =
       xAxisLabelRotate != null
         ? xAxisLabelRotate
-        : categories.length > 10
-          ? 40
-          : categories.length > 6
-            ? 28
-            : 0;
+        : multiSeriesLegend
+          ? categories.length > 12
+            ? 48
+            : categories.length > 8
+              ? 40
+              : 38
+          : categories.length > 10
+            ? 40
+            : categories.length > 6
+              ? 28
+              : 0;
 
     const pad = gridPadding && typeof gridPadding === 'object' ? gridPadding : {};
+    const minBottomPx = multiSeriesLegend ? 118 : showLegend ? 78 : null;
     const grid = {
       ...defaultGrid,
       ...pad,
-      bottom: showLegend ? Math.max(pad.bottom ?? defaultGrid.bottom, 58) : (pad.bottom ?? defaultGrid.bottom),
       top: pad.top ?? defaultGrid.top,
       left: pad.left ?? defaultGrid.left,
       right: pad.right ?? defaultGrid.right,
     };
+    // Avoid Math.max('%', px) → NaN; use pixel reserve when legend + multi-series need space.
+    if (minBottomPx != null) {
+      const pb = pad.bottom;
+      if (pb == null) {
+        grid.bottom = minBottomPx;
+      } else if (typeof pb === 'number') {
+        grid.bottom = Math.max(pb, minBottomPx);
+      } else {
+        grid.bottom = pb;
+      }
+    } else {
+      grid.bottom = pad.bottom ?? defaultGrid.bottom;
+    }
+
+    if (useDualY && pad.right == null) {
+      grid.right = '14%';
+    }
 
     const series = hasMultiple
-      ? yDataKeys.map((s, i) => ({
-          name: s.label || s.key,
-          type: 'bar',
-          data: data.map((d) => d[s.key] ?? 0),
-          itemStyle: { color: s.color || CHART_PALETTE_THEME[i % CHART_PALETTE_THEME.length] },
-        }))
+      ? yDataKeys.map((s, i) => {
+          const item = {
+            name: s.label || s.key,
+            type: 'bar',
+            data: data.map((d) => toFiniteNumber(d[s.key])),
+            itemStyle: { color: s.color || CHART_PALETTE_THEME[i % CHART_PALETTE_THEME.length] },
+          };
+          // Only set yAxisIndex when using two y-axes; some ECharts builds mis-handle yAxisIndex:0 with a single axis.
+          if (useDualY) {
+            item.yAxisIndex = Number(s.yAxisIndex) === 1 ? 1 : 0;
+          }
+          return item;
+        })
       : [
           {
             name: yAxisLabel,
             type: 'bar',
-            data: data.map((d) => d[yDataKey] ?? 0),
+            data: data.map((d) => toFiniteNumber(d[yDataKey])),
             itemStyle: { color: fillColor },
           },
         ];
@@ -265,36 +314,80 @@ export function SciBarChart({
         },
       },
       legend: showLegend
-        ? { show: true, bottom: 4, textStyle: axisTextStyle, itemGap: 16 }
+        ? {
+            show: true,
+            type: 'plain',
+            orient: 'horizontal',
+            left: 'center',
+            bottom: 0,
+            itemGap: multiSeriesLegend ? 40 : 22,
+            itemWidth: 16,
+            itemHeight: 12,
+            textStyle: axisTextStyle,
+            padding: multiSeriesLegend ? [4, 20, 10, 20] : [2, 12, 6, 12],
+          }
         : { show: false },
       xAxis: {
         type: 'category',
         data: categories,
         name: xAxisLabel,
         nameLocation: 'middle',
-        nameGap: rotate > 0 ? 42 : 28,
+        nameGap: rotate > 0 ? (multiSeriesLegend ? 52 : 44) : multiSeriesLegend ? 36 : 28,
         nameTextStyle,
         axisLabel: {
           ...axisTextStyle,
           rotate,
+          margin: rotate > 0 ? (multiSeriesLegend ? 16 : 12) : 8,
           interval: 0,
           hideOverlap: true,
           formatter: (value) => String(value),
         },
         splitLine: { show: false },
       },
-      yAxis: {
-        type: 'value',
-        name: yAxisLabel,
-        nameLocation: 'middle',
-        nameGap: 36,
-        nameTextStyle,
-        axisLabel: {
-          ...axisTextStyle,
-          formatter: (value) => formatTooltipValue(value),
-        },
-        splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
-      },
+      yAxis: useDualY
+        ? [
+            {
+              type: 'value',
+              name: yAxisLabel,
+              position: 'left',
+              nameLocation: 'middle',
+              nameGap: 48,
+              nameTextStyle,
+              axisLabel: {
+                ...axisTextStyle,
+                formatter: (value) => formatTooltipValue(value),
+              },
+              splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
+            },
+            {
+              type: 'value',
+              name:
+                secondaryYAxisLabel ||
+                yDataKeys.find((s) => Number(s?.yAxisIndex) === 1)?.label ||
+                'Series 2',
+              position: 'right',
+              nameLocation: 'middle',
+              nameGap: 48,
+              nameTextStyle,
+              axisLabel: {
+                ...axisTextStyle,
+                formatter: (value) => formatTooltipValue(value),
+              },
+              splitLine: { show: false },
+            },
+          ]
+        : {
+            type: 'value',
+            name: yAxisLabel,
+            nameLocation: 'middle',
+            nameGap: 36,
+            nameTextStyle,
+            axisLabel: {
+              ...axisTextStyle,
+              formatter: (value) => formatTooltipValue(value),
+            },
+            splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
+          },
       series,
     };
   }, [
@@ -312,6 +405,7 @@ export function SciBarChart({
     axisFontSize,
     xAxisLabelRotate,
     gridPadding,
+    secondaryYAxisLabel,
   ]);
 
   if (!data || data.length === 0) {
@@ -585,12 +679,37 @@ export function SciDonutChart({
       // Allow callers to override colors per-slice (e.g. grade distribution).
       itemStyle: { color: d.color ?? colors[i % colors.length] },
     })).filter((d) => d.value > 0);
+
+    // Empty pie data crashes or blanks some ECharts builds (e.g. all-zero risk slices).
+    if (seriesData.length === 0) {
+      return {
+        tooltip: { show: false },
+        legend: { show: false },
+        series: [
+          {
+            type: 'pie',
+            radius: [innerRadius, '72%'],
+            center: ['50%', '42%'],
+            silent: true,
+            data: [{ name: 'No data', value: 1, itemStyle: { color: '#e5e7eb' } }],
+            label: {
+              show: true,
+              fontSize: 12,
+              color: '#9ca3af',
+              formatter: () => 'No data',
+            },
+            labelLine: { show: false },
+          },
+        ],
+      };
+    }
+
     return {
       tooltip: {
         ...defaultTooltip,
         trigger: 'item',
         formatter: ({ name, value, percent }) =>
-          `${name}: ${formatTooltipValue(value)} (${percent}%)`,
+          `${name}: ${formatTooltipValue(value)} (${percent ?? 0}%)`,
       },
       legend: {
         show: true,
