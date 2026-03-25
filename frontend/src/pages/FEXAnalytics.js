@@ -29,8 +29,10 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
   const role = (user?.role || '').toString().toLowerCase();
   const isDean = role === 'dean';
   const isHod = role === 'hod';
+  const deanFacultyNum = Number(user?.faculty_id);
+  const hasDeanFacultyScope = isDean ? Number.isFinite(deanFacultyNum) && deanFacultyNum > 0 : true;
   const lockedFacultyId =
-    isDean && user?.faculty_id != null && user?.faculty_id !== '' ? user.faculty_id : undefined;
+    isDean && hasDeanFacultyScope ? user.faculty_id : undefined;
   const lockedDepartmentId =
     isHod && user?.department_id != null && user?.department_id !== ''
       ? user.department_id
@@ -91,7 +93,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
     try {
       setLoading(true);
       setScopeError(null);
-      if (isDean && (user?.faculty_id == null || user?.faculty_id === '')) {
+      if (isDean && !hasDeanFacultyScope) {
         setScopeError('Your account has no faculty assigned. Ask an administrator to set your faculty for scoped FEX analytics.');
         setFexData({ data: [], summary: { total_fex: 0, total_mex: 0, total_fcw: 0, total_completed: 0, fex_rate: 0 } });
         return;
@@ -241,7 +243,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
 
       {!isControlled && (
         <>
-          {(isDean && (user?.faculty_id == null || user?.faculty_id === '')) ||
+          {(isDean && !hasDeanFacultyScope) ||
           (isHod && (user?.department_id == null || user?.department_id === '')) ? (
             <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100 dark:border-amber-800">
               {isDean ? (
@@ -259,7 +261,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
           ) : null}
           {scopeError &&
           !(
-            (isDean && (user?.faculty_id == null || user?.faculty_id === '')) ||
+            (isDean && !hasDeanFacultyScope) ||
             (isHod && (user?.department_id == null || user?.department_id === ''))
           ) ? (
             <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">

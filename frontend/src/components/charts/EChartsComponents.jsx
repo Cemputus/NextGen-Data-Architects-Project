@@ -158,6 +158,19 @@ export function SciBarChart({
   secondaryYAxisLabel = null,
 }) {
   const option = useMemo(() => {
+    const toFiniteNumber = (value) => {
+      if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+      if (value == null) return 0;
+      if (typeof value === 'string') {
+        // Accept formatted payloads like "1,467", "12.5%", " 300 ".
+        const cleaned = value.replace(/,/g, '').replace(/%/g, '').trim();
+        const n = Number(cleaned);
+        return Number.isFinite(n) ? n : 0;
+      }
+      const n = Number(value);
+      return Number.isFinite(n) ? n : 0;
+    };
+
     const categories = data.map((d) => String(d[xDataKey] ?? ''));
     const hasMultiple = yDataKeys && Array.isArray(yDataKeys) && yDataKeys.length > 0;
     const useDualY =
@@ -215,11 +228,7 @@ export function SciBarChart({
           const item = {
             name: s.label || s.key,
             type: 'bar',
-            data: data.map((d) => {
-              const v = d[s.key];
-              const n = typeof v === 'number' ? v : Number(v);
-              return Number.isFinite(n) ? n : 0;
-            }),
+            data: data.map((d) => toFiniteNumber(d[s.key])),
             itemStyle: { color: s.color || CHART_PALETTE_THEME[i % CHART_PALETTE_THEME.length] },
           };
           // Only set yAxisIndex when using two y-axes; some ECharts builds mis-handle yAxisIndex:0 with a single axis.
@@ -232,7 +241,7 @@ export function SciBarChart({
           {
             name: yAxisLabel,
             type: 'bar',
-            data: data.map((d) => d[yDataKey] ?? 0),
+            data: data.map((d) => toFiniteNumber(d[yDataKey])),
             itemStyle: { color: fillColor },
           },
         ];
