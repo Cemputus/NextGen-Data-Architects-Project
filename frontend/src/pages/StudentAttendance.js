@@ -27,10 +27,10 @@ const StudentAttendance = () => {
       const [statsRes, trendsRes] = await Promise.all([
         axios.get('/api/analytics/student', {
           headers: { Authorization: `Bearer ${token}` },
-          params: { access_number: user?.access_number || user?.username },
         }),
         axios
           .get('/api/dashboard/attendance-trends', {
+            params: { period: 'monthly' },
             headers: { Authorization: `Bearer ${token}` },
           })
           .catch(() => ({ data: null })),
@@ -49,6 +49,22 @@ const StudentAttendance = () => {
       }
     } catch (err) {
       console.error('Error loading attendance:', err);
+      try {
+        const token = sessionStorage.getItem('ucu_session_token');
+        const dash = await axios.get('/api/dashboard/stats', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (
+          dash.data &&
+          (dash.data.student_scoped_dashboard === true || dash.data.attendance_rate != null)
+        ) {
+          setStats(dash.data);
+        } else {
+          setStats(null);
+        }
+      } catch (_e) {
+        setStats(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -61,6 +77,17 @@ const StudentAttendance = () => {
       </div>
     );
   }
+
+  /** % of attendance fact rows marked present (days_present 0/1); from student analytics or scoped dashboard. */
+  const rateRaw = stats?.attendance_rate ?? stats?.attendance_rate_pct;
+  const attendanceRatePct =
+    rateRaw !== undefined && rateRaw !== null && String(rateRaw).trim() !== ''
+      ? Number(rateRaw)
+      : NaN;
+  const attendanceRateDisplay = Number.isFinite(attendanceRatePct)
+    ? `${Math.min(100, Math.max(0, attendanceRatePct)).toFixed(1)}%`
+    : 'N/A';
+  const sessionsRecorded = stats?.attendance_sessions_recorded;
 
   return (
     <div className="space-y-4">
@@ -109,10 +136,15 @@ const StudentAttendance = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-purple-600">
-              {stats?.avg_attendance ? `${stats.avg_attendance.toFixed(1)}%` : 'N/A'}
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">Overall rate</p>
+            <div className="text-3xl font-bold text-purple-600">{attendanceRateDisplay}</div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Overall rate
+              {sessionsRecorded != null && sessionsRecorded > 0
+                ? ` · ${sessionsRecorded} session(s) in warehouse`
+                : sessionsRecorded === 0
+                  ? ' · no sessions in facts yet'
+                  : ''}
+            </p>
           </CardContent>
         </Card>
       </div>

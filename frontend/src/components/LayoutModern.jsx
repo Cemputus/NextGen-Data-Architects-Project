@@ -137,7 +137,6 @@ const LayoutModern = ({ children }) => {
         { path: '/finance/managed-shared-charts', label: 'Charts I shared', icon: BarChart3 },
         { path: '/finance/payments', label: 'Payments', icon: DollarSign },
         { path: '/finance/predictions', label: 'Predictions', icon: TrendingUp },
-        { path: '/finance/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/finance/user-info', label: 'User Info', icon: User },
       ],
     };

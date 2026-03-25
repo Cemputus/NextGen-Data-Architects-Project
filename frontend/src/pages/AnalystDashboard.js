@@ -35,6 +35,7 @@ import {
   chartCardDescriptionClass,
   chartEmptyStateClass,
 } from '../lib/analytics-ui';
+import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -75,6 +76,9 @@ const AnalystDashboard = ({
   const [riskSummary, setRiskSummary] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState([]);
   const [paymentTrends, setPaymentTrends] = useState([]);
+  const [tuitionDefaultersBar, setTuitionDefaultersBar] = useState([]);
+  const [tuitionDefaultersBreakdown, setTuitionDefaultersBreakdown] = useState('faculty');
+  const [tuitionPaymentTrendsDim, setTuitionPaymentTrendsDim] = useState([]);
   const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
   const [loadingPipeline, setLoadingPipeline] = useState(true);
   const [globalFilters, setGlobalFilters] = useState({});
@@ -235,6 +239,30 @@ const AnalystDashboard = ({
     return words.map((w) => w[0]).join('').toUpperCase();
   };
 
+  // Abbreviate X-axis period labels (e.g. "Q1 2023" => "Q1'23")
+  const abbreviatePeriod = (period) => {
+    const s = String(period ?? '').trim();
+    const m = /^Q(\d)\s+(\d{4})$/i.exec(s);
+    if (m) return `Q${m[1]}'${m[2].slice(2)}`;
+    const m2 = /^Sem\s*(\d+)/i.exec(s);
+    if (m2) return `Sem ${m2[1]}`;
+    if (s.length > 14) return `${s.slice(0, 12)}…`;
+    return s;
+  };
+
+  // Shorten "Faculty: Very Long Faculty Name" => "Fac VLN"
+  const abbreviateTuitionDefaulterLabel = (row) => {
+    const dimension = String(row?.dimension ?? '').toLowerCase();
+    const rawName = String(row?.name ?? '').trim();
+    const parts = rawName.includes(':') ? rawName.split(':') : [rawName];
+    const suffix = parts.slice(1).join(':').trim() || rawName;
+    const shortSuffix = abbreviateName(suffix);
+    if (dimension === 'faculty') return `Fac ${shortSuffix}`;
+    if (dimension === 'department') return `Dept ${shortSuffix}`;
+    if (dimension === 'program') return `Prog ${shortSuffix}`;
+    return shortSuffix || rawName;
+  };
+
   /** Short axis labels for year-of-study bars: Y1, Y2, … */
   const formatDistributionShortLabel = (raw, groupBy) => {
     if (groupBy !== 'year_of_study' || raw == null) return String(raw);
@@ -344,10 +372,65 @@ const AnalystDashboard = ({
               .catch(() => ({ data: { periods: [], amounts: [] } })),
           ];
 
-      const results = await Promise.all([...baseRequests, ...paymentRequests]);
+      const tuitionTrendPeriod = (() => {
+        // "Overall" mode when the only filters present are role-locked scope (faculty_id/department_id).
+        // If the user applies any additional tuition filters (program_id, semester_id, intake_year, etc.),
+        // switch to the more detailed quarterly trend.
+        const effective = { ...apiFilters };
+        if (lockedFacultyId != null && lockedFacultyId !== '') delete effective.faculty_id;
+        if (lockedDepartmentId != null && lockedDepartmentId !== '') delete effective.department_id;
+        return Object.keys(effective).length > 0 ? 'quarterly' : 'yearly';
+      })();
 
-      const [gradesRes, gradeDistRes, riskRes, paymentStatusRes, paymentTrendsRes] = hidePaymentsAnalysis
-        ? [...results, { data: { statuses: [], counts: [] } }, { data: { periods: [], amounts: [] } }]
+      const tuitionRequests = hidePaymentsAnalysis
+        ? []
+        : [
+            axios
+              .get('/api/dashboard/tuition-defaulters', {
+                headers,
+                params: apiFilters,
+              })
+              .catch(() => ({ data: { tuition_defaulters: [], semester_id: null } })),
+            axios
+              .get('/api/dashboard/tuition-payment-trends-dimensions', {
+                headers,
+                params: { period: tuitionTrendPeriod, ...apiFilters },
+              })
+              .catch(() => ({
+                data: {
+                  periods: [],
+                  faculty_amounts: [],
+                  department_amounts: [],
+                  program_amounts: [],
+                },
+              })),
+          ];
+
+      const results = await Promise.all([...baseRequests, ...paymentRequests, ...tuitionRequests]);
+
+      const [
+        gradesRes,
+        gradeDistRes,
+        riskRes,
+        paymentStatusRes,
+        paymentTrendsRes,
+        tuitionDefaultersRes,
+        tuitionTrendsRes,
+      ] = hidePaymentsAnalysis
+        ? [
+            ...results,
+            { data: { statuses: [], counts: [] } },
+            { data: { periods: [], amounts: [] } },
+            { data: { tuition_defaulters: [], semester_id: null } },
+            {
+              data: {
+                periods: [],
+                faculty_amounts: [],
+                department_amounts: [],
+                program_amounts: [],
+              },
+            },
+          ]
         : results;
 
       setGradesOverTime(
@@ -369,6 +452,9 @@ const AnalystDashboard = ({
       if (hidePaymentsAnalysis) {
         setPaymentStatus([]);
         setPaymentTrends([]);
+        setTuitionDefaultersBar([]);
+        setTuitionDefaultersBreakdown('faculty');
+        setTuitionPaymentTrendsDim([]);
       } else {
         setPaymentStatus(
           (paymentStatusRes.data.statuses || []).map((status, idx) => ({
@@ -381,6 +467,33 @@ const AnalystDashboard = ({
           (paymentTrendsRes.data.periods || []).map((period, idx) => ({
             period,
             amount: paymentTrendsRes.data.amounts?.[idx] || 0,
+          })),
+        );
+
+        setTuitionDefaultersBreakdown(
+          tuitionDefaultersRes.data?.breakdown || deriveFinanceBreakdown(apiFilters),
+        );
+        setTuitionDefaultersBar(
+          (tuitionDefaultersRes.data?.tuition_defaulters || []).map((r) => {
+            const fullName = String(r?.name ?? '').trim() || '—';
+            return {
+              ...r,
+              fullName,
+              name: abbreviateTuitionDefaulterLabel({ ...r, name: fullName }),
+            };
+          }),
+        );
+
+        const periods = tuitionTrendsRes.data?.periods || [];
+        const fa = tuitionTrendsRes.data?.faculty_amounts || [];
+        const da = tuitionTrendsRes.data?.department_amounts || [];
+        const pa = tuitionTrendsRes.data?.program_amounts || [];
+        setTuitionPaymentTrendsDim(
+          periods.map((p, idx) => ({
+            period: abbreviatePeriod(p),
+            faculty_amount: Number(fa[idx] ?? 0) || 0,
+            department_amount: Number(da[idx] ?? 0) || 0,
+            program_amount: Number(pa[idx] ?? 0) || 0,
           })),
         );
       }
@@ -676,8 +789,8 @@ const AnalystDashboard = ({
                 yAxisLabel="Number of students"
                 showLegend={false}
                 tooltipNameKey="fullName"
-                minHeight={360}
-                maxHeight={380}
+                minHeight={400}
+                maxHeight={420}
               />
             )}
             </CardContent>
@@ -799,8 +912,83 @@ const AnalystDashboard = ({
               />
             </div>
           )}
-            </CardContent>
-          </Card>
+          {!hidePaymentsAnalysis ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+              <Card className={chartSurfaceCard()}>
+                <CardHeader className={chartCardHeaderClass}>
+                  <CardTitle className={chartCardTitleClass}>Tuition/fees defaulters</CardTitle>
+                  <CardDescription className={chartCardDescriptionClass}>
+                    Distinct defaulters in the latest semester by{' '}
+                    {FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown]?.toLowerCase() || 'unit'} only, matching
+                    your filters.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <SciBarChart
+                    data={tuitionDefaultersBar}
+                    xDataKey="name"
+                    yDataKey="value"
+                    tooltipNameKey="fullName"
+                    xAxisLabel={FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown] || 'Unit'}
+                    yAxisLabel="Defaulters"
+                    showLegend={false}
+                    xAxisLabelRotate={35}
+                    axisFontSize={12}
+                    showGrid
+                    gridPadding={{ bottom: 125 }}
+                    fillColor={UCU_COLORS.cyan}
+                    minHeight={480}
+                    maxHeight={660}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className={chartSurfaceCard()}>
+                <CardHeader className={chartCardHeaderClass}>
+                  <CardTitle className={chartCardTitleClass}>Tuition payment trends</CardTitle>
+                  <CardDescription className={chartCardDescriptionClass}>
+                    Time series showing avg completed tuition payments over time for{" "}
+                    {apiFilters?.program_id
+                      ? 'the selected program'
+                      : apiFilters?.department_id
+                        ? 'the selected department'
+                        : apiFilters?.faculty_id
+                          ? 'the selected faculty'
+                          : 'all faculties'}.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <SciLineChart
+                    data={tuitionPaymentTrendsDim}
+                    xDataKey="period"
+                    yDataKey={
+                      apiFilters?.program_id
+                        ? 'program_amount'
+                        : apiFilters?.department_id
+                          ? 'department_amount'
+                          : 'faculty_amount'
+                    }
+                    xAxisLabel="Period"
+                    yAxisLabel={`Avg completed tuition payment${
+                      apiFilters?.program_id
+                        ? ' (Program)'
+                        : apiFilters?.department_id
+                          ? ' (Department)'
+                          : apiFilters?.faculty_id
+                            ? ' (Faculty)'
+                            : ' (All Faculties)'
+                    }`}
+                    showLegend={false}
+                    showGrid
+                    minHeight={360}
+                    maxHeight={580}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
       )}
     </div>
   );

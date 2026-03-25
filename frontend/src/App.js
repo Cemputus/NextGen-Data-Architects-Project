@@ -324,7 +324,6 @@ function App() {
                       <Route path="payments" element={<FinancePayments />} />
                       <Route path="predictions" element={<PredictionPage />} />
                       <Route path="profile" element={<ProfilePage />} />
-                      <Route path="leave-requests" element={<HRLeaveRequestsPage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
