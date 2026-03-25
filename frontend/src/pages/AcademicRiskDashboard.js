@@ -443,13 +443,13 @@ const AcademicRiskDashboard = () => {
                                                     {
                                                         key: 'avg_fcw_rate_pct',
                                                         label: 'Avg FCW Rate (%)',
-                                                        color: '#10B981',
+                                                    color: '#f59e0b',
                                                         yAxisIndex: 0,
                                                     },
                                                     {
                                                         key: 'avg_grade',
                                                         label: 'Avg Grade %',
-                                                        color: '#F59E0B',
+                                                    color: '#3B82F6',
                                                         yAxisIndex: 1,
                                                     },
                                                 ]}
