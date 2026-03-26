@@ -16,6 +16,9 @@ if str(backend_dir) not in sys.path:
 
 from rbac import Role, Resource, Permission, has_permission
 from ml_models import MultiModelPredictor
+import os
+from datetime import datetime
+from pathlib import Path
 try:
     from enhanced_predictions import EnhancedPredictor
     enhanced_predictor = EnhancedPredictor()
@@ -41,6 +44,54 @@ try:
     predictor.load_models()
 except:
     print("Models not loaded. Train models first.")
+
+
+@predictions_bp.route('/model-status', methods=['GET'])
+@jwt_required()
+def model_status():
+    """
+    Return which model artifacts are present and what the in-memory predictors currently have loaded.
+    This is the easiest way to verify that the deployed backend is using the latest shipped .pkl files.
+    """
+    claims = get_jwt()
+    role_str = (claims.get('role') or '').strip().lower()
+    if role_str not in ('sysadmin', 'admin', 'analyst'):
+        return jsonify({'error': 'Permission denied'}), 403
+
+    backend_dir = Path(__file__).resolve().parent.parent
+    models_dir = backend_dir / 'models'
+    files = {
+        'multi_model_predictor.pkl': models_dir / 'multi_model_predictor.pkl',
+        'enhanced_predictor.pkl': models_dir / 'enhanced_predictor.pkl',
+    }
+
+    def _file_meta(p: Path):
+        try:
+            st = p.stat()
+            return {
+                'exists': True,
+                'size_bytes': int(st.st_size),
+                'modified_iso': datetime.fromtimestamp(st.st_mtime).isoformat(),
+            }
+        except Exception:
+            return {'exists': False}
+
+    return jsonify({
+        'env': {
+            'render_service_id': os.environ.get('RENDER_SERVICE_ID', ''),
+            'render_instance_id': os.environ.get('RENDER_INSTANCE_ID', ''),
+        },
+        'artifacts': {k: _file_meta(v) for k, v in files.items()},
+        'loaded': {
+            'standard_models': {
+                k: (v is not None) for k, v in (predictor.models or {}).items()
+            },
+            'enhanced_models': (
+                {k: (v is not None) for k, v in (enhanced_predictor.models or {}).items()}
+                if enhanced_predictor else None
+            ),
+        }
+    }), 200
 
 def safe_float(value, default=0.0):
     """Safely convert value to float, handling various edge cases"""
