@@ -62,6 +62,11 @@ models/
 *.h5
 *.joblib
 
+# Allow shipping the two production model bundles used by the API.
+!backend/models/
+!backend/models/enhanced_predictor.pkl
+!backend/models/multi_model_predictor.pkl
+
 # Logs
 *.log
 logs/

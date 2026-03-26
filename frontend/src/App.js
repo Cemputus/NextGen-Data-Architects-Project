@@ -277,6 +277,7 @@ function App() {
                       <Route path="etl" element={<AdminETL />} />
                       <Route path="etl-notifications" element={<AdminETLNotifications />} />
                       <Route path="audit" element={<AdminAudit />} />
+                      <Route path="predictions" element={<PredictionPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />
                       <Route path="managed-shared-charts" element={<ManagedSharedChartsPage />} />
                       <Route path="profile" element={<ProfilePage />} />
@@ -302,6 +303,7 @@ function App() {
                       <Route path="leave-requests" element={<HRLeaveRequestsPage />} />
                       <Route path="payroll" element={<HRPayrollPage />} />
                       <Route path="evaluation" element={<HREvaluationPage />} />
+                      <Route path="predictions" element={<PredictionPage />} />
                       <Route path="profile" element={<ProfilePage />} />
                       <Route path="user-info" element={<UserInfoPage />} />
                       <Route path="shared-views" element={<SharedViewsPage />} />

@@ -117,6 +117,7 @@ const LayoutModern = ({ children }) => {
         { path: '/admin/etl', label: 'ETL Jobs', icon: Database },
         { path: '/admin/etl-notifications', label: 'ETL Notifications', icon: Bell },
         { path: '/admin/audit', label: 'Audit Logs', icon: History },
+        { path: '/admin/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/admin/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/admin/user-info', label: 'User Info', icon: User },
       ],
@@ -129,6 +130,7 @@ const LayoutModern = ({ children }) => {
         { path: '/hr/leave-requests', label: 'Leave Requests', icon: Clock },
         { path: '/hr/payroll', label: 'Payroll', icon: DollarSign },
         { path: '/hr/evaluation', label: 'Evaluation', icon: Shield },
+        { path: '/hr/predictions', label: 'Predictions', icon: TrendingUp },
         { path: '/hr/user-info', label: 'User Info', icon: User },
       ],
       finance: [
