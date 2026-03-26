@@ -19,6 +19,7 @@ import {
 import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import {
   Sci3DFullPieChart,
   SciBarChart,
@@ -74,11 +75,12 @@ const HRDashboard = () => {
   const [stats, setStats] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [filters, setFilters] = useState({});
+  const debouncedFilters = useDebouncedValue(filters, 300);
   const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
     loadHRData();
-  }, [filters]);
+  }, [debouncedFilters]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -97,7 +99,7 @@ const HRDashboard = () => {
       setLoadError(null);
       const response = await axios.get('/api/analytics/hr', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: filters,
+        params: debouncedFilters,
       });
       if (response.data?.error) {
         setLoadError(response.data.detail || response.data.error);
