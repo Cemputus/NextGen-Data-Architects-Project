@@ -7,6 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # PostgreSQL Configuration
 # When deploying (e.g. Render), DATABASE_URL can be set and overrides PG_* for the same host/user/password.
 _db_url = os.environ.get('DATABASE_URL')
+_db_name_override = None  # set when DATABASE_URL provides a specific db name (e.g. Render)
 if _db_url:
     # Support postgres:// and postgresql://; ensure netloc is parsed (password may contain @)
     if _db_url.startswith('postgres://'):
@@ -16,6 +17,8 @@ if _db_url:
     _port = _p.port or 5432
     _user = _p.username or 'postgres'
     _password = (_p.password or '') if _p.password is not None else ''
+    # If DATABASE_URL points to a specific db (e.g. Render managed DB), use it for all connections
+    _db_name_override = _p.path.lstrip('/') or None
     PG_HOST = os.environ.get('PG_HOST', _host)
     PG_PORT = os.environ.get('PG_PORT', str(_port))
     PG_USER = os.environ.get('PG_USER', _user)
@@ -26,10 +29,10 @@ else:
     PG_USER = os.environ.get('PG_USER', 'postgres')
     PG_PASSWORD = os.environ.get('PG_PASSWORD', 'postgres')
 
-# Database names
-DB1_NAME = 'ucu_sourcedb1'
-DB2_NAME = 'ucu_sourcedb2'
-DATA_WAREHOUSE_NAME = 'ucu_datawarehouse'
+# Database names — on Render all schemas live in one database (_db_name_override)
+DB1_NAME = _db_name_override or 'ucu_sourcedb1'
+DB2_NAME = _db_name_override or 'ucu_sourcedb2'
+DATA_WAREHOUSE_NAME = _db_name_override or 'ucu_datawarehouse'
 
 
 def get_sqlalchemy_conn_string(database_name: str) -> str:
