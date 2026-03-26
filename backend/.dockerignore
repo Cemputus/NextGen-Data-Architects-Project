@@ -1,4 +1,9 @@
 data/
+!data/Synthetic_Data/
+!data/Synthetic_Data/**
+!data/profile_photos/
+!data/profile_photos/**
+!data/admin_settings.json
 
 # Python
 __pycache__/

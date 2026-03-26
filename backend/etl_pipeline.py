@@ -267,8 +267,8 @@ class ETLPipeline:
         self.logger.info("=" * 60)
         print("Extracting data to Bronze layer...")
 
-        if USE_SYNTHETIC_DATA and SYNTHETIC_DATA_DIR and Path(SYNTHETIC_DATA_DIR).exists():
-            self.logger.info("Using SYNTHETIC data source: %s", SYNTHETIC_DATA_DIR)
+        if USE_SYNTHETIC_DATA:
+            self.logger.info("Synthetic mode enabled. Primary source: %s", SYNTHETIC_DATA_DIR)
             print("Using synthetic data from:", SYNTHETIC_DATA_DIR)
             return self._extract_from_synthetic_data()
 
@@ -372,11 +372,21 @@ class ETLPipeline:
         root = (Path(__file__).resolve().parent / "data" / "Synthetic_Data").resolve()
         if not root.exists():
             root = Path(SYNTHETIC_DATA_DIR).resolve()
+        if not root.exists():
+            raise FileNotFoundError(
+                f"Synthetic_Data directory not found at expected paths. Checked: "
+                f"{(Path(__file__).resolve().parent / 'data' / 'Synthetic_Data').resolve()} and {Path(SYNTHETIC_DATA_DIR).resolve()}"
+            )
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.logger.info("Synthetic data root: %s", root)
         try:
             found_files = list(root.glob("*.csv")) + list(root.glob("*.xlsx"))
             self.logger.info("  -> Found %d CSV/XLSX files in Synthetic_Data", len(found_files))
+            if len(found_files) < 35:
+                self.logger.warning(
+                    "  -> Expected around 35 CSV/XLSX synthetic files but found %d. ETL will continue with available files.",
+                    len(found_files),
+                )
         except Exception:
             found_files = []
 
