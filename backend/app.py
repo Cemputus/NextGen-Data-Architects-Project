@@ -225,15 +225,8 @@ def _get_staff_assigned_course_codes(identity):
 
 # Import blueprints
 from api.auth import auth_bp
+from api.analytics import analytics_bp
 from api.hod import hod_bp
-
-# Analytics blueprint may fail to import if the file has syntax/indentation issues.
-# Avoid crashing the whole service during startup.
-try:
-    from api.analytics import analytics_bp
-except Exception as e:
-    print("Analytics blueprint failed to load:", e)
-    analytics_bp = None
 try:
     from api.dashboards import dashboards_bp, dashboard_manager_bp, page_config_bp
 except Exception as e:
@@ -282,12 +275,8 @@ app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=25)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=8)
 
-# CORS: allow local dev + any production frontend URL set via FRONTEND_URL env var
-_cors_origins = ['http://localhost:3000', 'http://localhost:5000', 'http://127.0.0.1:3000', 'http://127.0.0.1:5000']
-_frontend_url = os.environ.get('FRONTEND_URL', '').strip()
-if _frontend_url:
-    _cors_origins.append(_frontend_url)
-CORS(app, supports_credentials=True, origins=_cors_origins,
+# CORS: allow frontend (localhost:3000) to call backend (localhost:5000); preflight must get 2xx + headers
+CORS(app, supports_credentials=True, origins=['http://localhost:3000', 'http://localhost:5000', 'http://127.0.0.1:3000', 'http://127.0.0.1:5000'],
      allow_headers=['Content-Type', 'Authorization'], methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 jwt = JWTManager(app)
 
@@ -1636,8 +1625,7 @@ def hod_set_staff_assignments(staff_id):
 
 # --- Now register blueprints (sysadmin routes above are already on the app) ---
 app.register_blueprint(auth_bp)
-if analytics_bp:
-    app.register_blueprint(analytics_bp)
+app.register_blueprint(analytics_bp)
 if dashboards_bp:
     app.register_blueprint(dashboards_bp)
 if dashboard_manager_bp:

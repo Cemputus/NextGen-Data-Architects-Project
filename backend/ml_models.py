@@ -5,58 +5,14 @@ Includes: Random Forest, Gradient Boosting, and Neural Network
 import pandas as pd
 import numpy as np
 import pickle
-import joblib
 from pathlib import Path
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import (
-    mean_squared_error,
-    r2_score,
-    mean_absolute_error,
-)
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sqlalchemy import create_engine, text
 from config import DATA_WAREHOUSE_CONN_STRING
-
-
-def _dump_model_data(path: Path, model_data: dict):
-    """
-    Save model bundle with compression to keep artifacts small.
-    Uses joblib (compressed) but falls back to pickle if needed.
-    """
-    try:
-        # Higher compression helps keep the artifact under size limits.
-        joblib.dump(model_data, path, compress=9)
-    except Exception:
-        with open(path, 'wb') as f:
-            pickle.dump(model_data, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-def _load_model_data(path: Path) -> dict:
-    """Load model bundle saved by _dump_model_data()."""
-    try:
-        return joblib.load(path)
-    except Exception:
-        with open(path, 'rb') as f:
-            return pickle.load(f)
-
-def _grades_to_letters(scores: np.ndarray) -> np.ndarray:
-    """Map numeric grade -> letter grade using the same thresholds as the UI."""
-    s = np.asarray(scores, dtype=float)
-    return np.where(
-        s >= 80, "A",
-        np.where(
-            s >= 75, "B+",
-            np.where(
-                s >= 70, "B",
-                np.where(
-                    s >= 60, "C",
-                    np.where(s >= 50, "D", "F")
-                )
-            )
-        )
-    )
 
 class MultiModelPredictor:
     """Multiple ML models for student performance prediction"""
@@ -85,8 +41,8 @@ class MultiModelPredictor:
             ds.nationality,
             ds.high_school,
             ds.high_school_district,
-            EXTRACT(YEAR FROM CAST(ds.admission_date AS DATE)) as admission_year,
-            EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM CAST(ds.admission_date AS DATE)) as years_at_university,
+            EXTRACT(YEAR FROM ds.admission_date) as admission_year,
+            EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM ds.admission_date) as years_at_university,
             ds.program_id,
             ds.year_of_study
         FROM dim_student ds
@@ -280,13 +236,7 @@ class MultiModelPredictor:
         
         # Train Random Forest
         print("\nTraining Random Forest...")
-        rf = RandomForestRegressor(
-            n_estimators=60,
-            max_depth=12,
-            min_samples_leaf=2,
-            random_state=42,
-            n_jobs=-1,
-        )
+        rf = RandomForestRegressor(n_estimators=100, max_depth=15, random_state=42, n_jobs=-1)
         if use_grid_search:
             param_grid = {
                 'n_estimators': [50, 100, 200],
@@ -299,23 +249,16 @@ class MultiModelPredictor:
             rf = rf.best_estimator_
         self.models['random_forest'] = rf
         rf_pred = rf.predict(X_test_scaled)
-
         results['random_forest'] = {
             'r2': r2_score(y_test, rf_pred),
             'rmse': np.sqrt(mean_squared_error(y_test, rf_pred)),
-            'mae': mean_absolute_error(y_test, rf_pred),
+            'mae': mean_absolute_error(y_test, rf_pred)
         }
         print(f"Random Forest - R²: {results['random_forest']['r2']:.4f}, RMSE: {results['random_forest']['rmse']:.2f}")
         
         # Train Gradient Boosting
         print("\nTraining Gradient Boosting...")
-        gb = GradientBoostingRegressor(
-            n_estimators=60,
-            max_depth=3,
-            learning_rate=0.08,
-            subsample=0.85,
-            random_state=42,
-        )
+        gb = GradientBoostingRegressor(n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42)
         if use_grid_search:
             param_grid = {
                 'n_estimators': [50, 100, 200],
@@ -328,25 +271,25 @@ class MultiModelPredictor:
             gb = gb.best_estimator_
         self.models['gradient_boosting'] = gb
         gb_pred = gb.predict(X_test_scaled)
-
         results['gradient_boosting'] = {
             'r2': r2_score(y_test, gb_pred),
             'rmse': np.sqrt(mean_squared_error(y_test, gb_pred)),
-            'mae': mean_absolute_error(y_test, gb_pred),
+            'mae': mean_absolute_error(y_test, gb_pred)
         }
         print(f"Gradient Boosting - R²: {results['gradient_boosting']['r2']:.4f}, RMSE: {results['gradient_boosting']['rmse']:.2f}")
         
-        # Keep artifact smaller: skip the neural network model.
-        # (predict() only averages models that are not None.)
-        self.models['neural_network'] = None
-
-        # Ensemble (same behavior as predict(), which averages the available models)
-        ensemble_pred = np.mean([rf_pred, gb_pred], axis=0)
-        results['ensemble'] = {
-            'r2': r2_score(y_test, ensemble_pred),
-            'rmse': np.sqrt(mean_squared_error(y_test, ensemble_pred)),
-            'mae': mean_absolute_error(y_test, ensemble_pred),
+        # Train Neural Network
+        print("\nTraining Neural Network...")
+        nn = MLPRegressor(hidden_layer_sizes=(100, 50), max_iter=500, random_state=42, early_stopping=True)
+        nn.fit(X_train_scaled, y_train)
+        self.models['neural_network'] = nn
+        nn_pred = nn.predict(X_test_scaled)
+        results['neural_network'] = {
+            'r2': r2_score(y_test, nn_pred),
+            'rmse': np.sqrt(mean_squared_error(y_test, nn_pred)),
+            'mae': mean_absolute_error(y_test, nn_pred)
         }
+        print(f"Neural Network - R²: {results['neural_network']['r2']:.4f}, RMSE: {results['neural_network']['rmse']:.2f}")
         
         # Save models
         self.save_models()
@@ -357,141 +300,59 @@ class MultiModelPredictor:
         """Predict student performance using specified model or ensemble"""
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
-        # Same per-table aggregations as prepare_features() (avoids join fan-out and matches training columns)
+        # Get student features
         query = text("""
-        SELECT
+        SELECT 
             ds.student_id,
             ds.gender,
             ds.nationality,
             ds.high_school,
             ds.high_school_district,
-            EXTRACT(YEAR FROM CAST(ds.admission_date AS DATE)) AS admission_year,
-            EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM CAST(ds.admission_date AS DATE)) AS years_at_university,
+            EXTRACT(YEAR FROM ds.admission_date) as admission_year,
+            EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM ds.admission_date) as years_at_university,
             ds.program_id,
             ds.year_of_study,
-            COALESCE(att.total_attendance_hours, 0) AS total_attendance_hours,
-            COALESCE(att.total_days_present, 0) AS total_days_present,
-            COALESCE(att.courses_attended, 0) AS courses_attended,
-            COALESCE(att.avg_hours_per_course, 0) AS avg_hours_per_course,
-            COALESCE(att.total_attendance_records, 0) AS total_attendance_records,
-            COALESCE(att.attendance_rate, 0) AS attendance_rate,
-            COALESCE(pay.total_paid, 0) AS total_paid,
-            COALESCE(pay.total_pending, 0) AS total_pending,
-            COALESCE(pay.total_required, 0) AS total_required,
-            COALESCE(pay.payment_count, 0) AS payment_count,
-            COALESCE(pay.avg_payment, 0) AS avg_payment,
-            CASE
-                WHEN pay.last_payment_date_key IS NULL THEN 0::bigint
-                WHEN BTRIM(pay.last_payment_date_key::text) ~ '^[0-9]+$'
-                    THEN BTRIM(pay.last_payment_date_key::text)::bigint
-                ELSE 0::bigint
-            END AS last_payment_date_key,
-            COALESCE(pay.payment_completion_rate, 0) AS payment_completion_rate,
-            COALESCE(pay.has_significant_balance, 0) AS has_significant_balance,
-            COALESCE(enr.total_enrollments, 0) AS total_enrollments,
-            COALESCE(enr.semesters_enrolled, 0) AS semesters_enrolled,
-            COALESCE(gr.min_grade, 0) AS min_grade,
-            COALESCE(gr.max_grade, 0) AS max_grade,
-            COALESCE(gr.grade_stddev, 0) AS grade_stddev,
-            COALESCE(gr.num_grades, 0) AS num_grades,
-            COALESCE(gr.completed_exams, 0) AS completed_exams,
-            COALESCE(gr.missed_exams, 0) AS missed_exams,
-            COALESCE(gr.failed_exams, 0) AS failed_exams,
-            COALESCE(gr.failed_coursework, 0) AS failed_coursework,
-            COALESCE(gr.tuition_related_missed, 0) AS tuition_related_missed,
-            COALESCE(gr.family_related_missed, 0) AS family_related_missed,
-            COALESCE(gr.medical_related_missed, 0) AS medical_related_missed,
-            COALESCE(gr.missed_exam_rate, 0) AS missed_exam_rate,
-            COALESCE(gr.avg_coursework_score, 0) AS avg_coursework_score,
-            COALESCE(gr.avg_exam_score, 0) AS avg_exam_score,
-            COALESCE(hs.school_avg_grade, 0) AS school_avg_grade,
-            COALESCE(hs.school_student_count, 0) AS school_student_count,
-            COALESCE(hs.school_avg_payment, 0) AS school_avg_payment,
-            COALESCE(hs.school_pending_rate, 0) AS school_pending_rate
+            COALESCE(SUM(fa.total_hours), 0) as total_attendance_hours,
+            COALESCE(SUM(fa.days_present), 0) as total_days_present,
+            COALESCE(COUNT(DISTINCT fa.course_code), 0) as courses_attended,
+            COALESCE(AVG(fa.total_hours), 0) as avg_hours_per_course,
+            COALESCE(COUNT(*), 0) as total_attendance_records,
+            CASE 
+                WHEN COUNT(*) > 0 
+                THEN (SUM(fa.days_present) / COUNT(*)) * 100
+                ELSE 0 
+            END as attendance_rate,
+            COALESCE(SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END), 0) as total_paid,
+            COALESCE(SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END), 0) as total_pending,
+            COALESCE(SUM(fp.amount), 0) as total_required,
+            COALESCE(COUNT(CASE WHEN fp.status = 'Completed' THEN 1 END), 0) as payment_count,
+            COALESCE(AVG(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END), 0) as avg_payment,
+            CASE 
+                WHEN SUM(fp.amount) > 0 
+                THEN SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) / SUM(fp.amount) * 100
+                ELSE 0 
+            END as payment_completion_rate,
+            CASE 
+                WHEN SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END) > 500000 
+                THEN 1 ELSE 0 
+            END as has_significant_balance,
+            COALESCE(COUNT(DISTINCT fe.course_code), 0) as total_enrollments,
+            COALESCE(COUNT(DISTINCT fe.semester_id), 0) as semesters_enrolled,
+            COALESCE(AVG(dc.credits), 0) as avg_course_credits,
+            COALESCE(SUM(dc.credits), 0) as total_credits,
+            COALESCE(COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END), 0) as missed_exams,
+            COALESCE(COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END), 0) as failed_exams,
+            COALESCE(COUNT(CASE WHEN fg.exam_status = 'FCW' THEN 1 END), 0) as failed_coursework,
+            COALESCE(AVG(fg.coursework_score), 0) as avg_coursework_score,
+            COALESCE(AVG(fg.exam_score), 0) as avg_exam_score
         FROM dim_student ds
-        LEFT JOIN (
-            SELECT
-                fa.student_id,
-                SUM(fa.total_hours) AS total_attendance_hours,
-                SUM(fa.days_present) AS total_days_present,
-                COUNT(DISTINCT fa.course_code) AS courses_attended,
-                AVG(fa.total_hours) AS avg_hours_per_course,
-                COUNT(*) AS total_attendance_records,
-                CASE
-                    WHEN COUNT(*) > 0
-                    THEN (SUM(fa.days_present)::numeric / COUNT(*)) * 100
-                    ELSE 0
-                END AS attendance_rate
-            FROM fact_attendance fa
-            GROUP BY fa.student_id
-        ) att ON ds.student_id = att.student_id
-        LEFT JOIN (
-            SELECT
-                fp.student_id,
-                SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) AS total_paid,
-                SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END) AS total_pending,
-                SUM(fp.amount) AS total_required,
-                COUNT(CASE WHEN fp.status = 'Completed' THEN 1 END) AS payment_count,
-                AVG(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) AS avg_payment,
-                MAX(CASE WHEN fp.status = 'Completed' THEN fp.date_key ELSE NULL END) AS last_payment_date_key,
-                CASE
-                    WHEN SUM(fp.amount) > 0
-                    THEN SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) / SUM(fp.amount) * 100
-                    ELSE 0
-                END AS payment_completion_rate,
-                CASE
-                    WHEN SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END) > 500000
-                    THEN 1 ELSE 0
-                END AS has_significant_balance
-            FROM fact_payment fp
-            GROUP BY fp.student_id
-        ) pay ON ds.student_id = pay.student_id
-        LEFT JOIN (
-            SELECT
-                fe.student_id,
-                COUNT(DISTINCT fe.course_code) AS total_enrollments,
-                COUNT(DISTINCT fe.semester_id) AS semesters_enrolled
-            FROM fact_enrollment fe
-            GROUP BY fe.student_id
-        ) enr ON ds.student_id = enr.student_id
-        LEFT JOIN (
-            SELECT
-                fg.student_id,
-                MIN(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) AS min_grade,
-                MAX(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) AS max_grade,
-                STDDEV(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) AS grade_stddev,
-                COUNT(fg.grade_id) AS num_grades,
-                COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) AS completed_exams,
-                COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) AS missed_exams,
-                COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END) AS failed_exams,
-                COUNT(CASE WHEN fg.exam_status = 'FCW' THEN 1 END) AS failed_coursework,
-                COUNT(CASE WHEN fg.absence_reason LIKE '%%Tuition%%' OR fg.absence_reason LIKE '%%Financial%%' THEN 1 END) AS tuition_related_missed,
-                COUNT(CASE WHEN fg.absence_reason LIKE '%%Family%%' OR fg.absence_reason LIKE '%%Death%%' OR fg.absence_reason LIKE '%%Bereavement%%' THEN 1 END) AS family_related_missed,
-                COUNT(CASE WHEN fg.absence_reason LIKE '%%Sickness%%' OR fg.absence_reason LIKE '%%Medical%%' THEN 1 END) AS medical_related_missed,
-                CASE
-                    WHEN COUNT(fg.grade_id) > 0
-                    THEN (COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END)::numeric / COUNT(fg.grade_id)) * 100
-                    ELSE 0
-                END AS missed_exam_rate,
-                AVG(fg.coursework_score) AS avg_coursework_score,
-                AVG(fg.exam_score) AS avg_exam_score
-            FROM fact_grade fg
-            GROUP BY fg.student_id
-        ) gr ON ds.student_id = gr.student_id
-        LEFT JOIN (
-            SELECT
-                ds2.high_school,
-                AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) AS school_avg_grade,
-                COUNT(DISTINCT ds2.student_id) AS school_student_count,
-                AVG(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) AS school_avg_payment,
-                SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END) / NULLIF(SUM(fp.amount), 0) * 100 AS school_pending_rate
-            FROM dim_student ds2
-            LEFT JOIN fact_grade fg ON ds2.student_id = fg.student_id
-            LEFT JOIN fact_payment fp ON ds2.student_id = fp.student_id
-            WHERE ds2.high_school IS NOT NULL
-            GROUP BY ds2.high_school
-        ) hs ON ds.high_school = hs.high_school
+        LEFT JOIN fact_attendance fa ON ds.student_id = fa.student_id
+        LEFT JOIN fact_payment fp ON ds.student_id = fp.student_id
+        LEFT JOIN fact_enrollment fe ON ds.student_id = fe.student_id
+        LEFT JOIN dim_course dc ON fe.course_code = dc.course_code
+        LEFT JOIN fact_grade fg ON ds.student_id = fg.student_id
         WHERE ds.student_id = :student_id
+        GROUP BY ds.student_id, ds.gender, ds.nationality, ds.high_school, ds.high_school_district, ds.admission_date, ds.program_id, ds.year_of_study
         """)
         
         student_data = pd.read_sql_query(query, engine, params={'student_id': student_id})
@@ -577,7 +438,7 @@ class MultiModelPredictor:
             # If transform fails, check for any remaining non-numeric values
             error_msg = str(e)
             print(f"Error transforming features: {error_msg}")
-            print(f"Feature columns: {self.feature_cols}")
+            print(f"Feature columns: {available_cols}")
             print(f"X shape: {X.shape}, X dtype: {X.dtype}")
             print(f"X_df dtypes:\n{X_df.dtypes}")
             print(f"X_df sample:\n{X_df.head()}")
@@ -632,17 +493,19 @@ class MultiModelPredictor:
             'feature_cols': self.feature_cols,
             'label_encoders': self.label_encoders
         }
-        _dump_model_data(self.model_path / 'multi_model_predictor.pkl', model_data)
+        with open(self.model_path / 'multi_model_predictor.pkl', 'wb') as f:
+            pickle.dump(model_data, f)
     
     def load_models(self):
         """Load saved models"""
         model_file = self.model_path / 'multi_model_predictor.pkl'
         if model_file.exists():
-            model_data = _load_model_data(model_file)
-            self.models = model_data['models']
-            self.scaler = model_data['scaler']
-            self.feature_cols = model_data['feature_cols']
-            self.label_encoders = model_data.get('label_encoders', {})  # Load label encoders if available
+            with open(model_file, 'rb') as f:
+                model_data = pickle.load(f)
+                self.models = model_data['models']
+                self.scaler = model_data['scaler']
+                self.feature_cols = model_data['feature_cols']
+                self.label_encoders = model_data.get('label_encoders', {})  # Load label encoders if available
         else:
             print("Models not found. Training new models...")
             self.train_all_models()
