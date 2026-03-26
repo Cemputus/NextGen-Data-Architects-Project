@@ -1,5 +1,3 @@
-version: "3.9"
-
 ##################################################
 # NextGen MIS - Containerised architecture       #
 # - postgres       = Gold (warehouse DB)         #
@@ -57,6 +55,39 @@ services:
     volumes:
       # Mount the backend source for live reload in development
       - ./backend:/app
+
+  # Jupyter on the same image/env as the API — run training notebooks against the warehouse from inside Docker.
+  # Start: docker compose --profile notebooks up -d backend-jupyter
+  # Open:  http://localhost:8888/lab?token=dev  (change JUPYTER_TOKEN in production)
+  backend-jupyter:
+    profiles: ["notebooks"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nextgen_backend_jupyter
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      JUPYTER_TOKEN: dev
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+    command:
+      - jupyter
+      - lab
+      - --ip=0.0.0.0
+      - --port=8888
+      - --no-browser
+      - --allow-root
+      - --ServerApp.root_dir=/app
 
   bronze-etl:
     build:

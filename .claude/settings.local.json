@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find 'd:/Software Projects/NextGen-Data-Architects-Project' -maxdepth 2 -name .env* -type f)"
+    ]
+  }
+}

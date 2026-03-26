@@ -30,6 +30,11 @@ services:
         generateValue: true
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: FRONTEND_URL
+        sync: false  # Set to your Vercel frontend URL e.g. https://nextgen-data-architects.vercel.app
+      # Prevent startup-time model training if pkl artifacts are missing in the container.
+      - key: SKIP_MODEL_TRAINING
+        value: "1"
 
   # React SPA (static site)
   - type: web
