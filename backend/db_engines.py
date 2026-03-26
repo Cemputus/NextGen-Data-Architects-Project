@@ -60,6 +60,6 @@ def get_dw_engine():
 
 
 def get_rbac_engine():
-    rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, "ucu_rbac")
-    return get_engine(rbac_conn)
+    from config.connection import get_sqlalchemy_conn_string, RBAC_DB_NAME
+    return get_engine(get_sqlalchemy_conn_string(RBAC_DB_NAME))
 

@@ -60,8 +60,8 @@ def _has_profile_photo(identity):
 def _audit_log_login(username, role_name, status='success', error_message=None):
     """Write login event to ucu_rbac.audit_logs if available. Silently skip on failure."""
     try:
-        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
-        engine = create_engine(rbac_conn)
+        from config.connection import get_sqlalchemy_conn_string, RBAC_DB_NAME as _RBAC_DB
+        engine = create_engine(get_sqlalchemy_conn_string(_RBAC_DB))
         with engine.connect() as conn:
             conn.execute(text("""
                 INSERT INTO audit_logs (username, role_name, action, resource, status, error_message)
@@ -78,8 +78,8 @@ def _audit_log_login(username, role_name, status='success', error_message=None):
         pass
 
 # Database connection for RBAC
-RBAC_DB_NAME = "ucu_rbac"
-RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
+from config.connection import get_sqlalchemy_conn_string as _get_conn_str, RBAC_DB_NAME
+RBAC_CONN_STRING = _get_conn_str(RBAC_DB_NAME)
 
 
 def _ensure_ucu_rbac_database():

@@ -31,6 +31,7 @@ else:
 DB1_NAME = _db_name_override or 'ucu_sourcedb1'
 DB2_NAME = _db_name_override or 'ucu_sourcedb2'
 DATA_WAREHOUSE_NAME = _db_name_override or 'ucu_datawarehouse'
+RBAC_DB_NAME = _db_name_override or 'ucu_rbac'
 
 # SQLAlchemy connection strings
 from urllib.parse import quote_plus

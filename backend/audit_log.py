@@ -3,7 +3,8 @@ Central audit logging for user actions and system events.
 Writes to ucu_rbac.audit_logs. Silently skips if DB/table missing.
 """
 from sqlalchemy import create_engine, text
-from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME
+from config import RBAC_DB_NAME
+from config.connection import get_sqlalchemy_conn_string
 
 
 def log(action, resource, username=None, role_name=None, resource_id=None, status='success', error_message=None):
@@ -13,8 +14,7 @@ def log(action, resource, username=None, role_name=None, resource_id=None, statu
     resource: e.g. 'auth', 'profile', 'export', 'system', 'predictions'
     """
     try:
-        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
-        engine = create_engine(rbac_conn)
+        engine = create_engine(get_sqlalchemy_conn_string(RBAC_DB_NAME))
         with engine.connect() as conn:
             conn.execute(text("""
                 INSERT INTO audit_logs (username, role_name, action, resource, resource_id, status, error_message)

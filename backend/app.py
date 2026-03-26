@@ -20,6 +20,7 @@ import os
 from config.connection import (
     DATA_WAREHOUSE_CONN_STRING,
     DATA_WAREHOUSE_NAME,
+    RBAC_DB_NAME,
     SECRET_KEY,
     JWT_SECRET_KEY,
     PG_HOST,
@@ -36,7 +37,8 @@ from db_engines import get_dw_engine
 from cache import make_key as _cache_key, get_json as _cache_get_json, set_json as _cache_set_json
 
 # Admin user-management: always available on main app (no blueprint dependency)
-RBAC_CONN_STRING = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
+from config.connection import get_sqlalchemy_conn_string
+RBAC_CONN_STRING = get_sqlalchemy_conn_string(RBAC_DB_NAME)
 
 
 def _ensure_dim_app_user_table(engine):

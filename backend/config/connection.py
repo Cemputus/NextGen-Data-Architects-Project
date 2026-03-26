@@ -33,6 +33,7 @@ else:
 DB1_NAME = _db_name_override or 'ucu_sourcedb1'
 DB2_NAME = _db_name_override or 'ucu_sourcedb2'
 DATA_WAREHOUSE_NAME = _db_name_override or 'ucu_datawarehouse'
+RBAC_DB_NAME = _db_name_override or 'ucu_rbac'
 
 
 def get_sqlalchemy_conn_string(database_name: str) -> str:

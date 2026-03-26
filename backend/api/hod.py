@@ -6,12 +6,12 @@ from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import create_engine, text
 import pandas as pd
 from rbac import Role, has_permission, Resource, Permission
-from config import DATA_WAREHOUSE_CONN_STRING, get_sqlalchemy_conn_string
+from config import DATA_WAREHOUSE_CONN_STRING, RBAC_DB_NAME, get_sqlalchemy_conn_string
 
 hod_bp = Blueprint('hod', __name__, url_prefix='/api/hod')
 
 def _get_rbac_engine():
-    return create_engine(get_sqlalchemy_conn_string('ucu_rbac'))
+    return create_engine(get_sqlalchemy_conn_string(RBAC_DB_NAME))
 
 def _get_dw_engine():
     return create_engine(DATA_WAREHOUSE_CONN_STRING)

@@ -57,15 +57,16 @@ def _count_synthetic_files():
 
 from config import (
     DATA_WAREHOUSE_CONN_STRING,
-    DATA_WAREHOUSE_NAME,
     PG_HOST,
     PG_PORT,
     PG_USER,
     PG_PASSWORD,
 )
+from config.connection import RBAC_DB_NAME
 def _get_rbac_conn_string():
-    """RBAC DB connection (ucu_rbac) - same as app.py."""
-    return DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
+    """RBAC DB connection string."""
+    from config.connection import get_sqlalchemy_conn_string, RBAC_DB_NAME
+    return get_sqlalchemy_conn_string(RBAC_DB_NAME)
 
 try:
     from audit_log import log as audit_log
@@ -357,7 +358,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
                 port=int(PG_PORT),
                 user=PG_USER,
                 password=PG_PASSWORD,
-                dbname='ucu_rbac',
+                dbname=RBAC_DB_NAME,
             )
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM app_users")
@@ -437,7 +438,7 @@ def _get_etl_run_history(log_dir, max_runs=20):
 
 def _get_audit_logs(limit=200):
     """Fetch audit logs from ucu_rbac.audit_logs if available; else return empty list and message."""
-    rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
+    rbac_conn = _get_rbac_conn_string()
     try:
         engine = create_engine(rbac_conn)
         # Ensure limit is valid integer between 1 and 500 (safe to use in f-string after validation)
@@ -813,7 +814,7 @@ def _ensure_audit_db():
         from pg_helpers import ensure_ucu_rbac_database
         ensure_ucu_rbac_database()
 
-        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, 'ucu_rbac')
+        rbac_conn = _get_rbac_conn_string()
         engine = create_engine(rbac_conn)
         with engine.connect() as conn:
             conn.execute(text("""
