@@ -101,7 +101,7 @@ const PredictionPage = () => {
       if (raw.includes('Permission denied: Can only predict own performance')) {
         msg = 'You can only generate predictions for your own record. Log in as the correct student and try again.';
       } else if (raw.includes('Network Error')) {
-        msg = 'Cannot reach the prediction service. Ensure the backend is running and reachable.';
+        msg = 'The prediction service is temporarily unavailable. Please try again shortly.';
       } else if (raw) {
         msg = raw;
       }
@@ -136,7 +136,7 @@ const PredictionPage = () => {
       let msg = 'Failed to generate scenario prediction. Please try again.';
       const raw = err.response?.data?.error || err.message || '';
       if (raw.includes('Network Error')) {
-        msg = 'Cannot reach the prediction service. Ensure the backend is running and reachable.';
+        msg = 'The prediction service is temporarily unavailable. Please try again shortly.';
       } else if (raw) {
         msg = raw;
       }
