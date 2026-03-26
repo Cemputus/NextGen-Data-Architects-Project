@@ -38,7 +38,9 @@ const defaultAbout = {
 
 const defaultSettings = {
   systemName: 'NextGen Data Architects',
-  apiUrl: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+  // In production (Vercel/Render), set REACT_APP_API_URL at build time.
+  // Avoid defaulting to localhost so the UI stays deployment-safe.
+  apiUrl: process.env.REACT_APP_API_URL || '',
   supportEmail: '',
   sessionTimeout: 24,
   sessionTimeoutUnit: 'hours',
