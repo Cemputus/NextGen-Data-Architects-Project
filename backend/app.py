@@ -277,11 +277,27 @@ app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=25)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=8)
 
-# CORS: allow local dev + any production frontend URL set via FRONTEND_URL env var
-_cors_origins = ['http://localhost:3000', 'http://localhost:5000', 'http://127.0.0.1:3000', 'http://127.0.0.1:5000']
+# CORS: allow local dev + configured production frontend origins.
+# Supports:
+# - FRONTEND_URL (single URL)
+# - FRONTEND_URLS (comma-separated URLs)
+# Includes Vercel production + preview domains by default.
+_cors_origins = [
+    'http://localhost:3000',
+    'http://localhost:5000',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5000',
+    'https://nextgen-mis.vercel.app',
+    'https://www.nextgen-mis.vercel.app',
+]
 _frontend_url = os.environ.get('FRONTEND_URL', '').strip()
 if _frontend_url:
     _cors_origins.append(_frontend_url)
+_frontend_urls_raw = os.environ.get('FRONTEND_URLS', '').strip()
+if _frontend_urls_raw:
+    _cors_origins.extend([u.strip() for u in _frontend_urls_raw.split(',') if u.strip()])
+# De-duplicate while preserving order
+_cors_origins = list(dict.fromkeys(_cors_origins))
 CORS(app, supports_credentials=True, origins=_cors_origins,
      allow_headers=['Content-Type', 'Authorization'], methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 jwt = JWTManager(app)
