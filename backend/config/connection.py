@@ -19,10 +19,16 @@ if _db_url:
     _password = (_p.password or '') if _p.password is not None else ''
     # If DATABASE_URL points to a specific db (e.g. Render managed DB), use it for all connections
     _db_name_override = _p.path.lstrip('/') or None
-    PG_HOST = os.environ.get('PG_HOST', _host)
-    PG_PORT = os.environ.get('PG_PORT', str(_port))
-    PG_USER = os.environ.get('PG_USER', _user)
-    PG_PASSWORD = os.environ.get('PG_PASSWORD', _password)
+    # Production-safe default: when DATABASE_URL is set, treat it as the source of truth.
+    # This prevents accidental overrides like PG_HOST=postgres (docker-compose service name)
+    # from breaking Render/managed Postgres deployments.
+    #
+    # If you truly need to override DATABASE_URL parts, set PG_ENV_OVERRIDE=1 explicitly.
+    _allow_override = os.environ.get("PG_ENV_OVERRIDE", "").strip().lower() in ("1", "true", "yes", "on")
+    PG_HOST = (os.environ.get('PG_HOST') if _allow_override else None) or _host
+    PG_PORT = (os.environ.get('PG_PORT') if _allow_override else None) or str(_port)
+    PG_USER = (os.environ.get('PG_USER') if _allow_override else None) or _user
+    PG_PASSWORD = (os.environ.get('PG_PASSWORD') if _allow_override else None) or _password
 else:
     PG_HOST = os.environ.get('PG_HOST', 'localhost')
     PG_PORT = os.environ.get('PG_PORT', '5432')

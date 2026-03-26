@@ -41,8 +41,16 @@ class MultiModelPredictor:
             ds.nationality,
             ds.high_school,
             ds.high_school_district,
-            EXTRACT(YEAR FROM ds.admission_date) as admission_year,
-            EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM ds.admission_date) as years_at_university,
+            CASE
+                WHEN (ds.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                THEN EXTRACT(YEAR FROM (ds.admission_date::text)::date)
+                ELSE NULL
+            END as admission_year,
+            CASE
+                WHEN (ds.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                THEN EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM (ds.admission_date::text)::date)
+                ELSE 0
+            END as years_at_university,
             ds.program_id,
             ds.year_of_study
         FROM dim_student ds
@@ -308,8 +316,16 @@ class MultiModelPredictor:
             ds.nationality,
             ds.high_school,
             ds.high_school_district,
-            EXTRACT(YEAR FROM ds.admission_date) as admission_year,
-            EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM ds.admission_date) as years_at_university,
+            CASE
+                WHEN (ds.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                THEN EXTRACT(YEAR FROM (ds.admission_date::text)::date)
+                ELSE NULL
+            END as admission_year,
+            CASE
+                WHEN (ds.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                THEN EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM (ds.admission_date::text)::date)
+                ELSE 0
+            END as years_at_university,
             ds.program_id,
             ds.year_of_study,
             COALESCE(SUM(fa.total_hours), 0) as total_attendance_hours,

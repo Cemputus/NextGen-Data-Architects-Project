@@ -505,8 +505,26 @@ def reshare_visualization():
 def get_assigned_visualizations_for_me():
     """Return visualizations assigned to the current user's role or to the current user (username)."""
     username, role = _current_user()
-    engine = _get_rbac_engine()
-    _ensure_assigned_viz_table(engine)
+    engine = None
+    try:
+        engine = _get_rbac_engine()
+        _ensure_assigned_viz_table(engine)
+    except Exception as e:
+        # This endpoint powers sidebar notifications for *all* roles.
+        # If RBAC storage is temporarily unavailable (cold start, permissions, DB down),
+        # do not fail the entire UI with a 500: return an empty list and let the app proceed.
+        try:
+            import traceback
+            print("assigned-visualizations/for-me init failed:", str(e))
+            traceback.print_exc()
+        except Exception:
+            pass
+        if engine:
+            try:
+                engine.dispose()
+            except Exception:
+                pass
+        return jsonify({"visualizations": [], "warning": "Assigned visualizations temporarily unavailable"}), 200
     try:
         with engine.connect() as conn:
             result = conn.execute(
@@ -526,9 +544,19 @@ def get_assigned_visualizations_for_me():
             rows = result.mappings().fetchall()
         engine.dispose()
     except Exception as e:
+        # Same fail-soft behavior as above; keep UI stable.
+        try:
+            import traceback
+            print("assigned-visualizations/for-me query failed:", str(e))
+            traceback.print_exc()
+        except Exception:
+            pass
         if engine:
-            engine.dispose()
-        return jsonify({"error": str(e), "visualizations": []}), 500
+            try:
+                engine.dispose()
+            except Exception:
+                pass
+        return jsonify({"visualizations": [], "warning": "Assigned visualizations temporarily unavailable"}), 200
 
     out = []
     for r in rows:

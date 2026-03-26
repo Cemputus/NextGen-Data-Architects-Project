@@ -809,7 +809,7 @@ def run_etl():
 
 
 def _ensure_audit_db():
-    """Create ucu_rbac database and audit_logs table if they don't exist. Returns (success, error_message)."""
+    """Ensure audit_logs table exists in the RBAC DB. Returns (success, error_message)."""
     try:
         from pg_helpers import ensure_ucu_rbac_database
         ensure_ucu_rbac_database()
@@ -850,7 +850,7 @@ def _ensure_audit_db():
 @admin_bp.route('/setup-audit-db', methods=['POST'])
 @jwt_required()
 def setup_audit_db():
-    """Create ucu_rbac database and audit_logs table so audit logging works."""
+    """Ensure audit DB/table exist so audit logging works."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -900,7 +900,7 @@ def audit_logs():
             'total': len(logs),
             'limit': limit,
             'server_time': _server_time_str(),
-            'message': None if not db_error else f'Audit DB not available: {db_error}. Use "Set up audit DB" below to create ucu_rbac and audit_logs.',
+            'message': None if not db_error else f'Audit DB not available: {db_error}. Use \"Set up audit DB\" below to create required audit tables.',
         })
     except Exception as e:
         print(f"[audit_logs] Exception: {e}")

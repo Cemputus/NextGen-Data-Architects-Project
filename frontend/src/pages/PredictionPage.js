@@ -175,14 +175,14 @@ const PredictionPage = () => {
   // Restrict prediction models for students to high-level, student-friendly options only
   const modelOptions = isStudent
     ? [
-        { value: 'tuition_attendance', label: '💰 Tuition + Attendance → Performance' },
+        { value: 'tuition_attendance', label: 'Tuition & Attendance → Performance' },
       ]
     : [
-        { value: 'ensemble', label: '🎯 Standard Performance (Ensemble)' },
-        { value: 'tuition_attendance', label: '💰 Tuition + Attendance → Performance' },
-        { value: 'random_forest', label: '🌲 Random Forest' },
-        { value: 'gradient_boosting', label: '📈 Gradient Boosting' },
-        { value: 'neural_network', label: '🧠 Neural Network' },
+        { value: 'ensemble', label: 'Standard Performance (Ensemble)' },
+        { value: 'tuition_attendance', label: 'Tuition & Attendance → Performance' },
+        { value: 'random_forest', label: 'Random Forest' },
+        { value: 'gradient_boosting', label: 'Gradient Boosting' },
+        { value: 'neural_network', label: 'Neural Network' },
       ];
 
   // Ensure current modelType is always one of the allowed options
