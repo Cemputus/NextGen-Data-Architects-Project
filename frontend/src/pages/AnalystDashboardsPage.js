@@ -305,19 +305,23 @@ const AnalystDashboardsPage = () => {
     return def && typeof def === 'object' ? def : {};
   };
 
-  const openContentEditor = (dash, previewOnly = false) => {
+  const openContentEditor = (dash, previewOnly = false, roleForEdit = null) => {
     setContentPageKey(null);
     const def = parseDefinition(dash);
-    const kpis =
-      def && Array.isArray(def.kpis) && def.kpis.length > 0
-        ? def.kpis
-        : KPI_OPTIONS;
-    const charts =
-      def && Array.isArray(def.charts) && def.charts.length > 0
-        ? def.charts
-        : CHART_OPTIONS;
+    const rawKpis =
+      def && Array.isArray(def.kpis) && def.kpis.length > 0 ? def.kpis : KPI_OPTIONS;
+    const rawCharts =
+      def && Array.isArray(def.charts) && def.charts.length > 0 ? def.charts : CHART_OPTIONS;
     const rolesOnDashboard = Array.isArray(dash.roles) ? dash.roles.map(normalizeRole) : [];
-    const editForRole = filterRole || rolesOnDashboard[0] || 'analyst';
+    // When editing a "current dashboard" card, roleForEdit must win.
+    // Otherwise we may accidentally edit for the wrong role if the dashboard
+    // is shared across multiple roles in dashboard_role_access.
+    const editForRole = roleForEdit || filterRole || rolesOnDashboard[0] || 'analyst';
+    const allowedKpis = KPI_OPTIONS.filter((k) => isKpiAllowedForRole(k, editForRole));
+    const allowedCharts = CHART_OPTIONS.filter((c) => isChartAllowedForRole(c, editForRole));
+
+    const kpis = rawKpis.filter((k) => allowedKpis.includes(k));
+    const charts = rawCharts.filter((c) => allowedCharts.includes(c));
     const visualizationIds =
       def && Array.isArray(def.visualization_ids) ? def.visualization_ids : [];
     setContentDashboard({ ...dash, previewOnly });
@@ -798,7 +802,7 @@ const AnalystDashboardsPage = () => {
                                 size="xs"
                                 variant="outline"
                                 className="h-6 px-2 text-[10px]"
-                                onClick={() => openContentEditor(dash, false)}
+                                onClick={() => openContentEditor(dash, false, rname)}
                               >
                                 Edit content
                               </Button>

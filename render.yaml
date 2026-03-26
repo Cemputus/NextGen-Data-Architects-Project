@@ -30,8 +30,6 @@ services:
         generateValue: true
       - key: PYTHONUNBUFFERED
         value: "1"
-      - key: FRONTEND_URL
-        sync: false  # Set to your Vercel frontend URL e.g. https://nextgen-data-architects.vercel.app
 
   # React SPA (static site)
   - type: web

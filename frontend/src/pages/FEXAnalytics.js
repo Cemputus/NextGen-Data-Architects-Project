@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import ExportButtons from '../components/ExportButtons';
 import axios from 'axios';
-import { SciBarChart, UCU_COLORS } from '../components/charts/EChartsComponents';
+import { SciBarChart } from '../components/charts/EChartsComponents';
+import { UCU_COLORS } from '../lib/chartTheme';
 import { TableWrapper, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table';
 import { EmptyState } from '../components/ui/state-messages';
 import { Loader2 } from 'lucide-react';

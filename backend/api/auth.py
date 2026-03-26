@@ -231,6 +231,48 @@ DEMO_USERS = {
     'finance': {'password': 'finance123', 'role': 'finance', 'full_name': 'Finance Manager'},
 }
 
+
+def _demo_login_response(identifier_lower: str):
+    """Build JWT response for built-in demo users."""
+    demo = DEMO_USERS.get((identifier_lower or "").strip().lower())
+    if not demo:
+        return None
+    role_str = demo['role']
+    full_name = demo.get('full_name', '')
+    first_name = full_name.split()[0] if full_name else ''
+    last_name = ' '.join(full_name.split()[1:]) if full_name and len(full_name.split()) > 1 else ''
+    claims = {
+        'role': role_str,
+        'username': identifier_lower,
+        'full_name': full_name,
+        'first_name': first_name,
+        'last_name': last_name,
+    }
+    profile_override = _load_user_profile(identifier_lower, role_str)
+    for key in ('first_name', 'last_name', 'email', 'phone'):
+        if key in profile_override:
+            claims[key] = profile_override[key]
+    access_token = create_access_token(identity=identifier_lower, additional_claims=claims)
+    refresh_token = create_refresh_token(identity=identifier_lower)
+    _audit_log_login(identifier_lower, role_str, 'success')
+    return jsonify({
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'role': role_str,
+        'user': {
+            'id': identifier_lower,
+            'username': identifier_lower,
+            'role': role_str,
+            'full_name': claims.get('full_name'),
+            'first_name': claims.get('first_name', first_name),
+            'last_name': claims.get('last_name', last_name),
+            'email': claims.get('email'),
+            'phone': claims.get('phone'),
+            'profile_picture_url': profile_override.get('profile_picture_url'),
+        }
+    }), 200
+
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
     """User login - supports Access Number for students, username/email for others, and all app_users."""
@@ -250,6 +292,12 @@ def login():
             return jsonify({'error': 'Identifier and password required'}), 400
         
         identifier_lower = identifier.lower()
+
+        # Preserve legacy/demo behavior: if a built-in demo account is used with
+        # the exact demo password, always allow it immediately.
+        demo_user = DEMO_USERS.get(identifier_lower)
+        if demo_user and password == demo_user.get('password'):
+            return _demo_login_response(identifier_lower)
         
         # Check app_users first so app users (including sysadmin) use their DB credentials and get the same privileges as demo
         for attempt in (1, 2):
@@ -301,6 +349,11 @@ def login():
                 except Exception:
                     password_ok = False
                 if not password_ok:
+                    # If identifier matches a built-in demo user and demo password is provided,
+                    # allow demo login instead of hard-failing on app_users mismatch.
+                    demo = DEMO_USERS.get(identifier_lower)
+                    if demo and password == demo.get('password'):
+                        return _demo_login_response(identifier_lower)
                     role_for_audit = str(row['role']) if pd.notna(row['role']) else 'staff'
                     _audit_log_login(uname, role_for_audit, 'failure', 'Invalid password')
                     return jsonify({'error': 'Invalid credentials'}), 401
@@ -385,40 +438,7 @@ def login():
         if identifier_lower in DEMO_USERS:
             demo = DEMO_USERS[identifier_lower]
             if password == demo['password']:
-                role_str = demo['role']
-                full_name = demo.get('full_name', '')
-                first_name = full_name.split()[0] if full_name else ''
-                last_name = ' '.join(full_name.split()[1:]) if full_name and len(full_name.split()) > 1 else ''
-                claims = {
-                    'role': role_str,
-                    'username': identifier_lower,
-                    'full_name': full_name,
-                    'first_name': first_name,
-                    'last_name': last_name,
-                }
-                profile_override = _load_user_profile(identifier_lower, role_str)
-                for key in ('first_name', 'last_name', 'email', 'phone'):
-                    if key in profile_override:
-                        claims[key] = profile_override[key]
-                access_token = create_access_token(identity=identifier_lower, additional_claims=claims)
-                refresh_token = create_refresh_token(identity=identifier_lower)
-                _audit_log_login(identifier_lower, role_str, 'success')
-                return jsonify({
-                    'access_token': access_token,
-                    'refresh_token': refresh_token,
-                    'role': role_str,
-                    'user': {
-                        'id': identifier_lower,
-                        'username': identifier_lower,
-                        'role': role_str,
-                        'full_name': claims.get('full_name'),
-                        'first_name': claims.get('first_name', first_name),
-                        'last_name': claims.get('last_name', last_name),
-                        'email': claims.get('email'),
-                        'phone': claims.get('phone'),
-                        'profile_picture_url': profile_override.get('profile_picture_url'),
-                    }
-                }), 200
+                return _demo_login_response(identifier_lower)
             _audit_log_login(identifier_lower, demo['role'], 'failure', 'Invalid password')
             return jsonify({'error': 'Invalid credentials. Demo user must use the correct password (e.g. hr123 for hr, dean123 for dean).'}), 401
 
