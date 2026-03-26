@@ -22,11 +22,11 @@ import {
   SciDonutChart,
   Sci3DPieChart,
   SciStackedColumnChart,
-  UCU_COLORS,
 } from '../components/charts/EChartsComponents';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { KPICard } from '../components/ui/kpi-card';
 import { cn } from '../lib/utils';
+import { UCU_COLORS } from '../lib/chartTheme';
 import {
   kpiStripCardClass,
   chartSurfaceCard,
