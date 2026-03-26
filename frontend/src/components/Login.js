@@ -56,8 +56,22 @@ const Login = () => {
     setLoading(true);
     try {
       try {
-        // Allow more time when running via Docker so the proxy/backend have time to respond
-        await axios.get('/api/user-mgmt/ping', { timeout: 10000 });
+        // Fast health check with retry: under load a single request can queue briefly.
+        const ping = async () => axios.get('/api/status', { timeout: 6000 });
+        let ok = false;
+        let lastErr = null;
+        for (let i = 0; i < 3; i++) {
+          try {
+            await ping();
+            ok = true;
+            break;
+          } catch (e) {
+            lastErr = e;
+            // small backoff
+            await new Promise((r) => setTimeout(r, 350 * (i + 1)));
+          }
+        }
+        if (!ok) throw lastErr;
       } catch (networkErr) {
         if (networkErr.code === 'ECONNABORTED' || networkErr.message?.includes('timeout')) {
           setError('Network timeout. Ensure the backend container is healthy (port 5000) and try again.');
@@ -88,11 +102,7 @@ const Login = () => {
         const roleKey = (role || '').toString().toLowerCase();
         navigate(routes[roleKey] || rbac.getDefaultRoute(roleKey) || '/student/dashboard');
       } else {
-        let errorMsg = result.error || 'Invalid credentials. Please check your username or Access Number and password.';
-        if (errorMsg.toLowerCase().includes('invalid credentials') && !errorMsg.includes('Admin')) {
-          errorMsg += ' Staff/Admin: use the exact username your admin created and the password they set (see Admin → Users).';
-        }
-        setError(errorMsg);
+        setError(result.error || 'Invalid credentials. Please check your username or Access Number and password.');
       }
     } catch (err) {
       setError(err?.message?.includes('Network') ? 'Cannot connect to server.' : 'An error occurred. Please try again.');

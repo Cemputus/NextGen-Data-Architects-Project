@@ -360,8 +360,14 @@ def get_current_dashboards():
     engine = _get_engine()
     result_payload = []
     with engine.connect() as conn:
-      # Ensure there is at least one default dashboard assigned for all roles
-      _ensure_default_role_dashboards(conn, all_roles, username)
+      # Only auto-seed defaults on first install (no active dashboards).
+      # If the analyst removes a role from "current", we must not re-assign
+      # it automatically on every reload.
+      total_active_dashboards = conn.execute(
+        text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active = TRUE")
+      ).scalar() or 0
+      if total_active_dashboards == 0:
+        _ensure_default_role_dashboards(conn, all_roles, username)
 
       # Fetch role->dashboard mapping
       rows = conn.execute(

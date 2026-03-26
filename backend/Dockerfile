@@ -9,8 +9,6 @@ FROM python:3.11-slim AS backend
 
 # Set a consistent working directory inside the container
 WORKDIR /app
-# Used by notebooks to resolve imports when cwd is /app/notebooks
-ENV APP_ROOT=/app
 
 # Install system packages needed for building Python wheels and talking to PostgreSQL
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -42,4 +40,4 @@ EXPOSE 5000
 
 # Default command: run the Flask API via Gunicorn WSGI for production.
 # Use PORT from environment (e.g. Render) when set, else 5000.
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --threads 4 --timeout 120 app:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5000} --workers ${WEB_CONCURRENCY:-2} --threads ${GUNICORN_THREADS:-4} --timeout ${GUNICORN_TIMEOUT:-120} app:app"]

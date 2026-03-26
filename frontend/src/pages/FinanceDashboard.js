@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import { SciLineChart, SciBarChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import { KPICard } from '../components/ui/kpi-card';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import {
   kpiStripCardClass,
   chartSurfaceCard,
@@ -29,6 +30,7 @@ const FinanceDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [filters, setFilters] = useState({});
+  const debouncedFilters = useDebouncedValue(filters, 300);
   const [showWelcome, setShowWelcome] = useState(true);
   const [paymentTrends, setPaymentTrends] = useState([]);
   const [outstandingFacultyProgram, setOutstandingFacultyProgram] = useState([]);
@@ -41,7 +43,7 @@ const FinanceDashboard = () => {
 
   useEffect(() => {
     loadFinanceData();
-  }, [filters]);
+  }, [debouncedFilters]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -61,11 +63,11 @@ const FinanceDashboard = () => {
       const headers = { Authorization: `Bearer ${token}` };
       const response = await axios.get('/api/analytics/finance', {
         headers,
-        params: filters
+        params: debouncedFilters
       }).catch(() => {
         return axios.get('/api/dashboard/stats', {
           headers,
-          params: filters
+          params: debouncedFilters
         });
       });
 
@@ -90,7 +92,7 @@ const FinanceDashboard = () => {
       });
 
       const tuitionTrendPeriod = (() => {
-        const effective = { ...filters };
+        const effective = { ...debouncedFilters };
         if (lockedFacultyId != null && lockedFacultyId !== '') {
           if (effective.faculty_id != null && String(effective.faculty_id) === String(lockedFacultyId)) {
             delete effective.faculty_id;
@@ -113,12 +115,12 @@ const FinanceDashboard = () => {
         highRiskRes,
       ] = await Promise.all([
         axios
-          .get('/api/dashboard/tuition-defaulters', { headers, params: filters })
+          .get('/api/dashboard/tuition-defaulters', { headers, params: debouncedFilters })
           .catch(() => ({ data: { tuition_defaulters: [], semester_id: null } })),
         axios
           .get('/api/dashboard/tuition-payment-trends-dimensions', {
             headers,
-            params: { period: tuitionTrendPeriod, ...filters },
+            params: { period: tuitionTrendPeriod, ...debouncedFilters },
           })
           .catch(() => ({
             data: {
@@ -131,25 +133,25 @@ const FinanceDashboard = () => {
         axios
           .get('/api/dashboard/payment-trends', {
             headers,
-            params: { period: 'quarterly', ...filters },
+            params: { period: 'quarterly', ...debouncedFilters },
           })
           .catch(() => ({ data: { periods: [], amounts: [] } })),
         axios
           .get('/api/dashboard/outstanding-by-faculty-program', {
             headers,
-            params: { ...filters },
+            params: { ...debouncedFilters },
           })
           .catch(() => ({ data: { outstanding_by_faculty_program: [], semester_id: null } })),
         axios
           .get('/api/dashboard/payment-status', {
             headers,
-            params: { ...filters },
+            params: { ...debouncedFilters },
           })
           .catch(() => ({ data: { statuses: [], counts: [] } })),
         axios
           .get('/api/dashboard/high-risk-debt-segments', {
             headers,
-            params: { ...filters },
+            params: { ...debouncedFilters },
           })
           .catch(() => ({
             data: { high_risk_debt_segments: [], semester_id: null },
@@ -191,7 +193,7 @@ const FinanceDashboard = () => {
         outstandingRes.data?.breakdown ||
         defRes.data?.breakdown ||
         highRiskRes.data?.breakdown ||
-        deriveFinanceBreakdown(filters);
+        deriveFinanceBreakdown(debouncedFilters);
       setFinanceBreakdown(breakdown);
 
       setOutstandingFacultyProgram(

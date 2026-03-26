@@ -12,8 +12,6 @@ eggs/
 .eggs/
 lib/
 lib64/
-# Allow frontend src/lib (JS utilities, not Python venv)
-!frontend/src/lib/
 parts/
 sdist/
 var/

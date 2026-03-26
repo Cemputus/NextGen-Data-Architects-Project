@@ -1,8 +1,4 @@
-"""Script to train all prediction models.
-
-For an interactive run (same outputs), use:
-``backend/notebooks/train_prediction_models_synthetic.ipynb``
-"""
+"""Script to train all prediction models"""
 import sys
 from pathlib import Path
 backend_dir = Path(__file__).parent

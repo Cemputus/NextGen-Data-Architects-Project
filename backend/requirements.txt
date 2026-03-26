@@ -8,6 +8,9 @@ flask-jwt-extended==4.6.0
 werkzeug==3.0.1
 gunicorn==21.2.0
 
+# Production-grade WSGI server for Windows/local runs
+waitress>=3.0.0
+
 
 # Database — PostgreSQL
 sqlalchemy>=1.4.0,<2.1.0
@@ -17,7 +20,6 @@ psycopg2-binary>=2.9.0
 pandas>=2.0.0
 numpy>=1.24.0,<3.0.0
 scikit-learn>=1.0.0,<1.4.0
-matplotlib>=3.7.0,<4
 
 # Auth & security
 bcrypt==4.1.2
@@ -38,10 +40,6 @@ pyarrow>=10.0.0,<14.0.0
 plotly==5.18.0
 dash==2.14.2
 dash-bootstrap-components==1.5.0
-
-# Jupyter — run training notebooks inside the backend Docker image
-jupyterlab>=4.0.0,<5
-ipykernel>=6.29.0
 
 # Orchestration
 # apache-airflow[postgres]==2.10.2

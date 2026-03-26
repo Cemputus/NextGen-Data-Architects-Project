@@ -7,8 +7,9 @@ from pathlib import Path
 import sys
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, bindparam
 import pandas as pd
+import json
 from rbac import Role, Resource, Permission, has_permission
 from datetime import date, datetime, timedelta
 from config import DATA_WAREHOUSE_CONN_STRING, DB1_NAME, DB2_NAME, get_sqlalchemy_conn_string
@@ -17,6 +18,10 @@ import random
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/api/analytics')
 _analytics_log = logging.getLogger(__name__)
+
+# Shared engines + lightweight caching for KPI-heavy endpoints
+from db_engines import get_dw_engine, get_rbac_engine
+from cache import make_key as _cache_key, get_json as _cache_get_json, set_json as _cache_set_json
 
 
 def _import_hr_mirror_bootstrap():
@@ -267,7 +272,16 @@ def get_fex_analytics():
                 }), 403
         
         filters = request.args.to_dict()
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
+
+        # Cache briefly to prevent repeated KPI recalculation during dashboard load.
+        try:
+            ck = _cache_key("analytics_finance", claims=claims, params=filters)
+            cached = _cache_get_json(ck)
+            if cached:
+                return jsonify(json.loads(cached)), 200
+        except Exception:
+            ck = None
         
         # When no explicit semester/academic_year filter is provided, focus on the
         # most recent academic period: the current semester only.
@@ -1374,8 +1388,7 @@ def get_finance_analytics():
             students_df['total_students'][0]
         ) else 0
 
-        engine.dispose()
-        return jsonify(
+        resp = jsonify(
             {
                 'total_payments': total_payments,
                 'total_pending': total_pending,
@@ -1383,7 +1396,13 @@ def get_finance_analytics():
                 'payment_rate': payment_rate,
                 'total_students': total_students,
             }
-        ), 200
+        )
+        try:
+            if ck:
+                _cache_set_json(ck, resp.get_data(as_text=True), ttl_seconds=15)
+        except Exception:
+            pass
+        return resp, 200
     except Exception as e:
         import traceback
         print(f"Error in get_finance_analytics: {e}")
@@ -1393,64 +1412,307 @@ def get_finance_analytics():
 @analytics_bp.route('/staff/classes', methods=['GET'])
 @jwt_required()
 def get_staff_classes():
-    """Return classes assigned to the current staff member. Staff role only (Phase 3 scope)."""
+    """Return staff dashboard payload (classes + KPIs + chart-ready series) for the current staff member."""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         if user_scope['role'] != Role.STAFF:
             return jsonify({'error': 'Permission denied. Staff role required for class assignments.'}), 403
 
-        username = claims.get('username')
-        rbac_engine = create_engine(get_sqlalchemy_conn_string('ucu_rbac'))
-        
-        # Join staff_course_assignments with dim_course from warehouse
-        # Since they are different DBs, we'll do two queries or use a cross-db join if possible.
-        # Most reliable: get codes from RBAC, then details from DW.
-        codes_df = pd.read_sql_query(
-            text("""
-                SELECT sca.course_code FROM staff_course_assignments sca
-                JOIN app_users u ON u.id = sca.app_user_id
-                WHERE LOWER(u.username) = :uname
-            """),
-            rbac_engine, params={'uname': str(username).lower()}
-        )
-        rbac_engine.dispose()
-        
-        if codes_df.empty:
-            return jsonify({'classes': []}), 200
-            
-        course_codes = codes_df['course_code'].tolist()
-        
-        dw_engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        username = (claims.get('username') or claims.get('sub') or '').strip()
+        if not username:
+            return jsonify({'error': 'Missing username in token'}), 400
+
+        filters = request.args.to_dict() or {}
+        # Staff users must not be able to broaden scope outside their own department/faculty.
+        filters.pop('faculty_id', None)
+        filters.pop('department_id', None)
+
+        # --- RBAC: resolve staff app_user + existing assignments ---
+        rbac_engine = get_rbac_engine()
+        with rbac_engine.connect() as conn:
+            # Ensure core tables exist (idempotent)
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS app_users (
+                        id SERIAL PRIMARY KEY,
+                        username VARCHAR(100) NOT NULL UNIQUE,
+                        password_hash VARCHAR(255) NOT NULL,
+                        role VARCHAR(50) NOT NULL,
+                        full_name VARCHAR(200),
+                        faculty_id INT NULL,
+                        department_id INT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS staff_course_assignments (
+                        app_user_id INT NOT NULL,
+                        course_code VARCHAR(50) NOT NULL,
+                        PRIMARY KEY (app_user_id, course_code),
+                        FOREIGN KEY (app_user_id) REFERENCES app_users(id) ON DELETE CASCADE
+                    )
+                    """
+                )
+            )
+            conn.commit()
+
+            urow = conn.execute(
+                text(
+                    """
+                    SELECT id, faculty_id, department_id, full_name
+                    FROM app_users
+                    WHERE LOWER(username) = :uname
+                    LIMIT 1
+                    """
+                ),
+                {"uname": username.lower()},
+            ).fetchone()
+            if not urow:
+                return jsonify({'classes': [], 'stats': {'total_classes': 0}}), 200
+
+            app_user_id = int(urow[0])
+            staff_faculty_id = urow[1]
+            staff_department_id = urow[2]
+            staff_full_name = urow[3]
+
+            codes_df = pd.read_sql_query(
+                text("SELECT course_code FROM staff_course_assignments WHERE app_user_id = :uid"),
+                conn,
+                params={"uid": app_user_id},
+            )
+
+        # --- DW: compute/fill assignments if missing ---
+        dw_engine = get_dw_engine()
+        dw_conn = dw_engine.connect()
+        # Prevent one slow query from blocking the whole server under concurrency.
+        dw_conn.execute(text("SET statement_timeout = 8000"))
+
+        course_codes = [str(c) for c in (codes_df["course_code"].tolist() if not codes_df.empty else []) if c]
+        if not course_codes:
+            # Auto-assign top courses by enrollment within staff department/faculty scope.
+            # If the staff user has no faculty/department assigned in `app_users`, we must
+            # not run a global query (it will be slow and can timeout under concurrency).
+            if staff_department_id is None and staff_faculty_id is None:
+                return jsonify(
+                    {
+                        "classes": [],
+                        "stats": {
+                            "total_classes": 0,
+                            "total_students": 0,
+                            "avg_grade": 0,
+                            "total_fcw_mex_fex": 0,
+                            "staff_full_name": staff_full_name,
+                            "faculty_id": None,
+                            "department_id": None,
+                            "scope_missing": True,
+                            "scope_error": "Staff profile has no faculty/department. Assign faculty_id and department_id in Admin → Users (or app_users) so class teaching scope can be computed.",
+                        },
+                        "charts": {
+                            "enrollment_by_course": [],
+                            "performance_by_course": [],
+                            "risk_by_course": [],
+                        },
+                    }
+                ), 200
+
+            scope_where = []
+            params = {}
+            if staff_department_id is not None:
+                scope_where.append("ddept.department_id = :did")
+                params["did"] = int(staff_department_id)
+            elif staff_faculty_id is not None:
+                scope_where.append("df.faculty_id = :fid")
+                params["fid"] = int(staff_faculty_id)
+
+            where_sql = "WHERE " + " AND ".join(scope_where) if scope_where else ""
+
+            auto_q = f"""
+            SELECT dc.course_code, COUNT(DISTINCT fe.student_id) AS student_count
+            FROM fact_enrollment fe
+            JOIN dim_course dc ON fe.course_code = dc.course_code
+            JOIN dim_student ds ON fe.student_id = ds.student_id
+            JOIN dim_program dp ON ds.program_id = dp.program_id
+            JOIN dim_department ddept ON dp.department_id = ddept.department_id
+            JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
+            {where_sql}
+              AND NULLIF(TRIM(COALESCE(fe.course_code,'')), '') IS NOT NULL
+            GROUP BY dc.course_code
+            ORDER BY student_count DESC
+            LIMIT 6
+            """
+            auto_df = pd.read_sql_query(text(auto_q), dw_conn, params=params)
+            course_codes = [
+                str(x)
+                for x in (auto_df["course_code"].tolist() if not auto_df.empty else [])
+                if x
+            ]
+
+            if course_codes:
+                # Persist assignments back to RBAC so each staff has stable classes.
+                with rbac_engine.connect() as conn:
+                    conn = conn.execution_options(autocommit=False)
+                    for cc in course_codes:
+                        conn.execute(
+                            text(
+                                """
+                                INSERT INTO staff_course_assignments (app_user_id, course_code)
+                                VALUES (:uid, :cc)
+                                ON CONFLICT (app_user_id, course_code) DO NOTHING
+                                """
+                            ),
+                            {"uid": app_user_id, "cc": cc},
+                        )
+                    conn.commit()
+
+        if not course_codes:
+            return jsonify(
+                {
+                    "classes": [],
+                    "stats": {
+                        "total_classes": 0,
+                        "total_students": 0,
+                        "avg_grade": 0,
+                        "total_fcw_mex_fex": 0,
+                        "staff_full_name": staff_full_name,
+                    },
+                    "charts": {
+                        "enrollment_by_course": [],
+                        "performance_by_course": [],
+                        "risk_by_course": [],
+                    },
+                }
+            ), 200
+
+        # Optional semester filter
+        semester_id = None
+        try:
+            if filters.get("semester_id") and str(filters.get("semester_id")).strip().lower() not in ("", "all"):
+                semester_id = int(filters.get("semester_id"))
+        except Exception:
+            semester_id = None
+
+        # Use expanding bindparam for IN (...) safely.
+        codes_param = {"codes": course_codes}
+        in_codes = bindparam("codes", expanding=True)
+
         courses_df = pd.read_sql_query(
-            text("SELECT * FROM dim_course WHERE course_code IN :codes"),
-            dw_engine, params={'codes': tuple(course_codes)}
+            text("SELECT course_code, course_name, credits, department FROM dim_course WHERE course_code IN :codes").bindparams(in_codes),
+            dw_conn,
+            params=codes_param,
         )
-        
-        # Add basic stats per course
+
+        # Stats per course from fact_grade + fact_enrollment (scoped to staff codes only)
+        grade_where = "WHERE fg.course_code IN :codes"
+        enroll_where = "WHERE fe.course_code IN :codes"
+        params2 = {"codes": course_codes}
+        if semester_id is not None:
+            grade_where += " AND fg.semester_id = :sem"
+            enroll_where += " AND fe.semester_id = :sem"
+            params2["sem"] = semester_id
+
         stats_df = pd.read_sql_query(
-            text("""
-                SELECT 
-                    course_code,
-                    COUNT(DISTINCT student_id) as student_count,
-                    AVG(grade) as avg_grade,
-                    COUNT(CASE WHEN exam_status = 'FEX' THEN 1 END) as fex_count
-                FROM fact_grade
-                WHERE course_code IN :codes
-                GROUP BY course_code
-            """),
-            dw_engine, params={'codes': tuple(course_codes)}
+            text(
+                f"""
+                SELECT
+                    fg.course_code,
+                    COUNT(DISTINCT fg.student_id) AS student_count,
+                    AVG(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status,''))) = 'COMPLETED' THEN fg.grade END) AS avg_grade,
+                    SUM(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status,''))) = 'COMPLETED' AND fg.grade >= 50 THEN 1 ELSE 0 END) AS pass_count,
+                    SUM(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status,''))) = 'COMPLETED' AND fg.grade < 50 THEN 1 ELSE 0 END) AS fail_count,
+                    SUM(CASE WHEN fg.exam_status IN ('FCW','MEX','FEX') THEN 1 ELSE 0 END) AS risk_cases
+                FROM fact_grade fg
+                {grade_where}
+                GROUP BY fg.course_code
+                """
+            ).bindparams(in_codes),
+            dw_conn,
+            params=params2,
         )
-        dw_engine.dispose()
-        
-        # Merge stats
-        result_df = pd.merge(courses_df, stats_df, on='course_code', how='left').fillna(0)
-        
-        return jsonify({'classes': result_df.to_dict('records')}), 200
+
+        enroll_df = pd.read_sql_query(
+            text(
+                f"""
+                SELECT fe.course_code, COUNT(DISTINCT fe.student_id) AS enrolled_students
+                FROM fact_enrollment fe
+                {enroll_where}
+                GROUP BY fe.course_code
+                """
+            ).bindparams(in_codes),
+            dw_conn,
+            params=params2,
+        )
+
+        # Merge course meta + stats
+        result_df = pd.merge(courses_df, enroll_df, on="course_code", how="left")
+        result_df = pd.merge(result_df, stats_df, on="course_code", how="left")
+        result_df = result_df.fillna(0)
+
+        classes = result_df.to_dict("records")
+
+        # Overall KPIs
+        total_classes = len(course_codes)
+        total_students = int(result_df["enrolled_students"].sum()) if "enrolled_students" in result_df.columns else 0
+        avg_grade = float(result_df["avg_grade"].replace(0, pd.NA).mean()) if "avg_grade" in result_df.columns else 0.0
+        total_risk = int(result_df["risk_cases"].sum()) if "risk_cases" in result_df.columns else 0
+
+        # Chart series (frontend-ready)
+        enrollment_by_course = [
+            {"course": r.get("course_name") or r.get("course_code"), "course_code": r.get("course_code"), "students": int(r.get("enrolled_students") or 0)}
+            for r in classes
+        ]
+        performance_by_course = [
+            {
+                "course": r.get("course_name") or r.get("course_code"),
+                "course_code": r.get("course_code"),
+                "pass": int(r.get("pass_count") or 0),
+                "fail": int(r.get("fail_count") or 0),
+                "avg_grade": float(r.get("avg_grade") or 0),
+            }
+            for r in classes
+        ]
+        risk_by_course = [
+            {"course": r.get("course_name") or r.get("course_code"), "course_code": r.get("course_code"), "risk_cases": int(r.get("risk_cases") or 0)}
+            for r in classes
+        ]
+
+        return jsonify(
+            {
+                "classes": classes,
+                "stats": {
+                    "total_classes": total_classes,
+                    "total_students": total_students,
+                    "avg_grade": round(avg_grade, 2) if avg_grade else 0,
+                    "total_fcw_mex_fex": total_risk,
+                    "staff_full_name": staff_full_name,
+                    "faculty_id": staff_faculty_id,
+                    "department_id": staff_department_id,
+                },
+                "charts": {
+                    "enrollment_by_course": enrollment_by_course,
+                    "performance_by_course": performance_by_course,
+                    "risk_by_course": risk_by_course,
+                },
+                "scope": {
+                    "semester_id": semester_id,
+                    "course_codes": course_codes,
+                },
+            }
+        ), 200
         
     except Exception as e:
         print(f"Error in get_staff_classes: {e}")
         return jsonify({'error': str(e)}), 500
+    finally:
+        try:
+            dw_conn.close()
+        except Exception:
+            pass
 
 
 def _filter_options_fallback_faculties(engine, role, user_scope, faculty_id, department_id, program_id):
@@ -1544,21 +1806,21 @@ def get_filter_options():
             options['departments'] = []
         else:
             try:
-        dept_query = """
-            SELECT DISTINCT d.department_id, d.department_name, d.faculty_id
-            FROM dim_department d
-        """
-        dept_where = []
-        if role == Role.HOD and user_scope.get('department_id'):
-            dept_where.append(f"d.department_id = {user_scope['department_id']}")
+                dept_query = """
+                    SELECT DISTINCT d.department_id, d.department_name, d.faculty_id
+                    FROM dim_department d
+                """
+                dept_where = []
+                if role == Role.HOD and user_scope.get('department_id'):
+                    dept_where.append(f"d.department_id = {user_scope['department_id']}")
                 elif role == Role.DEAN and user_scope.get('faculty_id') and not faculty_id:
-                dept_where.append(f"d.faculty_id = {user_scope['faculty_id']}")
-        if faculty_id:
-            dept_where.append(f"d.faculty_id = {faculty_id}")
-        if dept_where:
-            dept_query += " WHERE " + " AND ".join(dept_where)
-        dept_query += " ORDER BY d.department_name"
-        
+                    dept_where.append(f"d.faculty_id = {user_scope['faculty_id']}")
+                if faculty_id:
+                    dept_where.append(f"d.faculty_id = {faculty_id}")
+                if dept_where:
+                    dept_query += " WHERE " + " AND ".join(dept_where)
+                dept_query += " ORDER BY d.department_name"
+
                 df = pd.read_sql_query(text(dept_query), engine)
                 options['departments'] = df.to_dict('records') if not df.empty else []
                 if not options['departments']:
@@ -1566,7 +1828,7 @@ def get_filter_options():
                         SELECT DISTINCT d.department_id, d.department_name, d.faculty_id
                         FROM dim_student ds
                         JOIN dim_program p ON ds.program_id = p.program_id
-            JOIN dim_department d ON p.department_id = d.department_id
+                        JOIN dim_department d ON p.department_id = d.department_id
                         ORDER BY d.department_name
                     """
                     df2 = pd.read_sql_query(text(fallback), engine)
@@ -1580,12 +1842,12 @@ def get_filter_options():
             if user_scope.get('student_id'):
                 try:
                     q = """
-                    SELECT DISTINCT p.program_id, p.program_name, p.department_id, d.faculty_id
-                    FROM dim_program p
-                    JOIN dim_department d ON p.department_id = d.department_id
-                    JOIN dim_student ds ON p.program_id = ds.program_id
-                    WHERE ds.student_id = :student_id
-                """
+                        SELECT DISTINCT p.program_id, p.program_name, p.department_id, d.faculty_id
+                        FROM dim_program p
+                        JOIN dim_department d ON p.department_id = d.department_id
+                        JOIN dim_student ds ON p.program_id = ds.program_id
+                        WHERE ds.student_id = :student_id
+                    """
                     df = pd.read_sql_query(text(q), engine, params={'student_id': user_scope['student_id']})
                     options['programs'] = df.to_dict('records') if not df.empty else []
                 except Exception:
@@ -1605,12 +1867,12 @@ def get_filter_options():
                 # Dean: always constrain programs to JWT faculty (even when only department_id is sent).
                 if role == Role.DEAN and user_scope.get('faculty_id'):
                     prog_where.append(f"d.faculty_id = {user_scope['faculty_id']}")
-            if department_id:
-                prog_where.append(f"p.department_id = {department_id}")
-            if prog_where:
-                prog_query += " WHERE " + " AND ".join(prog_where)
-            prog_query += " ORDER BY p.program_name"
-            
+                if department_id:
+                    prog_where.append(f"p.department_id = {department_id}")
+                if prog_where:
+                    prog_query += " WHERE " + " AND ".join(prog_where)
+                prog_query += " ORDER BY p.program_name"
+
                 df = pd.read_sql_query(text(prog_query), engine)
                 options['programs'] = df.to_dict('records') if not df.empty else []
                 if not options['programs']:
@@ -1628,20 +1890,20 @@ def get_filter_options():
         
         # --- Courses (filtered by department/faculty; fallback from fact_grade) ---
         try:
-        if role == Role.STUDENT:
+            if role == Role.STUDENT:
                 # Restrict courses to those the current student has grades for.
                 if user_scope.get('student_id'):
                     q = """
-                SELECT DISTINCT c.course_code, c.course_name
-                FROM dim_course c
-                JOIN fact_grade fg ON c.course_code = fg.course_code
+                        SELECT DISTINCT c.course_code, c.course_name
+                        FROM dim_course c
+                        JOIN fact_grade fg ON c.course_code = fg.course_code
                         WHERE fg.student_id = :student_id
-                ORDER BY c.course_code
-            """
+                        ORDER BY c.course_code
+                    """
                     df = pd.read_sql_query(text(q), engine, params={'student_id': user_scope['student_id']})
                     options['courses'] = df.to_dict('records') if not df.empty else []
-            else:
-                options['courses'] = []
+                else:
+                    options['courses'] = []
             else:
                 # Start with all courses, then narrow by department/faculty/role.
                 course_query = "SELECT DISTINCT course_code, course_name FROM dim_course ORDER BY course_code"
@@ -1674,21 +1936,21 @@ def get_filter_options():
                         ORDER BY fg.course_code
                     """
                 elif department_id:
-                course_query = """
-                    SELECT DISTINCT c.course_code, c.course_name
-                    FROM dim_course c
-                    WHERE c.department = (SELECT department_name FROM dim_department WHERE department_id = :dept_id)
-                    ORDER BY c.course_code
-                """
+                    course_query = """
+                        SELECT DISTINCT c.course_code, c.course_name
+                        FROM dim_course c
+                        WHERE c.department = (SELECT department_name FROM dim_department WHERE department_id = :dept_id)
+                        ORDER BY c.course_code
+                    """
                     params = {'dept_id': department_id}
-            elif faculty_id:
-                course_query = """
-                    SELECT DISTINCT c.course_code, c.course_name
-                    FROM dim_course c
-                    JOIN dim_department d ON c.department = d.department_name
-                    WHERE d.faculty_id = :fac_id
-                    ORDER BY c.course_code
-                """
+                elif faculty_id:
+                    course_query = """
+                        SELECT DISTINCT c.course_code, c.course_name
+                        FROM dim_course c
+                        JOIN dim_department d ON c.department = d.department_name
+                        WHERE d.faculty_id = :fac_id
+                        ORDER BY c.course_code
+                    """
                     params = {'fac_id': faculty_id}
                 elif role == Role.HOD and user_scope.get('department_id'):
                     course_query = """
@@ -1754,7 +2016,7 @@ def get_filter_options():
         # --- Year of study ---
         # Scope by faculty/department/program from dim_student (cheap). Avoid heavy fact_grade joins.
         try:
-        if role == Role.STUDENT:
+            if role == Role.STUDENT:
                 options['year_of_studies'] = []
             else:
                 y_where = []
@@ -1906,7 +2168,7 @@ def get_filter_options():
         
         if engine is not None:
             try:
-        engine.dispose()
+                engine.dispose()
             except Exception:
                 pass
         return jsonify(options), 200
@@ -2443,24 +2705,24 @@ def get_student_analytics():
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         role = user_scope['role']
-        
+
         # Check permission
         if not has_permission(role, Resource.ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
-        
+
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        
+
         # Students may only ever see their own record (ignore forged query params).
         if role == Role.STUDENT:
             access_number = user_scope.get('access_number')
-        student_id = user_scope.get('student_id')
+            student_id = user_scope.get('student_id')
         else:
             access_number = request.args.get('access_number') or user_scope.get('access_number')
             student_id = request.args.get('student_id') or user_scope.get('student_id')
-        
+
         if not access_number and not student_id:
             return jsonify({'error': 'Student identifier required'}), 400
-        
+
         # Build query to get student data
         if student_id:
             where_clause = "WHERE ds.student_id = :student_id"
@@ -2484,7 +2746,7 @@ def get_student_analytics():
 
         # Courses registered: distinct course codes from enrollment ∪ grade facts (realistic when ids differ).
         query = f"""
-        SELECT 
+        SELECT
             ds.student_id,
             ds.access_number,
             ds.reg_no,
@@ -2552,7 +2814,7 @@ def get_student_analytics():
             OR (ds.access_number IS NOT NULL AND TRIM(COALESCE(ds.access_number::text, '')) <> ''
                 AND UPPER(TRIM(fe.student_id)) = UPPER(TRIM(ds.access_number)))
         )"""
-        
+
         df = pd.read_sql_query(text(query), engine, params=params)
         
         if df.empty:
@@ -2738,7 +3000,7 @@ def get_student_analytics():
             _analytics_log.warning("student analytics enroll_stats_sql: %s", ex)
 
         engine.dispose()
-        
+
         def _num(row, key, default=0):
             v = row.get(key)
             if v is None or (isinstance(v, float) and pd.isna(v)):
@@ -3174,6 +3436,16 @@ def get_enrollment_pipeline():
                     "WHERE dp_f.program_id = ds.program_id AND dd_f.faculty_id = :q_faculty_id)"
                 )
                 ds_params['q_faculty_id'] = q_faculty_id
+
+            # Optional numeric department filter (analyst / senate / sysadmin / finance).
+            q_department_id = request.args.get('department_id', type=int)
+            if q_department_id and role in (Role.ANALYST, Role.SYSADMIN, Role.SENATE, Role.FINANCE):
+                ds_where.append(
+                    "EXISTS (SELECT 1 FROM dim_program dp_d "
+                    "WHERE dp_d.program_id = ds.program_id "
+                    "AND dp_d.department_id = :q_department_id)"
+                )
+                ds_params['q_department_id'] = q_department_id
 
         if faculty_filter:
             ds_where.append("ds.\"FACULTY\" ILIKE :faculty")
@@ -4338,8 +4610,16 @@ def get_hr_analytics():
         if not has_permission(user_scope['role'], Resource.HR_ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
 
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         filters = request.args.to_dict()
+
+        try:
+            ck = _cache_key("analytics_hr", claims=claims, params=filters)
+            cached = _cache_get_json(ck)
+            if cached:
+                return jsonify(json.loads(cached)), 200
+        except Exception:
+            ck = None
 
         # Populate ucu_sourcedb2.employee_attendance when dims exist (fixes empty chart / 0% KPI).
         _bootstrap_hr_attendance_mirror(engine)
@@ -4353,14 +4633,15 @@ def get_hr_analytics():
                 import traceback
                 print(f'Error in _hr_analytics_from_dim_warehouse: {e}')
                 print(traceback.format_exc())
-                try:
-                    engine.dispose()
-                except Exception:
-                    pass
                 return jsonify({'error': 'HR warehouse analytics failed', 'detail': str(e)}), 500
-            engine.dispose()
             payload.pop('_data_source', None)
-            return jsonify(payload), 200
+            resp = jsonify(payload)
+            try:
+                if ck:
+                    _cache_set_json(ck, resp.get_data(as_text=True), ttl_seconds=15)
+            except Exception:
+                pass
+            return resp, 200
 
         # Optional filters by faculty / department (from SourceDB1 faculties/departments)
         where_clauses_base = []
@@ -4647,9 +4928,9 @@ def get_hr_analytics():
         GROUP BY role_category
         """
         try:
-        payroll_df = pd.read_sql_query(text(payroll_sql), engine)
-        payroll_by_role = payroll_df.to_dict('records') if not payroll_df.empty else []
-        total_payroll = float(payroll_df['total_net_pay'].sum() or 0.0) if not payroll_df.empty else 0.0
+            payroll_df = pd.read_sql_query(text(payroll_sql), engine)
+            payroll_by_role = payroll_df.to_dict('records') if not payroll_df.empty else []
+            total_payroll = float(payroll_df['total_net_pay'].sum() or 0.0) if not payroll_df.empty else 0.0
         except Exception:
             # Warehouse mirror often has no payroll table; older PG may use lowercase column names.
             payroll_by_role = []
@@ -4711,9 +4992,7 @@ def get_hr_analytics():
         retained_by_department = retained_df.to_dict('records') if not retained_df.empty else []
         retained_total = int(retained_df['retained_count'].sum() or 0) if not retained_df.empty else 0
 
-        engine.dispose()
-
-        return jsonify({
+        resp = jsonify({
             'total_employees': total_employees,
             'total_departments': total_departments,
             'lecturers': lecturers,
@@ -4731,7 +5010,13 @@ def get_hr_analytics():
             'total_payroll': total_payroll,
             'retained_employees_total': retained_total,
             'retained_employees_by_department': retained_by_department,
-        }), 200
+        })
+        try:
+            if ck:
+                _cache_set_json(ck, resp.get_data(as_text=True), ttl_seconds=15)
+        except Exception:
+            pass
+        return resp, 200
 
     except Exception as e:
         import traceback
@@ -4768,13 +5053,17 @@ def get_academic_risk():
             where_clauses.append("df.faculty_id = :fac_id")
             params['fac_id'] = user_scope['faculty_id']
 
-        # Apply global filters (faculty/department/program/high_school/intake_year/semester)
+        # Apply global filters (faculty/department/program/high_school/intake_year/semester/course)
         fac_id = filters.get('faculty_id')
         dept_id = filters.get('department_id')
         prog_id = filters.get('program_id')
         high_school = filters.get('high_school')
         intake_year = filters.get('intake_year')
         sem_id = filters.get('semester_id')
+        course_code = filters.get('course_code')
+
+        course_code_active = bool(course_code) and str(course_code).strip().lower() not in ('', 'all')
+        sem_id_active = bool(sem_id) and str(sem_id).strip().lower() not in ('', 'all')
 
         if fac_id and str(fac_id).strip().lower() != 'all':
             where_clauses.append("df.faculty_id = :f_faculty_id")
@@ -4815,17 +5104,24 @@ def get_academic_risk():
         {where_str}
         """
         try:
+            # Force fallback for semester and/or course_code because the view may not expose them.
+            if course_code_active or sem_id_active:
+                raise RuntimeError("Forcing fallback for semester/course_code filtering")
             summary_df = pd.read_sql_query(text(sql_summary), engine, params=params)
         except Exception:
-            # Fallback: derive FCW/MEX/FEX directly from fact_grade when the view is missing.
-            # Semester filter is only meaningful here (v_student_risk_summary may not carry semester_id).
+            # Fallback: derive FCW/MEX/FEX directly from fact_grade.
             sem_clause = ""
-            if sem_id and str(sem_id).strip().lower() != 'all':
+            if sem_id_active:
                 try:
                     params['f_sem'] = int(sem_id)
                     sem_clause = " AND fg.semester_id = :f_sem"
                 except Exception:
                     sem_clause = ""
+
+            course_clause = ""
+            if course_code_active:
+                params['f_course'] = str(course_code).strip().replace("'", "''")
+                course_clause = " AND fg.course_code = :f_course"
 
             sql_summary_fallback = f"""
             SELECT
@@ -4841,6 +5137,7 @@ def get_academic_risk():
             LEFT JOIN dim_faculty df ON dd.faculty_id = df.faculty_id
             {where_str}
             {sem_clause}
+            {course_clause}
             """
             summary_df = pd.read_sql_query(text(sql_summary_fallback), engine, params=params)
         summary = summary_df.iloc[0].to_dict() if not summary_df.empty else {}

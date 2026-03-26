@@ -7,7 +7,7 @@
  * All dashboard management (current vs custom, preview, swap, edit content)
  * lives in the dedicated Dashboard Manager page.
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { RefreshCw, Loader2, Users, Activity, GraduationCap, Target, Receipt, Award } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -68,8 +68,11 @@ const AnalystDashboard = ({
   const [stats, setStats] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [hasLoadedStats, setHasLoadedStats] = useState(false);
   const [loadingCharts, setLoadingCharts] = useState(true);
+  const [hasLoadedCharts, setHasLoadedCharts] = useState(false);
   const [loadingStudentDist, setLoadingStudentDist] = useState(false);
+  const [hasLoadedStudentDist, setHasLoadedStudentDist] = useState(false);
   const [enrollmentByFaculty, setEnrollmentByFaculty] = useState([]);
   const [gradesOverTime, setGradesOverTime] = useState([]);
   const [gradeDistribution, setGradeDistribution] = useState([]);
@@ -81,7 +84,12 @@ const AnalystDashboard = ({
   const [tuitionPaymentTrendsDim, setTuitionPaymentTrendsDim] = useState([]);
   const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
   const [loadingPipeline, setLoadingPipeline] = useState(true);
+  const [hasLoadedPipeline, setHasLoadedPipeline] = useState(false);
   const [globalFilters, setGlobalFilters] = useState({});
+  const statsRequestSeqRef = useRef(0);
+  const chartsRequestSeqRef = useRef(0);
+  const studentDistRequestSeqRef = useRef(0);
+  const pipelineRequestSeqRef = useRef(0);
   /** For deans: department/program counts in their faculty → drives default distribution dimension. */
   const [facultyShape, setFacultyShape] = useState({
     loaded: false,
@@ -211,20 +219,29 @@ const AnalystDashboard = ({
   }, [lockedDepartmentId]);
 
   const loadStats = async () => {
+    const reqId = ++statsRequestSeqRef.current;
     try {
-      if (!stats) {
-        setLoadingStats(true);
-      }
+      const shouldShowLoader = !hasLoadedStats;
+      if (shouldShowLoader) setLoadingStats(true);
+
       const response = await axios.get('/api/dashboard/stats', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: apiFilters,
+        params: { ...apiFilters, lite: 1 },
       });
+
+      if (reqId !== statsRequestSeqRef.current) return;
       setStats(response.data);
+      setHasLoadedStats(true);
     } catch (err) {
-      console.error('Error loading analyst dashboard stats:', err);
+      if (reqId === statsRequestSeqRef.current) {
+        console.error('Error loading analyst dashboard stats:', err);
+        // Keep existing stats on failure so KPIs don't disappear.
+      }
     } finally {
-      setLoadingStats(false);
-      setRefreshing(false);
+      if (reqId === statsRequestSeqRef.current) {
+        setLoadingStats(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -329,8 +346,9 @@ const AnalystDashboard = ({
   ]);
 
   const loadCharts = async () => {
+    const reqId = ++chartsRequestSeqRef.current;
     try {
-      setLoadingCharts(true);
+      if (!hasLoadedCharts) setLoadingCharts(true);
       const token = sessionStorage.getItem('ucu_session_token');
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -407,6 +425,8 @@ const AnalystDashboard = ({
           ];
 
       const results = await Promise.all([...baseRequests, ...paymentRequests, ...tuitionRequests]);
+
+      if (reqId !== chartsRequestSeqRef.current) return;
 
       const [
         gradesRes,
@@ -497,10 +517,16 @@ const AnalystDashboard = ({
           })),
         );
       }
+
+      setHasLoadedCharts(true);
     } catch (err) {
-      console.error('Error loading analyst charts:', err);
+      if (reqId === chartsRequestSeqRef.current) {
+        console.error('Error loading analyst charts:', err);
+      }
     } finally {
-      setLoadingCharts(false);
+      if (reqId === chartsRequestSeqRef.current) {
+        setLoadingCharts(false);
+      }
     }
   };
 
@@ -518,8 +544,9 @@ const AnalystDashboard = ({
   };
 
   const loadStudentDistributionChart = async () => {
+    const reqId = ++studentDistRequestSeqRef.current;
     try {
-      setLoadingStudentDist(true);
+      if (!hasLoadedStudentDist) setLoadingStudentDist(true);
       const token = sessionStorage.getItem('ucu_session_token');
       const headers = { Authorization: `Bearer ${token}` };
       const res = await axios
@@ -530,6 +557,7 @@ const AnalystDashboard = ({
         .catch(() => ({ data: { labels: [], counts: [] } }));
       const enrollLabels = res.data.labels || res.data.departments || [];
       const enrollCounts = res.data.counts || [];
+      if (reqId !== studentDistRequestSeqRef.current) return;
       const gb = distributionGroupBy;
       setEnrollmentByFaculty(
         enrollLabels.map((name, idx) => {
@@ -544,17 +572,24 @@ const AnalystDashboard = ({
           };
         }),
       );
+
+      setHasLoadedStudentDist(true);
     } catch (err) {
-      console.error('Error loading student distribution chart:', err);
-      setEnrollmentByFaculty([]);
+      if (reqId === studentDistRequestSeqRef.current) {
+        console.error('Error loading student distribution chart:', err);
+        setEnrollmentByFaculty([]);
+      }
     } finally {
-      setLoadingStudentDist(false);
+      if (reqId === studentDistRequestSeqRef.current) {
+        setLoadingStudentDist(false);
+      }
     }
   };
 
   const loadPipelineChart = async () => {
+    const reqId = ++pipelineRequestSeqRef.current;
     try {
-      setLoadingPipeline(true);
+      if (!hasLoadedPipeline) setLoadingPipeline(true);
       const token = sessionStorage.getItem('ucu_session_token');
       const headers = { Authorization: `Bearer ${token}` };
       const params = { ...apiFilters };
@@ -565,6 +600,7 @@ const AnalystDashboard = ({
         })
         .catch(() => ({ data: { pipeline: [] } }));
 
+      if (reqId !== pipelineRequestSeqRef.current) return;
       setEnrollmentPipeline(
         (res.data.pipeline || []).map((row) => ({
           academic_year: row.academic_year ? String(row.academic_year) : '',
@@ -572,11 +608,17 @@ const AnalystDashboard = ({
           total_enrollments: row.total_enrollments || 0,
         })),
       );
+
+      setHasLoadedPipeline(true);
     } catch (err) {
-      console.error('Error loading enrollment pipeline chart:', err);
-      setEnrollmentPipeline([]);
+      if (reqId === pipelineRequestSeqRef.current) {
+        console.error('Error loading enrollment pipeline chart:', err);
+        setEnrollmentPipeline([]);
+      }
     } finally {
-      setLoadingPipeline(false);
+      if (reqId === pipelineRequestSeqRef.current) {
+        setLoadingPipeline(false);
+      }
     }
   };
 
@@ -587,13 +629,18 @@ const AnalystDashboard = ({
     loadStudentDistributionChart();
     const interval = setInterval(loadStats, ANALYST_KPI_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    loadStats();
-    loadCharts();
-    loadStudentDistributionChart();
-    loadPipelineChart();
+    // Debounce filter-driven reloads so we don't fire multiple heavy requests while filters initialize.
+    const t = setTimeout(() => {
+      loadStats();
+      loadCharts();
+      loadStudentDistributionChart();
+      loadPipelineChart();
+    }, 250);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalFilters, distributionGroupBy, lockedFacultyId, lockedDepartmentId, facultyShape.loaded, deptScopeShape.loaded]);
 
@@ -686,7 +733,7 @@ const AnalystDashboard = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0 pb-4">
-      {loadingStats && !stats ? (
+      {loadingStats && !hasLoadedStats ? (
         <div className="flex items-center justify-center py-6">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
@@ -739,7 +786,7 @@ const AnalystDashboard = ({
               </CardDescription>
             </CardHeader>
           <CardContent className="pt-0">
-            {loadingPipeline ? (
+            {loadingPipeline && !hasLoadedPipeline ? (
               <div className="min-h-[260px] flex items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
@@ -766,7 +813,7 @@ const AnalystDashboard = ({
             <CardTitle className={chartCardTitleClass}>{distributionCardTitle}</CardTitle>
             </CardHeader>
           <CardContent className="pt-0">
-            {loadingStudentDist ? (
+            {loadingStudentDist && !hasLoadedStudentDist ? (
               <div className="min-h-[320px] flex items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
@@ -807,7 +854,7 @@ const AnalystDashboard = ({
               </CardDescription>
             </CardHeader>
           <CardContent className="pt-0">
-            {loadingCharts ? (
+            {loadingCharts && !hasLoadedCharts ? (
               <div className="min-h-[220px] flex items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
@@ -834,7 +881,7 @@ const AnalystDashboard = ({
               </CardDescription>
             </CardHeader>
           <CardContent className="pt-0">
-            {loadingCharts ? (
+            {loadingCharts && !hasLoadedCharts ? (
               <div className="min-h-[220px] flex items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
@@ -891,7 +938,7 @@ const AnalystDashboard = ({
               subtitle="MEX exams with tuition/financial absence reasons."
             />
           </div>
-          {loadingCharts ? (
+          {loadingCharts && !hasLoadedCharts ? (
             <div className="min-h-[220px] flex items-center justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
