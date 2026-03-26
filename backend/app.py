@@ -278,8 +278,12 @@ app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=25)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=8)
 
-# CORS: allow frontend (localhost:3000) to call backend (localhost:5000); preflight must get 2xx + headers
-CORS(app, supports_credentials=True, origins=['http://localhost:3000', 'http://localhost:5000', 'http://127.0.0.1:3000', 'http://127.0.0.1:5000'],
+# CORS: allow local dev + any production frontend URL set via FRONTEND_URL env var
+_cors_origins = ['http://localhost:3000', 'http://localhost:5000', 'http://127.0.0.1:3000', 'http://127.0.0.1:5000']
+_frontend_url = os.environ.get('FRONTEND_URL', '').strip()
+if _frontend_url:
+    _cors_origins.append(_frontend_url)
+CORS(app, supports_credentials=True, origins=_cors_origins,
      allow_headers=['Content-Type', 'Authorization'], methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 jwt = JWTManager(app)
 
