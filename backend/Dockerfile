@@ -9,6 +9,8 @@ FROM python:3.11-slim AS backend
 
 # Set a consistent working directory inside the container
 WORKDIR /app
+# Used by notebooks to resolve imports when cwd is /app/notebooks
+ENV APP_ROOT=/app
 
 # Install system packages needed for building Python wheels and talking to PostgreSQL
 RUN apt-get update && apt-get install -y --no-install-recommends \

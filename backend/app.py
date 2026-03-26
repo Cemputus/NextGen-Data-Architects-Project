@@ -221,8 +221,15 @@ def _get_staff_assigned_course_codes(identity):
 
 # Import blueprints
 from api.auth import auth_bp
-from api.analytics import analytics_bp
 from api.hod import hod_bp
+
+# Analytics blueprint may fail to import if the file has syntax/indentation issues.
+# Avoid crashing the whole service during startup.
+try:
+    from api.analytics import analytics_bp
+except Exception as e:
+    print("Analytics blueprint failed to load:", e)
+    analytics_bp = None
 try:
     from api.dashboards import dashboards_bp, dashboard_manager_bp, page_config_bp
 except Exception as e:
@@ -1549,7 +1556,8 @@ def hod_set_staff_assignments(staff_id):
 
 # --- Now register blueprints (sysadmin routes above are already on the app) ---
 app.register_blueprint(auth_bp)
-app.register_blueprint(analytics_bp)
+if analytics_bp:
+    app.register_blueprint(analytics_bp)
 if dashboards_bp:
     app.register_blueprint(dashboards_bp)
 if dashboard_manager_bp:

@@ -30,6 +30,10 @@ services:
         generateValue: true
       - key: PYTHONUNBUFFERED
         value: "1"
+      # Prevent startup-time model training if pkl artifacts are missing in the container.
+      # (We will wire this flag into model-loading next.)
+      - key: SKIP_MODEL_TRAINING
+        value: "1"
 
   # React SPA (static site)
   - type: web
