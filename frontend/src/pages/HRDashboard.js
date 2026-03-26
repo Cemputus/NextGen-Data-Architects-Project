@@ -25,8 +25,8 @@ import {
   SciBarChart,
   SciDonutChart,
   SciStackedAreaChart,
-  UCU_COLORS,
 } from '../components/charts/EChartsComponents';
+import { UCU_COLORS } from '../lib/chartTheme';
 import { CHART_PALETTE_THEME, MODERN_CHART_PALETTE } from '../lib/chartTheme';
 import { abbreviateOrgLabel } from '../lib/hrChartLabels';
 
