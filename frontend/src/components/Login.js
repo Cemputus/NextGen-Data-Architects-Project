@@ -74,12 +74,12 @@ const Login = () => {
         if (!ok) throw lastErr;
       } catch (networkErr) {
         if (networkErr.code === 'ECONNABORTED' || networkErr.message?.includes('timeout')) {
-          setError('Network timeout. Ensure the backend container is healthy (port 5000) and try again.');
+          setError('The server is taking too long to respond. Please check your connection and try again.');
           setLoading(false);
           return;
         }
         if (networkErr.message?.includes('Network Error') || networkErr.code === 'ERR_NETWORK') {
-          setError('Cannot connect to server. Ensure the backend container is running and reachable on port 5000.');
+          setError('Cannot reach the server right now. Please try again in a moment.');
           setLoading(false);
           return;
         }

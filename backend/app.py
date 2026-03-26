@@ -1868,7 +1868,7 @@ def not_found(e):
     path = request.path or ''
     msg = 'The requested URL was not found.'
     if path.startswith('/api/user-mgmt') or (path.startswith('/api/admin') and ('users' in path or 'faculties' in path or 'departments' in path or 'ping' in path)):
-        msg = 'User Management route not found. Restart the backend (backend\\run_backend.bat), then restart frontend (npm start). Test: http://127.0.0.1:5000/api/user-mgmt/ping'
+        msg = 'User Management route not found. Please refresh and try again, or contact an administrator.'
     resp = make_response(jsonify({'error': 'Not Found', 'message': msg}), 404)
     resp.headers['Content-Type'] = 'application/json'
     return resp

@@ -312,8 +312,10 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             rbac_app_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
         except Exception:
             rbac_app_count = 0
-            if kpis['system_health'] > 0:
-                kpis['system_health'] = 50
+            # RBAC is helpful but not strictly required for "system health".
+            # Keep health high if warehouse is reachable.
+            if kpis['system_health'] == 100:
+                kpis['system_health'] = 85
         app_users_count = dim_app_users if dim_app_users > 0 else rbac_app_count
         app_staff_role_count = 0
         try:
@@ -342,8 +344,8 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
         rbac_engine.dispose()
     except Exception as e:
         app_users_count = 0
-        if kpis['system_health'] > 0:
-            kpis['system_health'] = 50
+        if kpis['system_health'] == 100:
+            kpis['system_health'] = 85
         kpis['employees'] = etl_employee_count
         kpis['staff'] = etl_staff_lecturer_count  # at least ETL staff/lecturers
     # If both still 0, try direct psycopg2 to ucu_rbac (in case SQLAlchemy engine had issues)
