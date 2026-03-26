@@ -73,16 +73,11 @@ const Login = () => {
         }
         if (!ok) throw lastErr;
       } catch (networkErr) {
-        if (networkErr.code === 'ECONNABORTED' || networkErr.message?.includes('timeout')) {
-          setError('The server is taking too long to respond. Please check your connection and try again.');
-          setLoading(false);
-          return;
-        }
-        if (networkErr.message?.includes('Network Error') || networkErr.code === 'ERR_NETWORK') {
-          setError('Cannot reach the server right now. Please try again in a moment.');
-          setLoading(false);
-          return;
-        }
+        // In production we avoid showing "server unreachable" messaging.
+        // Proceed to the normal login attempt; errors will be handled uniformly below.
+        // Keep details for debugging only.
+        // eslint-disable-next-line no-console
+        console.warn('[login] preflight /api/status failed:', networkErr);
       }
       const result = await login(username.trim(), password);
       if (result.success && result.user) {
@@ -105,7 +100,10 @@ const Login = () => {
         setError(result.error || 'Invalid credentials. Please check your username or Access Number and password.');
       }
     } catch (err) {
-      setError(err?.message?.includes('Network') ? 'Cannot connect to server.' : 'An error occurred. Please try again.');
+      // Never surface infra wording to end-users in the deployed app.
+      // eslint-disable-next-line no-console
+      console.warn('[login] sign-in failed:', err);
+      setError('Sign-in failed. Please check your details and try again.');
     } finally {
       setLoading(false);
     }

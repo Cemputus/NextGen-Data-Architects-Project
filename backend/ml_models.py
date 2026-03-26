@@ -474,6 +474,14 @@ class MultiModelPredictor:
             prediction = np.mean(predictions) if predictions else 0
         elif model_type in self.models and self.models[model_type] is not None:
             prediction = self.models[model_type].predict(X_scaled)[0]
+        elif model_type in self.models and self.models[model_type] is None:
+            # If a model was intentionally disabled (e.g. to keep artifacts small),
+            # degrade gracefully to the ensemble rather than failing the request.
+            predictions = []
+            for _, model in self.models.items():
+                if model is not None:
+                    predictions.append(model.predict(X_scaled)[0])
+            prediction = np.mean(predictions) if predictions else 0
         else:
             raise ValueError(f"Model {model_type} not available")
         
