@@ -57,7 +57,7 @@ export default function UserManagementSection({
   showOpenFullPage = false,
   refreshTrigger,
   onUsersChanged,
-  // Optional: cap "all" for preview contexts (e.g. Admin Console tab)
+  // Optional: cap "all" for preview contexts (e.g. Admin Console tab)---
   maxUsers = null,
   // Optional: hide the "Show last N" selector
   hideLimitSelector = false,
