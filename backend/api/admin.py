@@ -383,7 +383,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
 
 
 def _get_etl_run_history(log_dir, max_runs=20):
-    """Parse ETL log directory and return list of runs.
+    """Return ETL run history (DB-first, file fallback).
 
     Status semantics:
       - "success"     → log contains "ETL Pipeline completed successfully in ..."
@@ -391,6 +391,65 @@ def _get_etl_run_history(log_dir, max_runs=20):
       - "in_progress" → log exists but neither success nor failed markers are present yet
                         (most recent run still in progress or log truncated)
     """
+    # Preferred path: persistent DB-backed ETL history (survives container restarts/deploys).
+    engine = None
+    try:
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS etl_run_history (
+                    run_id VARCHAR(64) PRIMARY KEY,
+                    log_file VARCHAR(255),
+                    status VARCHAR(20) NOT NULL,
+                    started_at TIMESTAMP NOT NULL,
+                    ended_at TIMESTAMP NULL,
+                    duration_seconds DOUBLE PRECISION NULL,
+                    error_message TEXT NULL,
+                    source_mode VARCHAR(50) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_erh_started_at ON etl_run_history(started_at DESC)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_erh_status ON etl_run_history(status)"))
+            conn.commit()
+        q = text("""
+            SELECT run_id, log_file, status, started_at, ended_at, duration_seconds, error_message
+            FROM etl_run_history
+            ORDER BY started_at DESC
+            LIMIT :lim
+        """)
+        df = pd.read_sql_query(q, engine, params={'lim': int(max_runs)})
+        if not df.empty:
+            out = []
+            for _, r in df.iterrows():
+                started = r.get('started_at')
+                ended = r.get('ended_at')
+                duration_seconds = r.get('duration_seconds')
+                duration_text = None
+                try:
+                    if pd.notna(duration_seconds):
+                        duration_text = str(timedelta(seconds=float(duration_seconds)))
+                except Exception:
+                    duration_text = None
+                out.append({
+                    'run_id': str(r.get('run_id') or ''),
+                    'log_file': str(r.get('log_file') or ''),
+                    'start_time': started.strftime('%Y-%m-%d %H:%M:%S') if hasattr(started, 'strftime') else (str(started) if pd.notna(started) else None),
+                    'end_time': ended.strftime('%Y-%m-%d %H:%M:%S') if hasattr(ended, 'strftime') else (str(ended) if pd.notna(ended) else None),
+                    'duration': duration_text,
+                    'success': str(r.get('status') or '').strip().lower() == 'success',
+                    'status': str(r.get('status') or 'in_progress').strip().lower() or 'in_progress',
+                    'error_message': str(r.get('error_message') or ''),
+                })
+            return out
+    except Exception:
+        # Fall back to log-file parsing below.
+        pass
+    finally:
+        if engine:
+            engine.dispose()
+
+    # Fallback path: parse ETL log files on disk.
     log_dir = Path(log_dir)
     if not log_dir.exists():
         return []

@@ -21,6 +21,7 @@ import CountdownTimer from '../components/admin/CountdownTimer';
 
 const REFRESH_INTERVAL_MS = 5000;
 const REFRESH_AFTER_RUN_COUNT = 12; // 12 * 5s = 60s of polling after Run ETL
+const ALWAYS_POLL_STATUS_MS = 10000;
 
 // ETL auto-run interval options (in minutes)
 const ETL_AUTO_INTERVAL_OPTIONS = [
@@ -203,6 +204,13 @@ const AdminETL = () => {
   useEffect(() => {
     loadStatus();
     loadSettings();
+  }, [etlRunsLimit]);
+
+  // Always keep ETL status/history fresh, even when auto-ETL is off.
+  // This prevents users from needing a hard refresh to see new run states/counts.
+  useEffect(() => {
+    const id = setInterval(() => loadStatus(true), ALWAYS_POLL_STATUS_MS);
+    return () => clearInterval(id);
   }, [etlRunsLimit]);
 
   // Local ticking server time (updates every second based on last snapshot)

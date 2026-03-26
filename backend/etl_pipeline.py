@@ -97,6 +97,87 @@ class ETLPipeline:
 
         # Location for user snapshot seeds (for RBAC/app_users reproducibility)
         self.user_snapshot_path = Path(__file__).parent / "etl_seeds" / "user_snapshot.json"
+        self.current_run_id = None
+
+    def _ensure_etl_run_history_table(self, conn):
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS etl_run_history (
+                run_id VARCHAR(64) PRIMARY KEY,
+                log_file VARCHAR(255),
+                status VARCHAR(20) NOT NULL,
+                started_at TIMESTAMP NOT NULL,
+                ended_at TIMESTAMP NULL,
+                duration_seconds DOUBLE PRECISION NULL,
+                error_message TEXT NULL,
+                source_mode VARCHAR(50) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_erh_started_at ON etl_run_history(started_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_erh_status ON etl_run_history(status)"))
+        conn.commit()
+
+    def _record_etl_run_start(self, start_time):
+        """Persist ETL run start so Admin UI can show in-progress status immediately."""
+        run_id = f"etl_{start_time.strftime('%Y%m%d_%H%M%S')}"
+        engine = None
+        try:
+            engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+            with engine.connect() as conn:
+                self._ensure_etl_run_history_table(conn)
+                conn.execute(
+                    text("""
+                        INSERT INTO etl_run_history
+                        (run_id, log_file, status, started_at, source_mode)
+                        VALUES (:run_id, :log_file, 'in_progress', :started_at, :source_mode)
+                    """),
+                    {
+                        'run_id': run_id,
+                        'log_file': Path(self.log_file).name,
+                        'started_at': start_time,
+                        'source_mode': 'synthetic' if USE_SYNTHETIC_DATA else 'database',
+                    }
+                )
+                conn.commit()
+            self.current_run_id = run_id
+        except Exception as e:
+            self.logger.warning("Could not persist ETL run start record: %s", e)
+        finally:
+            if engine:
+                engine.dispose()
+
+    def _record_etl_run_end(self, end_time, duration, status, error_message=None):
+        """Persist ETL run completion/failure for durable ETL history."""
+        if not self.current_run_id:
+            return
+        engine = None
+        try:
+            engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+            with engine.connect() as conn:
+                self._ensure_etl_run_history_table(conn)
+                conn.execute(
+                    text("""
+                        UPDATE etl_run_history
+                        SET status = :status,
+                            ended_at = :ended_at,
+                            duration_seconds = :duration_seconds,
+                            error_message = :error_message
+                        WHERE run_id = :run_id
+                    """),
+                    {
+                        'status': status,
+                        'ended_at': end_time,
+                        'duration_seconds': float(duration.total_seconds()) if duration is not None else None,
+                        'error_message': (str(error_message)[:4000] if error_message else None),
+                        'run_id': self.current_run_id,
+                    }
+                )
+                conn.commit()
+        except Exception as e:
+            self.logger.warning("Could not persist ETL run end record: %s", e)
+        finally:
+            if engine:
+                engine.dispose()
 
     def seed_user_system_from_snapshot(self):
         """
@@ -2742,6 +2823,7 @@ class ETLPipeline:
     def run(self):
         """Run the complete ETL pipeline"""
         start_time = _etl_log_now()
+        self._record_etl_run_start(start_time)
         self.logger.info("=" * 60)
         self.logger.info("ETL PIPELINE STARTED")
         self.logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -2761,6 +2843,7 @@ class ETLPipeline:
             end_time = _etl_log_now()
             duration = end_time - start_time
             self.logger.info(f"ETL Pipeline completed successfully in {duration}")
+            self._record_etl_run_end(end_time, duration, 'success')
             print("ETL Pipeline completed successfully!")
             print(f"Duration: {duration}")
             print(f"Log file: {self.log_file}")
@@ -2768,6 +2851,7 @@ class ETLPipeline:
             end_time = _etl_log_now()
             duration = end_time - start_time
             self.logger.error(f"ETL Pipeline failed after {duration}: {e}", exc_info=True)
+            self._record_etl_run_end(end_time, duration, 'failed', error_message=e)
             print(f"ETL Pipeline failed: {e}")
             print(f"Check log file for details: {self.log_file}")
             raise

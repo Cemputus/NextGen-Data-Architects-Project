@@ -1,28 +1,8 @@
 /**
- * Prediction Page - Multi-model predictions with scenario analysis
- * Matches styling pattern used across all other pages
+ * Prediction Page - role-aware prediction workspace
  */
 import React, { useState, useEffect } from 'react';
-import { 
-  Brain,
-  Sparkles,
-  TrendingUp,
-  Users,
-  Lightbulb,
-  GraduationCap,
-  DollarSign,
-  UserCheck,
-  Info,
-  CheckCircle2,
-  AlertTriangle,
-  Zap,
-  Target,
-  Activity,
-  Rocket,
-  Cpu,
-  LineChart,
-  Loader2,
-} from 'lucide-react';
+import { Brain, UserCheck, Info, AlertTriangle, Activity, Cpu, LineChart, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
@@ -43,7 +23,7 @@ const PredictionPage = () => {
   const [selectedScenario, setSelectedScenario] = useState(null);
   const [studentIdentifier, setStudentIdentifier] = usePersistedState('prediction_studentIdentifier', '');
   const [modelType, setModelType] = useState('ensemble');
-   const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     loadScenarios();
@@ -146,20 +126,20 @@ const PredictionPage = () => {
     }
   };
 
-  const getGradeColor = (grade) => {
-    if (grade >= 80) return 'text-green-600 bg-green-50 border-green-200';
-    if (grade >= 70) return 'text-blue-600 bg-blue-50 border-blue-200';
-    if (grade >= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-    if (grade >= 50) return 'text-orange-600 bg-orange-50 border-orange-200';
-    return 'text-red-600 bg-red-50 border-red-200';
+  const getGradeTone = (grade) => {
+    if (grade >= 80) return 'border-green-200 bg-green-50 text-green-700';
+    if (grade >= 70) return 'border-blue-200 bg-blue-50 text-blue-700';
+    if (grade >= 60) return 'border-amber-200 bg-amber-50 text-amber-700';
+    if (grade >= 50) return 'border-orange-200 bg-orange-50 text-orange-700';
+    return 'border-rose-200 bg-rose-50 text-rose-700';
   };
 
-  const getGradeBadgeColor = (grade) => {
+  const getGradeBadgeTone = (grade) => {
     if (grade >= 80) return 'bg-green-100 text-green-700 border-green-300';
     if (grade >= 70) return 'bg-blue-100 text-blue-700 border-blue-300';
-    if (grade >= 60) return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+    if (grade >= 60) return 'bg-amber-100 text-amber-700 border-amber-300';
     if (grade >= 50) return 'bg-orange-100 text-orange-700 border-orange-300';
-    return 'bg-red-100 text-red-700 border-red-300';
+    return 'bg-rose-100 text-rose-700 border-rose-300';
   };
 
   const getRiskColor = (riskLevel) => {
@@ -210,28 +190,27 @@ const PredictionPage = () => {
     <PageContent>
       <PageHeader
         title="Performance Prediction"
-        description="Scenario‑aware predictions for the current semester, combining tuition, attendance, and performance history. Use this page to explore what‑if scenarios and student‑level risk, not to override official grades."
+        description="Role-aware prediction workspace for academic performance forecasting and scenario impact analysis."
       />
 
-      {/* Prediction Form */}
-      <Card>
+      <Card className="border shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-purple-600" />
+            <Brain className="h-5 w-5 text-primary" />
             Prediction Configuration
           </CardTitle>
-          <CardDescription>Configure your prediction parameters below</CardDescription>
+          <CardDescription>Provide student identity and model type to generate a forecast.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {errorMessage && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               {errorMessage}
             </div>
           )}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <UserCheck className="h-4 w-4 text-blue-500" />
+              <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <UserCheck className="h-4 w-4 text-muted-foreground" />
                 {user?.role === 'student' ? 'Your Access Number' : 'Student Identifier'}
               </label>
               <Input
@@ -249,8 +228,8 @@ const PredictionPage = () => {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="prediction-model-select" className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <Cpu className="h-4 w-4 text-purple-500" />
+              <label htmlFor="prediction-model-select" className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-muted-foreground" />
                 Prediction Model
               </label>
               <Select 
@@ -275,7 +254,7 @@ const PredictionPage = () => {
               <Button
                 onClick={handlePredict}
                 disabled={loading || !studentIdentifier}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                className="w-full"
               >
                 {loading ? (
                   <>
@@ -283,10 +262,7 @@ const PredictionPage = () => {
                     Analyzing...
                   </>
                 ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Generate Prediction
-                  </>
+                  'Generate Prediction'
                 )}
               </Button>
             </div>
@@ -294,235 +270,140 @@ const PredictionPage = () => {
         </CardContent>
       </Card>
 
-      {/* Results */}
       {predictions?.single && (
-        <Card>
+        <Card className="border shadow-sm">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  Prediction Results
-                </CardTitle>
-                <CardDescription>AI-generated performance prediction</CardDescription>
-              </div>
-              <Badge className="bg-green-100 text-green-700 border-green-300 flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" />
-                Analysis Complete
-              </Badge>
-            </div>
+            <CardTitle>Prediction Result</CardTitle>
+            <CardDescription>Model output for the selected student and model configuration.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {/* Predicted Grade - Hero Card */}
-              <Card className={`${getGradeColor(predictions.single.predicted_grade)} border-2 col-span-1 md:col-span-2 lg:col-span-2`}>
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <GraduationCap className="h-5 w-5" />
-                    <h3 className="text-sm font-semibold">Predicted Grade</h3>
-                  </div>
-                  <div className="text-5xl font-bold mb-2">
-                    {predictions.single.predicted_grade}
-                  </div>
-                  <Badge className={getGradeBadgeColor(predictions.single.predicted_grade)}>
-                    {predictions.single.predicted_letter_grade}
-                  </Badge>
-                </CardContent>
-              </Card>
-
-              {/* Model Used */}
-              <Card className="border-2">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Cpu className="h-5 w-5 text-gray-600" />
-                    <h3 className="text-sm font-semibold text-gray-700">Model Used</h3>
-                  </div>
-                  <div className="text-xl font-bold text-gray-800 capitalize">
-                    {predictions.single.model_type?.replace('_', ' ') || 'Standard'}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Machine Learning Algorithm</p>
-                </CardContent>
-              </Card>
-
-              {/* Payment Completion (if available) */}
-              {predictions.single.payment_completion_rate !== undefined && (
-                <Card className="border-2 border-orange-200 bg-orange-50">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-2 mb-3">
-                      <DollarSign className="h-5 w-5 text-orange-600" />
-                      <h3 className="text-sm font-semibold text-gray-700">Payment Completion</h3>
-                    </div>
-                    <div className="text-2xl font-bold text-orange-700 mb-2">
-                      {predictions.single.payment_completion_rate.toFixed(1)}%
-                    </div>
-                    <div className="w-full bg-orange-200 rounded-full h-2">
-                      <div 
-                        className="bg-orange-600 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${predictions.single.payment_completion_rate}%` }}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Attendance Rate (if available) */}
-              {predictions.single.attendance_rate !== undefined && (
-                <Card className="border-2 border-teal-200 bg-teal-50">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Activity className="h-5 w-5 text-teal-600" />
-                      <h3 className="text-sm font-semibold text-gray-700">Attendance Rate</h3>
-                    </div>
-                    <div className="text-2xl font-bold text-teal-700 mb-2">
-                      {predictions.single.attendance_rate.toFixed(1)}%
-                    </div>
-                    <div className="w-full bg-teal-200 rounded-full h-2">
-                      <div 
-                        className="bg-teal-600 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${predictions.single.attendance_rate}%` }}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Student ID */}
-              <Card className="border-2 border-purple-200 bg-purple-50">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <UserCheck className="h-5 w-5 text-purple-600" />
-                    <h3 className="text-sm font-semibold text-gray-700">Student ID</h3>
-                  </div>
-                  <div className="text-lg font-bold text-purple-700">
-                    {predictions.single.student_id}
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className={`rounded-md border px-4 py-4 md:col-span-2 ${getGradeTone(predictions.single.predicted_grade)}`}>
+                <p className="text-xs font-semibold uppercase tracking-wide">Predicted Grade</p>
+                <p className="mt-2 text-4xl font-semibold">{predictions.single.predicted_grade}</p>
+                <Badge className={`mt-2 ${getGradeBadgeTone(predictions.single.predicted_grade)}`}>
+                  {predictions.single.predicted_letter_grade}
+                </Badge>
+              </div>
+              <div className="rounded-md border px-4 py-4 bg-muted/30">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Model</p>
+                <p className="mt-2 text-lg font-semibold capitalize">{predictions.single.model_type?.replace('_', ' ') || 'Standard'}</p>
+              </div>
+              <div className="rounded-md border px-4 py-4 bg-muted/30">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Student</p>
+                <p className="mt-2 text-lg font-semibold">{predictions.single.student_id}</p>
+              </div>
             </div>
+
+            {(predictions.single.payment_completion_rate !== undefined || predictions.single.attendance_rate !== undefined) && (
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {predictions.single.payment_completion_rate !== undefined && (
+                  <div className="rounded-md border p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment Completion</p>
+                    <p className="mt-2 text-2xl font-semibold">{predictions.single.payment_completion_rate.toFixed(1)}%</p>
+                  </div>
+                )}
+                {predictions.single.attendance_rate !== undefined && (
+                  <div className="rounded-md border p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Attendance Rate</p>
+                    <p className="mt-2 text-2xl font-semibold">{predictions.single.attendance_rate.toFixed(1)}%</p>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* Scenario Analysis */}
       {canUseScenarios && (
-        <Card>
+        <Card className="border shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Lightbulb className="h-5 w-5 text-purple-600" />
-              Scenario Analysis
-            </CardTitle>
-            <CardDescription>Analyze different scenarios and their impact on performance</CardDescription>
+            <CardTitle>Scenario Analysis</CardTitle>
+            <CardDescription>Run predefined what-if scenarios and compare model outputs.</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="scenarios" className="space-y-4">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="scenarios" className="flex items-center gap-2">
                   <LineChart className="h-4 w-4" />
-                  Scenario Analysis
+                  Scenario Output
                 </TabsTrigger>
                 <TabsTrigger value="predefined" className="flex items-center gap-2">
-                  <Lightbulb className="h-4 w-4" />
-                  Predefined Scenarios
+                  <Activity className="h-4 w-4" />
+                  Templates
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="scenarios" className="space-y-4">
                 {predictions?.scenarios ? (
-                  <div className="space-y-6">
-                    <Card className="border-2 border-purple-200 bg-purple-50">
-                      <CardHeader>
-                        <CardTitle className="text-lg">{predictions.scenarios.scenario.name}</CardTitle>
-                        <CardDescription>{predictions.scenarios.scenario.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                          {Object.entries(predictions.scenarios.predictions).map(([model, pred]) => (
-                            <Card key={model} className={`${getGradeColor(pred.predicted_grade)} border-2`}>
-                              <CardContent className="p-4">
-                                <h4 className="text-xs font-semibold mb-2 capitalize">
-                                  {model.replace(/_/g, ' ')}
-                                </h4>
-                                <div className="text-2xl font-bold mb-2">
-                                  {pred.predicted_grade}
-                                </div>
-                                <Badge className={getGradeBadgeColor(pred.predicted_grade)}>
-                                  {pred.predicted_letter_grade}
-                                </Badge>
-                              </CardContent>
-                            </Card>
+                  <div className="space-y-4">
+                    <div className="rounded-md border p-4 bg-muted/30">
+                      <h3 className="text-base font-semibold">{predictions.scenarios.scenario.name}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">{predictions.scenarios.scenario.description}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      {Object.entries(predictions.scenarios.predictions).map(([model, pred]) => (
+                        <div key={model} className={`rounded-md border p-4 ${getGradeTone(pred.predicted_grade)}`}>
+                          <p className="text-xs font-semibold uppercase tracking-wide">{model.replace(/_/g, ' ')}</p>
+                          <p className="mt-2 text-2xl font-semibold">{pred.predicted_grade}</p>
+                          <Badge className={`mt-2 ${getGradeBadgeTone(pred.predicted_grade)}`}>
+                            {pred.predicted_letter_grade}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+
+                    {predictions.scenarios.analysis && (
+                      <div className={`rounded-md border p-4 ${getRiskColor(predictions.scenarios.analysis.risk_level)}`}>
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4" />
+                          <p className="text-sm font-semibold">
+                            Risk Level: {predictions.scenarios.analysis.risk_level}
+                          </p>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {(predictions.scenarios.analysis.recommendations || []).map((rec, idx) => (
+                            <p key={idx} className="text-sm">- {rec}</p>
                           ))}
                         </div>
-
-                        {predictions.scenarios.analysis && (
-                          <Card className={`mt-4 border-2 ${getRiskColor(predictions.scenarios.analysis.risk_level)}`}>
-                            <CardHeader>
-                              <CardTitle className="text-lg flex items-center gap-2">
-                                <AlertTriangle className="h-5 w-5" />
-                                Risk Level: <Badge>{predictions.scenarios.analysis.risk_level}</Badge>
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="space-y-2">
-                                <h4 className="font-semibold text-sm mb-2">Recommendations:</h4>
-                                {predictions.scenarios.analysis.recommendations.map((rec, idx) => (
-                                  <div key={idx} className="flex items-start gap-2">
-                                    <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                                    <p className="text-sm flex-1">{rec}</p>
-                                  </div>
-                                ))}
-                              </div>
-                              {predictions.scenarios.analysis.key_factors && predictions.scenarios.analysis.key_factors.length > 0 && (
-                                <div className="mt-4 pt-4 border-t">
-                                  <p className="text-xs text-muted-foreground">
-                                    <strong>Key Factors:</strong> {predictions.scenarios.analysis.key_factors.join(', ')}
-                                  </p>
-                                </div>
-                              )}
-                            </CardContent>
-                          </Card>
+                        {predictions.scenarios.analysis.key_factors && predictions.scenarios.analysis.key_factors.length > 0 && (
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            Key Factors: {predictions.scenarios.analysis.key_factors.join(', ')}
+                          </p>
                         )}
-                      </CardContent>
-                    </Card>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Lightbulb className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p className="text-lg font-semibold mb-2">No Scenario Analysis Yet</p>
-                    <p className="text-sm">Select a predefined scenario below to generate predictions</p>
+                  <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
+                    No scenario output yet. Select a template to run analysis.
                   </div>
                 )}
               </TabsContent>
 
-              <TabsContent value="predefined" className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TabsContent value="predefined" className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {scenarios.map((scenario) => (
-                    <Card 
-                      key={scenario.id} 
-                      className="cursor-pointer hover:shadow-lg transition-shadow border-2 hover:border-purple-300"
-                      onClick={() => handleScenarioPredict(scenario)}
-                    >
-                      <CardHeader>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="p-2 bg-purple-100 rounded-lg">
-                            <Lightbulb className="h-5 w-5 text-purple-600" />
-                          </div>
-                          <Badge className="bg-purple-100 text-purple-700 border-purple-300">
-                            Scenario
-                          </Badge>
-                        </div>
-                        <CardTitle className="text-lg">{scenario.name}</CardTitle>
-                        <CardDescription>{scenario.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <Button 
-                          size="sm" 
-                          className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
-                        >
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Analyze Scenario
-                        </Button>
-                      </CardContent>
-                    </Card>
+                    <div key={scenario.id} className="rounded-md border p-4 bg-card">
+                      <h4 className="font-semibold">{scenario.name}</h4>
+                      <p className="text-sm text-muted-foreground mt-1">{scenario.description}</p>
+                      <Button
+                        size="sm"
+                        className="mt-3 w-full"
+                        disabled={loading}
+                        onClick={() => handleScenarioPredict(scenario)}
+                      >
+                        {loading && selectedScenario?.id === scenario.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Running...
+                          </>
+                        ) : (
+                          'Run Scenario'
+                        )}
+                      </Button>
+                    </div>
                   ))}
                 </div>
               </TabsContent>
@@ -532,14 +413,14 @@ const PredictionPage = () => {
       )}
 
       {!canUseScenarios && (
-        <Card className="border-2 border-blue-200 bg-blue-50">
-          <CardContent className="p-6">
+        <Card className="border border-blue-200 bg-blue-50">
+          <CardContent className="p-5">
             <div className="flex items-start gap-3">
               <Info className="h-5 w-5 text-primary mt-0.5" />
               <div>
-                <h3 className="font-semibold text-blue-900 mb-1">Access Restricted</h3>
+                <h3 className="font-semibold text-blue-900 mb-1">Scenario Analysis Restricted</h3>
                 <p className="text-sm text-blue-700">
-                  Scenario analysis is only available for Analysts, System Administrators, and Senate members.
+                  Scenario analysis is available for Analyst, System Administrator, and Senate roles.
                 </p>
               </div>
             </div>
