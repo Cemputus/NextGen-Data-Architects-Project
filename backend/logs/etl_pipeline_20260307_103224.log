@@ -1,0 +1,53 @@
+2026-03-07 10:32:24,473 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260307_103224.log
+2026-03-07 10:32:24,475 - INFO - ============================================================
+2026-03-07 10:32:24,475 - INFO - ETL PIPELINE STARTED
+2026-03-07 10:32:24,477 - INFO - Start time: 2026-03-07 10:32:24
+2026-03-07 10:32:24,477 - INFO - ============================================================
+2026-03-07 10:32:24,780 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-07 10:32:24,995 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-07 10:32:25,046 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-07 10:32:28,492 - INFO - [RBAC seed] Seeded audit_logs with 1454 rows
+2026-03-07 10:32:28,495 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-07 10:32:28,520 - INFO - [RBAC seed] Restored profile photos from D:\NextGen-Data-Architects-Project\backend\etl_seeds\profile_photos to D:\NextGen-Data-Architects-Project\backend\data\profile_photos
+2026-03-07 10:32:28,522 - INFO - [RBAC seed] Restored admin_settings.json to D:\NextGen-Data-Architects-Project\backend\data\admin_settings.json
+2026-03-07 10:32:29,765 - INFO - [RBAC seed] Restored ETL run logs from D:\NextGen-Data-Architects-Project\backend\etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-07 10:32:29,774 - INFO - ============================================================
+2026-03-07 10:32:29,774 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-07 10:32:29,774 - INFO - ============================================================
+2026-03-07 10:32:29,776 - INFO - Using SYNTHETIC data source: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 10:32:29,881 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-07 10:32:47,424 - INFO -   -> Students: 10000
+2026-03-07 10:32:47,506 - INFO -   -> Courses: 5145
+2026-03-07 10:32:51,210 - INFO -   -> Grades: 348350
+2026-03-07 10:32:54,255 - INFO -   -> Payments: 187402
+2026-03-07 10:33:05,613 - INFO -   -> Attendance: 3204919
+2026-03-07 10:33:05,744 - INFO -   -> Employees (synthetic): 253
+2026-03-07 10:33:10,605 - INFO - Bronze (synthetic) extraction complete.
+2026-03-07 10:33:10,944 - INFO - ============================================================
+2026-03-07 10:33:10,944 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-07 10:33:10,945 - INFO - ============================================================
+2026-03-07 10:33:29,184 - INFO - Silver layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-07 10:33:29,184 - INFO -   → Students: 10000
+2026-03-07 10:33:29,184 - INFO -   → Courses: 5145
+2026-03-07 10:33:29,186 - INFO -   → Enrollments: 345865
+2026-03-07 10:33:29,186 - INFO -   → Attendance: 3204919
+2026-03-07 10:33:29,186 - INFO -   → Payments: 187402
+2026-03-07 10:33:29,186 - INFO -   → Grades: 348350
+2026-03-07 10:33:29,186 - INFO - Silver layer transformation complete!
+2026-03-07 10:33:29,186 - INFO - ============================================================
+2026-03-07 10:33:29,186 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-07 10:33:29,186 - INFO - ============================================================
+2026-03-07 10:33:29,186 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2026-03-07 10:33:29,218 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2026-03-07 10:33:29,221 - INFO - Creating dimension tables...
+2026-03-07 10:33:40,345 - INFO -   → Loaded 7551 students into dim_student
+2026-03-07 10:33:40,712 - INFO -   → Loaded 2408 courses into dim_course
+2026-03-07 10:33:40,733 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-07 10:33:40,844 - INFO -   → Loaded 14 app users into dim_app_user
+2026-03-07 10:33:40,884 - INFO -   -> Loaded 11 faculties into dim_faculty
+2026-03-07 10:33:40,920 - INFO -   -> Loaded 18 departments into dim_department
+2026-03-07 10:33:40,964 - INFO -   -> Loaded 91 programs into dim_program
+2026-03-07 10:33:41,148 - INFO -   -> Loaded 253 employees (staff/lecturers) into dim_employee
+2026-03-07 10:33:41,150 - INFO - Populating time dimension...
+2026-03-07 10:33:43,447 - INFO -   → Loaded 1826 time dimension records
+2026-03-07 10:37:02,283 - INFO -   → Loaded 235738 enrollments into fact_enrollment

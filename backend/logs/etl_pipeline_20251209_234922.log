@@ -1,0 +1,57 @@
+2025-12-09 23:49:22,857 - INFO - ETL Pipeline initialized. Log file: logs\etl_pipeline_20251209_234922.log
+2025-12-09 23:49:22,857 - INFO - ============================================================
+2025-12-09 23:49:22,857 - INFO - ETL PIPELINE STARTED
+2025-12-09 23:49:22,857 - INFO - Start time: 2025-12-09 23:49:22
+2025-12-09 23:49:22,857 - INFO - ============================================================
+2025-12-09 23:49:22,857 - INFO - ============================================================
+2025-12-09 23:49:22,864 - INFO - EXTRACT PHASE - Bronze Layer
+2025-12-09 23:49:22,865 - INFO - ============================================================
+2025-12-09 23:49:22,865 - INFO - Extracting from Source Database 1 (ACADEMICS)...
+2025-12-09 23:49:23,249 - INFO -   → Extracted 1000 students
+2025-12-09 23:49:23,323 - INFO -   → Extracted 488 courses
+2025-12-09 23:49:23,416 - INFO -   → Extracted 1000 enrollments
+2025-12-09 23:49:23,487 - INFO -   → Extracted 1000 attendance records
+2025-12-09 23:49:23,654 - INFO -   → Extracted 1000 grades
+2025-12-09 23:49:23,991 - INFO -   → Extracted 1000 student fees
+2025-12-09 23:49:24,015 - INFO -   → Extracted 11 faculties
+2025-12-09 23:49:24,037 - INFO -   → Extracted 18 departments
+2025-12-09 23:49:24,072 - INFO -   → Extracted 91 programs
+2025-12-09 23:49:24,078 - INFO - Extracting from Source Database 2 (ADMINISTRATION)...
+2025-12-09 23:49:24,284 - INFO -   → Extracted 1000 employees
+2025-12-09 23:49:24,412 - INFO -   → Extracted 1000 payroll records
+2025-12-09 23:49:26,521 - INFO - Bronze layer files saved to: D:\final year project\backend\data\bronze
+2025-12-09 23:49:26,523 - INFO - Bronze layer extraction complete!
+2025-12-09 23:49:26,523 - INFO - ============================================================
+2025-12-09 23:49:26,523 - INFO - TRANSFORM PHASE - Silver Layer
+2025-12-09 23:49:26,523 - INFO - ============================================================
+2025-12-09 23:49:27,019 - INFO - Silver layer files saved to: D:\final year project\backend\data\silver
+2025-12-09 23:49:27,024 - INFO -   → Students: 1000
+2025-12-09 23:49:27,028 - INFO -   → Courses: 488
+2025-12-09 23:49:27,030 - INFO -   → Enrollments: 1000
+2025-12-09 23:49:27,034 - INFO -   → Attendance: 1000
+2025-12-09 23:49:27,040 - INFO -   → Payments: 1000
+2025-12-09 23:49:27,040 - INFO -   → Grades: 1000
+2025-12-09 23:49:27,040 - INFO - Silver layer transformation complete!
+2025-12-09 23:49:27,056 - INFO - ============================================================
+2025-12-09 23:49:27,057 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2025-12-09 23:49:27,057 - INFO - ============================================================
+2025-12-09 23:49:27,057 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2025-12-09 23:49:27,072 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2025-12-09 23:49:27,089 - INFO - Creating dimension tables...
+2025-12-09 23:49:31,448 - INFO -   → Loaded 997 students into dim_student
+2025-12-09 23:49:31,599 - INFO -   → Loaded 437 courses into dim_course
+2025-12-09 23:49:31,641 - INFO -   → Loaded 3 semesters into dim_semester
+2025-12-09 23:49:31,928 - INFO -   -> Loaded 11 faculties into dim_faculty
+2025-12-09 23:49:31,997 - INFO -   -> Loaded 18 departments into dim_department
+2025-12-09 23:49:32,093 - INFO -   -> Loaded 91 programs into dim_program
+2025-12-09 23:49:32,096 - INFO - Populating time dimension...
+2025-12-09 23:49:35,772 - INFO -   → Loaded 1826 time dimension records
+2025-12-09 23:49:38,357 - INFO -   → Loaded 1000 enrollments into fact_enrollment
+2025-12-09 23:49:40,271 - INFO -   → Loaded 998 attendance records into fact_attendance
+2025-12-09 23:49:46,527 - INFO -   → Loaded 1000 payments into fact_payment
+2025-12-09 23:49:48,707 - INFO -   → Loaded 1000 grades into fact_grade
+2025-12-09 23:49:48,713 - INFO - ============================================================
+2025-12-09 23:49:48,713 - INFO - ETL PIPELINE COMPLETED SUCCESSFULLY
+2025-12-09 23:49:48,713 - INFO - Log file saved to: logs\etl_pipeline_20251209_234922.log
+2025-12-09 23:49:48,716 - INFO - ============================================================
+2025-12-09 23:49:48,716 - INFO - ETL Pipeline completed successfully in 0:00:25.859373

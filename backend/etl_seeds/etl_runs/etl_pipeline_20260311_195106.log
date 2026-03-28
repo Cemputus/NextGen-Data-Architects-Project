@@ -1,0 +1,190 @@
+2026-03-11 19:51:06,869 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_195106.log
+2026-03-11 19:51:06,872 - INFO - ============================================================
+2026-03-11 19:51:07,033 - INFO - ETL PIPELINE STARTED
+2026-03-11 19:51:07,233 - INFO - Start time: 2026-03-11 19:51:06
+2026-03-11 19:51:07,245 - INFO - ============================================================
+2026-03-11 19:51:07,369 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_195106.log
+2026-03-11 19:51:07,585 - INFO - ============================================================
+2026-03-11 19:51:07,669 - INFO - ETL PIPELINE STARTED
+2026-03-11 19:51:08,197 - INFO - Start time: 2026-03-11 19:51:07
+2026-03-11 19:51:08,591 - INFO - ============================================================
+2026-03-11 19:52:31,438 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-11 19:52:31,912 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-11 19:52:40,896 - ERROR - Failed to seed user system from snapshot: Execution failed on sql 'INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (:id, :username, :password_hash, :role, :full_name, :faculty_id, :department_id, :created_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id__0)s, %(username__0)s, %(password_hash__0)s, %(role__0)s, %(full_name__0)s, %(faculty_id__0)s, %(department_id__0)s, %(created_at ... 1797 characters truncated ... 3)s, %(role__13)s, %(full_name__13)s, %(faculty_id__13)s, %(department_id__13)s, %(created_at__13)s)]
+[parameters: {'full_name__0': 'Agaba Itungo', 'faculty_id__0': 5.0, 'password_hash__0': 'pbkdf2:sha256:600000$jRe1OSyhBjujBI5v$dc7fcb05c3e10c18c540cd35f31d726e3cb80205381c3b8437766ca508b83215', 'role__0': 'dean', 'username__0': 'agaba', 'department_id__0': None, 'id__0': 14, 'created_at__0': '2026-02-28 22:40:48', 'full_name__1': 'Mwine Irwin', 'faculty_id__1': None, 'password_hash__1': 'pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a', 'role__1': 'analyst', 'username__1': 'mwine', 'department_id__1': None, 'id__1': 15, 'created_at__1': '2026-03-01 09:42:42', 'full_name__2': 'Joy Abaho', 'faculty_id__2': None, 'password_hash__2': 'pbkdf2:sha256:600000$hhk16sGAQBqJdGb2$fbaf9af8015770c7178ffc2628fffe184e3f0114c2520c84b15e449a5736e4d5', 'role__2': 'senate', 'username__2': 'abaho', 'department_id__2': None, 'id__2': 16, 'created_at__2': '2026-03-01 13:36:51', 'full_name__3': 'Mark Nsubuga', 'faculty_id__3': 1.0, 'password_hash__3': 'pbkdf2:sha256:600000$q0Vv9SLARvlJknGR$e276ec29261ac8e0c30875654927f43d25b60f93a3b873ecd3e47bc2d2ea3278', 'role__3': 'dean', 'username__3': 'nsubuga', 'department_id__3': None, 'id__3': 17, 'created_at__3': '2026-03-04 09:55:50', 'full_name__4': 'Mark Nsubuga', 'faculty_id__4': 3.0, 'password_hash__4': 'pbkdf2:sha256:600000$CwZxk7QqmbMGJVrj$547afdc6365e2c0501261a809e42bc06e5af1cb65e4e8d147643697631d045cb', 'role__4': 'dean', 'username__4': 'mnsubuga', 'department_id__4': None, 'id__4': 18, 'created_at__4': '2026-03-04 10:00:28', 'full_name__5': 'Guloba Emmanuel Edube', 'faculty_id__5': None, 'password_hash__5': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__5': 'sysadmin', 'username__5': 'ed', 'department_id__5': None, 'id__5': 6, 'created_at__5': '2026-02-22 12:23:16', 'full_name__6': 'edube', 'faculty_id__6': 2.0 ... 12 parameters truncated ... 'id__7': 8, 'created_at__7': '2026-02-24 17:20:23', 'full_name__8': 'Enoch Asingwiire', 'faculty_id__8': None, 'password_hash__8': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__8': 'analyst', 'username__8': 'enoch', 'department_id__8': None, 'id__8': 9, 'created_at__8': '2026-02-25 09:21:21', 'full_name__9': 'joy', 'faculty_id__9': 6.0, 'password_hash__9': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__9': 'dean', 'username__9': 'joy', 'department_id__9': None, 'id__9': 10, 'created_at__9': '2026-02-26 19:18:29', 'full_name__10': 'hr', 'faculty_id__10': None, 'password_hash__10': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__10': 'staff', 'username__10': 'hr', 'department_id__10': None, 'id__10': 11, 'created_at__10': '2026-02-26 19:53:51', 'full_name__11': 'Emmanuel Nsubuga', 'faculty_id__11': 1.0, 'password_hash__11': 'pbkdf2:sha256:600000$WQVmZE2csbzUzVMo$15a983d434b7edcc6d73529eaec1f3d0344842c1ba155fedd93f8ca180ee5e9f', 'role__11': 'staff', 'username__11': 'Cemputus', 'department_id__11': 1.0, 'id__11': 1, 'created_at__11': '2026-02-20 18:34:15', 'full_name__12': 'dean', 'faculty_id__12': None, 'password_hash__12': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__12': 'staff', 'username__12': 'dean', 'department_id__12': None, 'id__12': 12, 'created_at__12': '2026-02-26 19:54:03', 'full_name__13': 'Gift Ruth', 'faculty_id__13': 10.0, 'password_hash__13': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__13': 'dean', 'username__13': 'gift', 'department_id__13': None, 'id__13': 13, 'created_at__13': '2026-02-28 17:09:02'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1679, in execute
+    return execute_function(sql, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1844, in _execute_context
+    return self._exec_insertmany_context(dialect, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2133, in _exec_insertmany_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id__0)s, %(username__0)s, %(password_hash__0)s, %(role__0)s, %(full_name__0)s, %(faculty_id__0)s, %(department_id__0)s, %(created_at ... 1797 characters truncated ... 3)s, %(role__13)s, %(full_name__13)s, %(faculty_id__13)s, %(department_id__13)s, %(created_at__13)s)]
+[parameters: {'full_name__0': 'Agaba Itungo', 'faculty_id__0': 5.0, 'password_hash__0': 'pbkdf2:sha256:600000$jRe1OSyhBjujBI5v$dc7fcb05c3e10c18c540cd35f31d726e3cb80205381c3b8437766ca508b83215', 'role__0': 'dean', 'username__0': 'agaba', 'department_id__0': None, 'id__0': 14, 'created_at__0': '2026-02-28 22:40:48', 'full_name__1': 'Mwine Irwin', 'faculty_id__1': None, 'password_hash__1': 'pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a', 'role__1': 'analyst', 'username__1': 'mwine', 'department_id__1': None, 'id__1': 15, 'created_at__1': '2026-03-01 09:42:42', 'full_name__2': 'Joy Abaho', 'faculty_id__2': None, 'password_hash__2': 'pbkdf2:sha256:600000$hhk16sGAQBqJdGb2$fbaf9af8015770c7178ffc2628fffe184e3f0114c2520c84b15e449a5736e4d5', 'role__2': 'senate', 'username__2': 'abaho', 'department_id__2': None, 'id__2': 16, 'created_at__2': '2026-03-01 13:36:51', 'full_name__3': 'Mark Nsubuga', 'faculty_id__3': 1.0, 'password_hash__3': 'pbkdf2:sha256:600000$q0Vv9SLARvlJknGR$e276ec29261ac8e0c30875654927f43d25b60f93a3b873ecd3e47bc2d2ea3278', 'role__3': 'dean', 'username__3': 'nsubuga', 'department_id__3': None, 'id__3': 17, 'created_at__3': '2026-03-04 09:55:50', 'full_name__4': 'Mark Nsubuga', 'faculty_id__4': 3.0, 'password_hash__4': 'pbkdf2:sha256:600000$CwZxk7QqmbMGJVrj$547afdc6365e2c0501261a809e42bc06e5af1cb65e4e8d147643697631d045cb', 'role__4': 'dean', 'username__4': 'mnsubuga', 'department_id__4': None, 'id__4': 18, 'created_at__4': '2026-03-04 10:00:28', 'full_name__5': 'Guloba Emmanuel Edube', 'faculty_id__5': None, 'password_hash__5': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__5': 'sysadmin', 'username__5': 'ed', 'department_id__5': None, 'id__5': 6, 'created_at__5': '2026-02-22 12:23:16', 'full_name__6': 'edube', 'faculty_id__6': 2.0 ... 12 parameters truncated ... 'id__7': 8, 'created_at__7': '2026-02-24 17:20:23', 'full_name__8': 'Enoch Asingwiire', 'faculty_id__8': None, 'password_hash__8': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__8': 'analyst', 'username__8': 'enoch', 'department_id__8': None, 'id__8': 9, 'created_at__8': '2026-02-25 09:21:21', 'full_name__9': 'joy', 'faculty_id__9': 6.0, 'password_hash__9': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__9': 'dean', 'username__9': 'joy', 'department_id__9': None, 'id__9': 10, 'created_at__9': '2026-02-26 19:18:29', 'full_name__10': 'hr', 'faculty_id__10': None, 'password_hash__10': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__10': 'staff', 'username__10': 'hr', 'department_id__10': None, 'id__10': 11, 'created_at__10': '2026-02-26 19:53:51', 'full_name__11': 'Emmanuel Nsubuga', 'faculty_id__11': 1.0, 'password_hash__11': 'pbkdf2:sha256:600000$WQVmZE2csbzUzVMo$15a983d434b7edcc6d73529eaec1f3d0344842c1ba155fedd93f8ca180ee5e9f', 'role__11': 'staff', 'username__11': 'Cemputus', 'department_id__11': 1.0, 'id__11': 1, 'created_at__11': '2026-02-20 18:34:15', 'full_name__12': 'dean', 'faculty_id__12': None, 'password_hash__12': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__12': 'staff', 'username__12': 'dean', 'department_id__12': None, 'id__12': 12, 'created_at__12': '2026-02-26 19:54:03', 'full_name__13': 'Gift Ruth', 'faculty_id__13': 10.0, 'password_hash__13': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__13': 'dean', 'username__13': 'gift', 'department_id__13': None, 'id__13': 13, 'created_at__13': '2026-02-28 17:09:02'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/etl_pipeline.py", line 108, in seed_user_system_from_snapshot
+    upsert_table("app_users", snapshot.get("app_users", []))
+  File "/app/etl_pipeline.py", line 106, in upsert_table
+    df.to_sql(table_name, engine, if_exists="append", index=False)
+  File "/usr/local/lib/python3.11/site-packages/pandas/core/generic.py", line 3052, in to_sql
+    return sql.to_sql(
+           ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 841, in to_sql
+    return pandas_sql.to_sql(
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 2037, in to_sql
+    total_inserted = sql_engine.insert_records(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1571, in insert_records
+    return table.insert(chunksize=chunksize, method=method)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1122, in insert
+    num_inserted = exec_insert(conn, keys, chunk_iter)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1014, in _execute_insert
+    result = self.pd_sql.execute(self.table.insert(), data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1681, in execute
+    raise DatabaseError(f"Execution failed on sql '{sql}': {exc}") from exc
+pandas.errors.DatabaseError: Execution failed on sql 'INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (:id, :username, :password_hash, :role, :full_name, :faculty_id, :department_id, :created_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id__0)s, %(username__0)s, %(password_hash__0)s, %(role__0)s, %(full_name__0)s, %(faculty_id__0)s, %(department_id__0)s, %(created_at ... 1797 characters truncated ... 3)s, %(role__13)s, %(full_name__13)s, %(faculty_id__13)s, %(department_id__13)s, %(created_at__13)s)]
+[parameters: {'full_name__0': 'Agaba Itungo', 'faculty_id__0': 5.0, 'password_hash__0': 'pbkdf2:sha256:600000$jRe1OSyhBjujBI5v$dc7fcb05c3e10c18c540cd35f31d726e3cb80205381c3b8437766ca508b83215', 'role__0': 'dean', 'username__0': 'agaba', 'department_id__0': None, 'id__0': 14, 'created_at__0': '2026-02-28 22:40:48', 'full_name__1': 'Mwine Irwin', 'faculty_id__1': None, 'password_hash__1': 'pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a', 'role__1': 'analyst', 'username__1': 'mwine', 'department_id__1': None, 'id__1': 15, 'created_at__1': '2026-03-01 09:42:42', 'full_name__2': 'Joy Abaho', 'faculty_id__2': None, 'password_hash__2': 'pbkdf2:sha256:600000$hhk16sGAQBqJdGb2$fbaf9af8015770c7178ffc2628fffe184e3f0114c2520c84b15e449a5736e4d5', 'role__2': 'senate', 'username__2': 'abaho', 'department_id__2': None, 'id__2': 16, 'created_at__2': '2026-03-01 13:36:51', 'full_name__3': 'Mark Nsubuga', 'faculty_id__3': 1.0, 'password_hash__3': 'pbkdf2:sha256:600000$q0Vv9SLARvlJknGR$e276ec29261ac8e0c30875654927f43d25b60f93a3b873ecd3e47bc2d2ea3278', 'role__3': 'dean', 'username__3': 'nsubuga', 'department_id__3': None, 'id__3': 17, 'created_at__3': '2026-03-04 09:55:50', 'full_name__4': 'Mark Nsubuga', 'faculty_id__4': 3.0, 'password_hash__4': 'pbkdf2:sha256:600000$CwZxk7QqmbMGJVrj$547afdc6365e2c0501261a809e42bc06e5af1cb65e4e8d147643697631d045cb', 'role__4': 'dean', 'username__4': 'mnsubuga', 'department_id__4': None, 'id__4': 18, 'created_at__4': '2026-03-04 10:00:28', 'full_name__5': 'Guloba Emmanuel Edube', 'faculty_id__5': None, 'password_hash__5': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__5': 'sysadmin', 'username__5': 'ed', 'department_id__5': None, 'id__5': 6, 'created_at__5': '2026-02-22 12:23:16', 'full_name__6': 'edube', 'faculty_id__6': 2.0 ... 12 parameters truncated ... 'id__7': 8, 'created_at__7': '2026-02-24 17:20:23', 'full_name__8': 'Enoch Asingwiire', 'faculty_id__8': None, 'password_hash__8': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__8': 'analyst', 'username__8': 'enoch', 'department_id__8': None, 'id__8': 9, 'created_at__8': '2026-02-25 09:21:21', 'full_name__9': 'joy', 'faculty_id__9': 6.0, 'password_hash__9': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__9': 'dean', 'username__9': 'joy', 'department_id__9': None, 'id__9': 10, 'created_at__9': '2026-02-26 19:18:29', 'full_name__10': 'hr', 'faculty_id__10': None, 'password_hash__10': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__10': 'staff', 'username__10': 'hr', 'department_id__10': None, 'id__10': 11, 'created_at__10': '2026-02-26 19:53:51', 'full_name__11': 'Emmanuel Nsubuga', 'faculty_id__11': 1.0, 'password_hash__11': 'pbkdf2:sha256:600000$WQVmZE2csbzUzVMo$15a983d434b7edcc6d73529eaec1f3d0344842c1ba155fedd93f8ca180ee5e9f', 'role__11': 'staff', 'username__11': 'Cemputus', 'department_id__11': 1.0, 'id__11': 1, 'created_at__11': '2026-02-20 18:34:15', 'full_name__12': 'dean', 'faculty_id__12': None, 'password_hash__12': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__12': 'staff', 'username__12': 'dean', 'department_id__12': None, 'id__12': 12, 'created_at__12': '2026-02-26 19:54:03', 'full_name__13': 'Gift Ruth', 'faculty_id__13': 10.0, 'password_hash__13': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__13': 'dean', 'username__13': 'gift', 'department_id__13': None, 'id__13': 13, 'created_at__13': '2026-02-28 17:09:02'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-03-11 19:52:42,721 - INFO - ============================================================
+2026-03-11 19:52:42,765 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 19:52:42,803 - INFO - ============================================================
+2026-03-11 19:52:42,007 - ERROR - Failed to seed user system from snapshot: Execution failed on sql 'INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (:id, :username, :password_hash, :role, :full_name, :faculty_id, :department_id, :created_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id__0)s, %(username__0)s, %(password_hash__0)s, %(role__0)s, %(full_name__0)s, %(faculty_id__0)s, %(department_id__0)s, %(created_at ... 1797 characters truncated ... 3)s, %(role__13)s, %(full_name__13)s, %(faculty_id__13)s, %(department_id__13)s, %(created_at__13)s)]
+[parameters: {'created_at__0': '2026-02-28 22:40:48', 'department_id__0': None, 'faculty_id__0': 5.0, 'password_hash__0': 'pbkdf2:sha256:600000$jRe1OSyhBjujBI5v$dc7fcb05c3e10c18c540cd35f31d726e3cb80205381c3b8437766ca508b83215', 'full_name__0': 'Agaba Itungo', 'username__0': 'agaba', 'id__0': 14, 'role__0': 'dean', 'created_at__1': '2026-03-01 09:42:42', 'department_id__1': None, 'faculty_id__1': None, 'password_hash__1': 'pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a', 'full_name__1': 'Mwine Irwin', 'username__1': 'mwine', 'id__1': 15, 'role__1': 'analyst', 'created_at__2': '2026-03-01 13:36:51', 'department_id__2': None, 'faculty_id__2': None, 'password_hash__2': 'pbkdf2:sha256:600000$hhk16sGAQBqJdGb2$fbaf9af8015770c7178ffc2628fffe184e3f0114c2520c84b15e449a5736e4d5', 'full_name__2': 'Joy Abaho', 'username__2': 'abaho', 'id__2': 16, 'role__2': 'senate', 'created_at__3': '2026-03-04 09:55:50', 'department_id__3': None, 'faculty_id__3': 1.0, 'password_hash__3': 'pbkdf2:sha256:600000$q0Vv9SLARvlJknGR$e276ec29261ac8e0c30875654927f43d25b60f93a3b873ecd3e47bc2d2ea3278', 'full_name__3': 'Mark Nsubuga', 'username__3': 'nsubuga', 'id__3': 17, 'role__3': 'dean', 'created_at__4': '2026-03-04 10:00:28', 'department_id__4': None, 'faculty_id__4': 3.0, 'password_hash__4': 'pbkdf2:sha256:600000$CwZxk7QqmbMGJVrj$547afdc6365e2c0501261a809e42bc06e5af1cb65e4e8d147643697631d045cb', 'full_name__4': 'Mark Nsubuga', 'username__4': 'mnsubuga', 'id__4': 18, 'role__4': 'dean', 'created_at__5': '2026-02-22 12:23:16', 'department_id__5': None, 'faculty_id__5': None, 'password_hash__5': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__5': 'Guloba Emmanuel Edube', 'username__5': 'ed', 'id__5': 6, 'role__5': 'sysadmin', 'created_at__6': '2026-02-23 16:10:44', 'department_id__6': None ... 12 parameters truncated ... 'id__7': 8, 'role__7': 'hod', 'created_at__8': '2026-02-25 09:21:21', 'department_id__8': None, 'faculty_id__8': None, 'password_hash__8': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__8': 'Enoch Asingwiire', 'username__8': 'enoch', 'id__8': 9, 'role__8': 'analyst', 'created_at__9': '2026-02-26 19:18:29', 'department_id__9': None, 'faculty_id__9': 6.0, 'password_hash__9': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__9': 'joy', 'username__9': 'joy', 'id__9': 10, 'role__9': 'dean', 'created_at__10': '2026-02-26 19:53:51', 'department_id__10': None, 'faculty_id__10': None, 'password_hash__10': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__10': 'hr', 'username__10': 'hr', 'id__10': 11, 'role__10': 'staff', 'created_at__11': '2026-02-20 18:34:15', 'department_id__11': 1.0, 'faculty_id__11': 1.0, 'password_hash__11': 'pbkdf2:sha256:600000$WQVmZE2csbzUzVMo$15a983d434b7edcc6d73529eaec1f3d0344842c1ba155fedd93f8ca180ee5e9f', 'full_name__11': 'Emmanuel Nsubuga', 'username__11': 'Cemputus', 'id__11': 1, 'role__11': 'staff', 'created_at__12': '2026-02-26 19:54:03', 'department_id__12': None, 'faculty_id__12': None, 'password_hash__12': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__12': 'dean', 'username__12': 'dean', 'id__12': 12, 'role__12': 'staff', 'created_at__13': '2026-02-28 17:09:02', 'department_id__13': None, 'faculty_id__13': 10.0, 'password_hash__13': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__13': 'Gift Ruth', 'username__13': 'gift', 'id__13': 13, 'role__13': 'dean'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1679, in execute
+    return execute_function(sql, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1844, in _execute_context
+    return self._exec_insertmany_context(dialect, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2133, in _exec_insertmany_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id__0)s, %(username__0)s, %(password_hash__0)s, %(role__0)s, %(full_name__0)s, %(faculty_id__0)s, %(department_id__0)s, %(created_at ... 1797 characters truncated ... 3)s, %(role__13)s, %(full_name__13)s, %(faculty_id__13)s, %(department_id__13)s, %(created_at__13)s)]
+[parameters: {'created_at__0': '2026-02-28 22:40:48', 'department_id__0': None, 'faculty_id__0': 5.0, 'password_hash__0': 'pbkdf2:sha256:600000$jRe1OSyhBjujBI5v$dc7fcb05c3e10c18c540cd35f31d726e3cb80205381c3b8437766ca508b83215', 'full_name__0': 'Agaba Itungo', 'username__0': 'agaba', 'id__0': 14, 'role__0': 'dean', 'created_at__1': '2026-03-01 09:42:42', 'department_id__1': None, 'faculty_id__1': None, 'password_hash__1': 'pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a', 'full_name__1': 'Mwine Irwin', 'username__1': 'mwine', 'id__1': 15, 'role__1': 'analyst', 'created_at__2': '2026-03-01 13:36:51', 'department_id__2': None, 'faculty_id__2': None, 'password_hash__2': 'pbkdf2:sha256:600000$hhk16sGAQBqJdGb2$fbaf9af8015770c7178ffc2628fffe184e3f0114c2520c84b15e449a5736e4d5', 'full_name__2': 'Joy Abaho', 'username__2': 'abaho', 'id__2': 16, 'role__2': 'senate', 'created_at__3': '2026-03-04 09:55:50', 'department_id__3': None, 'faculty_id__3': 1.0, 'password_hash__3': 'pbkdf2:sha256:600000$q0Vv9SLARvlJknGR$e276ec29261ac8e0c30875654927f43d25b60f93a3b873ecd3e47bc2d2ea3278', 'full_name__3': 'Mark Nsubuga', 'username__3': 'nsubuga', 'id__3': 17, 'role__3': 'dean', 'created_at__4': '2026-03-04 10:00:28', 'department_id__4': None, 'faculty_id__4': 3.0, 'password_hash__4': 'pbkdf2:sha256:600000$CwZxk7QqmbMGJVrj$547afdc6365e2c0501261a809e42bc06e5af1cb65e4e8d147643697631d045cb', 'full_name__4': 'Mark Nsubuga', 'username__4': 'mnsubuga', 'id__4': 18, 'role__4': 'dean', 'created_at__5': '2026-02-22 12:23:16', 'department_id__5': None, 'faculty_id__5': None, 'password_hash__5': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__5': 'Guloba Emmanuel Edube', 'username__5': 'ed', 'id__5': 6, 'role__5': 'sysadmin', 'created_at__6': '2026-02-23 16:10:44', 'department_id__6': None ... 12 parameters truncated ... 'id__7': 8, 'role__7': 'hod', 'created_at__8': '2026-02-25 09:21:21', 'department_id__8': None, 'faculty_id__8': None, 'password_hash__8': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__8': 'Enoch Asingwiire', 'username__8': 'enoch', 'id__8': 9, 'role__8': 'analyst', 'created_at__9': '2026-02-26 19:18:29', 'department_id__9': None, 'faculty_id__9': 6.0, 'password_hash__9': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__9': 'joy', 'username__9': 'joy', 'id__9': 10, 'role__9': 'dean', 'created_at__10': '2026-02-26 19:53:51', 'department_id__10': None, 'faculty_id__10': None, 'password_hash__10': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__10': 'hr', 'username__10': 'hr', 'id__10': 11, 'role__10': 'staff', 'created_at__11': '2026-02-20 18:34:15', 'department_id__11': 1.0, 'faculty_id__11': 1.0, 'password_hash__11': 'pbkdf2:sha256:600000$WQVmZE2csbzUzVMo$15a983d434b7edcc6d73529eaec1f3d0344842c1ba155fedd93f8ca180ee5e9f', 'full_name__11': 'Emmanuel Nsubuga', 'username__11': 'Cemputus', 'id__11': 1, 'role__11': 'staff', 'created_at__12': '2026-02-26 19:54:03', 'department_id__12': None, 'faculty_id__12': None, 'password_hash__12': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__12': 'dean', 'username__12': 'dean', 'id__12': 12, 'role__12': 'staff', 'created_at__13': '2026-02-28 17:09:02', 'department_id__13': None, 'faculty_id__13': 10.0, 'password_hash__13': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__13': 'Gift Ruth', 'username__13': 'gift', 'id__13': 13, 'role__13': 'dean'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/etl_pipeline.py", line 108, in seed_user_system_from_snapshot
+    upsert_table("app_users", snapshot.get("app_users", []))
+  File "/app/etl_pipeline.py", line 106, in upsert_table
+    df.to_sql(table_name, engine, if_exists="append", index=False)
+  File "/usr/local/lib/python3.11/site-packages/pandas/core/generic.py", line 3052, in to_sql
+    return sql.to_sql(
+           ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 841, in to_sql
+    return pandas_sql.to_sql(
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 2037, in to_sql
+    total_inserted = sql_engine.insert_records(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1571, in insert_records
+    return table.insert(chunksize=chunksize, method=method)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1122, in insert
+    num_inserted = exec_insert(conn, keys, chunk_iter)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1014, in _execute_insert
+    result = self.pd_sql.execute(self.table.insert(), data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1681, in execute
+    raise DatabaseError(f"Execution failed on sql '{sql}': {exc}") from exc
+pandas.errors.DatabaseError: Execution failed on sql 'INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (:id, :username, :password_hash, :role, :full_name, :faculty_id, :department_id, :created_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id__0)s, %(username__0)s, %(password_hash__0)s, %(role__0)s, %(full_name__0)s, %(faculty_id__0)s, %(department_id__0)s, %(created_at ... 1797 characters truncated ... 3)s, %(role__13)s, %(full_name__13)s, %(faculty_id__13)s, %(department_id__13)s, %(created_at__13)s)]
+[parameters: {'created_at__0': '2026-02-28 22:40:48', 'department_id__0': None, 'faculty_id__0': 5.0, 'password_hash__0': 'pbkdf2:sha256:600000$jRe1OSyhBjujBI5v$dc7fcb05c3e10c18c540cd35f31d726e3cb80205381c3b8437766ca508b83215', 'full_name__0': 'Agaba Itungo', 'username__0': 'agaba', 'id__0': 14, 'role__0': 'dean', 'created_at__1': '2026-03-01 09:42:42', 'department_id__1': None, 'faculty_id__1': None, 'password_hash__1': 'pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a', 'full_name__1': 'Mwine Irwin', 'username__1': 'mwine', 'id__1': 15, 'role__1': 'analyst', 'created_at__2': '2026-03-01 13:36:51', 'department_id__2': None, 'faculty_id__2': None, 'password_hash__2': 'pbkdf2:sha256:600000$hhk16sGAQBqJdGb2$fbaf9af8015770c7178ffc2628fffe184e3f0114c2520c84b15e449a5736e4d5', 'full_name__2': 'Joy Abaho', 'username__2': 'abaho', 'id__2': 16, 'role__2': 'senate', 'created_at__3': '2026-03-04 09:55:50', 'department_id__3': None, 'faculty_id__3': 1.0, 'password_hash__3': 'pbkdf2:sha256:600000$q0Vv9SLARvlJknGR$e276ec29261ac8e0c30875654927f43d25b60f93a3b873ecd3e47bc2d2ea3278', 'full_name__3': 'Mark Nsubuga', 'username__3': 'nsubuga', 'id__3': 17, 'role__3': 'dean', 'created_at__4': '2026-03-04 10:00:28', 'department_id__4': None, 'faculty_id__4': 3.0, 'password_hash__4': 'pbkdf2:sha256:600000$CwZxk7QqmbMGJVrj$547afdc6365e2c0501261a809e42bc06e5af1cb65e4e8d147643697631d045cb', 'full_name__4': 'Mark Nsubuga', 'username__4': 'mnsubuga', 'id__4': 18, 'role__4': 'dean', 'created_at__5': '2026-02-22 12:23:16', 'department_id__5': None, 'faculty_id__5': None, 'password_hash__5': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__5': 'Guloba Emmanuel Edube', 'username__5': 'ed', 'id__5': 6, 'role__5': 'sysadmin', 'created_at__6': '2026-02-23 16:10:44', 'department_id__6': None ... 12 parameters truncated ... 'id__7': 8, 'role__7': 'hod', 'created_at__8': '2026-02-25 09:21:21', 'department_id__8': None, 'faculty_id__8': None, 'password_hash__8': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__8': 'Enoch Asingwiire', 'username__8': 'enoch', 'id__8': 9, 'role__8': 'analyst', 'created_at__9': '2026-02-26 19:18:29', 'department_id__9': None, 'faculty_id__9': 6.0, 'password_hash__9': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__9': 'joy', 'username__9': 'joy', 'id__9': 10, 'role__9': 'dean', 'created_at__10': '2026-02-26 19:53:51', 'department_id__10': None, 'faculty_id__10': None, 'password_hash__10': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__10': 'hr', 'username__10': 'hr', 'id__10': 11, 'role__10': 'staff', 'created_at__11': '2026-02-20 18:34:15', 'department_id__11': 1.0, 'faculty_id__11': 1.0, 'password_hash__11': 'pbkdf2:sha256:600000$WQVmZE2csbzUzVMo$15a983d434b7edcc6d73529eaec1f3d0344842c1ba155fedd93f8ca180ee5e9f', 'full_name__11': 'Emmanuel Nsubuga', 'username__11': 'Cemputus', 'id__11': 1, 'role__11': 'staff', 'created_at__12': '2026-02-26 19:54:03', 'department_id__12': None, 'faculty_id__12': None, 'password_hash__12': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__12': 'dean', 'username__12': 'dean', 'id__12': 12, 'role__12': 'staff', 'created_at__13': '2026-02-28 17:09:02', 'department_id__13': None, 'faculty_id__13': 10.0, 'password_hash__13': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'full_name__13': 'Gift Ruth', 'username__13': 'gift', 'id__13': 13, 'role__13': 'dean'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-03-11 19:52:42,857 - INFO - ============================================================
+2026-03-11 19:52:42,903 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 19:52:42,918 - INFO - ============================================================
+2026-03-11 19:52:42,945 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 19:52:43,047 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 19:52:43,498 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 19:52:43,565 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 19:52:44,038 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 19:52:44,157 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 19:52:49,110 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 19:52:49,136 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-11 19:52:49,787 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 19:52:49,815 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91

@@ -1,0 +1,33 @@
+2026-03-11 21:30:52,953 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_213052.log
+2026-03-11 21:30:52,955 - INFO - ============================================================
+2026-03-11 21:30:52,956 - INFO - ETL PIPELINE STARTED
+2026-03-11 21:30:52,957 - INFO - Start time: 2026-03-11 21:30:52
+2026-03-11 21:30:52,957 - INFO - ============================================================
+2026-03-11 21:30:53,507 - INFO - [RBAC seed] Seeding table app_users with 1 rows from snapshot
+2026-03-11 21:30:53,804 - INFO - [RBAC seed] Seeding table user_profiles with 0 rows from snapshot
+2026-03-11 21:30:53,817 - INFO - [RBAC seed] Seeding table user_state with 0 rows from snapshot
+2026-03-11 21:30:54,026 - INFO - [RBAC seed] Seeded audit_logs with 5 rows
+2026-03-11 21:30:54,033 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-11 21:30:54,886 - INFO - [RBAC seed] Restored profile photos from /app/etl_seeds/profile_photos to /app/data/profile_photos
+2026-03-11 21:30:55,072 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json
+2026-03-11 21:31:22,544 - INFO - [RBAC seed] Restored ETL run logs from /app/etl_seeds/etl_runs to /app/logs
+2026-03-11 21:31:22,546 - INFO - ============================================================
+2026-03-11 21:31:22,547 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 21:31:22,550 - INFO - ============================================================
+2026-03-11 21:31:22,554 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 21:31:22,576 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 21:31:22,594 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 21:31:22,784 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 21:31:22,785 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-11 21:32:11,401 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-11 21:32:11,491 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-11 21:32:20,034 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-11 21:32:20,651 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-11 21:32:26,860 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-11 21:33:21,185 - INFO -   -> Attendance: 3117871 (columns: 9)
+2026-03-11 21:33:21,832 - INFO -   -> Employees (synthetic): 253
+2026-03-11 21:33:22,159 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-11 21:33:22,858 - INFO -   -> Student–high school: 20000
+2026-03-11 21:33:24,223 - INFO -   -> Transcript: 36233
+2026-03-11 21:33:25,137 - INFO -   -> Academic performance: 36233
+2026-03-11 21:33:26,500 - INFO -   -> Sponsorships: 41866

@@ -1,0 +1,55 @@
+2025-11-19 17:13:59,859 - INFO - ETL Pipeline initialized. Log file: logs\etl_pipeline_20251119_171359.log
+2025-11-19 17:13:59,859 - INFO - ============================================================
+2025-11-19 17:13:59,859 - INFO - ETL PIPELINE STARTED
+2025-11-19 17:13:59,859 - INFO - Start time: 2025-11-19 17:13:59
+2025-11-19 17:13:59,859 - INFO - ============================================================
+2025-11-19 17:13:59,868 - INFO - ============================================================
+2025-11-19 17:13:59,868 - INFO - EXTRACT PHASE - Bronze Layer
+2025-11-19 17:13:59,868 - INFO - ============================================================
+2025-11-19 17:13:59,868 - INFO - Extracting from Source Database 1 (ACADEMICS)...
+2025-11-19 17:14:00,058 - INFO -   → Extracted 1000 students
+2025-11-19 17:14:00,107 - INFO -   → Extracted 1000 courses
+2025-11-19 17:14:00,160 - INFO -   → Extracted 1000 enrollments
+2025-11-19 17:14:00,208 - INFO -   → Extracted 1000 attendance records
+2025-11-19 17:14:00,275 - INFO -   → Extracted 1000 grades
+2025-11-19 17:14:00,328 - INFO -   → Extracted 1000 student fees
+2025-11-19 17:14:00,336 - INFO -   → Extracted 11 faculties
+2025-11-19 17:14:00,394 - INFO -   → Extracted 1000 departments
+2025-11-19 17:14:00,431 - INFO -   → Extracted 1000 programs
+2025-11-19 17:14:00,431 - INFO - Extracting from Source Database 2 (ADMINISTRATION)...
+2025-11-19 17:14:00,501 - INFO -   → Extracted 1000 employees
+2025-11-19 17:14:00,552 - INFO -   → Extracted 1000 payroll records
+2025-11-19 17:14:00,829 - INFO - Bronze layer files saved to: D:\final year project\backend\data\bronze
+2025-11-19 17:14:00,831 - INFO - Bronze layer extraction complete!
+2025-11-19 17:14:00,831 - INFO - ============================================================
+2025-11-19 17:14:00,831 - INFO - TRANSFORM PHASE - Silver Layer
+2025-11-19 17:14:00,831 - INFO - ============================================================
+2025-11-19 17:14:01,060 - INFO - Silver layer files saved to: D:\final year project\backend\data\silver
+2025-11-19 17:14:01,062 - INFO -   → Students: 1000
+2025-11-19 17:14:01,062 - INFO -   → Courses: 1000
+2025-11-19 17:14:01,062 - INFO -   → Enrollments: 1000
+2025-11-19 17:14:01,063 - INFO -   → Attendance: 1000
+2025-11-19 17:14:01,063 - INFO -   → Payments: 1000
+2025-11-19 17:14:01,063 - INFO -   → Grades: 1000
+2025-11-19 17:14:01,063 - INFO - Silver layer transformation complete!
+2025-11-19 17:14:01,065 - INFO - ============================================================
+2025-11-19 17:14:01,065 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2025-11-19 17:14:01,065 - INFO - ============================================================
+2025-11-19 17:14:01,065 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2025-11-19 17:14:01,084 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2025-11-19 17:14:01,086 - INFO - Creating dimension tables...
+2025-11-19 17:14:03,058 - INFO -   → Loaded 996 students into dim_student
+2025-11-19 17:14:03,165 - INFO -   → Loaded 705 courses into dim_course
+2025-11-19 17:14:03,181 - INFO -   → Loaded 4 semesters into dim_semester
+2025-11-19 17:14:03,213 - INFO -   → Loaded 11 faculties into dim_faculty
+2025-11-19 17:14:03,219 - ERROR - ETL Pipeline failed after 0:00:03.359509: 'charmap' codec can't encode character '\u2192' in position 2: character maps to <undefined>
+Traceback (most recent call last):
+  File "etl_pipeline.py", line 961, in run
+    self.load_to_warehouse(silver_data)
+  File "etl_pipeline.py", line 447, in load_to_warehouse
+    self._create_dimensions(engine, silver_data)
+  File "etl_pipeline.py", line 628, in _create_dimensions
+    print(f"  → Loaded {len(faculties_dim)} faculties into dim_faculty")
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 2: character maps to <undefined>

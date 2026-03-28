@@ -1,0 +1,58 @@
+2026-03-09 12:25:59,110 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260309_122559.log
+2026-03-09 12:25:59,110 - INFO - ============================================================
+2026-03-09 12:25:59,112 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-09 12:25:59,112 - INFO - ============================================================
+2026-03-09 12:25:59,112 - INFO - Using SYNTHETIC data source: d:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 12:25:59,114 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 12:25:59,116 - INFO -   -> Found 32 CSV/XLSX files in Synthetic_Data
+2026-03-09 12:25:59,118 - WARNING - faculties_departments.csv not found; using empty dimension DataFrames
+2026-03-09 12:25:59,127 - INFO -   -> Faculties: 0, Departments: 0, Programs: 0
+2026-03-09 12:26:36,853 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-09 12:26:37,013 - INFO -   -> Students: 10000 (columns: 40)
+2026-03-09 12:26:37,059 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-09 12:26:40,146 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-09 12:26:40,490 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-09 12:26:42,488 - INFO -   -> Payments: 130871 (columns: 28)
+2026-03-09 12:26:52,514 - INFO -   -> Attendance: 3117871 (columns: 9)
+2026-03-09 12:26:52,527 - INFO -   -> Employees (synthetic): 0
+2026-03-09 12:26:52,541 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-09 12:26:52,812 - INFO -   -> Student–high school: 20000
+2026-03-09 12:26:53,071 - INFO -   -> Transcript: 36233
+2026-03-09 12:26:53,340 - INFO -   -> Academic performance: 36233
+2026-03-09 12:26:53,662 - INFO -   -> Sponsorships: 41866
+2026-03-09 12:27:43,654 - INFO -   -> Progression: 469956
+2026-03-09 12:27:43,656 - INFO -   -> Grades summary sheets: 0
+2026-03-09 12:27:43,856 - INFO -   -> Dim date: 1826
+2026-03-09 12:28:00,112 - INFO - Bronze (synthetic) extraction complete.
+2026-03-09 12:28:00,467 - INFO - ============================================================
+2026-03-09 12:28:00,467 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-09 12:28:00,467 - INFO - ============================================================
+2026-03-09 12:28:55,584 - INFO - Silver layer files saved to: d:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-09 12:28:55,584 - INFO -   → Students: 10000
+2026-03-09 12:28:55,584 - INFO -   → Courses: 3035
+2026-03-09 12:28:55,584 - INFO -   → Enrollments: 10000
+2026-03-09 12:28:55,584 - INFO -   → Attendance: 3117871
+2026-03-09 12:28:55,584 - INFO -   → Payments: 130871
+2026-03-09 12:28:55,584 - INFO -   → Grades: 234978
+2026-03-09 12:28:55,584 - INFO -   → Transcript: 36233
+2026-03-09 12:28:55,584 - INFO -   → Academic performance: 36233
+2026-03-09 12:28:55,584 - INFO -   → Sponsorships: 41866
+2026-03-09 12:28:55,584 - INFO -   → Progression: 469956
+2026-03-09 12:28:55,590 - INFO -   → Student–high school: 20000
+2026-03-09 12:28:55,590 - INFO -   → High schools: 73
+2026-03-09 12:28:55,590 - INFO - Silver layer transformation complete!
+2026-03-09 12:28:55,590 - INFO - ============================================================
+2026-03-09 12:28:55,590 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-09 12:28:55,595 - INFO - ============================================================
+2026-03-09 12:28:55,595 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2026-03-09 12:28:55,818 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2026-03-09 12:28:55,947 - INFO - Creating dimension tables...
+2026-03-09 12:28:57,646 - INFO -   → Loaded 1823 courses into dim_course (from catalog)
+2026-03-09 12:28:58,197 - INFO -   → Loaded 1823 courses into dim_course (from silver)
+2026-03-09 12:30:08,197 - INFO -   → Loaded 10000 students into dim_student (51 columns)
+2026-03-09 12:30:08,241 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-09 12:30:08,443 - INFO -   → Loaded 14 app users into dim_app_user
+2026-03-09 12:30:08,579 - INFO -   -> Loaded 73 high schools into dim_high_school (all columns)
+2026-03-09 12:30:09,009 - INFO - Populating time dimension...
+2026-03-09 12:30:11,842 - INFO -   → Loaded 1826 time dimension records
+2026-03-09 12:30:21,047 - INFO -   → Loaded 10000 enrollments into fact_enrollment

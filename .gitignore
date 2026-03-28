@@ -67,10 +67,16 @@ models/
 !backend/models/enhanced_predictor.pkl
 !backend/models/multi_model_predictor.pkl
 
-# Logs
+# Logs (default: ignore); ETL pipeline logs under backend/logs/ are tracked in-repo
 *.log
 logs/
+!backend/logs/
 !backend/logs/.gitkeep
+!backend/logs/*.log
+!backend/logs/etl_runs_ledger.jsonl
+# Seed copies of ETL run logs (copied into backend/logs on bootstrap; optional repo mirror)
+!backend/etl_seeds/etl_runs/
+!backend/etl_seeds/etl_runs/*.log
 
 # MySQL
 *.sql.backup

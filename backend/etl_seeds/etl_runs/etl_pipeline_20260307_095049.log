@@ -1,0 +1,67 @@
+2026-03-07 09:50:49,632 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260307_095049.log
+2026-03-07 09:50:49,634 - INFO - ============================================================
+2026-03-07 09:50:49,634 - INFO - ETL PIPELINE STARTED
+2026-03-07 09:50:49,637 - INFO - Start time: 2026-03-07 09:50:49
+2026-03-07 09:50:49,639 - INFO - ============================================================
+2026-03-07 09:50:49,901 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-07 09:50:50,191 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-07 09:50:50,232 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-07 09:50:54,417 - INFO - [RBAC seed] Seeded audit_logs with 1446 rows
+2026-03-07 09:50:54,420 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-07 09:50:54,446 - INFO - [RBAC seed] Restored profile photos from D:\NextGen-Data-Architects-Project\backend\etl_seeds\profile_photos to D:\NextGen-Data-Architects-Project\backend\data\profile_photos
+2026-03-07 09:50:54,452 - INFO - [RBAC seed] Restored admin_settings.json to D:\NextGen-Data-Architects-Project\backend\data\admin_settings.json
+2026-03-07 09:50:56,263 - INFO - [RBAC seed] Restored ETL run logs from D:\NextGen-Data-Architects-Project\backend\etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-07 09:50:56,267 - INFO - ============================================================
+2026-03-07 09:50:56,267 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-07 09:50:56,267 - INFO - ============================================================
+2026-03-07 09:50:56,267 - INFO - Extracting from Source Database 1 (ACADEMICS)...
+2026-03-07 09:50:56,759 - INFO -   → Extracted 1000 students
+2026-03-07 09:50:56,859 - INFO -   → Extracted 488 courses
+2026-03-07 09:50:57,026 - INFO -   → Extracted 1000 enrollments
+2026-03-07 09:50:57,169 - INFO -   → Extracted 1000 attendance records
+2026-03-07 09:50:57,346 - INFO -   → Extracted 1000 grades
+2026-03-07 09:50:57,731 - INFO -   → Extracted 1000 student fees
+2026-03-07 09:50:57,780 - INFO -   → Extracted 11 faculties
+2026-03-07 09:50:57,847 - INFO -   → Extracted 18 departments
+2026-03-07 09:50:57,924 - INFO -   → Extracted 91 programs
+2026-03-07 09:50:57,926 - INFO - Extracting from Source Database 2 (ADMINISTRATION)...
+2026-03-07 09:50:58,287 - INFO -   → Extracted 1000 employees
+2026-03-07 09:50:58,420 - INFO -   → Extracted 1000 payroll records
+2026-03-07 09:50:59,657 - INFO - Bronze layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\bronze
+2026-03-07 09:50:59,660 - INFO - Bronze layer extraction complete!
+2026-03-07 09:50:59,660 - INFO - ============================================================
+2026-03-07 09:50:59,660 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-07 09:50:59,662 - INFO - ============================================================
+2026-03-07 09:51:00,179 - INFO - Silver layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-07 09:51:00,184 - INFO -   → Students: 1000
+2026-03-07 09:51:00,184 - INFO -   → Courses: 488
+2026-03-07 09:51:00,184 - INFO -   → Enrollments: 1000
+2026-03-07 09:51:00,184 - INFO -   → Attendance: 1000
+2026-03-07 09:51:00,184 - INFO -   → Payments: 1000
+2026-03-07 09:51:00,186 - INFO -   → Grades: 1000
+2026-03-07 09:51:00,186 - INFO - Silver layer transformation complete!
+2026-03-07 09:51:00,194 - INFO - ============================================================
+2026-03-07 09:51:00,194 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-07 09:51:00,194 - INFO - ============================================================
+2026-03-07 09:51:00,196 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2026-03-07 09:51:00,226 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2026-03-07 09:51:00,230 - INFO - Creating dimension tables...
+2026-03-07 09:51:03,290 - INFO -   → Loaded 997 students into dim_student
+2026-03-07 09:51:03,428 - INFO -   → Loaded 437 courses into dim_course
+2026-03-07 09:51:03,480 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-07 09:51:03,645 - INFO -   → Loaded 14 app users into dim_app_user
+2026-03-07 09:51:03,805 - INFO -   -> Loaded 11 faculties into dim_faculty
+2026-03-07 09:51:03,854 - INFO -   -> Loaded 18 departments into dim_department
+2026-03-07 09:51:03,916 - INFO -   -> Loaded 91 programs into dim_program
+2026-03-07 09:51:04,449 - INFO -   -> Loaded 1000 employees (staff/lecturers) into dim_employee
+2026-03-07 09:51:04,450 - INFO - Populating time dimension...
+2026-03-07 09:51:08,724 - INFO -   → Loaded 1826 time dimension records
+2026-03-07 09:51:10,754 - INFO -   → Loaded 1000 enrollments into fact_enrollment
+2026-03-07 09:51:13,015 - INFO -   → Loaded 998 attendance records into fact_attendance
+2026-03-07 09:51:27,084 - INFO -   → Loaded 1000 payments into fact_payment
+2026-03-07 09:51:30,893 - INFO -   → Loaded 1000 grades into fact_grade
+2026-03-07 09:51:30,901 - INFO - ============================================================
+2026-03-07 09:51:30,901 - INFO - ETL PIPELINE COMPLETED SUCCESSFULLY
+2026-03-07 09:51:30,902 - INFO - Log file saved to: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260307_095049.log
+2026-03-07 09:51:30,902 - INFO - ============================================================
+2026-03-07 09:51:30,903 - INFO - ETL Pipeline completed successfully in 0:00:41.268856

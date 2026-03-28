@@ -1,0 +1,271 @@
+2026-03-07 20:33:20,499 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260307_203320.log
+2026-03-07 20:33:20,499 - INFO - ============================================================
+2026-03-07 20:33:20,499 - INFO - ETL PIPELINE STARTED
+2026-03-07 20:33:20,501 - INFO - Start time: 2026-03-07 20:33:20
+2026-03-07 20:33:20,501 - INFO - ============================================================
+2026-03-07 20:33:20,603 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-07 20:33:20,674 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-07 20:33:20,705 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-07 20:33:21,748 - INFO - [RBAC seed] Seeded audit_logs with 1477 rows
+2026-03-07 20:33:21,752 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-07 20:33:21,795 - INFO - [RBAC seed] Restored profile photos from D:\NextGen-Data-Architects-Project\backend\etl_seeds\profile_photos to D:\NextGen-Data-Architects-Project\backend\data\profile_photos
+2026-03-07 20:33:21,799 - INFO - [RBAC seed] Restored admin_settings.json to D:\NextGen-Data-Architects-Project\backend\data\admin_settings.json
+2026-03-07 20:33:22,019 - INFO - [RBAC seed] Restored ETL run logs from D:\NextGen-Data-Architects-Project\backend\etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-07 20:33:22,024 - INFO - ============================================================
+2026-03-07 20:33:22,024 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-07 20:33:22,024 - INFO - ============================================================
+2026-03-07 20:33:22,024 - INFO - Using SYNTHETIC data source: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 20:33:22,024 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 20:33:22,024 - INFO -   -> Found 26 CSV/XLSX files in Synthetic_Data
+2026-03-07 20:33:22,041 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-07 20:33:36,071 - INFO -   -> Combined student lists: 9937 unique (by RegNo)
+2026-03-07 20:33:36,276 - INFO -   -> Students: 9937 (columns: 41)
+2026-03-07 20:33:36,904 - INFO -   -> Courses: 6006 (columns: 10)
+2026-03-07 20:33:38,874 - INFO -   -> Grades: 348350 (columns: 27)
+2026-03-07 20:33:40,854 - INFO -   -> Payments: 187402 (columns: 27)
+2026-03-07 20:33:46,643 - INFO -   -> Attendance: 3204919 (columns: 9)
+2026-03-07 20:33:46,677 - INFO -   -> Employees (synthetic): 253
+2026-03-07 20:33:46,687 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-07 20:33:46,771 - INFO -   -> Student–high school: 20000
+2026-03-07 20:33:47,008 - INFO -   -> Transcript: 53457
+2026-03-07 20:33:47,170 - INFO -   -> Academic performance: 53457
+2026-03-07 20:33:47,227 - INFO -   -> Sponsorships: 10944
+2026-03-07 20:34:59,749 - INFO -   -> Progression: 351587
+2026-03-07 20:35:14,897 - INFO -   -> Grades summary sheets: 63457
+2026-03-07 20:35:15,715 - INFO -   -> Dim date: 1826
+2026-03-07 20:35:25,087 - INFO - Bronze (synthetic) extraction complete.
+2026-03-07 20:35:25,630 - INFO - ============================================================
+2026-03-07 20:35:25,632 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-07 20:35:25,632 - INFO - ============================================================
+2026-03-07 20:35:52,930 - INFO - Silver layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-07 20:35:52,932 - INFO -   → Students: 9937
+2026-03-07 20:35:52,932 - INFO -   → Courses: 6006
+2026-03-07 20:35:52,932 - INFO -   → Enrollments: 345865
+2026-03-07 20:35:52,933 - INFO -   → Attendance: 3204919
+2026-03-07 20:35:52,933 - INFO -   → Payments: 187402
+2026-03-07 20:35:52,933 - INFO -   → Grades: 348350
+2026-03-07 20:35:52,934 - INFO -   → Transcript: 53457
+2026-03-07 20:35:52,934 - INFO -   → Academic performance: 53457
+2026-03-07 20:35:52,934 - INFO -   → Sponsorships: 10944
+2026-03-07 20:35:52,935 - INFO -   → Progression: 351587
+2026-03-07 20:35:52,935 - INFO -   → Student–high school: 20000
+2026-03-07 20:35:52,936 - INFO -   → High schools: 73
+2026-03-07 20:35:52,936 - INFO - Silver layer transformation complete!
+2026-03-07 20:35:52,943 - INFO - ============================================================
+2026-03-07 20:35:52,944 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-07 20:35:52,944 - INFO - ============================================================
+2026-03-07 20:35:52,944 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2026-03-07 20:35:53,017 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2026-03-07 20:35:53,020 - INFO - Creating dimension tables...
+2026-03-07 20:35:54,652 - INFO -   → Loaded 2793 courses into dim_course (from catalog)
+2026-03-07 20:35:54,855 - INFO -   → Loaded 2793 courses into dim_course (from silver)
+2026-03-07 20:35:54,932 - ERROR - ETL Pipeline failed after 0:02:34.433559: (pymysql.err.OperationalError) (1060, "Duplicate column name 'status'")
+[SQL: 
+CREATE TABLE dim_student (
+	`RegNo` TEXT, 
+	`AccessNumber` TEXT, 
+	`FullName` TEXT, 
+	`HighSchool` TEXT, 
+	`HighSchoolDistrict` TEXT, 
+	`ProgramName` TEXT, 
+	`ProgramID` BIGINT, 
+	`YearOfStudy` INTEGER, 
+	`Status` TEXT, 
+	`StudentID` BIGINT, 
+	`S/N` BIGINT, 
+	`PROGRESS` TEXT, 
+	`YEAR` BIGINT, 
+	`SEMESTER` BIGINT, 
+	`RETAKE_COURSES` TEXT, 
+	`NATIONALITY` TEXT, 
+	`GENDER` TEXT, 
+	`REGISTRATION_TYPE` TEXT, 
+	`PROGRAM_TYPE` TEXT, 
+	`RESIDENCE` TEXT, 
+	`FEES` TEXT, 
+	`EXPECTED_FEES(%%)___RAW` BIGINT, 
+	`EXPECTED_FEES(%%)___RANGE` TEXT, 
+	`%%_DIVERGENCE` TEXT, 
+	`MOODLE` TEXT, 
+	`ACADEMIC_OFFICER` TEXT, 
+	`ACCOMMODATION_OFFICER` TEXT, 
+	`ACCOMMODATION_Type` TEXT, 
+	`ACCOUNTS_OFFICER` TEXT, 
+	`STUDENT_STATUS` TEXT, 
+	`HALL` TEXT, 
+	`BLOCK` TEXT, 
+	`BED` TEXT, 
+	`MEALS_STATUS` TEXT, 
+	`MEALS_OFFICER` TEXT, 
+	`SCHOLARSHIP_TYPE` TEXT, 
+	`SCHOLARSHIP_NAME` TEXT, 
+	`FINANCIAL_AID_OFFICER` TEXT, 
+	`TOTAL_EXPECTED_FEES_(UGX)` BIGINT, 
+	`AMOUNT_PAID_(UGX)` BIGINT, 
+	`TUITION_BALANCE_(UGX)` BIGINT, 
+	student_id TEXT, 
+	reg_no TEXT, 
+	access_number TEXT, 
+	first_name TEXT, 
+	last_name TEXT, 
+	high_school TEXT, 
+	high_school_district TEXT, 
+	program_id BIGINT, 
+	year_of_study INTEGER, 
+	status TEXT, 
+	email TEXT, 
+	gender TEXT, 
+	nationality TEXT, 
+	admission_date TEXT
+)
+
+]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 558, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 822, in _read_query_result
+    result.read()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1200, in read
+    first_packet = self.connection._read_packet()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 772, in _read_packet
+    packet.raise_for_error()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\protocol.py", line 221, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\err.py", line 143, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.OperationalError: (1060, "Duplicate column name 'status'")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 2185, in run
+    self.load_to_warehouse(silver_data)
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 1284, in load_to_warehouse
+    self._create_dimensions(engine, silver_data)
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 1456, in _create_dimensions
+    students_dim.to_sql('dim_student', engine, if_exists='replace', index=False, method='multi', chunksize=500)
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\core\generic.py", line 2878, in to_sql
+    return sql.to_sql(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 769, in to_sql
+    return pandas_sql.to_sql(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 1910, in to_sql
+    table = self.prep_table(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 1814, in prep_table
+    table.create()
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 914, in create
+    self._execute_create()
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 900, in _execute_create
+    self.table.create(bind=self.pd_sql.con)
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\sql\schema.py", line 1288, in create
+    bind._run_ddl_visitor(ddl.SchemaGenerator, self, checkfirst=checkfirst)
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 2457, in _run_ddl_visitor
+    visitorcallable(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\sql\visitors.py", line 661, in traverse_single
+    return meth(obj, **kw)
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\sql\ddl.py", line 1017, in visit_table
+    CreateTable(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\sql\ddl.py", line 321, in _invoke_with
+    return bind.execute(self)
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\sql\ddl.py", line 187, in _execute_on_connection
+    return connection._execute_ddl(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1530, in _execute_ddl
+    ret = self._execute_context(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 558, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 822, in _read_query_result
+    result.read()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1200, in read
+    first_packet = self.connection._read_packet()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 772, in _read_packet
+    packet.raise_for_error()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\protocol.py", line 221, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\err.py", line 143, in raise_mysql_exception
+    raise errorclass(errno, errval)
+sqlalchemy.exc.OperationalError: (pymysql.err.OperationalError) (1060, "Duplicate column name 'status'")
+[SQL: 
+CREATE TABLE dim_student (
+	`RegNo` TEXT, 
+	`AccessNumber` TEXT, 
+	`FullName` TEXT, 
+	`HighSchool` TEXT, 
+	`HighSchoolDistrict` TEXT, 
+	`ProgramName` TEXT, 
+	`ProgramID` BIGINT, 
+	`YearOfStudy` INTEGER, 
+	`Status` TEXT, 
+	`StudentID` BIGINT, 
+	`S/N` BIGINT, 
+	`PROGRESS` TEXT, 
+	`YEAR` BIGINT, 
+	`SEMESTER` BIGINT, 
+	`RETAKE_COURSES` TEXT, 
+	`NATIONALITY` TEXT, 
+	`GENDER` TEXT, 
+	`REGISTRATION_TYPE` TEXT, 
+	`PROGRAM_TYPE` TEXT, 
+	`RESIDENCE` TEXT, 
+	`FEES` TEXT, 
+	`EXPECTED_FEES(%%)___RAW` BIGINT, 
+	`EXPECTED_FEES(%%)___RANGE` TEXT, 
+	`%%_DIVERGENCE` TEXT, 
+	`MOODLE` TEXT, 
+	`ACADEMIC_OFFICER` TEXT, 
+	`ACCOMMODATION_OFFICER` TEXT, 
+	`ACCOMMODATION_Type` TEXT, 
+	`ACCOUNTS_OFFICER` TEXT, 
+	`STUDENT_STATUS` TEXT, 
+	`HALL` TEXT, 
+	`BLOCK` TEXT, 
+	`BED` TEXT, 
+	`MEALS_STATUS` TEXT, 
+	`MEALS_OFFICER` TEXT, 
+	`SCHOLARSHIP_TYPE` TEXT, 
+	`SCHOLARSHIP_NAME` TEXT, 
+	`FINANCIAL_AID_OFFICER` TEXT, 
+	`TOTAL_EXPECTED_FEES_(UGX)` BIGINT, 
+	`AMOUNT_PAID_(UGX)` BIGINT, 
+	`TUITION_BALANCE_(UGX)` BIGINT, 
+	student_id TEXT, 
+	reg_no TEXT, 
+	access_number TEXT, 
+	first_name TEXT, 
+	last_name TEXT, 
+	high_school TEXT, 
+	high_school_district TEXT, 
+	program_id BIGINT, 
+	year_of_study INTEGER, 
+	status TEXT, 
+	email TEXT, 
+	gender TEXT, 
+	nationality TEXT, 
+	admission_date TEXT
+)
+
+]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)

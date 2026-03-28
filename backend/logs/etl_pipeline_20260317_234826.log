@@ -1,0 +1,97 @@
+2026-03-17 23:48:26 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260317_234826.log
+2026-03-17 23:48:26 - INFO - ============================================================
+2026-03-17 23:48:26 - INFO - ETL PIPELINE STARTED
+2026-03-17 23:48:26 - INFO - Start time: 2026-03-17 23:48:26
+2026-03-17 23:48:26 - INFO - ============================================================
+2026-03-17 23:48:26 - INFO - [RBAC seed] Seeding table app_users with 18 rows from snapshot
+2026-03-17 23:48:26 - INFO - [RBAC seed] Seeding table user_profiles with 2 rows from snapshot
+2026-03-17 23:48:26 - INFO - [RBAC seed] Seeding table user_state with 1 rows from snapshot
+2026-03-17 23:48:27 - INFO - [RBAC seed] Seeded audit_logs with 248 rows
+2026-03-17 23:48:27 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-17 23:48:27 - INFO - [RBAC seed] Restored profile photos from /app/etl_seeds/profile_photos to /app/data/profile_photos
+2026-03-17 23:48:27 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json
+2026-03-17 23:48:46 - INFO - [RBAC seed] Restored ETL run logs from /app/etl_seeds/etl_runs to /app/logs
+2026-03-17 23:48:46 - INFO - ============================================================
+2026-03-17 23:48:46 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-17 23:48:46 - INFO - ============================================================
+2026-03-17 23:48:46 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-17 23:48:46 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-17 23:48:46 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-17 23:48:46 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-17 23:48:46 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-17 23:49:07 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-17 23:49:07 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-17 23:49:08 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-17 23:49:14 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-17 23:49:15 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-17 23:49:18 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-17 23:49:49 - INFO -   -> Attendance: 3117871 (columns: 9)
+2026-03-17 23:49:49 - INFO -   -> Employees (synthetic): 253
+2026-03-17 23:49:49 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-17 23:49:50 - INFO -   -> Student–high school: 20000
+2026-03-17 23:49:50 - INFO -   -> Transcript: 36233
+2026-03-17 23:49:51 - INFO -   -> Academic performance: 36233
+2026-03-17 23:49:52 - INFO -   -> Sponsorships: 41866
+2026-03-17 23:50:19 - INFO -   -> Progression: 469956
+2026-03-17 23:51:09 - INFO -   -> Grades summary sheets: 72068
+2026-03-17 23:51:09 - INFO -   -> Dim date: 1826
+2026-03-17 23:51:20 - INFO - Bronze (synthetic) extraction complete.
+2026-03-17 23:51:20 - INFO - ============================================================
+2026-03-17 23:51:20 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-17 23:51:20 - INFO - ============================================================
+2026-03-17 23:52:20 - INFO - Silver layer files saved to: /app/data/silver
+2026-03-17 23:52:20 - INFO -   → Students: 10000
+2026-03-17 23:52:20 - INFO -   → Courses: 3035
+2026-03-17 23:52:20 - INFO -   → Enrollments: 10000
+2026-03-17 23:52:20 - INFO -   → Attendance: 3117871
+2026-03-17 23:52:20 - INFO -   → Payments: 130871
+2026-03-17 23:52:20 - INFO -   → Grades: 234978
+2026-03-17 23:52:20 - INFO -   → Transcript: 36233
+2026-03-17 23:52:20 - INFO -   → Academic performance: 36233
+2026-03-17 23:52:20 - INFO -   → Sponsorships: 41866
+2026-03-17 23:52:20 - INFO -   → Progression: 469956
+2026-03-17 23:52:20 - INFO -   → Student–high school: 20000
+2026-03-17 23:52:20 - INFO -   → High schools: 73
+2026-03-17 23:52:20 - INFO - Silver layer transformation complete!
+2026-03-17 23:52:20 - INFO - ============================================================
+2026-03-17 23:52:20 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-17 23:52:20 - INFO - ============================================================
+2026-03-17 23:52:20 - INFO - Creating data warehouse database: ucu_datawarehouse
+2026-03-17 23:52:21 - INFO - Data warehouse database ucu_datawarehouse ready
+2026-03-17 23:52:21 - INFO - Creating dimension tables...
+2026-03-17 23:52:22 - INFO -   → Loaded 1823 courses into dim_course (from catalog)
+2026-03-17 23:52:23 - INFO -   → Loaded 1823 courses into dim_course (from silver)
+2026-03-17 23:52:57 - INFO -   → Loaded 10000 students into dim_student (50 columns)
+2026-03-17 23:52:57 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-17 23:52:58 - INFO -   → Loaded 18 app users into dim_app_user
+2026-03-17 23:52:58 - INFO -   -> Loaded 11 faculties into dim_faculty
+2026-03-17 23:52:58 - INFO -   -> Loaded 18 departments into dim_department
+2026-03-17 23:52:58 - INFO -   -> Loaded 91 programs into dim_program
+2026-03-17 23:52:58 - INFO -   -> Loaded 253 employees (staff/lecturers) into dim_employee
+2026-03-17 23:52:58 - INFO -   -> Loaded 73 high schools into dim_high_school (all columns)
+2026-03-17 23:52:58 - INFO - Populating time dimension...
+2026-03-17 23:52:59 - INFO -   → Loaded 1826 time dimension records
+2026-03-17 23:53:00 - INFO -   → fact_enrollment incremental: 10000 new rows (skipped 0 existing)
+2026-03-17 23:53:05 - INFO -   → Loaded 10000 enrollments into fact_enrollment
+2026-03-17 23:53:53 - INFO -   -> Attendance: 3117871 rows pre-filter, 3117871 new rows after incremental watermark (max_id=0)
+2026-03-18 00:11:52 - INFO -   -> Loaded 3117871 attendance records into fact_attendance (in batches)
+2026-03-18 00:12:00 - INFO -   -> fact_payment ready (incremental, no in-batch dedupe): 130871 rows (pre-filter: 130871)
+2026-03-18 00:14:26 - INFO -   -> Loaded 130871 payments into fact_payment (in batches)
+2026-03-18 00:14:33 - INFO -   -> fact_grade ready (incremental): 234978 rows (pre-filter: 234978)
+2026-03-18 00:17:39 - INFO -   -> Loaded 234978 grades into fact_grade (in batches)
+2026-03-18 00:18:22 - INFO -   → Loaded 36233 rows into fact_transcript (22 columns, in batches)
+2026-03-18 00:18:51 - INFO -   → Loaded 36233 rows into fact_academic_performance (16 columns, in batches)
+2026-03-18 00:19:20 - INFO -   → Loaded 41866 rows into fact_sponsorship (14 columns, in batches)
+2026-03-18 00:22:41 - INFO -   → Loaded 469956 rows into fact_progression (9 columns, in batches)
+2026-03-18 00:22:49 - INFO -   → Loaded 20000 rows into fact_student_high_school (9 columns, in batches)
+2026-03-18 00:24:58 - INFO -   → Loaded 72068 rows into fact_grades_summary (34 columns, in batches)
+2026-03-18 00:24:59 - INFO -   → Loaded 1826 rows into dim_date (16 columns, in batches)
+2026-03-18 00:24:59 - WARNING -   → Analyst views SQL failed (non-fatal): (psycopg2.errors.UndefinedTable) relation "view_analyst_grade" does not exist
+
+[SQL: COMMENT ON VIEW view_analyst_grade IS 'Analyst-safe: grades joined to student, program, department, faculty, semester. Use WHERE faculty_id/department_id/program_id/student_id for scope.']
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-18 00:24:59 - INFO - ============================================================
+2026-03-18 00:24:59 - INFO - ETL PIPELINE COMPLETED SUCCESSFULLY
+2026-03-18 00:24:59 - INFO - Log file saved to: /app/logs/etl_pipeline_20260317_234826.log
+2026-03-18 00:24:59 - INFO - ============================================================
+2026-03-18 00:24:59 - INFO - ETL Pipeline completed successfully in 0:36:33.906373

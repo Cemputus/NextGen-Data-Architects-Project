@@ -1,0 +1,175 @@
+2026-03-07 20:50:53,689 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260307_205053.log
+2026-03-07 20:50:53,689 - INFO - ============================================================
+2026-03-07 20:50:53,689 - INFO - ETL PIPELINE STARTED
+2026-03-07 20:50:53,689 - INFO - Start time: 2026-03-07 20:50:53
+2026-03-07 20:50:53,689 - INFO - ============================================================
+2026-03-07 20:50:53,806 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-07 20:50:53,869 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-07 20:50:53,884 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-07 20:50:54,538 - INFO - [RBAC seed] Seeded audit_logs with 1480 rows
+2026-03-07 20:50:54,543 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-07 20:50:54,574 - INFO - [RBAC seed] Restored profile photos from D:\NextGen-Data-Architects-Project\backend\etl_seeds\profile_photos to D:\NextGen-Data-Architects-Project\backend\data\profile_photos
+2026-03-07 20:50:54,579 - INFO - [RBAC seed] Restored admin_settings.json to D:\NextGen-Data-Architects-Project\backend\data\admin_settings.json
+2026-03-07 20:50:54,789 - INFO - [RBAC seed] Restored ETL run logs from D:\NextGen-Data-Architects-Project\backend\etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-07 20:50:54,789 - INFO - ============================================================
+2026-03-07 20:50:54,789 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-07 20:50:54,794 - INFO - ============================================================
+2026-03-07 20:50:54,794 - INFO - Using SYNTHETIC data source: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 20:50:54,794 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 20:50:54,794 - INFO -   -> Found 26 CSV/XLSX files in Synthetic_Data
+2026-03-07 20:50:54,812 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-07 20:51:04,518 - INFO -   -> Combined student lists: 9937 unique (by RegNo)
+2026-03-07 20:51:04,744 - INFO -   -> Students: 9937 (columns: 41)
+2026-03-07 20:51:05,359 - INFO -   -> Courses: 6006 (columns: 10)
+2026-03-07 20:51:06,994 - INFO -   -> Grades: 348350 (columns: 27)
+2026-03-07 20:51:08,668 - INFO -   -> Payments: 187402 (columns: 27)
+2026-03-07 20:51:14,630 - INFO -   -> Attendance: 3204919 (columns: 9)
+2026-03-07 20:51:14,729 - INFO -   -> Employees (synthetic): 253
+2026-03-07 20:51:14,749 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-07 20:51:14,870 - INFO -   -> Student–high school: 20000
+2026-03-07 20:51:15,161 - INFO -   -> Transcript: 53457
+2026-03-07 20:51:15,345 - INFO -   -> Academic performance: 53457
+2026-03-07 20:51:15,399 - INFO -   -> Sponsorships: 10944
+2026-03-07 20:52:02,366 - INFO -   -> Progression: 351587
+2026-03-07 20:52:08,710 - INFO -   -> Grades summary sheets: 63457
+2026-03-07 20:52:09,194 - INFO -   -> Dim date: 1826
+2026-03-07 20:52:17,839 - INFO - Bronze (synthetic) extraction complete.
+2026-03-07 20:52:18,076 - INFO - ============================================================
+2026-03-07 20:52:18,081 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-07 20:52:18,086 - INFO - ============================================================
+2026-03-07 20:52:41,694 - INFO - Silver layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-07 20:52:41,694 - INFO -   → Students: 9937
+2026-03-07 20:52:41,694 - INFO -   → Courses: 6006
+2026-03-07 20:52:41,694 - INFO -   → Enrollments: 345865
+2026-03-07 20:52:41,699 - INFO -   → Attendance: 3204919
+2026-03-07 20:52:41,699 - INFO -   → Payments: 187402
+2026-03-07 20:52:41,699 - INFO -   → Grades: 348350
+2026-03-07 20:52:41,700 - INFO -   → Transcript: 53457
+2026-03-07 20:52:41,701 - INFO -   → Academic performance: 53457
+2026-03-07 20:52:41,702 - INFO -   → Sponsorships: 10944
+2026-03-07 20:52:41,703 - INFO -   → Progression: 351587
+2026-03-07 20:52:41,703 - INFO -   → Student–high school: 20000
+2026-03-07 20:52:41,704 - INFO -   → High schools: 73
+2026-03-07 20:52:41,705 - INFO - Silver layer transformation complete!
+2026-03-07 20:52:41,712 - INFO - ============================================================
+2026-03-07 20:52:41,712 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-07 20:52:41,712 - INFO - ============================================================
+2026-03-07 20:52:41,713 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2026-03-07 20:52:41,733 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2026-03-07 20:52:41,737 - INFO - Creating dimension tables...
+2026-03-07 20:52:43,267 - INFO -   → Loaded 2793 courses into dim_course (from catalog)
+2026-03-07 20:52:43,469 - INFO -   → Loaded 2793 courses into dim_course (from silver)
+2026-03-07 20:53:00,665 - INFO -   → Loaded 7551 students into dim_student (52 columns)
+2026-03-07 20:53:00,684 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-07 20:53:00,779 - INFO -   → Loaded 14 app users into dim_app_user
+2026-03-07 20:53:00,804 - INFO -   -> Loaded 11 faculties into dim_faculty
+2026-03-07 20:53:00,831 - INFO -   -> Loaded 18 departments into dim_department
+2026-03-07 20:53:00,858 - INFO -   -> Loaded 91 programs into dim_program
+2026-03-07 20:53:00,917 - INFO -   -> Loaded 253 employees (staff/lecturers) into dim_employee
+2026-03-07 20:53:00,958 - INFO -   -> Loaded 73 high schools into dim_high_school (all columns)
+2026-03-07 20:53:00,958 - INFO - Populating time dimension...
+2026-03-07 20:53:01,741 - INFO -   → Loaded 1826 time dimension records
+2026-03-07 20:53:01,744 - ERROR - ETL Pipeline failed after 0:02:08.055114: (pymysql.err.OperationalError) (1822, "Failed to add the foreign key constraint. Missing index for constraint 'fact_enrollment_ibfk_1' in the referenced table 'dim_student'")
+[SQL: 
+                CREATE TABLE fact_enrollment (
+                    enrollment_id VARCHAR(20) PRIMARY KEY,
+                    student_id VARCHAR(20),
+                    course_code VARCHAR(20),
+                    date_key VARCHAR(8),
+                    semester_id INT,
+                    status VARCHAR(20),
+                    FOREIGN KEY (student_id) REFERENCES dim_student(student_id) ON DELETE CASCADE,
+                    FOREIGN KEY (course_code) REFERENCES dim_course(course_code) ON DELETE CASCADE,
+                    FOREIGN KEY (date_key) REFERENCES dim_time(date_key) ON DELETE CASCADE,
+                    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id) ON DELETE CASCADE,
+                    INDEX idx_student (student_id),
+                    INDEX idx_course (course_code),
+                    INDEX idx_date (date_key),
+                    INDEX idx_semester (semester_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 558, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 822, in _read_query_result
+    result.read()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1200, in read
+    first_packet = self.connection._read_packet()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 772, in _read_packet
+    packet.raise_for_error()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\protocol.py", line 221, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\err.py", line 143, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.OperationalError: (1822, "Failed to add the foreign key constraint. Missing index for constraint 'fact_enrollment_ibfk_1' in the referenced table 'dim_student'")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 2216, in run
+    self.load_to_warehouse(silver_data)
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 1290, in load_to_warehouse
+    self._create_facts(engine, silver_data)
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 1685, in _create_facts
+    conn.execute(text("""
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\sql\elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 558, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 822, in _read_query_result
+    result.read()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1200, in read
+    first_packet = self.connection._read_packet()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 772, in _read_packet
+    packet.raise_for_error()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\protocol.py", line 221, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\err.py", line 143, in raise_mysql_exception
+    raise errorclass(errno, errval)
+sqlalchemy.exc.OperationalError: (pymysql.err.OperationalError) (1822, "Failed to add the foreign key constraint. Missing index for constraint 'fact_enrollment_ibfk_1' in the referenced table 'dim_student'")
+[SQL: 
+                CREATE TABLE fact_enrollment (
+                    enrollment_id VARCHAR(20) PRIMARY KEY,
+                    student_id VARCHAR(20),
+                    course_code VARCHAR(20),
+                    date_key VARCHAR(8),
+                    semester_id INT,
+                    status VARCHAR(20),
+                    FOREIGN KEY (student_id) REFERENCES dim_student(student_id) ON DELETE CASCADE,
+                    FOREIGN KEY (course_code) REFERENCES dim_course(course_code) ON DELETE CASCADE,
+                    FOREIGN KEY (date_key) REFERENCES dim_time(date_key) ON DELETE CASCADE,
+                    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id) ON DELETE CASCADE,
+                    INDEX idx_student (student_id),
+                    INDEX idx_course (course_code),
+                    INDEX idx_date (date_key),
+                    INDEX idx_semester (semester_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)

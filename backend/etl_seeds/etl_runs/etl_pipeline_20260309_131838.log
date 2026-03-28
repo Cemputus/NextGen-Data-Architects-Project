@@ -1,0 +1,43 @@
+2026-03-09 13:18:38,270 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260309_131838.log
+2026-03-09 13:18:38,270 - INFO - ============================================================
+2026-03-09 13:18:38,270 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-09 13:18:38,271 - INFO - ============================================================
+2026-03-09 13:18:38,271 - INFO - Using SYNTHETIC data source: d:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 13:18:38,271 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 13:18:38,272 - INFO -   -> Found 33 CSV/XLSX files in Synthetic_Data
+2026-03-09 13:18:38,300 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-09 13:18:38,300 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-09 13:18:48,990 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-09 13:18:49,067 - INFO -   -> Students: 10000 (columns: 40)
+2026-03-09 13:18:49,082 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-09 13:18:50,241 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-09 13:18:50,337 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-09 13:18:51,091 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-09 13:18:59,682 - INFO -   -> Attendance: 3117871 (columns: 8)
+2026-03-09 13:18:59,765 - INFO -   -> Employees (synthetic): 253
+2026-03-09 13:18:59,767 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-09 13:18:59,898 - INFO -   -> Student–high school: 20000
+2026-03-09 13:19:00,145 - INFO -   -> Transcript: 36233
+2026-03-09 13:19:00,375 - INFO -   -> Academic performance: 36233
+2026-03-09 13:19:00,804 - INFO -   -> Sponsorships: 41866
+2026-03-09 13:19:21,455 - INFO -   -> Progression: 469956
+2026-03-09 13:19:21,458 - INFO -   -> Grades summary sheets: 0
+2026-03-09 13:19:21,649 - INFO -   -> Dim date: 1826
+2026-03-09 13:19:34,901 - INFO - Bronze (synthetic) extraction complete.
+2026-03-09 13:19:35,170 - INFO - ============================================================
+2026-03-09 13:19:35,171 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-09 13:19:35,171 - INFO - ============================================================
+2026-03-09 13:20:12,184 - INFO - Silver layer files saved to: d:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-09 13:20:12,185 - INFO -   → Students: 10000
+2026-03-09 13:20:12,186 - INFO -   → Courses: 3035
+2026-03-09 13:20:12,186 - INFO -   → Enrollments: 10000
+2026-03-09 13:20:12,186 - INFO -   → Attendance: 3117871
+2026-03-09 13:20:12,188 - INFO -   → Payments: 130871
+2026-03-09 13:20:12,188 - INFO -   → Grades: 234978
+2026-03-09 13:20:12,188 - INFO -   → Transcript: 36233
+2026-03-09 13:20:12,188 - INFO -   → Academic performance: 36233
+2026-03-09 13:20:12,188 - INFO -   → Sponsorships: 41866
+2026-03-09 13:20:12,188 - INFO -   → Progression: 469956
+2026-03-09 13:20:12,188 - INFO -   → Student–high school: 20000
+2026-03-09 13:20:12,188 - INFO -   → High schools: 73
+2026-03-09 13:20:12,188 - INFO - Silver layer transformation complete!

@@ -1,0 +1,41 @@
+2026-03-16 15:26:10 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260316_152610.log
+2026-03-16 15:26:10 - INFO - ============================================================
+2026-03-16 15:26:10 - INFO - ETL PIPELINE STARTED
+2026-03-16 15:26:10 - INFO - Start time: 2026-03-16 15:26:10
+2026-03-16 15:26:10 - INFO - ============================================================
+2026-03-16 15:26:10 - INFO - [RBAC seed] Seeding table app_users with 17 rows from snapshot
+2026-03-16 15:26:11 - INFO - [RBAC seed] Seeding table user_profiles with 2 rows from snapshot
+2026-03-16 15:26:11 - INFO - [RBAC seed] Seeding table user_state with 1 rows from snapshot
+2026-03-16 15:26:11 - INFO - [RBAC seed] Seeded audit_logs with 248 rows
+2026-03-16 15:26:11 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-16 15:26:11 - INFO - [RBAC seed] Restored profile photos from /app/etl_seeds/profile_photos to /app/data/profile_photos
+2026-03-16 15:26:11 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json
+2026-03-16 15:26:26 - INFO - [RBAC seed] Restored ETL run logs from /app/etl_seeds/etl_runs to /app/logs
+2026-03-16 15:26:26 - INFO - ============================================================
+2026-03-16 15:26:26 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-16 15:26:26 - INFO - ============================================================
+2026-03-16 15:26:26 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-16 15:26:26 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-16 15:26:26 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-16 15:26:26 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-16 15:26:26 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-16 15:26:47 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-16 15:26:47 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-16 15:26:48 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-16 15:26:54 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-16 15:26:55 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-16 15:27:00 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-16 15:27:41 - INFO -   -> Attendance: 3117871 (columns: 9)
+2026-03-16 15:27:41 - INFO -   -> Employees (synthetic): 253
+2026-03-16 15:27:41 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-16 15:27:42 - INFO -   -> Student–high school: 20000
+2026-03-16 15:27:42 - INFO -   -> Transcript: 36233
+2026-03-16 15:27:43 - INFO -   -> Academic performance: 36233
+2026-03-16 15:27:43 - INFO -   -> Sponsorships: 41866
+2026-03-16 15:28:27 - INFO -   -> Progression: 469956
+2026-03-16 15:28:27 - INFO -   -> Grades summary sheets: 0
+2026-03-16 15:28:27 - INFO -   -> Dim date: 1826
+2026-03-16 15:28:40 - INFO - Bronze (synthetic) extraction complete.
+2026-03-16 15:28:40 - INFO - ============================================================
+2026-03-16 15:28:40 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-16 15:28:40 - INFO - ============================================================

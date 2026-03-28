@@ -1,0 +1,99 @@
+2026-03-11 20:08:18,226 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_200817.log
+2026-03-11 20:08:31,752 - INFO - [RBAC seed] Seeding table app_users with 0 rows from snapshot
+2026-03-11 20:08:31,948 - INFO - [RBAC seed] Seeding table user_profiles with 0 rows from snapshot
+2026-03-11 20:08:32,225 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-11 20:08:36,126 - ERROR - Failed to seed user system from snapshot: Execution failed on sql 'INSERT INTO user_state (id, username, role, state_key, state_json, updated_at) VALUES (:id, :username, :role, :state_key, :state_json, :updated_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "user_state_pkey"
+DETAIL:  Key (id)=(1) already exists.
+
+[SQL: INSERT INTO user_state (id, username, role, state_key, state_json, updated_at) VALUES (%(id__0)s, %(username__0)s, %(role__0)s, %(state_key__0)s, %(state_json__0)s, %(updated_at__0)s), (%(id__1)s, %(username__1)s, %(role__1)s, %(state_key__1)s, %(state_json__1)s, %(updated_at__1)s)]
+[parameters: {'role__0': 'analyst', 'updated_at__0': '2026-03-04 10:34:23', 'state_json__0': '{"query": "SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status;", "history": ["SELECT status, COUNT(*) AS total_students\\ ... (340 characters truncated) ... 849}, {"status": "Graduated", "total_students": 100}, {"status": "Suspended", "total_students": 32}, {"status": "Withdrawn", "total_students": 16}]}}', 'username__0': 'analyst', 'id__0': 1, 'state_key__0': 'nextgen_query', 'role__1': 'analyst', 'updated_at__1': '2026-03-04 00:11:01', 'state_json__1': '{"query": "-- Example: basic student performance slice\\nSELECT\\n  ds.program_id,\\n  COUNT(DISTINCT ds.student_id) AS total_students,\\n  ROUND(AVG ... (619 characters truncated) ... lumn": "", "result": {"columns": [], "elapsed_ms": 52, "message": "Statement executed successfully (rows affected: 5).", "row_count": 0, "rows": []}}', 'username__1': 'enoch', 'id__1': 51, 'state_key__1': 'nextgen_query'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "user_state_pkey"
+DETAIL:  Key (id)=(1) already exists.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1679, in execute
+    return execute_function(sql, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1844, in _execute_context
+    return self._exec_insertmany_context(dialect, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2133, in _exec_insertmany_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "user_state_pkey"
+DETAIL:  Key (id)=(1) already exists.
+
+[SQL: INSERT INTO user_state (id, username, role, state_key, state_json, updated_at) VALUES (%(id__0)s, %(username__0)s, %(role__0)s, %(state_key__0)s, %(state_json__0)s, %(updated_at__0)s), (%(id__1)s, %(username__1)s, %(role__1)s, %(state_key__1)s, %(state_json__1)s, %(updated_at__1)s)]
+[parameters: {'role__0': 'analyst', 'updated_at__0': '2026-03-04 10:34:23', 'state_json__0': '{"query": "SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status;", "history": ["SELECT status, COUNT(*) AS total_students\\ ... (340 characters truncated) ... 849}, {"status": "Graduated", "total_students": 100}, {"status": "Suspended", "total_students": 32}, {"status": "Withdrawn", "total_students": 16}]}}', 'username__0': 'analyst', 'id__0': 1, 'state_key__0': 'nextgen_query', 'role__1': 'analyst', 'updated_at__1': '2026-03-04 00:11:01', 'state_json__1': '{"query": "-- Example: basic student performance slice\\nSELECT\\n  ds.program_id,\\n  COUNT(DISTINCT ds.student_id) AS total_students,\\n  ROUND(AVG ... (619 characters truncated) ... lumn": "", "result": {"columns": [], "elapsed_ms": 52, "message": "Statement executed successfully (rows affected: 5).", "row_count": 0, "rows": []}}', 'username__1': 'enoch', 'id__1': 51, 'state_key__1': 'nextgen_query'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/etl_pipeline.py", line 110, in seed_user_system_from_snapshot
+    upsert_table("user_state", snapshot.get("user_state", []))
+  File "/app/etl_pipeline.py", line 106, in upsert_table
+    df.to_sql(table_name, engine, if_exists="append", index=False)
+  File "/usr/local/lib/python3.11/site-packages/pandas/core/generic.py", line 3052, in to_sql
+    return sql.to_sql(
+           ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 841, in to_sql
+    return pandas_sql.to_sql(
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 2037, in to_sql
+    total_inserted = sql_engine.insert_records(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1571, in insert_records
+    return table.insert(chunksize=chunksize, method=method)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1122, in insert
+    num_inserted = exec_insert(conn, keys, chunk_iter)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1014, in _execute_insert
+    result = self.pd_sql.execute(self.table.insert(), data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1681, in execute
+    raise DatabaseError(f"Execution failed on sql '{sql}': {exc}") from exc
+pandas.errors.DatabaseError: Execution failed on sql 'INSERT INTO user_state (id, username, role, state_key, state_json, updated_at) VALUES (:id, :username, :role, :state_key, :state_json, :updated_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "user_state_pkey"
+DETAIL:  Key (id)=(1) already exists.
+
+[SQL: INSERT INTO user_state (id, username, role, state_key, state_json, updated_at) VALUES (%(id__0)s, %(username__0)s, %(role__0)s, %(state_key__0)s, %(state_json__0)s, %(updated_at__0)s), (%(id__1)s, %(username__1)s, %(role__1)s, %(state_key__1)s, %(state_json__1)s, %(updated_at__1)s)]
+[parameters: {'role__0': 'analyst', 'updated_at__0': '2026-03-04 10:34:23', 'state_json__0': '{"query": "SELECT status, COUNT(*) AS total_students\\nFROM dim_student\\nGROUP BY status;", "history": ["SELECT status, COUNT(*) AS total_students\\ ... (340 characters truncated) ... 849}, {"status": "Graduated", "total_students": 100}, {"status": "Suspended", "total_students": 32}, {"status": "Withdrawn", "total_students": 16}]}}', 'username__0': 'analyst', 'id__0': 1, 'state_key__0': 'nextgen_query', 'role__1': 'analyst', 'updated_at__1': '2026-03-04 00:11:01', 'state_json__1': '{"query": "-- Example: basic student performance slice\\nSELECT\\n  ds.program_id,\\n  COUNT(DISTINCT ds.student_id) AS total_students,\\n  ROUND(AVG ... (619 characters truncated) ... lumn": "", "result": {"columns": [], "elapsed_ms": 52, "message": "Statement executed successfully (rows affected: 5).", "row_count": 0, "rows": []}}', 'username__1': 'enoch', 'id__1': 51, 'state_key__1': 'nextgen_query'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-03-11 20:08:42,755 - INFO - ============================================================
+2026-03-11 20:08:42,764 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 20:08:43,042 - INFO - ============================================================
+2026-03-11 20:08:43,723 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 20:08:45,527 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 20:08:46,113 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 20:08:50,659 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 20:08:50,673 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-11 20:36:39,765 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-11 20:36:41,319 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-11 20:36:42,262 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-11 20:37:12,342 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-11 20:37:15,213 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-11 20:40:46,865 - INFO -   -> Payments: 130871 (columns: 27)

@@ -1,0 +1,67 @@
+2026-03-07 18:49:30,025 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260307_184930.log
+2026-03-07 18:49:30,025 - INFO - ============================================================
+2026-03-07 18:49:30,025 - INFO - ETL PIPELINE STARTED
+2026-03-07 18:49:30,025 - INFO - Start time: 2026-03-07 18:49:30
+2026-03-07 18:49:30,027 - INFO - ============================================================
+2026-03-07 18:49:30,235 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-07 18:49:30,295 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-07 18:49:30,323 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-07 18:49:32,125 - INFO - [RBAC seed] Seeded audit_logs with 1463 rows
+2026-03-07 18:49:32,126 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-07 18:49:32,185 - INFO - [RBAC seed] Restored profile photos from D:\NextGen-Data-Architects-Project\backend\etl_seeds\profile_photos to D:\NextGen-Data-Architects-Project\backend\data\profile_photos
+2026-03-07 18:49:32,189 - INFO - [RBAC seed] Restored admin_settings.json to D:\NextGen-Data-Architects-Project\backend\data\admin_settings.json
+2026-03-07 18:49:32,458 - INFO - [RBAC seed] Restored ETL run logs from D:\NextGen-Data-Architects-Project\backend\etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-07 18:49:32,461 - INFO - ============================================================
+2026-03-07 18:49:32,461 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-07 18:49:32,461 - INFO - ============================================================
+2026-03-07 18:49:32,462 - INFO - Using SYNTHETIC data source: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 18:49:32,462 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 18:49:32,462 - INFO -   -> Found 26 CSV/XLSX files in Synthetic_Data
+2026-03-07 18:49:32,491 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-07 18:49:44,349 - INFO -   -> Students: 10000 (columns: 41)
+2026-03-07 18:49:45,443 - INFO -   -> Courses: 6006 (columns: 10)
+2026-03-07 18:49:48,798 - INFO -   -> Grades: 348350 (columns: 27)
+2026-03-07 18:49:52,418 - INFO -   -> Payments: 187402 (columns: 27)
+2026-03-07 18:50:03,712 - INFO -   -> Attendance: 3204919 (columns: 9)
+2026-03-07 18:50:03,788 - INFO -   -> Employees (synthetic): 253
+2026-03-07 18:50:03,798 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-07 18:50:03,960 - INFO -   -> Student–high school: 20000
+2026-03-07 18:50:04,287 - INFO -   -> Transcript: 53457
+2026-03-07 18:50:04,495 - INFO -   -> Academic performance: 53457
+2026-03-07 18:50:04,588 - INFO -   -> Sponsorships: 10944
+2026-03-07 18:52:10,056 - INFO -   -> Progression: 351587
+2026-03-07 18:52:28,169 - INFO -   -> Grades summary sheets: 63457
+2026-03-07 18:52:29,683 - INFO -   -> Dim date: 1826
+2026-03-07 18:52:46,946 - INFO - Bronze (synthetic) extraction complete.
+2026-03-07 18:52:48,033 - INFO - ============================================================
+2026-03-07 18:52:48,033 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-07 18:52:48,033 - INFO - ============================================================
+2026-03-07 18:53:01,228 - ERROR - ETL Pipeline failed after 0:03:31.202751: ("Could not convert '' with type str: tried to convert to double", 'Conversion failed for column YEAR with type object')
+Traceback (most recent call last):
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 2075, in run
+    silver_data = self.transform(bronze_data)
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 1135, in transform
+    students_silver.to_parquet(self.silver_path / f"silver_students_{timestamp}.parquet", index=False)
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\core\frame.py", line 2889, in to_parquet
+    return to_parquet(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\parquet.py", line 411, in to_parquet
+    impl.write(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\parquet.py", line 159, in write
+    table = self.api.Table.from_pandas(df, **from_pandas_kwargs)
+  File "pyarrow\table.pxi", line 3762, in pyarrow.lib.Table.from_pandas
+  File "D:\final year project\backend\.venv\lib\site-packages\pyarrow\pandas_compat.py", line 624, in dataframe_to_arrays
+    arrays[i] = maybe_fut.result()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\concurrent\futures\_base.py", line 432, in result
+    return self.__get_result()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\concurrent\futures\_base.py", line 388, in __get_result
+    raise self._exception
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\concurrent\futures\thread.py", line 57, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "D:\final year project\backend\.venv\lib\site-packages\pyarrow\pandas_compat.py", line 598, in convert_column
+    raise e
+  File "D:\final year project\backend\.venv\lib\site-packages\pyarrow\pandas_compat.py", line 592, in convert_column
+    result = pa.array(col, type=type_, from_pandas=True, safe=safe)
+  File "pyarrow\array.pxi", line 323, in pyarrow.lib.array
+  File "pyarrow\array.pxi", line 83, in pyarrow.lib._ndarray_to_array
+  File "pyarrow\error.pxi", line 100, in pyarrow.lib.check_status
+pyarrow.lib.ArrowInvalid: ("Could not convert '' with type str: tried to convert to double", 'Conversion failed for column YEAR with type object')

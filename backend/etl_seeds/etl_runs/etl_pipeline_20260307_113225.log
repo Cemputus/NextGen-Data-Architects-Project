@@ -1,0 +1,30 @@
+2026-03-07 11:32:25,560 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260307_113225.log
+2026-03-07 11:32:25,561 - INFO - ============================================================
+2026-03-07 11:32:25,567 - INFO - ETL PIPELINE STARTED
+2026-03-07 11:32:25,567 - INFO - Start time: 2026-03-07 11:32:25
+2026-03-07 11:32:25,569 - INFO - ============================================================
+2026-03-07 11:32:26,295 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-07 11:32:26,549 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-07 11:32:26,610 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-07 11:32:31,585 - INFO - [RBAC seed] Seeded audit_logs with 1454 rows
+2026-03-07 11:32:31,587 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-07 11:32:31,682 - INFO - [RBAC seed] Restored profile photos from D:\NextGen-Data-Architects-Project\backend\etl_seeds\profile_photos to D:\NextGen-Data-Architects-Project\backend\data\profile_photos
+2026-03-07 11:32:31,692 - INFO - [RBAC seed] Restored admin_settings.json to D:\NextGen-Data-Architects-Project\backend\data\admin_settings.json
+2026-03-07 11:32:32,144 - INFO - [RBAC seed] Restored ETL run logs from D:\NextGen-Data-Architects-Project\backend\etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-07 11:32:32,146 - INFO - ============================================================
+2026-03-07 11:32:32,148 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-07 11:32:32,149 - INFO - ============================================================
+2026-03-07 11:32:32,149 - INFO - Using SYNTHETIC data source: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 11:32:32,205 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-07 11:33:00,914 - INFO -   -> Students: 10000
+2026-03-07 11:33:00,976 - INFO -   -> Courses: 5145
+2026-03-07 11:33:06,123 - INFO -   -> Grades: 348350
+2026-03-07 11:33:10,349 - INFO -   -> Payments: 187402
+2026-03-07 11:33:24,772 - INFO -   -> Attendance: 3204919
+2026-03-07 11:33:24,941 - INFO -   -> Employees (synthetic): 253
+2026-03-07 11:33:24,951 - INFO -   -> High schools: 74
+2026-03-07 11:33:25,143 - INFO -   -> Student–high school: 20000
+2026-03-07 11:33:25,599 - INFO -   -> Transcript: 53457
+2026-03-07 11:33:25,952 - INFO -   -> Academic performance: 53457
+2026-03-07 11:33:26,074 - INFO -   -> Sponsorships: 10944
+2026-03-07 11:36:20,578 - INFO -   -> Progression: 351587

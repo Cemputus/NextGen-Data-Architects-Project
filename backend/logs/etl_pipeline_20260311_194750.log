@@ -1,0 +1,127 @@
+2026-03-11 19:47:50,807 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_194750.log
+2026-03-11 19:47:50,812 - INFO - ============================================================
+2026-03-11 19:47:50,815 - INFO - ETL PIPELINE STARTED
+2026-03-11 19:47:50,826 - INFO - Start time: 2026-03-11 19:47:50
+2026-03-11 19:47:50,848 - INFO - ============================================================
+2026-03-11 19:47:53,871 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-11 19:47:55,297 - ERROR - Failed to seed user system from snapshot: Execution failed on sql 'INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (:id, :username, :password_hash, :role, :full_name, :faculty_id, :department_id, :created_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id__0)s, %(username__0)s, %(password_hash__0)s, %(role__0)s, %(full_name__0)s, %(faculty_id__0)s, %(department_id__0)s, %(created_at ... 1797 characters truncated ... 3)s, %(role__13)s, %(full_name__13)s, %(faculty_id__13)s, %(department_id__13)s, %(created_at__13)s)]
+[parameters: {'role__0': 'dean', 'id__0': 14, 'created_at__0': '2026-02-28 22:40:48', 'faculty_id__0': 5.0, 'username__0': 'agaba', 'department_id__0': None, 'full_name__0': 'Agaba Itungo', 'password_hash__0': 'pbkdf2:sha256:600000$jRe1OSyhBjujBI5v$dc7fcb05c3e10c18c540cd35f31d726e3cb80205381c3b8437766ca508b83215', 'role__1': 'analyst', 'id__1': 15, 'created_at__1': '2026-03-01 09:42:42', 'faculty_id__1': None, 'username__1': 'mwine', 'department_id__1': None, 'full_name__1': 'Mwine Irwin', 'password_hash__1': 'pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a', 'role__2': 'senate', 'id__2': 16, 'created_at__2': '2026-03-01 13:36:51', 'faculty_id__2': None, 'username__2': 'abaho', 'department_id__2': None, 'full_name__2': 'Joy Abaho', 'password_hash__2': 'pbkdf2:sha256:600000$hhk16sGAQBqJdGb2$fbaf9af8015770c7178ffc2628fffe184e3f0114c2520c84b15e449a5736e4d5', 'role__3': 'dean', 'id__3': 17, 'created_at__3': '2026-03-04 09:55:50', 'faculty_id__3': 1.0, 'username__3': 'nsubuga', 'department_id__3': None, 'full_name__3': 'Mark Nsubuga', 'password_hash__3': 'pbkdf2:sha256:600000$q0Vv9SLARvlJknGR$e276ec29261ac8e0c30875654927f43d25b60f93a3b873ecd3e47bc2d2ea3278', 'role__4': 'dean', 'id__4': 18, 'created_at__4': '2026-03-04 10:00:28', 'faculty_id__4': 3.0, 'username__4': 'mnsubuga', 'department_id__4': None, 'full_name__4': 'Mark Nsubuga', 'password_hash__4': 'pbkdf2:sha256:600000$CwZxk7QqmbMGJVrj$547afdc6365e2c0501261a809e42bc06e5af1cb65e4e8d147643697631d045cb', 'role__5': 'sysadmin', 'id__5': 6, 'created_at__5': '2026-02-22 12:23:16', 'faculty_id__5': None, 'username__5': 'ed', 'department_id__5': None, 'full_name__5': 'Guloba Emmanuel Edube', 'password_hash__5': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__6': 'dean', 'id__6': 7 ... 12 parameters truncated ... 'full_name__7': 'Wanja Grace', 'password_hash__7': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__8': 'analyst', 'id__8': 9, 'created_at__8': '2026-02-25 09:21:21', 'faculty_id__8': None, 'username__8': 'enoch', 'department_id__8': None, 'full_name__8': 'Enoch Asingwiire', 'password_hash__8': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__9': 'dean', 'id__9': 10, 'created_at__9': '2026-02-26 19:18:29', 'faculty_id__9': 6.0, 'username__9': 'joy', 'department_id__9': None, 'full_name__9': 'joy', 'password_hash__9': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__10': 'staff', 'id__10': 11, 'created_at__10': '2026-02-26 19:53:51', 'faculty_id__10': None, 'username__10': 'hr', 'department_id__10': None, 'full_name__10': 'hr', 'password_hash__10': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__11': 'staff', 'id__11': 12, 'created_at__11': '2026-02-26 19:54:03', 'faculty_id__11': None, 'username__11': 'dean', 'department_id__11': None, 'full_name__11': 'dean', 'password_hash__11': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__12': 'dean', 'id__12': 13, 'created_at__12': '2026-02-28 17:09:02', 'faculty_id__12': 10.0, 'username__12': 'gift', 'department_id__12': None, 'full_name__12': 'Gift Ruth', 'password_hash__12': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__13': 'staff', 'id__13': 1, 'created_at__13': '2026-02-20 18:34:15', 'faculty_id__13': 1.0, 'username__13': 'Cemputus', 'department_id__13': 1.0, 'full_name__13': 'Emmanuel Nsubuga', 'password_hash__13': 'pbkdf2:sha256:600000$WQVmZE2csbzUzVMo$15a983d434b7edcc6d73529eaec1f3d0344842c1ba155fedd93f8ca180ee5e9f'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1679, in execute
+    return execute_function(sql, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1844, in _execute_context
+    return self._exec_insertmany_context(dialect, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2133, in _exec_insertmany_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id__0)s, %(username__0)s, %(password_hash__0)s, %(role__0)s, %(full_name__0)s, %(faculty_id__0)s, %(department_id__0)s, %(created_at ... 1797 characters truncated ... 3)s, %(role__13)s, %(full_name__13)s, %(faculty_id__13)s, %(department_id__13)s, %(created_at__13)s)]
+[parameters: {'role__0': 'dean', 'id__0': 14, 'created_at__0': '2026-02-28 22:40:48', 'faculty_id__0': 5.0, 'username__0': 'agaba', 'department_id__0': None, 'full_name__0': 'Agaba Itungo', 'password_hash__0': 'pbkdf2:sha256:600000$jRe1OSyhBjujBI5v$dc7fcb05c3e10c18c540cd35f31d726e3cb80205381c3b8437766ca508b83215', 'role__1': 'analyst', 'id__1': 15, 'created_at__1': '2026-03-01 09:42:42', 'faculty_id__1': None, 'username__1': 'mwine', 'department_id__1': None, 'full_name__1': 'Mwine Irwin', 'password_hash__1': 'pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a', 'role__2': 'senate', 'id__2': 16, 'created_at__2': '2026-03-01 13:36:51', 'faculty_id__2': None, 'username__2': 'abaho', 'department_id__2': None, 'full_name__2': 'Joy Abaho', 'password_hash__2': 'pbkdf2:sha256:600000$hhk16sGAQBqJdGb2$fbaf9af8015770c7178ffc2628fffe184e3f0114c2520c84b15e449a5736e4d5', 'role__3': 'dean', 'id__3': 17, 'created_at__3': '2026-03-04 09:55:50', 'faculty_id__3': 1.0, 'username__3': 'nsubuga', 'department_id__3': None, 'full_name__3': 'Mark Nsubuga', 'password_hash__3': 'pbkdf2:sha256:600000$q0Vv9SLARvlJknGR$e276ec29261ac8e0c30875654927f43d25b60f93a3b873ecd3e47bc2d2ea3278', 'role__4': 'dean', 'id__4': 18, 'created_at__4': '2026-03-04 10:00:28', 'faculty_id__4': 3.0, 'username__4': 'mnsubuga', 'department_id__4': None, 'full_name__4': 'Mark Nsubuga', 'password_hash__4': 'pbkdf2:sha256:600000$CwZxk7QqmbMGJVrj$547afdc6365e2c0501261a809e42bc06e5af1cb65e4e8d147643697631d045cb', 'role__5': 'sysadmin', 'id__5': 6, 'created_at__5': '2026-02-22 12:23:16', 'faculty_id__5': None, 'username__5': 'ed', 'department_id__5': None, 'full_name__5': 'Guloba Emmanuel Edube', 'password_hash__5': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__6': 'dean', 'id__6': 7 ... 12 parameters truncated ... 'full_name__7': 'Wanja Grace', 'password_hash__7': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__8': 'analyst', 'id__8': 9, 'created_at__8': '2026-02-25 09:21:21', 'faculty_id__8': None, 'username__8': 'enoch', 'department_id__8': None, 'full_name__8': 'Enoch Asingwiire', 'password_hash__8': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__9': 'dean', 'id__9': 10, 'created_at__9': '2026-02-26 19:18:29', 'faculty_id__9': 6.0, 'username__9': 'joy', 'department_id__9': None, 'full_name__9': 'joy', 'password_hash__9': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__10': 'staff', 'id__10': 11, 'created_at__10': '2026-02-26 19:53:51', 'faculty_id__10': None, 'username__10': 'hr', 'department_id__10': None, 'full_name__10': 'hr', 'password_hash__10': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__11': 'staff', 'id__11': 12, 'created_at__11': '2026-02-26 19:54:03', 'faculty_id__11': None, 'username__11': 'dean', 'department_id__11': None, 'full_name__11': 'dean', 'password_hash__11': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__12': 'dean', 'id__12': 13, 'created_at__12': '2026-02-28 17:09:02', 'faculty_id__12': 10.0, 'username__12': 'gift', 'department_id__12': None, 'full_name__12': 'Gift Ruth', 'password_hash__12': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__13': 'staff', 'id__13': 1, 'created_at__13': '2026-02-20 18:34:15', 'faculty_id__13': 1.0, 'username__13': 'Cemputus', 'department_id__13': 1.0, 'full_name__13': 'Emmanuel Nsubuga', 'password_hash__13': 'pbkdf2:sha256:600000$WQVmZE2csbzUzVMo$15a983d434b7edcc6d73529eaec1f3d0344842c1ba155fedd93f8ca180ee5e9f'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/etl_pipeline.py", line 108, in seed_user_system_from_snapshot
+    upsert_table("app_users", snapshot.get("app_users", []))
+  File "/app/etl_pipeline.py", line 106, in upsert_table
+    df.to_sql(table_name, engine, if_exists="append", index=False)
+  File "/usr/local/lib/python3.11/site-packages/pandas/core/generic.py", line 3052, in to_sql
+    return sql.to_sql(
+           ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 841, in to_sql
+    return pandas_sql.to_sql(
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 2037, in to_sql
+    total_inserted = sql_engine.insert_records(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1571, in insert_records
+    return table.insert(chunksize=chunksize, method=method)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1122, in insert
+    num_inserted = exec_insert(conn, keys, chunk_iter)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1014, in _execute_insert
+    result = self.pd_sql.execute(self.table.insert(), data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1681, in execute
+    raise DatabaseError(f"Execution failed on sql '{sql}': {exc}") from exc
+pandas.errors.DatabaseError: Execution failed on sql 'INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (:id, :username, :password_hash, :role, :full_name, :faculty_id, :department_id, :created_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(14) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id__0)s, %(username__0)s, %(password_hash__0)s, %(role__0)s, %(full_name__0)s, %(faculty_id__0)s, %(department_id__0)s, %(created_at ... 1797 characters truncated ... 3)s, %(role__13)s, %(full_name__13)s, %(faculty_id__13)s, %(department_id__13)s, %(created_at__13)s)]
+[parameters: {'role__0': 'dean', 'id__0': 14, 'created_at__0': '2026-02-28 22:40:48', 'faculty_id__0': 5.0, 'username__0': 'agaba', 'department_id__0': None, 'full_name__0': 'Agaba Itungo', 'password_hash__0': 'pbkdf2:sha256:600000$jRe1OSyhBjujBI5v$dc7fcb05c3e10c18c540cd35f31d726e3cb80205381c3b8437766ca508b83215', 'role__1': 'analyst', 'id__1': 15, 'created_at__1': '2026-03-01 09:42:42', 'faculty_id__1': None, 'username__1': 'mwine', 'department_id__1': None, 'full_name__1': 'Mwine Irwin', 'password_hash__1': 'pbkdf2:sha256:600000$V0CNtzODOfNoNfdG$5a71e454f71b829e523f40a3fad28ec9e13b070ac49c9046da92873f33a0a18a', 'role__2': 'senate', 'id__2': 16, 'created_at__2': '2026-03-01 13:36:51', 'faculty_id__2': None, 'username__2': 'abaho', 'department_id__2': None, 'full_name__2': 'Joy Abaho', 'password_hash__2': 'pbkdf2:sha256:600000$hhk16sGAQBqJdGb2$fbaf9af8015770c7178ffc2628fffe184e3f0114c2520c84b15e449a5736e4d5', 'role__3': 'dean', 'id__3': 17, 'created_at__3': '2026-03-04 09:55:50', 'faculty_id__3': 1.0, 'username__3': 'nsubuga', 'department_id__3': None, 'full_name__3': 'Mark Nsubuga', 'password_hash__3': 'pbkdf2:sha256:600000$q0Vv9SLARvlJknGR$e276ec29261ac8e0c30875654927f43d25b60f93a3b873ecd3e47bc2d2ea3278', 'role__4': 'dean', 'id__4': 18, 'created_at__4': '2026-03-04 10:00:28', 'faculty_id__4': 3.0, 'username__4': 'mnsubuga', 'department_id__4': None, 'full_name__4': 'Mark Nsubuga', 'password_hash__4': 'pbkdf2:sha256:600000$CwZxk7QqmbMGJVrj$547afdc6365e2c0501261a809e42bc06e5af1cb65e4e8d147643697631d045cb', 'role__5': 'sysadmin', 'id__5': 6, 'created_at__5': '2026-02-22 12:23:16', 'faculty_id__5': None, 'username__5': 'ed', 'department_id__5': None, 'full_name__5': 'Guloba Emmanuel Edube', 'password_hash__5': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__6': 'dean', 'id__6': 7 ... 12 parameters truncated ... 'full_name__7': 'Wanja Grace', 'password_hash__7': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__8': 'analyst', 'id__8': 9, 'created_at__8': '2026-02-25 09:21:21', 'faculty_id__8': None, 'username__8': 'enoch', 'department_id__8': None, 'full_name__8': 'Enoch Asingwiire', 'password_hash__8': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__9': 'dean', 'id__9': 10, 'created_at__9': '2026-02-26 19:18:29', 'faculty_id__9': 6.0, 'username__9': 'joy', 'department_id__9': None, 'full_name__9': 'joy', 'password_hash__9': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__10': 'staff', 'id__10': 11, 'created_at__10': '2026-02-26 19:53:51', 'faculty_id__10': None, 'username__10': 'hr', 'department_id__10': None, 'full_name__10': 'hr', 'password_hash__10': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__11': 'staff', 'id__11': 12, 'created_at__11': '2026-02-26 19:54:03', 'faculty_id__11': None, 'username__11': 'dean', 'department_id__11': None, 'full_name__11': 'dean', 'password_hash__11': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__12': 'dean', 'id__12': 13, 'created_at__12': '2026-02-28 17:09:02', 'faculty_id__12': 10.0, 'username__12': 'gift', 'department_id__12': None, 'full_name__12': 'Gift Ruth', 'password_hash__12': 'pbkdf2:sha256:600000$Y7DPhhzbjFpHaeXU$b474baa5270c1b606f71a976c27da795896c94b839085913d8df4c183f5afd83', 'role__13': 'staff', 'id__13': 1, 'created_at__13': '2026-02-20 18:34:15', 'faculty_id__13': 1.0, 'username__13': 'Cemputus', 'department_id__13': 1.0, 'full_name__13': 'Emmanuel Nsubuga', 'password_hash__13': 'pbkdf2:sha256:600000$WQVmZE2csbzUzVMo$15a983d434b7edcc6d73529eaec1f3d0344842c1ba155fedd93f8ca180ee5e9f'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-03-11 19:47:56,505 - INFO - ============================================================
+2026-03-11 19:47:56,526 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 19:47:56,530 - INFO - ============================================================
+2026-03-11 19:47:56,555 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 19:47:57,009 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 19:47:57,510 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 19:48:05,387 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 19:48:05,431 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-11 19:50:41,329 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-11 19:50:45,377 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-11 19:50:48,297 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-11 19:51:32,240 - ERROR - ETL Pipeline failed after 0:03:41.195651: [Errno 12] Cannot allocate memory
+Traceback (most recent call last):
+  File "/app/etl_pipeline.py", line 2543, in run
+    bronze_data = self.extract()
+                  ^^^^^^^^^^^^^^
+  File "/app/etl_pipeline.py", line 219, in extract
+    return self._extract_from_synthetic_data()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/etl_pipeline.py", line 633, in _extract_from_synthetic_data
+    part = pd.read_csv(p)
+           ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/parsers/readers.py", line 873, in read_csv
+    return _read(filepath_or_buffer, kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/parsers/readers.py", line 306, in _read
+    return parser.read(nrows)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/parsers/readers.py", line 1947, in read
+    ) = self._engine.read(  # type: ignore[attr-defined]
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/parsers/c_parser_wrapper.py", line 215, in read
+    chunks = self._reader.read_low_memory(nrows)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/parsers.pyx", line 832, in pandas._libs.parsers.TextReader.read_low_memory
+  File "pandas/_libs/parsers.pyx", line 897, in pandas._libs.parsers.TextReader._read_rows
+  File "pandas/_libs/parsers.pyx", line 868, in pandas._libs.parsers.TextReader._tokenize_rows
+  File "pandas/_libs/parsers.pyx", line 885, in pandas._libs.parsers.TextReader._check_tokenize_status
+  File "pandas/_libs/parsers.pyx", line 2076, in pandas._libs.parsers.raise_parser_error
+OSError: [Errno 12] Cannot allocate memory

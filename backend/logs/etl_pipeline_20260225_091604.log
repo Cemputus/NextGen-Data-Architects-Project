@@ -1,0 +1,58 @@
+2026-02-25 09:16:04,842 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260225_091604.log
+2026-02-25 09:16:04,844 - INFO - ============================================================
+2026-02-25 09:16:04,844 - INFO - ETL PIPELINE STARTED
+2026-02-25 09:16:04,844 - INFO - Start time: 2026-02-25 09:16:04
+2026-02-25 09:16:04,844 - INFO - ============================================================
+2026-02-25 09:16:04,849 - INFO - ============================================================
+2026-02-25 09:16:04,850 - INFO - EXTRACT PHASE - Bronze Layer
+2026-02-25 09:16:04,852 - INFO - ============================================================
+2026-02-25 09:16:04,855 - INFO - Extracting from Source Database 1 (ACADEMICS)...
+2026-02-25 09:16:05,258 - INFO -   → Extracted 1000 students
+2026-02-25 09:16:05,311 - INFO -   → Extracted 488 courses
+2026-02-25 09:16:05,414 - INFO -   → Extracted 1000 enrollments
+2026-02-25 09:16:05,497 - INFO -   → Extracted 1000 attendance records
+2026-02-25 09:16:05,583 - INFO -   → Extracted 1000 grades
+2026-02-25 09:16:05,746 - INFO -   → Extracted 1000 student fees
+2026-02-25 09:16:05,754 - INFO -   → Extracted 11 faculties
+2026-02-25 09:16:05,763 - INFO -   → Extracted 18 departments
+2026-02-25 09:16:05,775 - INFO -   → Extracted 91 programs
+2026-02-25 09:16:05,777 - INFO - Extracting from Source Database 2 (ADMINISTRATION)...
+2026-02-25 09:16:05,858 - INFO -   → Extracted 1000 employees
+2026-02-25 09:16:05,891 - INFO -   → Extracted 1000 payroll records
+2026-02-25 09:16:06,425 - INFO - Bronze layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\bronze
+2026-02-25 09:16:06,426 - INFO - Bronze layer extraction complete!
+2026-02-25 09:16:06,426 - INFO - ============================================================
+2026-02-25 09:16:06,426 - INFO - TRANSFORM PHASE - Silver Layer
+2026-02-25 09:16:06,426 - INFO - ============================================================
+2026-02-25 09:16:06,767 - INFO - Silver layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\silver
+2026-02-25 09:16:06,768 - INFO -   → Students: 1000
+2026-02-25 09:16:06,769 - INFO -   → Courses: 488
+2026-02-25 09:16:06,770 - INFO -   → Enrollments: 1000
+2026-02-25 09:16:06,770 - INFO -   → Attendance: 1000
+2026-02-25 09:16:06,770 - INFO -   → Payments: 1000
+2026-02-25 09:16:06,770 - INFO -   → Grades: 1000
+2026-02-25 09:16:06,770 - INFO - Silver layer transformation complete!
+2026-02-25 09:16:06,777 - INFO - ============================================================
+2026-02-25 09:16:06,777 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-02-25 09:16:06,780 - INFO - ============================================================
+2026-02-25 09:16:06,780 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2026-02-25 09:16:06,844 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2026-02-25 09:16:06,849 - INFO - Creating dimension tables...
+2026-02-25 09:16:10,521 - INFO -   → Loaded 997 students into dim_student
+2026-02-25 09:16:10,584 - INFO -   → Loaded 437 courses into dim_course
+2026-02-25 09:16:10,613 - INFO -   → Loaded 3 semesters into dim_semester
+2026-02-25 09:16:10,692 - INFO -   -> Loaded 11 faculties into dim_faculty
+2026-02-25 09:16:10,789 - INFO -   -> Loaded 18 departments into dim_department
+2026-02-25 09:16:10,893 - INFO -   -> Loaded 91 programs into dim_program
+2026-02-25 09:16:11,141 - INFO -   -> Loaded 1000 employees (staff/lecturers) into dim_employee
+2026-02-25 09:16:11,141 - INFO - Populating time dimension...
+2026-02-25 09:16:13,448 - INFO -   → Loaded 1826 time dimension records
+2026-02-25 09:16:15,710 - INFO -   → Loaded 1000 enrollments into fact_enrollment
+2026-02-25 09:16:17,377 - INFO -   → Loaded 998 attendance records into fact_attendance
+2026-02-25 09:16:21,835 - INFO -   → Loaded 1000 payments into fact_payment
+2026-02-25 09:16:23,837 - INFO -   → Loaded 1000 grades into fact_grade
+2026-02-25 09:16:23,841 - INFO - ============================================================
+2026-02-25 09:16:23,841 - INFO - ETL PIPELINE COMPLETED SUCCESSFULLY
+2026-02-25 09:16:23,843 - INFO - Log file saved to: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260225_091604.log
+2026-02-25 09:16:23,843 - INFO - ============================================================
+2026-02-25 09:16:23,843 - INFO - ETL Pipeline completed successfully in 0:00:18.998782

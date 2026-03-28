@@ -1,0 +1,68 @@
+2026-03-07 19:49:37,010 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260307_194937.log
+2026-03-07 19:49:37,011 - INFO - ============================================================
+2026-03-07 19:49:37,011 - INFO - ETL PIPELINE STARTED
+2026-03-07 19:49:37,011 - INFO - Start time: 2026-03-07 19:49:37
+2026-03-07 19:49:37,011 - INFO - ============================================================
+2026-03-07 19:49:37,135 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-07 19:49:37,247 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-07 19:49:37,271 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-07 19:49:38,510 - INFO - [RBAC seed] Seeded audit_logs with 1471 rows
+2026-03-07 19:49:38,511 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-07 19:49:38,556 - INFO - [RBAC seed] Restored profile photos from D:\NextGen-Data-Architects-Project\backend\etl_seeds\profile_photos to D:\NextGen-Data-Architects-Project\backend\data\profile_photos
+2026-03-07 19:49:38,560 - INFO - [RBAC seed] Restored admin_settings.json to D:\NextGen-Data-Architects-Project\backend\data\admin_settings.json
+2026-03-07 19:49:39,303 - INFO - [RBAC seed] Restored ETL run logs from D:\NextGen-Data-Architects-Project\backend\etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-07 19:49:39,305 - INFO - ============================================================
+2026-03-07 19:49:39,306 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-07 19:49:39,306 - INFO - ============================================================
+2026-03-07 19:49:39,307 - INFO - Using SYNTHETIC data source: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 19:49:39,309 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 19:49:39,311 - INFO -   -> Found 26 CSV/XLSX files in Synthetic_Data
+2026-03-07 19:49:39,351 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-07 19:50:03,099 - INFO -   -> Combined student lists: 9937 unique (by RegNo)
+2026-03-07 19:50:03,529 - INFO -   -> Students: 9937 (columns: 41)
+2026-03-07 19:50:05,113 - INFO -   -> Courses: 6006 (columns: 10)
+2026-03-07 19:50:08,526 - INFO -   -> Grades: 348350 (columns: 27)
+2026-03-07 19:50:12,614 - INFO -   -> Payments: 187402 (columns: 27)
+2026-03-07 19:50:25,927 - INFO -   -> Attendance: 3204919 (columns: 9)
+2026-03-07 19:50:26,059 - INFO -   -> Employees (synthetic): 253
+2026-03-07 19:50:26,089 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-07 19:50:26,286 - INFO -   -> Student–high school: 20000
+2026-03-07 19:50:26,767 - INFO -   -> Transcript: 53457
+2026-03-07 19:50:27,088 - INFO -   -> Academic performance: 53457
+2026-03-07 19:50:27,204 - INFO -   -> Sponsorships: 10944
+2026-03-07 19:52:02,532 - INFO -   -> Progression: 351587
+2026-03-07 19:52:11,894 - INFO -   -> Grades summary sheets: 63457
+2026-03-07 19:52:12,650 - INFO -   -> Dim date: 1826
+2026-03-07 19:52:27,548 - INFO - Bronze (synthetic) extraction complete.
+2026-03-07 19:52:27,951 - INFO - ============================================================
+2026-03-07 19:52:27,951 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-07 19:52:27,952 - INFO - ============================================================
+2026-03-07 19:52:50,902 - ERROR - ETL Pipeline failed after 0:03:13.889458: ("Expected bytes, got a 'float' object", 'Conversion failed for column EXAM_MARK_40 with type object')
+Traceback (most recent call last):
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 2173, in run
+    silver_data = self.transform(bronze_data)
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 1193, in transform
+    grades_silver.to_parquet(self.silver_path / f"silver_grades_{timestamp}.parquet", index=False)
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\core\frame.py", line 2889, in to_parquet
+    return to_parquet(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\parquet.py", line 411, in to_parquet
+    impl.write(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\parquet.py", line 159, in write
+    table = self.api.Table.from_pandas(df, **from_pandas_kwargs)
+  File "pyarrow\table.pxi", line 3762, in pyarrow.lib.Table.from_pandas
+  File "D:\final year project\backend\.venv\lib\site-packages\pyarrow\pandas_compat.py", line 624, in dataframe_to_arrays
+    arrays[i] = maybe_fut.result()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\concurrent\futures\_base.py", line 432, in result
+    return self.__get_result()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\concurrent\futures\_base.py", line 388, in __get_result
+    raise self._exception
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\concurrent\futures\thread.py", line 57, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "D:\final year project\backend\.venv\lib\site-packages\pyarrow\pandas_compat.py", line 598, in convert_column
+    raise e
+  File "D:\final year project\backend\.venv\lib\site-packages\pyarrow\pandas_compat.py", line 592, in convert_column
+    result = pa.array(col, type=type_, from_pandas=True, safe=safe)
+  File "pyarrow\array.pxi", line 323, in pyarrow.lib.array
+  File "pyarrow\array.pxi", line 83, in pyarrow.lib._ndarray_to_array
+  File "pyarrow\error.pxi", line 123, in pyarrow.lib.check_status
+pyarrow.lib.ArrowTypeError: ("Expected bytes, got a 'float' object", 'Conversion failed for column EXAM_MARK_40 with type object')

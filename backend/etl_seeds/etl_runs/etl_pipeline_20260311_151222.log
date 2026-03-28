@@ -1,0 +1,119 @@
+2026-03-11 15:12:22,102 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_151222.log
+2026-03-11 15:12:22,104 - INFO - ============================================================
+2026-03-11 15:12:22,105 - INFO - ETL PIPELINE STARTED
+2026-03-11 15:12:22,107 - INFO - Start time: 2026-03-11 15:12:22
+2026-03-11 15:12:22,109 - INFO - ============================================================
+2026-03-11 15:12:22,494 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-11 15:12:22,707 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-11 15:12:22,758 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-11 15:12:25,905 - INFO - [RBAC seed] Seeded audit_logs with 1501 rows
+2026-03-11 15:12:25,916 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-11 15:12:26,486 - INFO - [RBAC seed] Restored profile photos from /app/etl_seeds/profile_photos to /app/data/profile_photos
+2026-03-11 15:12:26,644 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json
+2026-03-11 15:12:48,430 - INFO - [RBAC seed] Restored ETL run logs from /app/etl_seeds/etl_runs to /app/logs
+2026-03-11 15:12:48,457 - INFO - ============================================================
+2026-03-11 15:12:48,463 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 15:12:48,467 - INFO - ============================================================
+2026-03-11 15:12:48,489 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 15:12:48,532 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 15:12:48,578 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 15:12:48,894 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 15:12:48,897 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-11 15:13:37,698 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-11 15:13:37,998 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-11 15:13:38,063 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-11 15:13:41,440 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-11 15:13:41,702 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-11 15:13:43,666 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-11 15:14:01,451 - INFO -   -> Attendance: 3117871 (columns: 9)
+2026-03-11 15:14:01,686 - INFO -   -> Employees (synthetic): 253
+2026-03-11 15:14:01,739 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-11 15:14:02,240 - INFO -   -> Student–high school: 20000
+2026-03-11 15:14:02,861 - INFO -   -> Transcript: 36233
+2026-03-11 15:14:03,482 - INFO -   -> Academic performance: 36233
+2026-03-11 15:14:04,895 - INFO -   -> Sponsorships: 41866
+2026-03-11 15:14:33,562 - INFO -   -> Progression: 469956
+2026-03-11 15:14:33,571 - INFO -   -> Grades summary sheets: 0
+2026-03-11 15:14:33,845 - INFO -   -> Dim date: 1826
+2026-03-11 15:14:41,108 - INFO - Bronze (synthetic) extraction complete.
+2026-03-11 15:14:41,144 - INFO - ============================================================
+2026-03-11 15:14:41,147 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-11 15:14:41,150 - INFO - ============================================================
+2026-03-11 15:15:09,988 - INFO - Silver layer files saved to: /app/data/silver
+2026-03-11 15:15:09,990 - INFO -   → Students: 10000
+2026-03-11 15:15:09,991 - INFO -   → Courses: 3035
+2026-03-11 15:15:09,992 - INFO -   → Enrollments: 10000
+2026-03-11 15:15:09,994 - INFO -   → Attendance: 3117871
+2026-03-11 15:15:09,995 - INFO -   → Payments: 130871
+2026-03-11 15:15:09,996 - INFO -   → Grades: 234978
+2026-03-11 15:15:09,997 - INFO -   → Transcript: 36233
+2026-03-11 15:15:09,999 - INFO -   → Academic performance: 36233
+2026-03-11 15:15:10,000 - INFO -   → Sponsorships: 41866
+2026-03-11 15:15:10,003 - INFO -   → Progression: 469956
+2026-03-11 15:15:10,005 - INFO -   → Student–high school: 20000
+2026-03-11 15:15:10,006 - INFO -   → High schools: 73
+2026-03-11 15:15:10,008 - INFO - Silver layer transformation complete!
+2026-03-11 15:15:10,015 - INFO - ============================================================
+2026-03-11 15:15:10,016 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-11 15:15:10,017 - INFO - ============================================================
+2026-03-11 15:15:10,018 - INFO - Creating data warehouse database: ucu_datawarehouse
+2026-03-11 15:15:10,310 - INFO - Data warehouse database ucu_datawarehouse ready
+2026-03-11 15:15:10,316 - INFO - Creating dimension tables...
+2026-03-11 15:15:12,675 - INFO -   → Loaded 1823 courses into dim_course (from catalog)
+2026-03-11 15:15:13,095 - INFO -   → Loaded 1823 courses into dim_course (from silver)
+2026-03-11 15:15:44,877 - INFO -   → Loaded 10000 students into dim_student (50 columns)
+2026-03-11 15:15:44,891 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-11 15:15:44,995 - INFO -   → Loaded 14 app users into dim_app_user
+2026-03-11 15:15:45,029 - INFO -   -> Loaded 11 faculties into dim_faculty
+2026-03-11 15:15:45,065 - INFO -   -> Loaded 18 departments into dim_department
+2026-03-11 15:15:45,077 - ERROR - ETL Pipeline failed after 0:03:22.973323: (psycopg2.errors.UndefinedTable) relation "dim_program" does not exist
+LINE 1: DELETE FROM dim_program
+                    ^
+
+[SQL: DELETE FROM dim_program]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedTable: relation "dim_program" does not exist
+LINE 1: DELETE FROM dim_program
+                    ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/etl_pipeline.py", line 2464, in run
+    self.load_to_warehouse(silver_data)
+  File "/app/etl_pipeline.py", line 1486, in load_to_warehouse
+    self._create_dimensions(engine, silver_data)
+  File "/app/etl_pipeline.py", line 1795, in _create_dimensions
+    conn.execute(text("DELETE FROM dim_program"))
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedTable) relation "dim_program" does not exist
+LINE 1: DELETE FROM dim_program
+                    ^
+
+[SQL: DELETE FROM dim_program]
+(Background on this error at: https://sqlalche.me/e/20/f405)

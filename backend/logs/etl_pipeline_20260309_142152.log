@@ -1,0 +1,22 @@
+2026-03-09 14:21:52,540 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260309_142152.log
+2026-03-09 14:21:52,542 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 14:21:52,546 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-09 14:21:52,590 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-09 14:21:52,590 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-09 14:22:18,776 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-09 14:22:19,023 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-09 14:22:19,052 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-09 14:22:21,376 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-09 14:22:21,574 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-09 14:22:23,091 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-09 14:22:35,915 - INFO -   -> Attendance: 3117871 (columns: 8)
+2026-03-09 14:22:36,126 - INFO -   -> Employees (synthetic): 253
+2026-03-09 14:22:36,164 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-09 14:22:36,316 - INFO -   -> Student–high school: 20000
+2026-03-09 14:22:36,694 - INFO -   -> Transcript: 36233
+2026-03-09 14:22:36,940 - INFO -   -> Academic performance: 36233
+2026-03-09 14:22:37,383 - INFO -   -> Sponsorships: 41866
+2026-03-09 14:23:16,683 - INFO -   -> Progression: 469956
+2026-03-09 14:23:16,693 - INFO -   -> Grades summary sheets: 0
+2026-03-09 14:23:16,894 - INFO -   -> Dim date: 1826
+2026-03-09 14:23:33,111 - INFO - Bronze (synthetic) extraction complete.

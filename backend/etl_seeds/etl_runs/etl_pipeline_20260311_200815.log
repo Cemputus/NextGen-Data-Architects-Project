@@ -1,0 +1,18 @@
+2026-03-11 20:08:15,495 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_200815.log
+2026-03-11 20:08:15,556 - INFO - ============================================================
+2026-03-11 20:08:15,636 - INFO - ETL PIPELINE STARTED
+2026-03-11 20:08:15,678 - INFO - Start time: 2026-03-11 20:08:15
+2026-03-11 20:08:15,711 - INFO - ============================================================
+2026-03-11 20:08:15,966 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_200815.log
+2026-03-11 20:08:19,758 - INFO - [RBAC seed] Seeding table app_users with 0 rows from snapshot
+2026-03-11 20:08:20,291 - INFO - [RBAC seed] Seeding table user_profiles with 0 rows from snapshot
+2026-03-11 20:08:20,378 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-11 20:08:21,479 - INFO - [RBAC seed] Seeding table app_users with 0 rows from snapshot
+2026-03-11 20:08:21,663 - INFO - [RBAC seed] Seeding table user_profiles with 0 rows from snapshot
+2026-03-11 20:08:21,861 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-11 20:08:21,920 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-11 20:08:33,643 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-11 20:08:40,414 - INFO - [RBAC seed] Restored profile photos from /app/etl_seeds/profile_photos to /app/data/profile_photos
+2026-03-11 20:08:44,861 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json
+2026-03-11 20:08:47,905 - WARNING - [RBAC seed] Failed to restore profile photos from snapshot: [Errno 2] No such file or directory: '/app/etl_seeds/profile_photos/enoch.jpg'
+2026-03-11 20:08:50,697 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json

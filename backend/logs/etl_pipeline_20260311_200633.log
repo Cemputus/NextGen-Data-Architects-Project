@@ -1,0 +1,102 @@
+2026-03-11 20:06:33,980 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_200633.log
+2026-03-11 20:06:34,126 - INFO - ============================================================
+2026-03-11 20:06:34,349 - INFO - ETL PIPELINE STARTED
+2026-03-11 20:06:34,416 - INFO - Start time: 2026-03-11 20:06:34
+2026-03-11 20:06:34,526 - INFO - ============================================================
+2026-03-11 20:06:55,498 - INFO - [RBAC seed] Seeding table app_users with 0 rows from snapshot
+2026-03-11 20:06:55,630 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-11 20:07:05,704 - ERROR - Failed to seed user system from snapshot: Execution failed on sql 'INSERT INTO user_profiles (id, username, role, first_name, last_name, email, phone, profile_picture_url, preferences, updated_at) VALUES (:id, :username, :role, :first_name, :last_name, :email, :phone, :profile_picture_url, :preferences, :updated_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "user_profiles_pkey"
+DETAIL:  Key (id)=(1) already exists.
+
+[SQL: INSERT INTO user_profiles (id, username, role, first_name, last_name, email, phone, profile_picture_url, preferences, updated_at) VALUES (%(id__0)s, %(username__0)s, %(role__0)s, %(first_name__0)s, %(last_name__0)s, %(email__0)s, %(phone__0)s, %(prof ... 310 characters truncated ... _2)s, %(email__2)s, %(phone__2)s, %(profile_picture_url__2)s, %(preferences__2)s, %(updated_at__2)s)]
+[parameters: {'preferences__0': None, 'updated_at__0': '2026-02-26 12:55:33', 'phone__0': '+256745597803', 'role__0': 'sysadmin', 'username__0': 'admin', 'id__0': 1, 'profile_picture_url__0': '/api/auth/profile/photo', 'last_name__0': 'Edube', 'email__0': 'gulobaemmanueledube@gmail.com', 'first_name__0': 'EMMANUEL', 'preferences__1': None, 'updated_at__1': '2026-02-26 14:44:02', 'phone__1': '+256775064042', 'role__1': 'analyst', 'username__1': 'analyst', 'id__1': 2, 'profile_picture_url__1': '/api/auth/profile/photo', 'last_name__1': 'NSUBUGA', 'email__1': 'ensubuga019@gmail.com', 'first_name__1': 'EMMANUEL', 'preferences__2': None, 'updated_at__2': '2026-03-04 10:53:00', 'phone__2': '+256745889102', 'role__2': 'analyst', 'username__2': 'enoch', 'id__2': 3, 'profile_picture_url__2': '/api/auth/profile/photo', 'last_name__2': 'Asingwiire', 'email__2': 'enocha2002@gmail.com', 'first_name__2': 'Enoch'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "user_profiles_pkey"
+DETAIL:  Key (id)=(1) already exists.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1679, in execute
+    return execute_function(sql, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1844, in _execute_context
+    return self._exec_insertmany_context(dialect, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2133, in _exec_insertmany_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "user_profiles_pkey"
+DETAIL:  Key (id)=(1) already exists.
+
+[SQL: INSERT INTO user_profiles (id, username, role, first_name, last_name, email, phone, profile_picture_url, preferences, updated_at) VALUES (%(id__0)s, %(username__0)s, %(role__0)s, %(first_name__0)s, %(last_name__0)s, %(email__0)s, %(phone__0)s, %(prof ... 310 characters truncated ... _2)s, %(email__2)s, %(phone__2)s, %(profile_picture_url__2)s, %(preferences__2)s, %(updated_at__2)s)]
+[parameters: {'preferences__0': None, 'updated_at__0': '2026-02-26 12:55:33', 'phone__0': '+256745597803', 'role__0': 'sysadmin', 'username__0': 'admin', 'id__0': 1, 'profile_picture_url__0': '/api/auth/profile/photo', 'last_name__0': 'Edube', 'email__0': 'gulobaemmanueledube@gmail.com', 'first_name__0': 'EMMANUEL', 'preferences__1': None, 'updated_at__1': '2026-02-26 14:44:02', 'phone__1': '+256775064042', 'role__1': 'analyst', 'username__1': 'analyst', 'id__1': 2, 'profile_picture_url__1': '/api/auth/profile/photo', 'last_name__1': 'NSUBUGA', 'email__1': 'ensubuga019@gmail.com', 'first_name__1': 'EMMANUEL', 'preferences__2': None, 'updated_at__2': '2026-03-04 10:53:00', 'phone__2': '+256745889102', 'role__2': 'analyst', 'username__2': 'enoch', 'id__2': 3, 'profile_picture_url__2': '/api/auth/profile/photo', 'last_name__2': 'Asingwiire', 'email__2': 'enocha2002@gmail.com', 'first_name__2': 'Enoch'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/etl_pipeline.py", line 109, in seed_user_system_from_snapshot
+    upsert_table("user_profiles", snapshot.get("user_profiles", []))
+  File "/app/etl_pipeline.py", line 106, in upsert_table
+    df.to_sql(table_name, engine, if_exists="append", index=False)
+  File "/usr/local/lib/python3.11/site-packages/pandas/core/generic.py", line 3052, in to_sql
+    return sql.to_sql(
+           ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 841, in to_sql
+    return pandas_sql.to_sql(
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 2037, in to_sql
+    total_inserted = sql_engine.insert_records(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1571, in insert_records
+    return table.insert(chunksize=chunksize, method=method)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1122, in insert
+    num_inserted = exec_insert(conn, keys, chunk_iter)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1014, in _execute_insert
+    result = self.pd_sql.execute(self.table.insert(), data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1681, in execute
+    raise DatabaseError(f"Execution failed on sql '{sql}': {exc}") from exc
+pandas.errors.DatabaseError: Execution failed on sql 'INSERT INTO user_profiles (id, username, role, first_name, last_name, email, phone, profile_picture_url, preferences, updated_at) VALUES (:id, :username, :role, :first_name, :last_name, :email, :phone, :profile_picture_url, :preferences, :updated_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "user_profiles_pkey"
+DETAIL:  Key (id)=(1) already exists.
+
+[SQL: INSERT INTO user_profiles (id, username, role, first_name, last_name, email, phone, profile_picture_url, preferences, updated_at) VALUES (%(id__0)s, %(username__0)s, %(role__0)s, %(first_name__0)s, %(last_name__0)s, %(email__0)s, %(phone__0)s, %(prof ... 310 characters truncated ... _2)s, %(email__2)s, %(phone__2)s, %(profile_picture_url__2)s, %(preferences__2)s, %(updated_at__2)s)]
+[parameters: {'preferences__0': None, 'updated_at__0': '2026-02-26 12:55:33', 'phone__0': '+256745597803', 'role__0': 'sysadmin', 'username__0': 'admin', 'id__0': 1, 'profile_picture_url__0': '/api/auth/profile/photo', 'last_name__0': 'Edube', 'email__0': 'gulobaemmanueledube@gmail.com', 'first_name__0': 'EMMANUEL', 'preferences__1': None, 'updated_at__1': '2026-02-26 14:44:02', 'phone__1': '+256775064042', 'role__1': 'analyst', 'username__1': 'analyst', 'id__1': 2, 'profile_picture_url__1': '/api/auth/profile/photo', 'last_name__1': 'NSUBUGA', 'email__1': 'ensubuga019@gmail.com', 'first_name__1': 'EMMANUEL', 'preferences__2': None, 'updated_at__2': '2026-03-04 10:53:00', 'phone__2': '+256745889102', 'role__2': 'analyst', 'username__2': 'enoch', 'id__2': 3, 'profile_picture_url__2': '/api/auth/profile/photo', 'last_name__2': 'Asingwiire', 'email__2': 'enocha2002@gmail.com', 'first_name__2': 'Enoch'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-03-11 20:07:09,706 - INFO - ============================================================
+2026-03-11 20:07:09,741 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 20:07:09,764 - INFO - ============================================================
+2026-03-11 20:07:10,041 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 20:07:11,539 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 20:07:12,728 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 20:07:19,173 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 20:07:19,206 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-11 20:24:37,089 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-11 20:26:45,298 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-11 20:26:53,725 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-11 20:33:09,421 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-11 20:34:10,879 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-11 20:35:47,697 - INFO -   -> Payments: 130871 (columns: 27)
