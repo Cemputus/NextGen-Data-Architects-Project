@@ -32,22 +32,36 @@ const BUCKET = {
   NOT_SOON: 'not_soon',
   AT_RETIREMENT: 'at_retirement',
   APP_NO_PROFILE: 'app_no_profile',
+  EMPLOYEE_NO_PROFILE: 'employee_no_profile',
 };
+
+const VALID_FILTER_VALUES = new Set(Object.values(BUCKET));
 
 const CHART_COLORS = {
   not_soon: '#22c55e',
   retiring_soon: '#ef4444',
   at_retirement: '#64748b',
   app_no_profile: '#94a3b8',
+  employee_no_profile: '#cbd5e1',
 };
+
+/** Normalize API retirement_proximity (case, legacy backend values). */
+function normalizeProximity(raw) {
+  if (raw == null || raw === '') return '';
+  const p = String(raw).trim().toLowerCase();
+  if (p === 'within_5_years') return 'approaching';
+  return p;
+}
 
 function bucketForRow(row) {
   if (row.kind === 'app_user') return 'app_no_profile';
-  const p = row.retirement_proximity;
+  const p = normalizeProximity(row.retirement_proximity);
+  if (!p && row.retirement_alert) return 'retiring_soon';
+  if (!p) return 'employee_no_profile';
   if (p === 'approaching') return 'retiring_soon';
   if (p === 'far') return 'not_soon';
   if (p === 'retired') return 'at_retirement';
-  return 'not_soon';
+  return 'employee_no_profile';
 }
 
 const HRStaff = () => {
@@ -56,7 +70,15 @@ const HRStaff = () => {
   const [employeesList, setEmployeesList] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [searchTerm, setSearchTerm] = usePersistedState('hr_staff_searchTerm', '');
-  const [retirementFilter, setRetirementFilter] = usePersistedState('hr_staff_retirement_filter', BUCKET.ALL);
+  const [retirementFilterRaw, setRetirementFilter] = usePersistedState('hr_staff_retirement_filter', BUCKET.ALL);
+
+  const retirementFilter = VALID_FILTER_VALUES.has(retirementFilterRaw) ? retirementFilterRaw : BUCKET.ALL;
+
+  useEffect(() => {
+    if (!VALID_FILTER_VALUES.has(retirementFilterRaw)) {
+      setRetirementFilter(BUCKET.ALL);
+    }
+  }, [retirementFilterRaw, setRetirementFilter]);
 
   const loadData = useCallback(async () => {
     try {
@@ -122,18 +144,21 @@ const HRStaff = () => {
     let retiringSoon = 0;
     let atRet = 0;
     let appNo = 0;
+    let empNo = 0;
     combinedRows.forEach((r) => {
       const b = bucketForRow(r);
       if (b === 'not_soon') notSoon += 1;
       else if (b === 'retiring_soon') retiringSoon += 1;
       else if (b === 'at_retirement') atRet += 1;
       else if (b === 'app_no_profile') appNo += 1;
+      else if (b === 'employee_no_profile') empNo += 1;
     });
     return [
       { name: 'Not retiring soon', value: notSoon, fill: CHART_COLORS.not_soon },
       { name: 'Retiring soon (55–59)', value: retiringSoon, fill: CHART_COLORS.retiring_soon },
       { name: 'At retirement / retired', value: atRet, fill: CHART_COLORS.at_retirement },
       { name: 'App users (no ETL age)', value: appNo, fill: CHART_COLORS.app_no_profile },
+      { name: 'Employees (no DOB)', value: empNo, fill: CHART_COLORS.employee_no_profile },
     ].filter((d) => d.value > 0);
   }, [combinedRows]);
 
@@ -143,6 +168,7 @@ const HRStaff = () => {
       { name: 'Retiring soon', value: 0, fill: CHART_COLORS.retiring_soon },
       { name: 'At retirement', value: 0, fill: CHART_COLORS.at_retirement },
       { name: 'App users', value: 0, fill: CHART_COLORS.app_no_profile },
+      { name: 'Emp. no DOB', value: 0, fill: CHART_COLORS.employee_no_profile },
     ];
     combinedRows.forEach((r) => {
       const b = bucketForRow(r);
@@ -150,12 +176,13 @@ const HRStaff = () => {
       else if (b === 'retiring_soon') full[1].value += 1;
       else if (b === 'at_retirement') full[2].value += 1;
       else if (b === 'app_no_profile') full[3].value += 1;
+      else if (b === 'employee_no_profile') full[4].value += 1;
     });
     return full;
   }, [combinedRows]);
 
   const filteredRows = useMemo(() => {
-    const term = (searchTerm || '').toLowerCase();
+    const term = (searchTerm || '').toLowerCase().trim();
     return combinedRows.filter((r) => {
       const b = bucketForRow(r);
       if (retirementFilter !== BUCKET.ALL) {
@@ -163,11 +190,14 @@ const HRStaff = () => {
         if (retirementFilter === BUCKET.NOT_SOON && b !== 'not_soon') return false;
         if (retirementFilter === BUCKET.AT_RETIREMENT && b !== 'at_retirement') return false;
         if (retirementFilter === BUCKET.APP_NO_PROFILE && b !== 'app_no_profile') return false;
+        if (retirementFilter === BUCKET.EMPLOYEE_NO_PROFILE && b !== 'employee_no_profile') return false;
       }
       if (!term) return true;
       return (
         (r.name || '').toLowerCase().includes(term) ||
-        (r.username || '').toLowerCase().includes(term) ||
+        String(r.username ?? '')
+          .toLowerCase()
+          .includes(term) ||
         (r.role || '').toLowerCase().includes(term) ||
         (r.faculty || '').toLowerCase().includes(term) ||
         (r.department || '').toLowerCase().includes(term) ||
@@ -301,6 +331,7 @@ const HRStaff = () => {
                 <option value={BUCKET.RETIRING_SOON}>Retiring soon (55–59)</option>
                 <option value={BUCKET.AT_RETIREMENT}>At retirement / retired</option>
                 <option value={BUCKET.APP_NO_PROFILE}>App users only (no ETL profile)</option>
+                <option value={BUCKET.EMPLOYEE_NO_PROFILE}>Employees only (missing DOB / age)</option>
               </select>
             </div>
             <Button type="button" onClick={loadData} variant="outline" className="shrink-0">
