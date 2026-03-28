@@ -13,7 +13,6 @@ const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
   const [definition, setDefinition] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userMessage, setUserMessage] = useState(null);
-  const [hiddenFromUsers, setHiddenFromUsers] = useState(false);
   const [pinnedVisualizations, setPinnedVisualizations] = useState([]);
   const [loadingVisualizations, setLoadingVisualizations] = useState(false);
 
@@ -25,7 +24,6 @@ const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
       });
       const dash = resp.data?.dashboard;
       setUserMessage(resp.data?.message || null);
-      setHiddenFromUsers(resp.data?.hidden_from_users === true);
       if (!dash || !dash.definition) {
         setDefinition(null);
       } else {
@@ -43,7 +41,6 @@ const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
       console.error('Error loading current dashboard definition:', err);
       setDefinition(null);
       setUserMessage(null);
-      setHiddenFromUsers(false);
     } finally {
       setLoading(false);
     }
@@ -99,16 +96,12 @@ const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
   if (!definition) {
     const body =
       userMessage ||
-      (hiddenFromUsers
-        ? 'This dashboard is hidden from your role. Contact an analyst to make it visible again.'
-        : 'No dashboard is assigned for your role. Contact an analyst to assign one.');
+      'No dashboard is assigned for your role. Contact an analyst to assign one.';
     return (
       <div className="space-y-4">
         <Card className="border-dashed border-2 border-amber-200/80 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-semibold">
-              {hiddenFromUsers ? 'Dashboard hidden' : 'No dashboard assigned'}
-            </CardTitle>
+            <CardTitle className="text-sm font-semibold">No dashboard assigned</CardTitle>
             <CardDescription className="text-xs text-foreground/90">{body}</CardDescription>
           </CardHeader>
         </Card>
