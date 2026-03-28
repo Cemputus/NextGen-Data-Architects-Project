@@ -1,7 +1,7 @@
 /**
  * Admin ETL Jobs Page - ETL and Data Warehouse tracking for system admin
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Play, RefreshCw, Database, CheckCircle, XCircle, Clock, FileText, Download, Eye, BarChart3, Table2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -22,6 +22,8 @@ import CountdownTimer from '../components/admin/CountdownTimer';
 const REFRESH_INTERVAL_MS = 5000;
 const REFRESH_AFTER_RUN_COUNT = 12; // 12 * 5s = 60s of polling after Run ETL
 const ALWAYS_POLL_STATUS_MS = 10000;
+/** Always request up to this many runs from the API; "Show last" only slices for the table (no full-page reload). */
+const ETL_RUNS_FETCH_CAP = 5000;
 
 // ETL auto-run interval options (in minutes)
 const ETL_AUTO_INTERVAL_OPTIONS = [
@@ -171,11 +173,11 @@ const AdminETL = () => {
     return `${m}:${String(s).padStart(2, '0')}`;
   };
 
-  const loadStatus = async (silent = false) => {
+  const loadStatus = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      const params = { etl_runs_limit: etlRunsLimit };
+      const params = { etl_runs_limit: ETL_RUNS_FETCH_CAP };
       if (!silent) params._ = Date.now(); // cache bust so Refresh always gets fresh data
       const response = await axios.get('/api/admin/system-status', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
@@ -200,7 +202,7 @@ const AdminETL = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   const handleRefresh = () => {
     loadStatus(false);
@@ -209,14 +211,14 @@ const AdminETL = () => {
   useEffect(() => {
     loadStatus();
     loadSettings();
-  }, [etlRunsLimit]);
+  }, [loadStatus]);
 
   // Always keep ETL status/history fresh, even when auto-ETL is off.
   // This prevents users from needing a hard refresh to see new run states/counts.
   useEffect(() => {
     const id = setInterval(() => loadStatus(true), ALWAYS_POLL_STATUS_MS);
     return () => clearInterval(id);
-  }, [etlRunsLimit]);
+  }, [loadStatus]);
 
   // Local ticking server time (updates every second based on last snapshot)
   useEffect(() => {
@@ -228,10 +230,15 @@ const AdminETL = () => {
   }, [serverTime]);
 
   const warehouse = status?.warehouse || {};
-  const etlRuns = status?.etl_runs || [];
+  const etlRunsAll = status?.etl_runs || [];
+  /** "Show last N" applies only here (client-side), like Audit log — does not refetch or reload the page */
+  const etlRunsForHistory = useMemo(() => {
+    const cap = etlRunsLimit >= 9999 ? etlRunsAll.length : Math.min(etlRunsLimit, etlRunsAll.length);
+    return etlRunsAll.slice(0, cap);
+  }, [etlRunsAll, etlRunsLimit]);
   const sourceDbs = status?.source_databases || {};
-  const etlRunsPaginated = etlRuns.slice((etlPage - 1) * etlPerPage, etlPage * etlPerPage);
-  const etlTotalPages = Math.max(1, Math.ceil(etlRuns.length / etlPerPage));
+  const etlRunsPaginated = etlRunsForHistory.slice((etlPage - 1) * etlPerPage, etlPage * etlPerPage);
+  const etlTotalPages = Math.max(1, Math.ceil(etlRunsForHistory.length / etlPerPage));
 
   // When auto ETL is on: poll settings every 15s so countdown resets as soon as a run finishes
   useEffect(() => {
@@ -245,7 +252,7 @@ const AdminETL = () => {
     if (!adminSettings.etl_auto_enabled) return;
     const id = setInterval(() => loadStatus(true), 10000);
     return () => clearInterval(id);
-  }, [adminSettings.etl_auto_enabled]);
+  }, [adminSettings.etl_auto_enabled, loadStatus]);
 
   const runETL = async () => {
     try {
@@ -690,18 +697,24 @@ const AdminETL = () => {
           </div>
         </CardHeader>
         <CardContent>
-            {etlRuns.length === 0 ? (
+            {etlRunsAll.length === 0 ? (
             <p className="text-muted-foreground text-sm py-4">No ETL log files found. Click Run ETL to add one run.</p>
           ) : dataViewMode === 'visual' ? (
             (() => {
+              const runStatusKey = (r) => {
+                const s = String(r.status || '').toLowerCase();
+                if (s === 'in_progress' || s === 'running') return 'in_progress';
+                if (s === 'success' || s === 'failed') return s;
+                return r.success ? 'success' : 'failed';
+              };
               const filtered = etlStatusFilter === 'all'
-                ? etlRuns
-                : etlRuns.filter((r) => {
-                    const status = r.status || (r.success ? 'success' : 'failed');
+                ? etlRunsForHistory
+                : etlRunsForHistory.filter((r) => {
+                    const sk = runStatusKey(r);
                     return (
-                      (etlStatusFilter === 'success' && status === 'success') ||
-                      (etlStatusFilter === 'failed' && status === 'failed') ||
-                      (etlStatusFilter === 'running' && status === 'running')
+                      (etlStatusFilter === 'success' && sk === 'success') ||
+                      (etlStatusFilter === 'failed' && sk === 'failed') ||
+                      (etlStatusFilter === 'in_progress' && sk === 'in_progress')
                     );
                   });
               const parseDurationSec = (d) => {
@@ -715,13 +728,11 @@ const AdminETL = () => {
                 const sec = parseDurationSec(run.duration);
                 const minutes = sec / 60;
                 const label = run.log_file ? run.log_file.replace(/^etl_pipeline_|\.log$/gi, '').slice(-12) : `Run ${i + 1}`;
-                const status = run.status || (run.success ? 'success' : 'failed');
+                const sk = runStatusKey(run);
                 return {
                   name: label,
-                  // Chart in minutes for readability; keep a small non-zero bar for failed runs.
-                  // Treat "running" as its own status (no bar here; highlighted elsewhere in table).
-                  success: status === 'success' ? minutes : 0,
-                  failed: status === 'failed' ? Math.max(minutes, 0.1) : 0,
+                  success: sk === 'success' ? minutes : 0,
+                  failed: sk === 'failed' ? Math.max(minutes, 0.1) : 0,
                 };
               });
               if (chartData.length === 0) {
@@ -729,9 +740,9 @@ const AdminETL = () => {
               }
               if (etlChartType === 'status') {
                 const statusCounts = [
-                  { name: 'Success', value: filtered.filter((r) => (r.status || (r.success ? 'success' : 'failed')) === 'success').length },
-                  { name: 'Failed', value: filtered.filter((r) => (r.status || (r.success ? 'success' : 'failed')) === 'failed').length },
-                  { name: 'Running', value: filtered.filter((r) => (r.status || (r.success ? 'success' : 'failed')) === 'running').length },
+                  { name: 'Success', value: filtered.filter((r) => runStatusKey(r) === 'success').length },
+                  { name: 'Failed', value: filtered.filter((r) => runStatusKey(r) === 'failed').length },
+                  { name: 'In progress', value: filtered.filter((r) => runStatusKey(r) === 'in_progress').length },
                 ];
                 return (
                   <>
@@ -793,15 +804,15 @@ const AdminETL = () => {
                         <TableCell>{run.duration || '—'}</TableCell>
                         <TableCell>
                           {(() => {
-                            const status = run.status || (run.success ? 'success' : 'failed');
-                            if (status === 'running') {
+                            const raw = String(run.status || '').toLowerCase();
+                            if (raw === 'in_progress' || raw === 'running') {
                               return (
                                 <span className="inline-flex items-center gap-1 text-blue-600">
-                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Running
+                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> In progress
                                 </span>
                               );
                             }
-                            if (status === 'success') {
+                            if (raw === 'success' || run.success) {
                               return (
                                 <span className="inline-flex items-center gap-1 text-green-600">
                                   <CheckCircle className="h-4 w-4" aria-hidden /> Success
@@ -832,10 +843,10 @@ const AdminETL = () => {
                   </TableBody>
                 </Table>
               </TableWrapper>
-              {etlRuns.length > etlPerPage && (
+              {etlRunsForHistory.length > etlPerPage && (
                 <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t">
                   <span className="text-sm text-muted-foreground">
-                    Showing {(etlPage - 1) * etlPerPage + 1}–{Math.min(etlPage * etlPerPage, etlRuns.length)} of {etlRuns.length}
+                    Showing {(etlPage - 1) * etlPerPage + 1}–{Math.min(etlPage * etlPerPage, etlRunsForHistory.length)} of {etlRunsForHistory.length}
                   </span>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => setEtlPage((p) => Math.max(1, p - 1))} disabled={etlPage <= 1}>
