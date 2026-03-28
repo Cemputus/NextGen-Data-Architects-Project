@@ -15,6 +15,13 @@ import { Loader2, User, Calendar, DollarSign, GraduationCap } from 'lucide-react
 
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
+/** Trimmed non-empty string, or null (for conditional display). */
+function nonEmptyString(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s || null;
+}
+
 export default function UserInfoPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -122,6 +129,14 @@ export default function UserInfoPage() {
   const pathPrefix = location.pathname.split('/')[1] || roleSlug || 'student';
   const profilePath = `/${pathPrefix}/profile`;
 
+  const cardFaculty = isStudent
+    ? nonEmptyString(studentRecord?.faculty)
+    : nonEmptyString(employment?.faculty_name ?? user?.faculty_name);
+  const cardDepartment = isStudent
+    ? nonEmptyString(studentRecord?.department)
+    : nonEmptyString(employment?.department_name ?? user?.department_name);
+  const roleLabel = nonEmptyString(user?.role);
+
   return (
     <div className="space-y-6">
       <button
@@ -150,10 +165,27 @@ export default function UserInfoPage() {
               : 'Your employment status, leave requests, and payroll (managed by HR).'}
           </p>
           <p className="text-sm font-medium text-foreground mt-1">{displayName}</p>
-          {user?.role && (
-            <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">
-              {user.role}
-            </span>
+          {(roleLabel || cardFaculty || cardDepartment) && (
+            <dl className="mt-3 space-y-1.5 text-left w-full max-w-lg">
+              {roleLabel && (
+                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm items-baseline">
+                  <dt className="text-muted-foreground shrink-0">Role</dt>
+                  <dd className="font-medium text-foreground capitalize">{roleLabel.replace(/_/g, ' ')}</dd>
+                </div>
+              )}
+              {cardFaculty && (
+                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm items-baseline">
+                  <dt className="text-muted-foreground shrink-0">Faculty</dt>
+                  <dd className="text-foreground break-words">{cardFaculty}</dd>
+                </div>
+              )}
+              {cardDepartment && (
+                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm items-baseline">
+                  <dt className="text-muted-foreground shrink-0">Department</dt>
+                  <dd className="text-foreground break-words">{cardDepartment}</dd>
+                </div>
+              )}
+            </dl>
           )}
         </div>
       </button>
@@ -236,17 +268,17 @@ export default function UserInfoPage() {
               <dt className="text-muted-foreground">Status</dt>
               <dd className="font-medium">{employment?.status ?? '—'}</dd>
               <dt className="text-muted-foreground">Role</dt>
-              <dd className="font-medium capitalize">{employment?.role ?? '—'}</dd>
-              {employment?.faculty_name != null && (
+              <dd className="font-medium capitalize">{employment?.role ?? user?.role ?? '—'}</dd>
+              {nonEmptyString(employment?.faculty_name) && (
                 <>
                   <dt className="text-muted-foreground">Faculty</dt>
-                  <dd>{employment.faculty_name || '—'}</dd>
+                  <dd className="break-words">{employment.faculty_name}</dd>
                 </>
               )}
-              {employment?.department_name != null && (
+              {nonEmptyString(employment?.department_name) && (
                 <>
                   <dt className="text-muted-foreground">Department</dt>
-                  <dd>{employment.department_name || '—'}</dd>
+                  <dd className="break-words">{employment.department_name}</dd>
                 </>
               )}
             </dl>
