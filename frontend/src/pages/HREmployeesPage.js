@@ -107,64 +107,39 @@ export default function HREmployeesPage() {
               />
             </div>
           </div>
-          <div className="overflow-x-auto rounded-md border border-border">
-            <table className="w-full min-w-[920px] text-sm border-collapse">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border bg-muted/60">
-                  <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                    Name
-                  </th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground min-w-[8rem]">
-                    Role / position
-                  </th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                    Date of birth
-                  </th>
-                  <th className="text-right px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-14">
-                    Age
-                  </th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground min-w-[13rem]">
-                    Retirement status
-                  </th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground min-w-[7rem]">
-                    Faculty
-                  </th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground min-w-[7rem]">
-                    Department
-                  </th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                    Source
-                  </th>
+                <tr className="border-b text-xs uppercase text-muted-foreground">
+                  <th className="text-left py-2 pr-4">Name</th>
+                  <th className="text-left py-2 px-4">Role / position</th>
+                  <th className="text-left py-2 px-4">Date of birth</th>
+                  <th className="text-right py-2 px-4">Age</th>
+                  <th className="text-left py-2 px-4">Retirement</th>
+                  <th className="text-left py-2 px-4">Faculty</th>
+                  <th className="text-left py-2 px-4">Department</th>
+                  <th className="text-left py-2 pl-4">Source</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p, idx) => (
-                  <tr
-                    key={`${p.source}-${p.id}`}
-                    className={`border-b border-border last:border-0 ${
-                      idx % 2 === 0 ? 'bg-background' : 'bg-muted/25'
-                    }`}
-                  >
-                    <td className="px-3 py-2.5 align-top font-medium text-foreground">{p.name || '—'}</td>
-                    <td className="px-3 py-2.5 align-top text-muted-foreground">{p.role || '—'}</td>
-                    <td className="px-3 py-2.5 align-top whitespace-nowrap tabular-nums">
+                {filtered.map((p) => (
+                  <tr key={`${p.source}-${p.id}`} className="border-b last:border-0 hover:bg-muted/40">
+                    <td className="py-2 pr-4 font-medium">{p.name || '—'}</td>
+                    <td className="py-2 px-4 text-muted-foreground">{p.role || '—'}</td>
+                    <td className="py-2 px-4 whitespace-nowrap tabular-nums">
                       {p.dateOfBirth ? String(p.dateOfBirth).slice(0, 10) : '—'}
                     </td>
-                    <td className="px-3 py-2.5 align-top text-right tabular-nums">{p.age != null ? p.age : '—'}</td>
+                    <td className="py-2 px-4 text-right tabular-nums">{p.age != null ? p.age : '—'}</td>
                     <td
-                      className={`px-3 py-2.5 align-top leading-snug ${
-                        p.retirementAlert
-                          ? 'text-red-600 dark:text-red-400 font-semibold'
-                          : 'text-foreground'
+                      className={`py-2 px-4 leading-snug max-w-[14rem] ${
+                        p.retirementAlert ? 'text-red-600 dark:text-red-400 font-medium' : ''
                       }`}
                     >
                       {p.retirementLabel || '—'}
                     </td>
-                    <td className="px-3 py-2.5 align-top">{p.faculty || '—'}</td>
-                    <td className="px-3 py-2.5 align-top">{p.department || '—'}</td>
-                    <td className="px-3 py-2.5 align-top text-muted-foreground text-xs whitespace-nowrap">
-                      {p.source}
-                    </td>
+                    <td className="py-2 px-4">{p.faculty || '—'}</td>
+                    <td className="py-2 px-4">{p.department || '—'}</td>
+                    <td className="py-2 pl-4 text-xs text-muted-foreground">{p.source}</td>
                   </tr>
                 ))}
               </tbody>

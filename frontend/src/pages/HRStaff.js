@@ -1,191 +1,180 @@
 /**
- * HR Staff Page — Staff management with roster, retirement filters, and charts.
+ * HR Staff Page — Staff management: users list, retirement filters, chart
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { Users, Plus, RefreshCw } from 'lucide-react';
+import { Users, Plus, Search, Filter, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Loader2 } from 'lucide-react';
 import axios from 'axios';
-import { SciDonutChart, SciBarChart } from '../components/charts/EChartsComponents';
-import { UCU_COLORS } from '../lib/chartTheme';
-import { cn } from '../lib/utils';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from 'recharts';
 
-const authHeaders = () => ({
-  headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-});
+const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
-/** Maps API retirement_proximity + source into filter buckets */
-function bucketForEmployee(e) {
-  const p = (e.retirement_proximity || '').toLowerCase();
+/** Bucket for filtering & chart (employees from ETL + app users without profile) */
+const BUCKET = {
+  ALL: 'all',
+  RETIRING_SOON: 'retiring_soon',
+  NOT_SOON: 'not_soon',
+  AT_RETIREMENT: 'at_retirement',
+  APP_NO_PROFILE: 'app_no_profile',
+};
+
+const CHART_COLORS = {
+  not_soon: '#22c55e',
+  retiring_soon: '#ef4444',
+  at_retirement: '#64748b',
+  app_no_profile: '#94a3b8',
+};
+
+function bucketForRow(row) {
+  if (row.kind === 'app_user') return 'app_no_profile';
+  const p = row.retirement_proximity;
   if (p === 'approaching') return 'retiring_soon';
-  if (p === 'retired') return 'at_retirement';
   if (p === 'far') return 'not_soon';
+  if (p === 'retired') return 'at_retirement';
   return 'not_soon';
 }
 
-const FILTER_TABS = [
-  { id: 'all', label: 'All' },
-  { id: 'retiring_soon', label: 'Retiring soon' },
-  { id: 'not_soon', label: 'Not retiring soon' },
-  { id: 'at_retirement', label: 'At retirement' },
-  { id: 'no_profile', label: 'App / no roster' },
-];
-
 const HRStaff = () => {
   const [loading, setLoading] = useState(true);
-  const [staff, setStaff] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [hrError, setHrError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [employeesList, setEmployeesList] = useState([]);
+  const [staffList, setStaffList] = useState([]);
   const [searchTerm, setSearchTerm] = usePersistedState('hr_staff_searchTerm', '');
-  const [retirementFilter, setRetirementFilter] = usePersistedState('hr_staff_retirement_filter', 'all');
+  const [retirementFilter, setRetirementFilter] = usePersistedState('hr_staff_retirement_filter', BUCKET.ALL);
 
-  const loadAll = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      setHrError(null);
-      const [staffRes, hrRes] = await Promise.all([
-        axios.get('/api/hr/staff-list', authHeaders()),
-        axios.get('/api/analytics/hr', authHeaders()),
+      setLoadError(null);
+      const [hrRes, staffRes] = await Promise.all([
+        axios.get('/api/analytics/hr', auth()).catch((e) => ({ data: {}, error: e })),
+        axios.get('/api/hr/staff-list', auth()).catch((e) => ({ data: { staff: [] }, error: e })),
       ]);
-      setStaff(staffRes.data?.staff || []);
-      if (hrRes.data?.error) {
-        setHrError(hrRes.data.detail || hrRes.data.error);
-        setEmployees([]);
-      } else {
-        setEmployees(hrRes.data?.employees_list || []);
+      if (hrRes.error && !hrRes.data?.employees_list) {
+        setLoadError('Could not load HR analytics (employees).');
       }
+      setEmployeesList(hrRes.data?.employees_list || []);
+      setStaffList(staffRes.data?.staff || []);
     } catch (err) {
-      console.error('Error loading staff:', err);
-      setHrError(err.response?.data?.error || err.message);
-      setEmployees([]);
+      console.error('Error loading staff data:', err);
+      setLoadError(err.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    loadData();
+  }, [loadData]);
 
-  const unifiedRows = useMemo(() => {
-    const rows = [];
-    (employees || []).forEach((e) => {
-      const bucket = bucketForEmployee(e);
-      rows.push({
-        rowKey: `emp-${e.employee_id}`,
-        kind: 'employee',
-        name: e.full_name || '—',
-        username: String(e.employee_id ?? ''),
-        displayId: e.employee_id,
-        role: e.position_title || e.role_group || '—',
-        dateOfBirth: e.date_of_birth,
-        age: e.age,
-        retirementLabel: e.retirement_label,
-        retirementAlert: !!e.retirement_alert,
-        faculty: e.faculty_name,
-        department: e.department_name,
-        sourceLabel: 'Employee',
-        bucket,
-      });
-    });
-    (staff || []).forEach((s) => {
-      rows.push({
-        rowKey: `staff-${s.id}`,
-        kind: 'app',
-        name: s.full_name || s.username,
-        username: s.username,
-        displayId: s.id,
-        role: s.role || '—',
-        dateOfBirth: null,
-        age: null,
-        retirementLabel: null,
-        retirementAlert: false,
-        faculty: s.faculty_name,
-        department: s.department_name,
-        sourceLabel: s.source === 'demo' ? 'Demo' : 'App user',
-        bucket: 'no_profile',
-      });
-    });
-    return rows;
-  }, [employees, staff]);
+  const combinedRows = useMemo(() => {
+    const fromEmp = (employeesList || []).map((e) => ({
+      key: `emp-${e.employee_id}`,
+      kind: 'employee',
+      id: e.employee_id,
+      name: e.full_name,
+      username: null,
+      role: e.position_title || e.role_group || '—',
+      faculty: e.faculty_name,
+      department: e.department_name,
+      source: 'Employee',
+      age: e.age,
+      retirementLabel: e.retirement_label,
+      retirementProximity: e.retirement_proximity,
+      retirementAlert: !!e.retirement_alert,
+    }));
+    const fromApp = (staffList || []).map((s) => ({
+      key: `app-${s.id ?? s.username}`,
+      kind: 'app_user',
+      id: s.id,
+      name: s.full_name || s.username,
+      username: s.username,
+      role: s.role || '—',
+      faculty: s.faculty_name,
+      department: s.department_name,
+      source: s.source === 'demo' ? 'Demo' : 'App user',
+      age: null,
+      retirementLabel: '—',
+      retirementProximity: null,
+      retirementAlert: false,
+    }));
+    return [...fromEmp, ...fromApp];
+  }, [employeesList, staffList]);
 
-  const retirementCounts = useMemo(() => {
-    let retiring = 0;
+  const chartData = useMemo(() => {
     let notSoon = 0;
+    let retiringSoon = 0;
     let atRet = 0;
-    let noProf = 0;
-    unifiedRows.forEach((r) => {
-      if (r.bucket === 'retiring_soon') retiring += 1;
-      else if (r.bucket === 'not_soon') notSoon += 1;
-      else if (r.bucket === 'at_retirement') atRet += 1;
-      else if (r.bucket === 'no_profile') noProf += 1;
+    let appNo = 0;
+    combinedRows.forEach((r) => {
+      const b = bucketForRow(r);
+      if (b === 'not_soon') notSoon += 1;
+      else if (b === 'retiring_soon') retiringSoon += 1;
+      else if (b === 'at_retirement') atRet += 1;
+      else if (b === 'app_no_profile') appNo += 1;
     });
-    return { retiring, notSoon, atRet, noProf };
-  }, [unifiedRows]);
-
-  const chartDonutData = useMemo(() => {
-    const { retiring, notSoon, atRet, noProf } = retirementCounts;
-    const out = [
-      { name: 'Retiring soon', value: retiring, color: UCU_COLORS.red },
-      { name: 'Not retiring soon', value: notSoon, color: UCU_COLORS.green },
-      { name: 'At retirement', value: atRet, color: '#64748b' },
-      { name: 'App / no roster', value: noProf, color: UCU_COLORS.orange },
-    ];
-    return out.filter((d) => d.value > 0);
-  }, [retirementCounts]);
-
-  const chartBarData = useMemo(() => {
-    const { retiring, notSoon, atRet, noProf } = retirementCounts;
-    if (retiring + notSoon + atRet + noProf === 0) return [];
     return [
-      {
-        name: 'Staff roster',
-        retiring,
-        notSoon,
-        atRet,
-        noProf,
-      },
-    ];
-  }, [retirementCounts]);
+      { name: 'Not retiring soon', value: notSoon, fill: CHART_COLORS.not_soon },
+      { name: 'Retiring soon (55–59)', value: retiringSoon, fill: CHART_COLORS.retiring_soon },
+      { name: 'At retirement / retired', value: atRet, fill: CHART_COLORS.at_retirement },
+      { name: 'App users (no ETL age)', value: appNo, fill: CHART_COLORS.app_no_profile },
+    ].filter((d) => d.value > 0);
+  }, [combinedRows]);
 
-  const barSeriesKeys = useMemo(
-    () => [
-      { key: 'retiring', label: 'Retiring soon', color: UCU_COLORS.red },
-      { key: 'notSoon', label: 'Not retiring soon', color: UCU_COLORS.green },
-      { key: 'atRet', label: 'At retirement', color: '#64748b' },
-      { key: 'noProf', label: 'App / no roster', color: UCU_COLORS.orange },
-    ],
-    []
-  );
+  const barChartData = useMemo(() => {
+    const full = [
+      { name: 'Not retiring soon', value: 0, fill: CHART_COLORS.not_soon },
+      { name: 'Retiring soon', value: 0, fill: CHART_COLORS.retiring_soon },
+      { name: 'At retirement', value: 0, fill: CHART_COLORS.at_retirement },
+      { name: 'App users', value: 0, fill: CHART_COLORS.app_no_profile },
+    ];
+    combinedRows.forEach((r) => {
+      const b = bucketForRow(r);
+      if (b === 'not_soon') full[0].value += 1;
+      else if (b === 'retiring_soon') full[1].value += 1;
+      else if (b === 'at_retirement') full[2].value += 1;
+      else if (b === 'app_no_profile') full[3].value += 1;
+    });
+    return full;
+  }, [combinedRows]);
 
   const filteredRows = useMemo(() => {
-    let rows = unifiedRows;
-    if (retirementFilter === 'retiring_soon') rows = rows.filter((r) => r.bucket === 'retiring_soon');
-    else if (retirementFilter === 'not_soon') rows = rows.filter((r) => r.bucket === 'not_soon');
-    else if (retirementFilter === 'at_retirement') rows = rows.filter((r) => r.bucket === 'at_retirement');
-    else if (retirementFilter === 'no_profile') rows = rows.filter((r) => r.bucket === 'no_profile');
-
-    const term = (searchTerm || '').trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((r) => {
-      const hay = [
-        r.name,
-        r.username,
-        String(r.displayId ?? ''),
-        r.role,
-        r.faculty,
-        r.department,
-        r.retirementLabel,
-        r.sourceLabel,
-      ]
-        .join(' ')
-        .toLowerCase();
-      return hay.includes(term);
+    const term = (searchTerm || '').toLowerCase();
+    return combinedRows.filter((r) => {
+      const b = bucketForRow(r);
+      if (retirementFilter !== BUCKET.ALL) {
+        if (retirementFilter === BUCKET.RETIRING_SOON && b !== 'retiring_soon') return false;
+        if (retirementFilter === BUCKET.NOT_SOON && b !== 'not_soon') return false;
+        if (retirementFilter === BUCKET.AT_RETIREMENT && b !== 'at_retirement') return false;
+        if (retirementFilter === BUCKET.APP_NO_PROFILE && b !== 'app_no_profile') return false;
+      }
+      if (!term) return true;
+      return (
+        (r.name || '').toLowerCase().includes(term) ||
+        (r.username || '').toLowerCase().includes(term) ||
+        (r.role || '').toLowerCase().includes(term) ||
+        (r.faculty || '').toLowerCase().includes(term) ||
+        (r.department || '').toLowerCase().includes(term) ||
+        (r.retirementLabel || '').toLowerCase().includes(term)
+      );
     });
-  }, [unifiedRows, retirementFilter, searchTerm]);
+  }, [combinedRows, searchTerm, retirementFilter]);
 
   return (
     <div className="space-y-4">
@@ -200,18 +189,21 @@ const HRStaff = () => {
         </Button>
       </div>
 
-      {hrError && (
-        <p className="text-sm text-amber-700 dark:text-amber-400 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2">
-          HR analytics unavailable ({hrError}). Showing app users only until the API succeeds.
+      {loadError && (
+        <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+          {loadError} Employee retirement columns need ETL data.
         </p>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-base font-semibold">Retirement mix</CardTitle>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              Retirement overview
+            </CardTitle>
             <CardDescription className="text-xs">
-              ETL employees (with DOB) and app users without roster data
+              ETL employees by retirement band; app users appear without age data
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
@@ -219,46 +211,60 @@ const HRStaff = () => {
               <div className="flex h-[280px] items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : chartDonutData.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No people loaded yet.</p>
+            ) : chartData.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">No data to chart yet.</p>
             ) : (
-              <SciDonutChart
-                data={chartDonutData}
-                title=""
-                minHeight={280}
-                maxHeight={320}
-                innerRadius="52%"
-              />
+              <div className="h-[280px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={88}
+                      label={({ name, value }) => `${value}`}
+                    >
+                      {chartData.map((entry, i) => (
+                        <Cell key={i} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v) => [v, 'Count']} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </CardContent>
         </Card>
 
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-base font-semibold">Headcount by category</CardTitle>
-            <CardDescription className="text-xs">Same breakdown as a grouped bar</CardDescription>
+            <CardTitle className="text-base font-semibold">Counts by category</CardTitle>
+            <CardDescription className="text-xs">Bar view of the same groups</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             {loading ? (
               <div className="flex h-[280px] items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : chartBarData.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No data.</p>
             ) : (
-              <SciBarChart
-                data={chartBarData}
-                xDataKey="name"
-                yDataKeys={barSeriesKeys}
-                xAxisLabel=""
-                yAxisLabel="People"
-                showLegend
-                showGrid
-                minHeight={280}
-                maxHeight={340}
-                gridPadding={{ bottom: 88, top: 24 }}
-                xAxisLabelRotate={0}
-              />
+              <div className="h-[280px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barChartData} margin={{ top: 8, right: 8, left: 0, bottom: 48 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={56} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(v) => [v, 'People']} />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      {barChartData.map((e, i) => (
+                        <Cell key={i} fill={e.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -268,120 +274,88 @@ const HRStaff = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Users list</CardTitle>
           <CardDescription className="text-xs">
-            Warehouse employees (with retirement) and system app users. Filter by retirement outlook.
+            Warehouse employees (with retirement) and system app users
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-4 pt-0 space-y-4">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap gap-2">
-              {FILTER_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setRetirementFilter(tab.id)}
-                  className={cn(
-                    'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                    retirementFilter === tab.id
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-background text-muted-foreground hover:bg-muted/60'
-                  )}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
+        <CardContent className="p-4 pt-0">
+          <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search name, username, role, faculty, department…"
+                placeholder="Search name, username, role, faculty…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1"
+                className="pl-9"
               />
-              <Button type="button" onClick={loadAll} variant="outline" className="shrink-0">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
             </div>
+            <div className="flex items-center gap-2 min-w-[220px]">
+              <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={retirementFilter}
+                onChange={(e) => setRetirementFilter(e.target.value)}
+                aria-label="Filter by retirement"
+              >
+                <option value={BUCKET.ALL}>All users</option>
+                <option value={BUCKET.NOT_SOON}>Not retiring soon</option>
+                <option value={BUCKET.RETIRING_SOON}>Retiring soon (55–59)</option>
+                <option value={BUCKET.AT_RETIREMENT}>At retirement / retired</option>
+                <option value={BUCKET.APP_NO_PROFILE}>App users only (no ETL profile)</option>
+              </select>
+            </div>
+            <Button type="button" onClick={loadData} variant="outline" className="shrink-0">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
           </div>
 
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : filteredRows.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground text-sm">
-              No people match this filter or search. Try &quot;All&quot; or clear the search box.
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              No users match this filter or search.
             </div>
           ) : (
             <div className="overflow-x-auto rounded-md border border-border">
-              <table className="w-full min-w-[960px] text-sm border-collapse">
+              <table className="w-full min-w-[800px] text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/60">
-                    <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Name
-                    </th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Username / ID
-                    </th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Role
-                    </th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                      Date of birth
-                    </th>
-                    <th className="text-right px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-14">
-                      Age
-                    </th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground min-w-[12rem]">
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left py-2.5 px-3 text-xs font-medium text-muted-foreground">Name</th>
+                    <th className="text-left py-2.5 px-3 text-xs font-medium text-muted-foreground">Username</th>
+                    <th className="text-left py-2.5 px-3 text-xs font-medium text-muted-foreground">Role</th>
+                    <th className="text-right py-2.5 px-3 text-xs font-medium text-muted-foreground">Age</th>
+                    <th className="text-left py-2.5 px-3 text-xs font-medium text-muted-foreground min-w-[11rem]">
                       Retirement
                     </th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Faculty
-                    </th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Department
-                    </th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                      Source
-                    </th>
+                    <th className="text-left py-2.5 px-3 text-xs font-medium text-muted-foreground">Faculty</th>
+                    <th className="text-left py-2.5 px-3 text-xs font-medium text-muted-foreground">Department</th>
+                    <th className="text-left py-2.5 px-3 text-xs font-medium text-muted-foreground">Source</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((r, idx) => (
-                    <tr
-                      key={r.rowKey}
-                      className={cn(
-                        'border-b border-border last:border-0',
-                        idx % 2 === 0 ? 'bg-background' : 'bg-muted/25'
-                      )}
-                    >
-                      <td className="px-3 py-2.5 align-top">
+                  {filteredRows.map((s) => (
+                    <tr key={s.key} className="border-b border-border/80 last:border-0 hover:bg-muted/30">
+                      <td className="py-2.5 px-3">
                         <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <span className="font-medium text-foreground">{r.name}</span>
+                          <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="font-medium">{s.name}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 align-top text-muted-foreground tabular-nums">{r.username}</td>
-                      <td className="px-3 py-2.5 align-top">{r.role}</td>
-                      <td className="px-3 py-2.5 align-top whitespace-nowrap tabular-nums">
-                        {r.dateOfBirth ? String(r.dateOfBirth).slice(0, 10) : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 align-top text-right tabular-nums">
-                        {r.age != null ? r.age : '—'}
-                      </td>
+                      <td className="py-2.5 px-3 text-muted-foreground">{s.username ?? '—'}</td>
+                      <td className="py-2.5 px-3">{s.role}</td>
+                      <td className="py-2.5 px-3 text-right tabular-nums">{s.age != null ? s.age : '—'}</td>
                       <td
-                        className={cn(
-                          'px-3 py-2.5 align-top leading-snug',
-                          r.retirementAlert && 'text-red-600 dark:text-red-400 font-semibold'
-                        )}
+                        className={`py-2.5 px-3 text-left leading-snug ${
+                          s.retirementAlert ? 'text-red-600 dark:text-red-400 font-semibold' : ''
+                        }`}
                       >
-                        {r.retirementLabel || '—'}
+                        {s.retirementLabel || '—'}
                       </td>
-                      <td className="px-3 py-2.5 align-top">{r.faculty || '—'}</td>
-                      <td className="px-3 py-2.5 align-top">{r.department || '—'}</td>
-                      <td className="px-3 py-2.5 align-top text-xs text-muted-foreground whitespace-nowrap">
-                        {r.sourceLabel}
-                      </td>
+                      <td className="py-2.5 px-3">{s.faculty || '—'}</td>
+                      <td className="py-2.5 px-3">{s.department || '—'}</td>
+                      <td className="py-2.5 px-3 text-xs text-muted-foreground">{s.source}</td>
                     </tr>
                   ))}
                 </tbody>
