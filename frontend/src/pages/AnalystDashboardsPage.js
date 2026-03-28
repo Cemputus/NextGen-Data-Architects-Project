@@ -7,7 +7,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
-import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2, XCircle, RotateCcw } from 'lucide-react';
+import {
+  RefreshCw,
+  Filter as FilterIcon,
+  LayoutGrid,
+  List,
+  Loader2,
+  Trash2,
+  XCircle,
+  RotateCcw,
+  Eye,
+} from 'lucide-react';
 import {
   KPI_OPTIONS,
   CHART_OPTIONS,
@@ -38,7 +48,7 @@ const AnalystDashboardsPage = () => {
   const [swapConfirm, setSwapConfirm] = useState({ open: false, dash: null, targetRole: '' });
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, dash: null });
   const [messageModal, setMessageModal] = useState({ open: false, message: '' });
-  const [removingRole, setRemovingRole] = useState(null);
+  const [visibilityTogglingRole, setVisibilityTogglingRole] = useState(null);
   const [resettingRole, setResettingRole] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [contentDashboard, setContentDashboard] = useState(null);
@@ -454,8 +464,8 @@ const AnalystDashboardsPage = () => {
       .map((e) => e.role);
   };
 
-  const handleRemoveCurrent = async (role) => {
-    setRemovingRole(role);
+  const handleHideCurrent = async (role) => {
+    setVisibilityTogglingRole(role);
     try {
       await axios.post(
         '/api/dashboard-manager/remove-current',
@@ -464,10 +474,27 @@ const AnalystDashboardsPage = () => {
       );
       await loadData();
     } catch (err) {
-      const msg = err?.response?.data?.error || err?.message || 'Failed to remove current dashboard.';
+      const msg = err?.response?.data?.error || err?.message || 'Failed to hide dashboard.';
       setMessageModal({ open: true, message: msg });
     } finally {
-      setRemovingRole(null);
+      setVisibilityTogglingRole(null);
+    }
+  };
+
+  const handleUnhideCurrent = async (role) => {
+    setVisibilityTogglingRole(role);
+    try {
+      await axios.post(
+        '/api/dashboard-manager/unhide-current',
+        { role },
+        { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
+      );
+      await loadData();
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to show dashboard.';
+      setMessageModal({ open: true, message: msg });
+    } finally {
+      setVisibilityTogglingRole(null);
     }
   };
 
@@ -759,7 +786,7 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            Per role: <strong>Preview</strong>, <strong>Edit</strong>, <strong>Reset</strong> (system template), <strong>Hide</strong> (unassign — users see the default layout). Under Custom, <strong>Make current</strong> sets the live dashboard.
+            Per role: <strong>Preview</strong>, <strong>Edit</strong>, <strong>Reset</strong> (template), <strong>Hide</strong> (users see a contact message; assignment stays — use <strong>Show</strong> to restore). Custom: <strong>Make current</strong>.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -779,6 +806,7 @@ const AnalystDashboardsPage = () => {
               {currentByRole.map((entry) => {
                 const rname = entry.role;
                 const dash = entry.dashboard;
+                const hiddenFromUsers = entry.hidden_from_users === true;
                 return (
                   <div
                     key={rname}
@@ -789,9 +817,16 @@ const AnalystDashboardsPage = () => {
                         <span className="text-[10px] uppercase font-semibold text-muted-foreground">
                           {rname}
                         </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Current
-                        </span>
+                        <div className="flex flex-wrap gap-1 justify-end">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Current
+                          </span>
+                          {dash && hiddenFromUsers && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                              Hidden from users
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="font-semibold text-xs">
                         {dash ? dash.name : 'None assigned'}
@@ -858,17 +893,39 @@ const AnalystDashboardsPage = () => {
                                 )}
                                 <span className="ml-0.5">Reset</span>
                               </Button>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                onClick={() => handleRemoveCurrent(rname)}
-                                disabled={!!removingRole}
-                                title="Unassign live dashboard; users see the default layout."
-                              >
-                                {removingRole === rname ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                                <span className="ml-0.5">Hide</span>
-                              </Button>
+                              {!hiddenFromUsers ? (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                  onClick={() => handleHideCurrent(rname)}
+                                  disabled={!!visibilityTogglingRole}
+                                  title="Hide from users — they see a contact message; use Show to restore."
+                                >
+                                  {visibilityTogglingRole === rname ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <XCircle className="h-3 w-3" />
+                                  )}
+                                  <span className="ml-0.5">Hide</span>
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                  onClick={() => handleUnhideCurrent(rname)}
+                                  disabled={!!visibilityTogglingRole}
+                                  title="Show this dashboard to users again."
+                                >
+                                  {visibilityTogglingRole === rname ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Eye className="h-3 w-3" />
+                                  )}
+                                  <span className="ml-0.5">Show</span>
+                                </Button>
+                              )}
                             </>
                           )}
                         </>

@@ -10,6 +10,8 @@ export function useCurrentDashboard() {
   const [definition, setDefinition] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [userMessage, setUserMessage] = useState(null);
+  const [hiddenFromUsers, setHiddenFromUsers] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -18,6 +20,8 @@ export function useCurrentDashboard() {
       if (!token) {
         setDashboard(null);
         setDefinition(null);
+        setUserMessage(null);
+        setHiddenFromUsers(false);
         setError(null);
         return;
       }
@@ -25,6 +29,8 @@ export function useCurrentDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const dash = resp.data?.dashboard;
+      setUserMessage(resp.data?.message || null);
+      setHiddenFromUsers(resp.data?.hidden_from_users === true);
       setDashboard(dash || null);
       if (!dash?.definition) {
         setDefinition(null);
@@ -44,6 +50,8 @@ export function useCurrentDashboard() {
       setError(e);
       setDashboard(null);
       setDefinition(null);
+      setUserMessage(null);
+      setHiddenFromUsers(false);
     } finally {
       setLoading(false);
     }
@@ -71,6 +79,8 @@ export function useCurrentDashboard() {
     definition,
     loading,
     error,
+    userMessage,
+    hiddenFromUsers,
     refresh: load,
     hasCurrentAssignment,
   };

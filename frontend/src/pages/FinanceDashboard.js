@@ -27,8 +27,16 @@ import { getRoleBasedChartsType } from '../utils/roleDashboardChartType';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
-  const { loading: currentDashLoading, dashboard: currentDash } = useCurrentDashboard();
-  const useDynamicLayout = !currentDashLoading && Boolean(currentDash?.id);
+  const {
+    loading: currentDashLoading,
+    dashboard: currentDash,
+    error: currentDashError,
+    userMessage: currentDashMessage,
+  } = useCurrentDashboard();
+  const useDynamicLayout =
+    !currentDashLoading &&
+    !currentDashError &&
+    (Boolean(currentDash?.id) || Boolean(currentDashMessage));
   const [dwStats, setDwStats] = useState(null);
   const role = (user?.role || '').toString().toLowerCase();
   const lockedFacultyId = role === 'dean' ? user?.faculty_id : undefined;

@@ -74,8 +74,16 @@ function formatAttendanceDateLabel(iso) {
 
 const HRDashboard = () => {
   const { user } = useAuth();
-  const { loading: currentDashLoading, dashboard: currentDash } = useCurrentDashboard();
-  const useDynamicLayout = !currentDashLoading && Boolean(currentDash?.id);
+  const {
+    loading: currentDashLoading,
+    dashboard: currentDash,
+    error: currentDashError,
+    userMessage: currentDashMessage,
+  } = useCurrentDashboard();
+  const useDynamicLayout =
+    !currentDashLoading &&
+    !currentDashError &&
+    (Boolean(currentDash?.id) || Boolean(currentDashMessage));
   const [dwStats, setDwStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
