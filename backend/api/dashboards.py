@@ -410,16 +410,17 @@ def get_current_dashboards():
     with engine.connect() as conn:
       _ensure_role_dashboards_if_needed(conn, all_roles, username)
 
-      # Fetch role->dashboard mapping
+      # Fetch role->dashboard mapping (do not filter inactive dashboards out of the join —
+      # otherwise roles disappear from this list and the UI shows a false "None assigned".)
       rows = conn.execute(
         text(
           """
           SELECT r.role_name, r.dashboard_id, r.updated_at, r.updated_by_username,
                  COALESCE(r.hidden_from_users, FALSE) AS hidden_from_users,
-                 d.id AS d_id, d.name, d.description, d.created_by_username, d.created_by_role, d.definition, d.updated_at AS d_updated_at
+                 d.id AS d_id, d.name, d.description, d.created_by_username, d.created_by_role,
+                 d.definition, d.updated_at AS d_updated_at, d.is_active AS d_is_active
           FROM role_current_dashboard r
           LEFT JOIN dashboards d ON d.id = r.dashboard_id
-          WHERE d.is_active IS TRUE OR d.id IS NULL
           """
         )
       ).mappings()
@@ -429,6 +430,7 @@ def get_current_dashboards():
         row = by_role.get(rname)
         if row and row["d_id"]:
           dash_id = row["d_id"]
+          d_active = row.get("d_is_active")
           # Attach roles/users for card metadata
           role_rows = conn.execute(
             text("SELECT role_name FROM dashboard_role_access WHERE dashboard_id = :id"),
@@ -451,6 +453,8 @@ def get_current_dashboards():
                 "updated_at": row["d_updated_at"],
                 "roles": [rr for rr in role_rows],
                 "users": [uu for uu in user_rows],
+                "is_active": d_active is True,
+                "is_inactive": d_active is not True,
               },
               "hidden_from_users": bool(row.get("hidden_from_users")),
               "pointer_updated_at": row["updated_at"],
