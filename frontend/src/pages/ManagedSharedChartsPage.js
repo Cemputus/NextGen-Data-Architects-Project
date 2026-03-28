@@ -377,7 +377,7 @@ export default function ManagedSharedChartsPage() {
                 Saved Charts
               </h2>
               <p className="text-xs text-muted-foreground">
-                Charts saved for dashboards only. They are not shared with any user or role. Use NextGen Query → Save chart to add here; pin into dashboards via Analyst → Dashboards → Edit content.
+                Not shared. Add in NextGen Query → Save chart; pin in Dashboards → Edit.
               </p>
               {filteredSaved.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-6 text-center">

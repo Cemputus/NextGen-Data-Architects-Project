@@ -3,7 +3,7 @@ import axios from 'axios';
 
 /**
  * Loads the authenticated user's current role dashboard from GET /api/dashboards/current.
- * When an analyst assigns a dashboard in Dashboard Manager, end users see it on next load or refresh.
+ * Refetches when the tab gains focus or `ucu-dashboard-current-changed` fires.
  */
 export function useCurrentDashboard() {
   const [dashboard, setDashboard] = useState(null);

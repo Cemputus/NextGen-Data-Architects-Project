@@ -1,12 +1,4 @@
-/**
- * Analyst Dashboard - Live KPIs + Analytics Workspace
- *
- * This page now focuses only on:
- * - Minimal analyst landing area (visuals rebuilt later)
- *
- * All dashboard management (current vs custom, preview, swap, edit content)
- * lives in the dedicated Dashboard Manager page.
- */
+/** Analyst home: KPIs and charts. Assignments: Analyst → Dashboards. */
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { RefreshCw, Loader2, Users, Activity, GraduationCap, Target, Receipt, Award } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';

@@ -660,8 +660,7 @@ const NextGenQueryPage = () => {
               Read-only SQL Workspace
             </CardTitle>
             <CardDescription className="text-xs">
-              Trusted analyst SQL workspace against the data warehouse. Only SELECT/WITH queries are allowed — data changes (INSERT, UPDATE, DELETE, DDL) are blocked here.
-              To pin visualizations into role dashboards: Analyst → Dashboards → Edit content → NextGen Query visualizations.
+              Warehouse SQL: SELECT/WITH only; writes blocked. Pin charts: Dashboards → Edit → NextGen visualizations.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1249,7 +1248,7 @@ const NextGenQueryPage = () => {
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Save this chart for use in dashboards only. It will appear under <strong>Saved Charts</strong> in Manage Charts and can be pinned in Dashboard Manager. It is not shared with any user or role until you use &quot;Assign to role or user&quot;.
+                Dashboard-only; listed under <strong>Saved Charts</strong>. Not shared until you <strong>Assign to role or user</strong>.
               </p>
               <div>
                 <label htmlFor="save-viz-title" className="block text-sm font-medium mb-1.5">Title</label>
@@ -1286,11 +1285,11 @@ const NextGenQueryPage = () => {
 
       <Modal open={manageAssignedOpen} onClose={() => setManageAssignedOpen(false)}>
         <ModalHeader onClose={() => setManageAssignedOpen(false)}>
-          Manage assigned visualizations
+          Assigned visualizations
         </ModalHeader>
         <ModalBody>
           <p className="text-sm text-muted-foreground mb-4">
-            Visualizations you have assigned to a role or user. Recipients see them under &quot;Views shared with you&quot; on their dashboard.
+            Your assignments. Recipients see them under <strong>Views shared with you</strong>.
           </p>
           {manageAssignedLoading ? (
             <div className="flex items-center justify-center py-8">
