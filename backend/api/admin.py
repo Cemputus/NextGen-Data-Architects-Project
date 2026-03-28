@@ -7,7 +7,9 @@ import re
 import threading
 import sys
 import json
-from datetime import datetime
+import time
+from collections import deque
+from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt
@@ -20,11 +22,20 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 
+# Append-only ledger in the ETL log dir (written by etl_pipeline); supplements DB + per-run .log files.
+ETL_RUN_LEDGER_FILENAME = 'etl_runs_ledger.jsonl'
+# When merging DB with on-disk logs, fetch enough DB rows to dedupe against files (caps at 10k).
+ETL_HISTORY_MERGE_DB_CAP = 10000
+
+
 def _get_etl_log_dir():
     """
     Single source of truth for ETL log directory so logs are always stored and retrievable.
     Uses ETL_LOG_DIR env var if set (e.g. persistent volume); otherwise backend_dir/logs.
     Same logic is used in etl_pipeline.py so both write and read from the same place.
+
+    Each run writes etl_pipeline_YYYYMMDD_HHMMSS.log; completed runs also append a line to
+    etl_runs_ledger.jsonl (append-only) for backup. Point ETL_LOG_DIR at durable storage on deploy.
     """
     raw = os.environ.get('ETL_LOG_DIR')
     if raw and raw.strip():
@@ -103,7 +114,7 @@ _ADMIN_SETTINGS_DEFAULTS = {
     'emailOnEtlFailure': True,
     'dailyDigest': False,
     'etl_auto_enabled': False,
-    'etl_auto_interval_minutes': 60,
+    'etl_auto_interval_minutes': 300,
     'sessionTimeout': 24,
     'sessionTimeoutUnit': 'hours',
     'maxLoginAttempts': 5,
@@ -172,10 +183,16 @@ def put_settings():
     if err is not None:
         return err, code
     data = request.get_json(silent=True) or {}
-    settings = data.get('settings')
-    if not isinstance(settings, dict):
+    incoming = data.get('settings')
+    if not isinstance(incoming, dict):
         return jsonify({'error': 'settings must be an object'}), 400
-    _save_settings(settings)
+    prev = _load_settings()
+    merged = {**prev, **incoming}
+    # Anchor next automatic ETL after one full interval (no immediate run when enabling auto).
+    if merged.get('etl_auto_enabled'):
+        if not prev.get('etl_auto_enabled') or merged.get('last_etl_auto_run') is None:
+            merged['last_etl_auto_run'] = time.time()
+    _save_settings(merged)
     try:
         from export_user_snapshot import run_export_user_snapshot_async
         run_export_user_snapshot_async()
@@ -335,8 +352,12 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
         try:
             _ensure_audit_db()
             r = pd.read_sql_query(text("""
-                SELECT COUNT(DISTINCT username) as c FROM audit_logs
-                WHERE action = 'login' AND status = 'success'
+                SELECT COUNT(DISTINCT CONCAT(
+                    COALESCE(ip_address::text, ''),
+                    '|',
+                    COALESCE(user_agent::text, '')
+                )) as c FROM audit_logs
+                WHERE LOWER(TRIM(action)) = 'login' AND LOWER(TRIM(COALESCE(status, ''))) = 'success'
                 AND created_at >= NOW() - INTERVAL '30 minutes'
             """), rbac_engine)
             kpis['active_sessions'] = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
@@ -382,16 +403,109 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
     return kpis
 
 
-def _get_etl_run_history(log_dir, max_runs=20):
-    """Return ETL run history (DB-first, file fallback).
+def _parse_etl_log_file_for_history(log_path: Path):
+    """Parse a single etl_pipeline_*.log; return dict aligned with admin UI + _sort datetime."""
+    start_time = None
+    duration_str = None
+    success = False
+    failed = False
+    try:
+        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+        for line in lines:
+            m = re.search(r'Start time: (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+            if m:
+                start_time = m.group(1)
+            m = re.search(r'ETL Pipeline completed successfully in ([\d:\.]+)', line)
+            if m:
+                duration_str = m.group(1)
+                success = True
+                failed = False
+            if 'ETL Pipeline failed' in line:
+                failed = True
+                success = False
+    except Exception:
+        pass
 
-    Status semantics:
+    if success:
+        status = 'success'
+    elif failed:
+        status = 'failed'
+    else:
+        status = 'in_progress'
+
+    sort_key = None
+    mfn = re.match(r'^etl_pipeline_(\d{8})_(\d{6})\.log$', log_path.name)
+    if mfn:
+        try:
+            sort_key = datetime.strptime(mfn.group(1) + mfn.group(2), '%Y%m%d%H%M%S')
+        except Exception:
+            sort_key = None
+    if sort_key is None and start_time:
+        try:
+            sort_key = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+        except Exception:
+            sort_key = None
+    if sort_key is None:
+        try:
+            sort_key = datetime.fromtimestamp(log_path.stat().st_mtime)
+        except Exception:
+            sort_key = datetime.min
+
+    run_id = f"etl_{mfn.group(1)}_{mfn.group(2)}" if mfn else ''
+    return {
+        'run_id': run_id,
+        'log_file': log_path.name,
+        'start_time': start_time or (sort_key.strftime('%Y-%m-%d %H:%M:%S') if sort_key and sort_key != datetime.min else None),
+        'end_time': None,
+        'duration': duration_str,
+        'success': success,
+        'status': status,
+        'error_message': '',
+        '_sort': sort_key,
+    }
+
+
+def _read_etl_run_ledger_tail(log_dir: Path, max_lines=8000):
+    """Last N lines of etl_runs_ledger.jsonl (append-only backup)."""
+    path = log_dir / ETL_RUN_LEDGER_FILENAME
+    if not path.exists() or not path.is_file():
+        return []
+    dq = deque(maxlen=max_lines)
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    dq.append(line)
+    except Exception:
+        return []
+    rows = []
+    for line in dq:
+        try:
+            rows.append(json.loads(line))
+        except Exception:
+            continue
+    return rows
+
+
+def _get_etl_run_history(log_dir, max_runs=500):
+    """Return ETL run history: warehouse DB rows merged with orphan log files and ledger backup.
+
+    Older local setups often had hundreds of etl_pipeline_*.log files before etl_run_history existed.
+    We union DB + files not referenced in DB + ledger rows whose log file is missing (deleted) so the
+    admin UI can show 300+ runs when requested.
+
+    Status semantics (file parse):
       - "success"     → log contains "ETL Pipeline completed successfully in ..."
       - "failed"      → log contains "ETL Pipeline failed"
       - "in_progress" → log exists but neither success nor failed markers are present yet
-                        (most recent run still in progress or log truncated)
     """
-    # Preferred path: persistent DB-backed ETL history (survives container restarts/deploys).
+    log_dir = Path(log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    merge_cap = min(ETL_HISTORY_MERGE_DB_CAP, max(max_runs * 4, 500))
+
+    db_rows = []
     engine = None
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
@@ -418,9 +532,8 @@ def _get_etl_run_history(log_dir, max_runs=20):
             ORDER BY started_at DESC
             LIMIT :lim
         """)
-        df = pd.read_sql_query(q, engine, params={'lim': int(max_runs)})
+        df = pd.read_sql_query(q, engine, params={'lim': int(merge_cap)})
         if not df.empty:
-            out = []
             for _, r in df.iterrows():
                 started = r.get('started_at')
                 ended = r.get('ended_at')
@@ -431,7 +544,13 @@ def _get_etl_run_history(log_dir, max_runs=20):
                         duration_text = str(timedelta(seconds=float(duration_seconds)))
                 except Exception:
                     duration_text = None
-                out.append({
+                sk = datetime.min
+                if pd.notna(started):
+                    try:
+                        sk = pd.to_datetime(started).to_pydatetime()
+                    except Exception:
+                        sk = datetime.min
+                db_rows.append({
                     'run_id': str(r.get('run_id') or ''),
                     'log_file': str(r.get('log_file') or ''),
                     'start_time': started.strftime('%Y-%m-%d %H:%M:%S') if hasattr(started, 'strftime') else (str(started) if pd.notna(started) else None),
@@ -440,59 +559,88 @@ def _get_etl_run_history(log_dir, max_runs=20):
                     'success': str(r.get('status') or '').strip().lower() == 'success',
                     'status': str(r.get('status') or 'in_progress').strip().lower() or 'in_progress',
                     'error_message': str(r.get('error_message') or ''),
+                    '_sort': sk,
                 })
-            return out
     except Exception:
-        # Fall back to log-file parsing below.
         pass
     finally:
         if engine:
             engine.dispose()
 
-    # Fallback path: parse ETL log files on disk.
-    log_dir = Path(log_dir)
-    if not log_dir.exists():
-        return []
-    log_files = sorted(log_dir.glob('etl_pipeline_*.log'), key=lambda p: p.stat().st_mtime, reverse=True)
-    history = []
-    for log_file in log_files[:max_runs]:
-        start_time = None
-        duration_str = None
-        success = False
-        failed = False
+    db_files = {r['log_file'] for r in db_rows if r.get('log_file')}
+
+    # Log files on disk not present in DB (legacy runs)
+    file_rows = []
+    try:
+        for log_path in sorted(log_dir.glob('etl_pipeline_*.log'), key=lambda p: p.stat().st_mtime, reverse=True):
+            if log_path.name in db_files:
+                continue
+            pr = _parse_etl_log_file_for_history(log_path)
+            file_rows.append(pr)
+    except Exception:
+        pass
+
+    # Ledger: recover rows when DB was reset but ledger survived, or log file was removed
+    ledger_rows = []
+    for rec in _read_etl_run_ledger_tail(log_dir):
+        lf = (rec.get('log_file') or '').strip()
+        if not lf:
+            continue
+        if lf in db_files:
+            continue
+        p = log_dir / lf
+        if p.exists():
+            continue
+        sk = None
+        raw = rec.get('started_at')
+        if raw:
+            try:
+                sk = datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
+            except Exception:
+                try:
+                    sk = datetime.strptime(str(raw)[:19], '%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    sk = None
+        if sk is None:
+            sk = datetime.min
+        st = str(raw)[:19] if raw else None
+        dur_sec = rec.get('duration_seconds')
+        duration_text = None
         try:
-            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-            for line in lines:
-                m = re.search(r'Start time: (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
-                if m:
-                    start_time = m.group(1)
-                m = re.search(r'ETL Pipeline completed successfully in ([\d:\.]+)', line)
-                if m:
-                    duration_str = m.group(1)
-                    success = True
-                    failed = False
-                if 'ETL Pipeline failed' in line:
-                    failed = True
-                    success = False
+            if dur_sec is not None:
+                duration_text = str(timedelta(seconds=float(dur_sec)))
         except Exception:
             pass
-
-        if success:
-            status = 'success'
-        elif failed:
-            status = 'failed'
-        else:
-            status = 'in_progress'
-
-        history.append({
-            'log_file': log_file.name,
-            'start_time': start_time,
-            'duration': duration_str,
-            'success': success,
-            'status': status,
+        st_l = str(rec.get('status') or '').strip().lower()
+        ledger_rows.append({
+            'run_id': str(rec.get('run_id') or ''),
+            'log_file': lf,
+            'start_time': st,
+            'end_time': (str(rec.get('ended_at') or '')[:19]) if rec.get('ended_at') else None,
+            'duration': duration_text,
+            'success': st_l == 'success',
+            'status': st_l or 'unknown',
+            'error_message': str(rec.get('error_message') or ''),
+            '_sort': sk,
         })
-    return history
+
+    # Order: DB first, then file-only, then ledger-only; dedupe by log_file (DB wins)
+    seen = set()
+    combined = []
+    for row in db_rows + file_rows + ledger_rows:
+        lf = row.get('log_file') or ''
+        if not lf or lf in seen:
+            continue
+        seen.add(lf)
+        combined.append(row)
+
+    combined.sort(key=lambda x: x.get('_sort') or datetime.min, reverse=True)
+    out = []
+    for row in combined[: int(max_runs)]:
+        row = dict(row)
+        row.pop('_sort', None)
+        out.append(row)
+    return out
 
 
 def _get_audit_logs(limit=200):
@@ -612,13 +760,13 @@ def server_time():
 @admin_bp.route('/system-status', methods=['GET'])
 @jwt_required()
 def system_status():
-    """Data warehouse counts and ETL run history. Optional query: etl_runs_limit=5|10|20|50 (default 50 for KPI)."""
+    """Data warehouse counts and ETL run history. Optional query: etl_runs_limit (default 500, max 5000)."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
     limit = request.args.get('etl_runs_limit', type=int)
     if limit is None or limit < 1:
-        limit = 50  # Default 50 so "Recent ETL runs" KPI matches "Last 50 runs (log files)"
+        limit = 500  # Default high enough for large local histories (300+ runs); UI can lower
     limit = min(max(limit, 1), 5000)
     engine = None
     try:
@@ -777,8 +925,7 @@ def list_app_users():
 
 def _run_etl_in_background():
     """Run etl_pipeline in subprocess (fallback when Airflow is not available).
-    Does not run export_user_snapshot first, so the snapshot file (etl_seeds/user_snapshot.json)
-    is used as-is for RBAC seed; this preserves 14 app users when the snapshot has them.
+    etl_pipeline exports etl_seeds from the live DB at the start of each run.
     """
     import subprocess
     import sys

@@ -26,7 +26,7 @@ const storageKey = () => `${STORAGE_PREFIX}${getCurrentUserKey()}`;
 
 const DEFAULTS = {
   etl: {
-    runsLimit: 5,
+    runsLimit: 300,
     perPage: 20,
     page: 1,
     dataViewMode: 'raw', // 'raw' | 'visual'

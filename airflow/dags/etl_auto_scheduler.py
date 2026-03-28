@@ -57,7 +57,7 @@ def check_and_run_etl():
     Airflow task entrypoint: enforce "Run ETL automatically" toggle and interval.
 
     - If etl_auto_enabled is False → do nothing.
-    - If first time enabling auto-run → set last_etl_auto_run anchor and exit.
+    - If last_etl_auto_run is missing → set anchor to now and exit (first run after one full interval).
     - If interval not yet elapsed → do nothing.
     - Otherwise → update last_etl_auto_run and run export_user_snapshot + etl_pipeline.
     """
@@ -75,42 +75,11 @@ def check_and_run_etl():
     last_run = settings.get("last_etl_auto_run")
     now_sec = time.time()
 
-    # First time auto is enabled: run ETL immediately, then set anchor for next interval.
+    # Missing anchor: schedule first run after one full interval (no immediate run).
     if last_run is None:
-        # Run the same commands the backend uses so logs and behavior stay consistent.
-        env = os.environ.copy()
-        env.setdefault("PYTHONPATH", str(BACKEND_DIR))
-
-        try:
-            subprocess.run(
-                [sys.executable, "-m", "export_user_snapshot"],
-                cwd=str(BACKEND_DIR),
-                env=env,
-                check=False,
-                timeout=60,
-            )
-        except subprocess.TimeoutExpired:
-            pass
-
-        result = subprocess.run(
-            [sys.executable, "-m", "etl_pipeline"],
-            cwd=str(BACKEND_DIR),
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-
-        if result.returncode != 0:
-            msg = (
-                f"Initial etl_pipeline run failed with code {result.returncode}\n"
-                f"STDOUT:\n{result.stdout}\n"
-                f"STDERR:\n{result.stderr}\n"
-            )
-            raise RuntimeError(msg)
-
         settings["last_etl_auto_run"] = now_sec
         _save_admin_settings(settings)
-        return "Initial auto ETL run completed; countdown started for next interval."
+        return "Auto ETL anchor set; first run after full interval."
 
     try:
         if isinstance(last_run, (int, float)):
@@ -128,25 +97,11 @@ def check_and_run_etl():
     settings["last_etl_auto_run"] = now_sec
     _save_admin_settings(settings)
 
-    # Run the same commands the backend uses so logs and behavior stay consistent.
+    # export_user_snapshot runs inside etl_pipeline; same PYTHONPATH as below.
     env = os.environ.copy()
-    # Make sure Python can import backend modules when running as a subprocess.
     env.setdefault("PYTHONPATH", str(BACKEND_DIR))
 
-    # 1) Export the current user snapshot (best-effort; non-fatal on failure/timeout).
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "export_user_snapshot"],
-            cwd=str(BACKEND_DIR),
-            env=env,
-            check=False,
-            timeout=60,
-        )
-    except subprocess.TimeoutExpired:
-        # Non-fatal: proceed to ETL anyway.
-        pass
-
-    # 2) Run the main ETL pipeline. If this fails, we want the Airflow task to fail.
+    # Run the main ETL pipeline. If this fails, we want the Airflow task to fail.
     result = subprocess.run(
         [sys.executable, "-m", "etl_pipeline"],
         cwd=str(BACKEND_DIR),

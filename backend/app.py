@@ -1701,15 +1701,7 @@ def _run_etl_subprocess():
     etl_failed = False
     log_tail = None
     try:
-        try:
-            subprocess.run(
-                [sys.executable, '-m', 'export_user_snapshot'],
-                cwd=str(backend_dir),
-                capture_output=False,
-                timeout=60,
-            )
-        except subprocess.TimeoutExpired:
-            pass
+        # export_user_snapshot runs inside etl_pipeline.run() (and bronze/silver phases) so seeds stay in sync.
         result = subprocess.run(
             [sys.executable, '-m', 'etl_pipeline'],
             cwd=str(backend_dir),
@@ -1758,10 +1750,8 @@ def _etl_scheduler_loop():
             interval_sec = max(min_interval_sec, int(interval_min * 60))
             last_run = settings.get('last_etl_auto_run')
             now_sec = time.time()
-            # First time auto is enabled: run ETL immediately, then set anchor for next interval
+            # First time / missing anchor: schedule first run after one full interval (no immediate run).
             if last_run is None:
-                # Run export_user_snapshot + etl_pipeline (same behavior as _run_etl_subprocess)
-                _run_etl_subprocess()
                 settings['last_etl_auto_run'] = now_sec
                 try:
                     _ADMIN_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)

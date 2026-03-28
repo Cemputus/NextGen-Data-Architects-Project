@@ -28,7 +28,7 @@ const ETL_AUTO_INTERVAL_OPTIONS = [
   { value: 300, label: '5 hours' },
   { value: 600, label: '10 hours' },
   { value: 900, label: '15 hours' },
-  { value: 1440, label: '1 day' },
+  { value: 1440, label: '24 hours' },
   { value: 10080, label: '7 days' },
   { value: 43200, label: '30 days' },
 ];
@@ -41,7 +41,7 @@ const AdminETL = () => {
   const [error, setError] = useState(null);
   const [etlMessage, setEtlMessage] = useState(null);
   const etlState = adminUIState.getSection('etl');
-  const [etlRunsLimit, setEtlRunsLimitState] = useState(() => etlState.runsLimit ?? 5);
+  const [etlRunsLimit, setEtlRunsLimitState] = useState(() => etlState.runsLimit ?? 300);
   const [etlPerPage, setEtlPerPageState] = useState(() => etlState.perPage ?? 20);
   const [etlPage, setEtlPageState] = useState(() => etlState.page ?? 1);
   const [dataViewMode, setDataViewModeState] = useState(() => etlState.dataViewMode ?? 'raw');
@@ -99,6 +99,10 @@ const AdminETL = () => {
     { value: 40, label: '40 runs' },
     { value: 50, label: '50 runs' },
     { value: 100, label: '100 runs' },
+    { value: 200, label: '200 runs' },
+    { value: 250, label: '250 runs' },
+    { value: 300, label: '300 runs' },
+    { value: 500, label: '500 runs' },
     { value: 9999, label: 'All' },
   ];
   const ETL_PER_PAGE_OPTIONS = [5, 10, 15, 20, 30, 50, 100];
@@ -114,8 +118,9 @@ const AdminETL = () => {
       setCountdownSec(null);
       return;
     }
-    const intervalMinutes = Number(adminSettings.etl_auto_interval_minutes) || 60;
-    const intervalSec = Math.max(60, Math.round(intervalMinutes * 60)); // min 1 min for test
+    const intervalMinutes = Number(adminSettings.etl_auto_interval_minutes) || 300;
+    const minAutoSec = 5 * 60 * 60; // align with server: automatic ETL minimum interval is 5 hours
+    const intervalSec = Math.max(minAutoSec, Math.round(intervalMinutes * 60));
     const lastRun = adminSettings.last_etl_auto_run; // Unix seconds
     const nowSec = Date.now() / 1000;
     const nextRunSec = lastRun != null ? lastRun + intervalSec : nowSec + intervalSec;
@@ -399,7 +404,7 @@ const AdminETL = () => {
               </Label>
               <Select
                 id="etl-auto-interval"
-                value={adminSettings.etl_auto_interval_minutes ?? 60}
+                value={adminSettings.etl_auto_interval_minutes ?? 300}
                 onChange={(e) => saveSettings({ etl_auto_interval_minutes: Number(e.target.value) })}
                 disabled={settingsSaving}
                 className="w-[160px]"

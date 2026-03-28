@@ -99,6 +99,18 @@ class ETLPipeline:
         self.user_snapshot_path = Path(__file__).parent / "etl_seeds" / "user_snapshot.json"
         self.current_run_id = None
 
+    def export_seeds_from_live_db(self):
+        """Write etl_seeds/user_snapshot.json and admin_settings.json from live DB before seeding."""
+        try:
+            from export_user_snapshot import export_user_snapshot
+
+            self.logger.info(
+                "Exporting etl_seeds from live RBAC (app users, profiles, state, audit, admin settings, ETL log copies)..."
+            )
+            export_user_snapshot()
+        except Exception as e:
+            self.logger.warning("export_user_snapshot failed (non-fatal): %s", e)
+
     def _ensure_etl_run_history_table(self, conn):
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS etl_run_history (
@@ -140,11 +152,32 @@ class ETLPipeline:
                 )
                 conn.commit()
             self.current_run_id = run_id
+            self._etl_start_time_for_ledger = start_time
         except Exception as e:
             self.logger.warning("Could not persist ETL run start record: %s", e)
         finally:
             if engine:
                 engine.dispose()
+
+    def _append_etl_run_ledger(self, start_time, end_time, duration, status, error_message=None):
+        """Append-only JSONL next to per-run logs so history survives DB issues; admin API merges this in."""
+        try:
+            path = self.log_dir / "etl_runs_ledger.jsonl"
+            rec = {
+                "run_id": self.current_run_id,
+                "log_file": Path(self.log_file).name,
+                "started_at": start_time.isoformat() if hasattr(start_time, "isoformat") else str(start_time),
+                "ended_at": end_time.isoformat() if hasattr(end_time, "isoformat") else str(end_time),
+                "status": status,
+                "duration_seconds": float(duration.total_seconds()) if duration is not None else None,
+                "source_mode": "synthetic" if USE_SYNTHETIC_DATA else "database",
+                "error_message": (str(error_message)[:2000] if error_message else None),
+            }
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            self.logger.info("Appended ETL run to ledger: %s", path.name)
+        except Exception as e:
+            self.logger.warning("Could not append ETL run ledger: %s", e)
 
     def _record_etl_run_end(self, end_time, duration, status, error_message=None):
         """Persist ETL run completion/failure for durable ETL history."""
@@ -178,14 +211,17 @@ class ETLPipeline:
         finally:
             if engine:
                 engine.dispose()
+        st_ledger = getattr(self, "_etl_start_time_for_ledger", None) or end_time
+        self._append_etl_run_ledger(st_ledger, end_time, duration, status, error_message)
 
     def seed_user_system_from_snapshot(self):
         """
         Seed ucu_rbac user-related tables (app_users, user_profiles, user_state)
         from a version-controlled JSON snapshot.
 
-        This makes app users, profiles, and workspace state reproducible on new
-        machines when ETL is run against a clean environment.
+        By default (ETL_USER_SNAPSHOT_MODE=bootstrap), existing production rows are
+        left intact so audit logs, app users, and admin settings are not wiped on
+        every ETL. Set ETL_USER_SNAPSHOT_MODE=replace for full delete+reload (dev/CI).
         """
         if not self.user_snapshot_path.exists():
             self.logger.info(f"No user snapshot found at {self.user_snapshot_path}; skipping RBAC/app_users seeding.")
@@ -205,6 +241,34 @@ class ETLPipeline:
             _ensure_app_users_table(engine)
             _ensure_user_profiles_table(engine)
             _ensure_user_state_table(engine)
+
+            snapshot_mode = os.environ.get("ETL_USER_SNAPSHOT_MODE", "bootstrap").strip().lower()
+            force_replace = snapshot_mode == "replace"
+
+            n_app_users = 0
+            n_audit = 0
+            with engine.connect() as conn:
+                try:
+                    n_app_users = conn.execute(text("SELECT COUNT(*) FROM app_users")).scalar() or 0
+                except Exception:
+                    pass
+                try:
+                    n_audit = conn.execute(text("SELECT COUNT(*) FROM audit_logs")).scalar() or 0
+                except Exception:
+                    pass
+
+            seed_users = force_replace or n_app_users == 0
+            seed_audit = force_replace or n_audit == 0
+            if not seed_users:
+                self.logger.info(
+                    "[RBAC seed] Skipping app_users/user_profiles/user_state snapshot "
+                    "(bootstrap: existing rows). Set ETL_USER_SNAPSHOT_MODE=replace to force."
+                )
+            audit_rows = snapshot.get("audit_logs") or []
+            if not seed_audit and audit_rows:
+                self.logger.info(
+                    "[RBAC seed] Skipping audit_logs snapshot (bootstrap: existing rows)."
+                )
 
             with engine.connect() as conn:
                 conn = conn.execution_options(autocommit=False)
@@ -232,21 +296,21 @@ class ETLPipeline:
 
                 # Seed app_users: clear FK-dependent table first so DELETE FROM app_users succeeds
                 app_users_rows = snapshot.get("app_users", [])
-                if app_users_rows:
-                    try:
-                        conn.execute(text("DELETE FROM staff_course_assignments"))
-                        conn.commit()
-                    except Exception as ex:
-                        # Table may not exist yet or FK might be missing; ensure transaction is clean
-                        self.logger.warning(f"[RBAC seed] Could not clear staff_course_assignments: {ex}")
-                        conn.rollback()
-                upsert_table("app_users", app_users_rows)
-                upsert_table("user_profiles", snapshot.get("user_profiles", []))
-                upsert_table("user_state", snapshot.get("user_state", []))
+                if seed_users:
+                    if app_users_rows:
+                        try:
+                            conn.execute(text("DELETE FROM staff_course_assignments"))
+                            conn.commit()
+                        except Exception as ex:
+                            # Table may not exist yet or FK might be missing; ensure transaction is clean
+                            self.logger.warning(f"[RBAC seed] Could not clear staff_course_assignments: {ex}")
+                            conn.rollback()
+                    upsert_table("app_users", app_users_rows)
+                    upsert_table("user_profiles", snapshot.get("user_profiles", []))
+                    upsert_table("user_state", snapshot.get("user_state", []))
 
-                # Seed audit_logs so branches get the same activity trail
-                audit_rows = snapshot.get("audit_logs") or []
-                if audit_rows:
+                # Seed audit_logs for fresh environments only (bootstrap) or when replace forced
+                if seed_audit and audit_rows:
                     try:
                         conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS audit_logs (
@@ -285,46 +349,53 @@ class ETLPipeline:
 
                 conn.commit()
             engine.dispose()
-            self.logger.info("[RBAC seed] User system seeded successfully from snapshot.")
+            self.logger.info("[RBAC seed] User system snapshot step completed.")
 
             # Restore profile photos from snapshot if available
             photos_src = self.user_snapshot_path.parent / "profile_photos"
             photos_dst = Path(__file__).parent / "data" / "profile_photos"
-            try:
-                if photos_src.exists():
-                    photos_dst.mkdir(parents=True, exist_ok=True)
-                    # Copy tree but do not delete potential runtime-only files
-                    for src_file in photos_src.rglob("*"):
-                        if src_file.is_file():
-                            rel = src_file.relative_to(photos_src)
-                            dest_file = photos_dst / rel
-                            dest_file.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(src_file, dest_file)
-                    self.logger.info(f"[RBAC seed] Restored profile photos from {photos_src} to {photos_dst}")
-            except Exception as e:
-                self.logger.warning(f"[RBAC seed] Failed to restore profile photos from snapshot: {e}")
+            if seed_users:
+                try:
+                    if photos_src.exists():
+                        photos_dst.mkdir(parents=True, exist_ok=True)
+                        # Copy tree but do not delete potential runtime-only files
+                        for src_file in photos_src.rglob("*"):
+                            if src_file.is_file():
+                                rel = src_file.relative_to(photos_src)
+                                dest_file = photos_dst / rel
+                                dest_file.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copy2(src_file, dest_file)
+                        self.logger.info(f"[RBAC seed] Restored profile photos from {photos_src} to {photos_dst}")
+                except Exception as e:
+                    self.logger.warning(f"[RBAC seed] Failed to restore profile photos from snapshot: {e}")
 
-            # Restore admin settings (notifications, ETL auto, etc.) so branches get same config
+            # Restore admin settings from repo seeds only when no live file yet (avoid wiping production)
             seeds_dir = self.user_snapshot_path.parent
             settings_src = seeds_dir / "admin_settings.json"
             settings_dst = Path(__file__).parent / "data" / "admin_settings.json"
-            if settings_src.exists():
+            if settings_src.exists() and (force_replace or not settings_dst.exists()):
                 try:
                     settings_dst.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(settings_src, settings_dst)
                     self.logger.info(f"[RBAC seed] Restored admin_settings.json to {settings_dst}")
                 except Exception as e:
                     self.logger.warning(f"[RBAC seed] Failed to restore admin_settings: {e}")
+            elif settings_src.exists():
+                self.logger.info("[RBAC seed] Skipping admin_settings.json copy (bootstrap: existing file).")
 
-            # Restore ETL run history (log files) so admin UI shows same ETL jobs
+            # Restore ETL log files from seeds only when none exist locally (DB-backed history is primary)
             etl_runs_src = seeds_dir / "etl_runs"
-            if etl_runs_src.exists():
+            has_etl_logs = self.log_dir.exists() and any(self.log_dir.glob("etl_pipeline_*.log"))
+            if etl_runs_src.exists() and (force_replace or not has_etl_logs):
                 try:
+                    self.log_dir.mkdir(parents=True, exist_ok=True)
                     for log_file in etl_runs_src.glob("etl_pipeline_*.log"):
                         shutil.copy2(log_file, self.log_dir / log_file.name)
                     self.logger.info(f"[RBAC seed] Restored ETL run logs from {etl_runs_src} to {self.log_dir}")
                 except Exception as e:
                     self.logger.warning(f"[RBAC seed] Failed to restore ETL runs: {e}")
+            elif etl_runs_src.exists():
+                self.logger.info("[RBAC seed] Skipping ETL log file restore from seeds (bootstrap: existing logs).")
         except Exception as e:
             self.logger.error(f"Failed to seed user system from snapshot: {e}", exc_info=True)
         
@@ -2853,6 +2924,9 @@ class ETLPipeline:
         print(f"Log file: {self.log_file}")
         
         try:
+            # Refresh etl_seeds/ from live DB so user_snapshot.json and admin_settings.json
+            # include all current users and settings before seed/bootstrap.
+            self.export_seeds_from_live_db()
             # First: seed RBAC / app-users system from snapshot so user-related
             # data (app users, profiles, workspace state) is reproducible.
             self.seed_user_system_from_snapshot()
@@ -2897,11 +2971,13 @@ if __name__ == "__main__":
 
     if phase == "bronze":
         # Bronze container: seed RBAC + extract and persist raw data only.
+        pipeline.export_seeds_from_live_db()
         pipeline.seed_user_system_from_snapshot()
         pipeline.extract()
     elif phase == "silver":
         # Silver container: seed RBAC, extract from sources into Bronze,
         # then transform into cleaned Silver datasets (no load to warehouse).
+        pipeline.export_seeds_from_live_db()
         pipeline.seed_user_system_from_snapshot()
         bronze_data = pipeline.extract()
         pipeline.transform(bronze_data)

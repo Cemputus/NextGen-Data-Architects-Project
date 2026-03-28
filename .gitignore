@@ -67,7 +67,7 @@ models/
 !backend/models/enhanced_predictor.pkl
 !backend/models/multi_model_predictor.pkl
 
-# Logs (default: ignore); ETL pipeline logs under backend/logs/ are tracked in-repo
+# Logs: ignore *.log everywhere except tracked ETL paths below (backend/logs is pushed to GitHub).
 *.log
 logs/
 !backend/logs/
