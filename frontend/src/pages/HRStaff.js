@@ -21,6 +21,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  LabelList,
 } from 'recharts';
 
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
@@ -43,6 +44,23 @@ const CHART_COLORS = {
   at_retirement: '#64748b',
   app_no_profile: '#94a3b8',
   employee_no_profile: '#cbd5e1',
+};
+
+/** Fixed order: same labels for pie, bar, and filter semantics */
+const CATEGORY_ORDER = [
+  'not_soon',
+  'retiring_soon',
+  'at_retirement',
+  'app_no_profile',
+  'employee_no_profile',
+];
+
+const CATEGORY_LABELS = {
+  not_soon: 'Not retiring soon',
+  retiring_soon: 'Retiring soon (55–59)',
+  at_retirement: 'At retirement / retired',
+  app_no_profile: 'App users (no ETL age)',
+  employee_no_profile: 'Employees (missing DOB)',
 };
 
 /** Normalize API retirement_proximity (case, legacy backend values). */
@@ -106,85 +124,71 @@ const HRStaff = () => {
   }, [loadData]);
 
   const combinedRows = useMemo(() => {
-    const fromEmp = (employeesList || []).map((e) => ({
-      key: `emp-${e.employee_id}`,
-      kind: 'employee',
-      id: e.employee_id,
-      name: e.full_name,
-      username: null,
-      role: e.position_title || e.role_group || '—',
-      faculty: e.faculty_name,
-      department: e.department_name,
-      source: 'Employee',
-      age: e.age,
-      retirementLabel: e.retirement_label,
-      retirementProximity: e.retirement_proximity,
-      retirementAlert: !!e.retirement_alert,
-    }));
-    const fromApp = (staffList || []).map((s) => ({
-      key: `app-${s.id ?? s.username}`,
-      kind: 'app_user',
-      id: s.id,
-      name: s.full_name || s.username,
-      username: s.username,
-      role: s.role || '—',
-      faculty: s.faculty_name,
-      department: s.department_name,
-      source: s.source === 'demo' ? 'Demo' : 'App user',
-      age: null,
-      retirementLabel: '—',
-      retirementProximity: null,
-      retirementAlert: false,
-    }));
+    const fromEmp = (employeesList || []).map((e) => {
+      const row = {
+        key: `emp-${e.employee_id}`,
+        kind: 'employee',
+        id: e.employee_id,
+        name: e.full_name,
+        username: null,
+        role: e.position_title || e.role_group || '—',
+        faculty: e.faculty_name,
+        department: e.department_name,
+        source: 'Employee',
+        age: e.age,
+        retirementLabel: e.retirement_label,
+        retirementProximity: e.retirement_proximity,
+        retirementAlert: !!e.retirement_alert,
+      };
+      return { ...row, bucket: bucketForRow(row) };
+    });
+    const fromApp = (staffList || []).map((s) => {
+      const row = {
+        key: `app-${s.id ?? s.username}`,
+        kind: 'app_user',
+        id: s.id,
+        name: s.full_name || s.username,
+        username: s.username,
+        role: s.role || '—',
+        faculty: s.faculty_name,
+        department: s.department_name,
+        source: s.source === 'demo' ? 'Demo' : 'App user',
+        age: null,
+        retirementLabel: '—',
+        retirementProximity: null,
+        retirementAlert: false,
+      };
+      return { ...row, bucket: bucketForRow(row) };
+    });
     return [...fromEmp, ...fromApp];
   }, [employeesList, staffList]);
 
-  const chartData = useMemo(() => {
-    let notSoon = 0;
-    let retiringSoon = 0;
-    let atRet = 0;
-    let appNo = 0;
-    let empNo = 0;
+  /** One aggregate for both charts — keys aligned with CATEGORY_ORDER */
+  const categorySeries = useMemo(() => {
+    const counts = Object.fromEntries(CATEGORY_ORDER.map((k) => [k, 0]));
     combinedRows.forEach((r) => {
-      const b = bucketForRow(r);
-      if (b === 'not_soon') notSoon += 1;
-      else if (b === 'retiring_soon') retiringSoon += 1;
-      else if (b === 'at_retirement') atRet += 1;
-      else if (b === 'app_no_profile') appNo += 1;
-      else if (b === 'employee_no_profile') empNo += 1;
+      const k = r.bucket;
+      if (counts[k] !== undefined) counts[k] += 1;
     });
-    return [
-      { name: 'Not retiring soon', value: notSoon, fill: CHART_COLORS.not_soon },
-      { name: 'Retiring soon (55–59)', value: retiringSoon, fill: CHART_COLORS.retiring_soon },
-      { name: 'At retirement / retired', value: atRet, fill: CHART_COLORS.at_retirement },
-      { name: 'App users (no ETL age)', value: appNo, fill: CHART_COLORS.app_no_profile },
-      { name: 'Employees (no DOB)', value: empNo, fill: CHART_COLORS.employee_no_profile },
-    ].filter((d) => d.value > 0);
+    return CATEGORY_ORDER.map((key) => ({
+      key,
+      name: CATEGORY_LABELS[key],
+      value: counts[key],
+      fill: CHART_COLORS[key],
+    }));
   }, [combinedRows]);
 
-  const barChartData = useMemo(() => {
-    const full = [
-      { name: 'Not retiring soon', value: 0, fill: CHART_COLORS.not_soon },
-      { name: 'Retiring soon', value: 0, fill: CHART_COLORS.retiring_soon },
-      { name: 'At retirement', value: 0, fill: CHART_COLORS.at_retirement },
-      { name: 'App users', value: 0, fill: CHART_COLORS.app_no_profile },
-      { name: 'Emp. no DOB', value: 0, fill: CHART_COLORS.employee_no_profile },
-    ];
-    combinedRows.forEach((r) => {
-      const b = bucketForRow(r);
-      if (b === 'not_soon') full[0].value += 1;
-      else if (b === 'retiring_soon') full[1].value += 1;
-      else if (b === 'at_retirement') full[2].value += 1;
-      else if (b === 'app_no_profile') full[3].value += 1;
-      else if (b === 'employee_no_profile') full[4].value += 1;
-    });
-    return full;
-  }, [combinedRows]);
+  const pieChartData = useMemo(
+    () => categorySeries.filter((d) => d.value > 0),
+    [categorySeries]
+  );
+
+  const totalPeople = combinedRows.length;
 
   const filteredRows = useMemo(() => {
     const term = (searchTerm || '').toLowerCase().trim();
     return combinedRows.filter((r) => {
-      const b = bucketForRow(r);
+      const b = r.bucket;
       if (retirementFilter !== BUCKET.ALL) {
         if (retirementFilter === BUCKET.RETIRING_SOON && b !== 'retiring_soon') return false;
         if (retirementFilter === BUCKET.NOT_SOON && b !== 'not_soon') return false;
@@ -193,6 +197,7 @@ const HRStaff = () => {
         if (retirementFilter === BUCKET.EMPLOYEE_NO_PROFILE && b !== 'employee_no_profile') return false;
       }
       if (!term) return true;
+      const src = (r.source || '').toLowerCase();
       return (
         (r.name || '').toLowerCase().includes(term) ||
         String(r.username ?? '')
@@ -201,10 +206,20 @@ const HRStaff = () => {
         (r.role || '').toLowerCase().includes(term) ||
         (r.faculty || '').toLowerCase().includes(term) ||
         (r.department || '').toLowerCase().includes(term) ||
-        (r.retirementLabel || '').toLowerCase().includes(term)
+        (r.retirementLabel || '').toLowerCase().includes(term) ||
+        src.includes(term) ||
+        String(r.id ?? '')
+          .toLowerCase()
+          .includes(term)
       );
     });
   }, [combinedRows, searchTerm, retirementFilter]);
+
+  const filterSummary = useMemo(() => {
+    const label =
+      retirementFilter === BUCKET.ALL ? 'All categories' : CATEGORY_LABELS[retirementFilter] || retirementFilter;
+    return { label, showing: filteredRows.length, total: combinedRows.length };
+  }, [retirementFilter, filteredRows.length, combinedRows.length]);
 
   return (
     <div className="space-y-4">
@@ -241,26 +256,26 @@ const HRStaff = () => {
               <div className="flex h-[280px] items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : chartData.length === 0 ? (
+            ) : pieChartData.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">No data to chart yet.</p>
             ) : (
               <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={chartData}
+                      data={pieChartData}
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
                       cy="50%"
                       outerRadius={88}
-                      label={({ name, value }) => `${value}`}
+                      label={({ value }) => (value != null ? String(value) : '')}
                     >
-                      {chartData.map((entry, i) => (
-                        <Cell key={i} fill={entry.fill} />
+                      {pieChartData.map((entry) => (
+                        <Cell key={entry.key} fill={entry.fill} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v) => [v, 'Count']} />
+                    <Tooltip formatter={(v) => [v, 'People']} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -272,25 +287,54 @@ const HRStaff = () => {
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold">Counts by category</CardTitle>
-            <CardDescription className="text-xs">Bar view of the same groups</CardDescription>
+            <CardDescription className="text-xs">
+              Same five groups as the pie — horizontal bars read long labels clearly ({totalPeople} people total)
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             {loading ? (
-              <div className="flex h-[280px] items-center justify-center">
+              <div className="flex h-[300px] items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
+            ) : totalPeople === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">No people loaded yet. Refresh or run ETL.</p>
             ) : (
-              <div className="h-[280px] w-full">
+              <div className="h-[300px] w-full min-h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={barChartData} margin={{ top: 8, right: 8, left: 0, bottom: 48 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={56} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v) => [v, 'People']} />
-                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                      {barChartData.map((e, i) => (
-                        <Cell key={i} fill={e.fill} />
+                  <BarChart
+                    layout="vertical"
+                    data={categorySeries}
+                    margin={{ top: 4, right: 36, left: 4, bottom: 4 }}
+                    barCategoryGap="12%"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/80" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      allowDecimals={false}
+                      domain={[0, 'dataMax + 1']}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={148}
+                      tick={{ fontSize: 11 }}
+                      interval={0}
+                    />
+                    <Tooltip
+                      formatter={(v) => [v, 'People']}
+                      labelFormatter={(_, payload) => payload?.[0]?.payload?.name ?? ''}
+                    />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={28}>
+                      {categorySeries.map((entry) => (
+                        <Cell key={entry.key} fill={entry.fill} />
                       ))}
+                      <LabelList
+                        dataKey="value"
+                        position="right"
+                        formatter={(v) => (v > 0 ? String(v) : '')}
+                        className="text-xs fill-foreground font-medium"
+                      />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -338,6 +382,30 @@ const HRStaff = () => {
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3 text-xs text-muted-foreground">
+            <span>
+              Filter: <span className="font-medium text-foreground">{filterSummary.label}</span>
+              {' · '}
+              Showing <span className="font-medium text-foreground">{filterSummary.showing}</span> of{' '}
+              <span className="font-medium text-foreground">{filterSummary.total}</span> rows
+              {searchTerm.trim() ? ` matching “${searchTerm.trim()}”` : ''}
+            </span>
+            {(searchTerm.trim() || retirementFilter !== BUCKET.ALL) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => {
+                  setSearchTerm('');
+                  setRetirementFilter(BUCKET.ALL);
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
           </div>
 
           {loading ? (
