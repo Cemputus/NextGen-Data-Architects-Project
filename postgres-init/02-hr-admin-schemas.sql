@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS ucu_sourcedb2.employees (
     "PositionID" INT NOT NULL REFERENCES ucu_sourcedb2.positions ("PositionID") ON DELETE CASCADE,
     "DepartmentID" INT NOT NULL,
     "ContractType" VARCHAR(50),
-    "Status" VARCHAR(50)
+    "Status" VARCHAR(50),
+    "DateOfBirth" DATE
 );
 CREATE INDEX IF NOT EXISTS idx_hr_emp_dept ON ucu_sourcedb2.employees ("DepartmentID");
 CREATE INDEX IF NOT EXISTS idx_hr_emp_position ON ucu_sourcedb2.employees ("PositionID");
@@ -44,3 +45,5 @@ CREATE TABLE IF NOT EXISTS ucu_sourcedb2.employee_attendance (
 );
 CREATE INDEX IF NOT EXISTS idx_hr_att_date ON ucu_sourcedb2.employee_attendance ("Date");
 CREATE INDEX IF NOT EXISTS idx_hr_att_emp ON ucu_sourcedb2.employee_attendance ("EmployeeID");
+
+ALTER TABLE ucu_sourcedb2.employees ADD COLUMN IF NOT EXISTS "DateOfBirth" DATE;

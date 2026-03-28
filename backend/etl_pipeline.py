@@ -1108,6 +1108,8 @@ class ETLPipeline:
 
     def _build_employees_for_synthetic(self, faculties_db1, departments_db1):
         """Build employees so each department has 7-13 employees and each faculty has 6-8 (faculty-level)."""
+        from datetime import date as date_cls
+
         first_names = ["James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda", "William", "Elizabeth", "David", "Barbara", "Joseph", "Susan", "Charles", "Jessica"]
         last_names = ["Okello", "Namakula", "Kato", "Achieng", "Mukasa", "Wekesa", "Akol", "Atwine", "Kasule", "Mugisha"]
         positions = [1, 2, 3]  # position_id
@@ -1115,6 +1117,15 @@ class ETLPipeline:
         rows = []
         eid = 1
         np.random.seed(42)
+        today = date_cls.today()
+
+        def _synthetic_dob(emp_id: int) -> date_cls:
+            # Deterministic ages 25–60 so some staff are within 5 years of retirement (age ≥ 55).
+            age_years = 25 + (emp_id * 7919) % 36
+            m = (emp_id % 12) + 1
+            d = (emp_id % 27) + 1
+            y = today.year - age_years
+            return date_cls(y, m, d)
         # Per-department: 7-13 employees
         if not departments_db1.empty:
             fid_col = 'FacultyID' if 'FacultyID' in departments_db1.columns else 'faculty_id'
@@ -1129,6 +1140,7 @@ class ETLPipeline:
                         'DepartmentID': int(dept[did_col]),
                         'ContractType': np.random.choice(contract_types),
                         'Status': 'Active',
+                        'DateOfBirth': _synthetic_dob(eid),
                     })
                     eid += 1
         # Per-faculty: 6-8 (assign to first department of that faculty)
@@ -1150,9 +1162,10 @@ class ETLPipeline:
                         'DepartmentID': first_dept_id,
                         'ContractType': np.random.choice(contract_types),
                         'Status': 'Active',
+                        'DateOfBirth': _synthetic_dob(eid),
                     })
                     eid += 1
-        df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=['EmployeeID', 'FullName', 'PositionID', 'DepartmentID', 'ContractType', 'Status'])
+        df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=['EmployeeID', 'FullName', 'PositionID', 'DepartmentID', 'ContractType', 'Status', 'DateOfBirth'])
         self.logger.info("  -> Employees (synthetic): %d", len(df))
         return df
 
@@ -2060,6 +2073,10 @@ class ETLPipeline:
                 employees_dim['contract_type'] = employees_dim['ContractType']
             if 'Status' in employees_dim.columns:
                 employees_dim['status'] = employees_dim['Status']
+            if 'DateOfBirth' in employees_dim.columns:
+                employees_dim['date_of_birth'] = pd.to_datetime(employees_dim['DateOfBirth'], errors='coerce')
+            elif 'date_of_birth' in employees_dim.columns:
+                employees_dim['date_of_birth'] = pd.to_datetime(employees_dim['date_of_birth'], errors='coerce')
             # HR analytics: title from source or synthetic position_id map
             if 'PositionTitle' in employees_dim.columns:
                 employees_dim['position_title'] = employees_dim['PositionTitle'].astype(str)
@@ -2070,7 +2087,7 @@ class ETLPipeline:
                 employees_dim['position_title'] = 'Staff'
             emp_cols = [
                 'employee_id', 'full_name', 'position_id', 'department_id',
-                'contract_type', 'status', 'position_title',
+                'contract_type', 'status', 'position_title', 'date_of_birth',
             ]
             available_emp_cols = [c for c in emp_cols if c in employees_dim.columns]
             if available_emp_cols:
@@ -2084,11 +2101,15 @@ class ETLPipeline:
                             department_id INT,
                             contract_type VARCHAR(50),
                             status VARCHAR(50),
-                            position_title VARCHAR(200)
+                            position_title VARCHAR(200),
+                            date_of_birth DATE
                         )
                     """))
                     conn.execute(text(
                         "ALTER TABLE dim_employee ADD COLUMN IF NOT EXISTS position_title VARCHAR(200)"
+                    ))
+                    conn.execute(text(
+                        "ALTER TABLE dim_employee ADD COLUMN IF NOT EXISTS date_of_birth DATE"
                     ))
                     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_de_department ON dim_employee(department_id)"))
                     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_de_status ON dim_employee(status)"))

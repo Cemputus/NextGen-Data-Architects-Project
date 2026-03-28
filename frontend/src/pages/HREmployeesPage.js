@@ -34,6 +34,12 @@ export default function HREmployeesPage() {
       faculty: e.faculty_name,
       department: e.department_name,
       source: 'Employee',
+      dateOfBirth: e.date_of_birth,
+      age: e.age,
+      yearsToRetirement: e.years_to_retirement,
+      retirementLabel: e.retirement_label,
+      retirementAlert: !!e.retirement_alert,
+      retirementProximity: e.retirement_proximity,
     }));
     const fromApp = (appUsers || []).map((u) => ({
       id: u.id || u.username,
@@ -42,6 +48,12 @@ export default function HREmployeesPage() {
       faculty: u.faculty_name,
       department: u.department_name,
       source: 'App user',
+      dateOfBirth: null,
+      age: null,
+      yearsToRetirement: null,
+      retirementLabel: null,
+      retirementAlert: false,
+      retirementProximity: null,
     }));
     return [...fromEmp, ...fromApp];
   }, [employees, appUsers]);
@@ -54,7 +66,9 @@ export default function HREmployeesPage() {
         (p.name || '').toLowerCase().includes(term) ||
         (p.role || '').toLowerCase().includes(term) ||
         (p.faculty || '').toLowerCase().includes(term) ||
-        (p.department || '').toLowerCase().includes(term)
+        (p.department || '').toLowerCase().includes(term) ||
+        String(p.age ?? '').includes(term) ||
+        (p.retirementLabel || '').toLowerCase().includes(term)
     );
   }, [combined, searchTerm]);
 
@@ -99,6 +113,9 @@ export default function HREmployeesPage() {
                 <tr className="border-b">
                   <th className="text-left py-2 font-medium">Name</th>
                   <th className="text-left py-2 font-medium">Role / Position</th>
+                  <th className="text-left py-2 font-medium">Date of birth</th>
+                  <th className="text-left py-2 font-medium">Age</th>
+                  <th className="text-left py-2 font-medium">Retirement</th>
                   <th className="text-left py-2 font-medium">Faculty</th>
                   <th className="text-left py-2 font-medium">Department</th>
                   <th className="text-left py-2 font-medium">Source</th>
@@ -109,6 +126,17 @@ export default function HREmployeesPage() {
                   <tr key={`${p.source}-${p.id}`} className="border-b last:border-0">
                     <td className="py-2">{p.name || '-'}</td>
                     <td className="py-2">{p.role || '-'}</td>
+                    <td className="py-2 whitespace-nowrap">
+                      {p.dateOfBirth ? String(p.dateOfBirth).slice(0, 10) : '—'}
+                    </td>
+                    <td className="py-2">{p.age != null ? p.age : '—'}</td>
+                    <td
+                      className={`py-2 max-w-[14rem] ${
+                        p.retirementAlert ? 'text-red-600 dark:text-red-400 font-medium' : ''
+                      }`}
+                    >
+                      {p.retirementLabel || '—'}
+                    </td>
                     <td className="py-2">{p.faculty || '-'}</td>
                     <td className="py-2">{p.department || '-'}</td>
                     <td className="py-2 text-muted-foreground">{p.source}</td>

@@ -3867,6 +3867,69 @@ _HR_DIM_PT_SQL = """COALESCE(NULLIF(TRIM(e.position_title), ''), CASE e.position
         ELSE 'Staff'
     END)"""
 
+HR_RETIREMENT_AGE = 60
+HR_RETIREMENT_WARNING_YEARS = 5
+
+
+def _hr_retirement_fields_from_dob(dob_raw):
+    """Age, years remaining to retirement (default 60), and proximity for HR JSON."""
+    empty = {
+        'date_of_birth': None,
+        'age': None,
+        'years_to_retirement': None,
+        'retirement_proximity': None,
+        'retirement_label': None,
+        'retirement_alert': False,
+    }
+    if dob_raw is None:
+        return empty
+    try:
+        if pd.isna(dob_raw):
+            return empty
+    except Exception:
+        pass
+    try:
+        if isinstance(dob_raw, date):
+            d = dob_raw
+        else:
+            ts = pd.to_datetime(dob_raw, errors='coerce')
+            if pd.isna(ts):
+                return empty
+            d = ts.date()
+    except Exception:
+        return empty
+    today = date.today()
+    age = today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+    retirement_date = date(d.year + HR_RETIREMENT_AGE, d.month, d.day)
+    days_left = (retirement_date - today).days
+    if days_left < 0:
+        return {
+            'date_of_birth': d.isoformat(),
+            'age': int(age),
+            'years_to_retirement': 0.0,
+            'retirement_proximity': 'retired',
+            'retirement_label': 'At or past retirement age',
+            'retirement_alert': False,
+        }
+    yrs_left = round(days_left / 365.25, 1)
+    if yrs_left > HR_RETIREMENT_WARNING_YEARS:
+        return {
+            'date_of_birth': d.isoformat(),
+            'age': int(age),
+            'years_to_retirement': float(yrs_left),
+            'retirement_proximity': 'far',
+            'retirement_label': f'Far from retirement ({yrs_left} yrs left)',
+            'retirement_alert': False,
+        }
+    return {
+        'date_of_birth': d.isoformat(),
+        'age': int(age),
+        'years_to_retirement': float(yrs_left),
+        'retirement_proximity': 'within_5_years',
+        'retirement_label': f'{yrs_left} yrs to retirement',
+        'retirement_alert': True,
+    }
+
 
 def _hr_parse_faculty_dept_filters(filters: dict):
     """Faculty/department query params for dim_employee scoped SQL (trend + synthetic)."""
@@ -4211,6 +4274,9 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
             conn.execute(
                 text("ALTER TABLE dim_employee ADD COLUMN IF NOT EXISTS position_title VARCHAR(200)")
             )
+            conn.execute(
+                text("ALTER TABLE dim_employee ADD COLUMN IF NOT EXISTS date_of_birth DATE")
+            )
             conn.commit()
     except Exception:
         pass
@@ -4460,6 +4526,7 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
             SELECT
                 e.employee_id,
                 e.full_name,
+                e.date_of_birth,
                 df.faculty_name,
                 ddept.department_name,
                 {pt_sql} AS pt
@@ -4494,14 +4561,17 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
     if not employees_df.empty:
         for _, r in employees_df.iterrows():
             title = str(r.get('pt') or '')
-            employees_list.append({
+            ret = _hr_retirement_fields_from_dob(r.get('date_of_birth'))
+            row = {
                 'employee_id': int(r['employee_id']) if pd.notna(r.get('employee_id')) else None,
                 'full_name': str(r.get('full_name') or ''),
                 'position_title': title,
                 'role_group': _classify_role_group(title),
                 'faculty_name': str(r.get('faculty_name') or ''),
                 'department_name': str(r.get('department_name') or ''),
-            })
+            }
+            row.update(ret)
+            employees_list.append(row)
 
     lecturer_employment_sql = f"""
         WITH b AS (
@@ -4695,6 +4765,15 @@ def get_hr_analytics():
 
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
+        try:
+            with engine.connect() as conn:
+                conn.execute(
+                    text(f'ALTER TABLE {DB2_NAME}.employees ADD COLUMN IF NOT EXISTS "DateOfBirth" DATE')
+                )
+                conn.commit()
+        except Exception:
+            pass
+
         # 1) Employee counts by role category (lecturer, assistant lecturer, other)
         summary_sql = f"""
         SELECT
@@ -4795,14 +4874,32 @@ def get_hr_analytics():
             e."FullName" AS full_name,
             p."PositionTitle" AS position_title,
             f."FacultyName" AS faculty_name,
-            d."DepartmentName" AS department_name
+            d."DepartmentName" AS department_name,
+            e."DateOfBirth" AS date_of_birth
         FROM {DB2_NAME}.employees e
         JOIN {DB2_NAME}.positions p ON e."PositionID" = p."PositionID"
         JOIN {DB1_NAME}.departments d ON e."DepartmentID" = d."DepartmentID"
         JOIN {DB1_NAME}.faculties f ON d."FacultyID" = f."FacultyID"
         {where_sql}
         """
-        employees_df = pd.read_sql_query(text(employees_sql), engine)
+        try:
+            employees_df = pd.read_sql_query(text(employees_sql), engine)
+        except Exception:
+            employees_sql_fb = f"""
+        SELECT
+            e."EmployeeID" AS employee_id,
+            e."FullName" AS full_name,
+            p."PositionTitle" AS position_title,
+            f."FacultyName" AS faculty_name,
+            d."DepartmentName" AS department_name,
+            NULL::date AS date_of_birth
+        FROM {DB2_NAME}.employees e
+        JOIN {DB2_NAME}.positions p ON e."PositionID" = p."PositionID"
+        JOIN {DB1_NAME}.departments d ON e."DepartmentID" = d."DepartmentID"
+        JOIN {DB1_NAME}.faculties f ON d."FacultyID" = f."FacultyID"
+        {where_sql}
+        """
+            employees_df = pd.read_sql_query(text(employees_sql_fb), engine)
 
         def _classify_role_group(title: str) -> str:
             """Map position title to HR-friendly role group."""
@@ -4828,14 +4925,17 @@ def get_hr_analytics():
             for _, r in employees_df.iterrows():
                 title = str(r.get("position_title") or "")
                 role_group = _classify_role_group(title)
-                employees_list.append({
+                ret = _hr_retirement_fields_from_dob(r.get("date_of_birth"))
+                row = {
                     "employee_id": int(r["employee_id"]) if pd.notna(r.get("employee_id")) else None,
                     "full_name": str(r.get("full_name") or ""),
                     "position_title": title,
                     "role_group": role_group,
                     "faculty_name": str(r.get("faculty_name") or ""),
                     "department_name": str(r.get("department_name") or ""),
-                })
+                }
+                row.update(ret)
+                employees_list.append(row)
 
         # 2d) Lecturer employment type breakdown (Full-time vs Part-time vs Other)
         lecturer_employment_sql = f"""

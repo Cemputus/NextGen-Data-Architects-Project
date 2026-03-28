@@ -241,6 +241,12 @@ def seed_hr_admin_mirror(
     _apply_schema_ddl(engine)
 
     try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE dim_employee ADD COLUMN IF NOT EXISTS date_of_birth DATE"))
+    except Exception:
+        pass
+
+    try:
         n_fac = pd.read_sql_query(text("SELECT COUNT(*) AS c FROM dim_faculty"), engine).iloc[0]["c"]
         n_dept = pd.read_sql_query(text("SELECT COUNT(*) AS c FROM dim_department"), engine).iloc[0]["c"]
         n_emp = pd.read_sql_query(text("SELECT COUNT(*) AS c FROM dim_employee"), engine).iloc[0]["c"]
@@ -316,7 +322,7 @@ def seed_hr_admin_mirror(
             text(
                 """
                 INSERT INTO ucu_sourcedb2.employees (
-                    "EmployeeID", "FullName", "PositionID", "DepartmentID", "ContractType", "Status"
+                    "EmployeeID", "FullName", "PositionID", "DepartmentID", "ContractType", "Status", "DateOfBirth"
                 )
                 SELECT
                     e.employee_id,
@@ -327,7 +333,8 @@ def seed_hr_admin_mirror(
                     END,
                     e.department_id,
                     COALESCE(NULLIF(TRIM(e.contract_type), ''), 'Full-Time'),
-                    COALESCE(NULLIF(TRIM(e.status), ''), 'Active')
+                    COALESCE(NULLIF(TRIM(e.status), ''), 'Active'),
+                    e.date_of_birth::date
                 FROM dim_employee e
                 INNER JOIN dim_department d ON e.department_id = d.department_id
                 INNER JOIN dim_faculty f ON d.faculty_id = f.faculty_id
