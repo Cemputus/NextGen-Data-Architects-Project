@@ -19,9 +19,14 @@ import {
 } from '../lib/analytics-ui';
 import { StudentAttendanceTrendChart } from '../components/charts/StudentAttendanceTrendChart';
 import { StudentGradesByCourseChart } from '../components/charts/StudentGradesByCourseChart';
+import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
+import { useCurrentDashboard } from '../hooks/useCurrentDashboard';
+import { getRoleBasedChartsType } from '../utils/roleDashboardChartType';
 
 const StudentDashboard = () => {
   const { user } = useAuth();
+  const { loading: currentDashLoading, dashboard: currentDash } = useCurrentDashboard();
+  const useDynamicLayout = !currentDashLoading && Boolean(currentDash?.id);
   const isStudentRole = (user?.role || '').toString().toLowerCase() === 'student';
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
@@ -307,6 +312,19 @@ const StudentDashboard = () => {
         </Card>
       )}
 
+      {currentDashLoading ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading dashboard layout…</p>
+        </div>
+      ) : useDynamicLayout ? (
+        <RoleDashboardRenderer
+          stats={stats}
+          type={getRoleBasedChartsType(user?.role || 'student')}
+          filters={{}}
+        />
+      ) : (
+      <>
       {/* Top student KPI strip */}
       <Card className={kpiStripCardClass}>
         <CardHeader className={chartCardHeaderClass}>
@@ -384,6 +402,8 @@ const StudentDashboard = () => {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
     </div>
   );
 };

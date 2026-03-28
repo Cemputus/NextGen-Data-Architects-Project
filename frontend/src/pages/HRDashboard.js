@@ -29,6 +29,9 @@ import {
 import { UCU_COLORS } from '../lib/chartTheme';
 import { CHART_PALETTE_THEME, MODERN_CHART_PALETTE } from '../lib/chartTheme';
 import { abbreviateOrgLabel } from '../lib/hrChartLabels';
+import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
+import { useCurrentDashboard } from '../hooks/useCurrentDashboard';
+import { getRoleBasedChartsType } from '../utils/roleDashboardChartType';
 
 /** Taller HR charts + readable axis text */
 const HR_CHART_MIN_HEIGHT = 420;
@@ -71,6 +74,9 @@ function formatAttendanceDateLabel(iso) {
 
 const HRDashboard = () => {
   const { user } = useAuth();
+  const { loading: currentDashLoading, dashboard: currentDash } = useCurrentDashboard();
+  const useDynamicLayout = !currentDashLoading && Boolean(currentDash?.id);
+  const [dwStats, setDwStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -86,6 +92,23 @@ const HRDashboard = () => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!useDynamicLayout) {
+      setDwStats(null);
+      return;
+    }
+    const headers = { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` };
+    axios
+      .get('/api/dashboard/stats', { headers, params: { ...debouncedFilters, lite: 1 } })
+      .then((r) => setDwStats(r.data))
+      .catch(() => setDwStats(null));
+  }, [debouncedFilters, useDynamicLayout]);
+
+  const mergedStats = useMemo(
+    () => ({ ...(stats || {}), ...(dwStats || {}) }),
+    [stats, dwStats],
+  );
 
   const lastName =
     (user?.last_name && user.last_name.toString().trim()) ||
@@ -348,6 +371,19 @@ const HRDashboard = () => {
         </div>
       ) : loadError ? null : (
         <>
+          {currentDashLoading ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading dashboard layout…</p>
+            </div>
+          ) : useDynamicLayout ? (
+            <RoleDashboardRenderer
+              stats={mergedStats}
+              type={getRoleBasedChartsType(user?.role)}
+              filters={debouncedFilters}
+            />
+          ) : (
+          <>
           {/* Top HR KPI strip */}
           <Card className={kpiStripCardClass}>
             <CardHeader className={chartCardHeaderClass}>
@@ -598,6 +634,8 @@ const HRDashboard = () => {
               )}
                 </CardContent>
               </Card>
+        </>
+          )}
         </>
       )}
     </div>

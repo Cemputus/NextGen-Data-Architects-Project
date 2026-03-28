@@ -36,6 +36,9 @@ import {
   chartEmptyStateClass,
 } from '../lib/analytics-ui';
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
+import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
+import { useCurrentDashboard } from '../hooks/useCurrentDashboard';
+import { getRoleBasedChartsType } from '../utils/roleDashboardChartType';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -50,6 +53,8 @@ const AnalystDashboard = ({
   lockedDepartmentId = undefined,
 } = {}) => {
   const { user } = useAuth();
+  const { loading: currentDashLoading, dashboard: currentDash } = useCurrentDashboard();
+  const useDynamicLayout = !currentDashLoading && Boolean(currentDash?.id);
   // Senate reuses this page with its own filter persistence key (`senate_dashboard`).
   const isSenateWorkspace = filterPageName === 'senate_dashboard';
   const isDeanWorkspace = filterPageName === 'dean_analytics';
@@ -623,17 +628,27 @@ const AnalystDashboard = ({
   };
 
   useEffect(() => {
+    if (currentDashLoading) return;
     loadStats();
-    loadCharts();
-    loadPipelineChart();
-    loadStudentDistributionChart();
-    const interval = setInterval(loadStats, ANALYST_KPI_POLL_INTERVAL_MS);
+    if (!useDynamicLayout) {
+      loadCharts();
+      loadPipelineChart();
+      loadStudentDistributionChart();
+    }
+    const interval = setInterval(() => {
+      loadStats();
+      if (!useDynamicLayout) {
+        loadCharts();
+        loadPipelineChart();
+        loadStudentDistributionChart();
+      }
+    }, ANALYST_KPI_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentDashLoading, useDynamicLayout]);
 
   useEffect(() => {
-    // Debounce filter-driven reloads so we don't fire multiple heavy requests while filters initialize.
+    if (currentDashLoading || useDynamicLayout) return;
     const t = setTimeout(() => {
       loadStats();
       loadCharts();
@@ -642,7 +657,7 @@ const AnalystDashboard = ({
     }, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalFilters, distributionGroupBy, lockedFacultyId, lockedDepartmentId, facultyShape.loaded, deptScopeShape.loaded]);
+  }, [globalFilters, distributionGroupBy, lockedFacultyId, lockedDepartmentId, facultyShape.loaded, deptScopeShape.loaded, currentDashLoading, useDynamicLayout]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -720,6 +735,19 @@ const AnalystDashboard = ({
         filterHint={leaderFilterHint}
       />
 
+      {currentDashLoading ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-16">
+          <Loader2 className="h-9 w-9 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading dashboard layout…</p>
+        </div>
+      ) : useDynamicLayout ? (
+        <RoleDashboardRenderer
+          stats={stats}
+          type={getRoleBasedChartsType(user?.role)}
+          filters={apiFilters}
+        />
+      ) : (
+      <>
       {/* Top KPI strip */}
       <Card className={kpiStripCardClass}>
         <CardHeader className={chartCardHeaderClass}>
@@ -1036,6 +1064,8 @@ const AnalystDashboard = ({
           ) : null}
         </CardContent>
       </Card>
+      )}
+      </>
       )}
     </div>
   );

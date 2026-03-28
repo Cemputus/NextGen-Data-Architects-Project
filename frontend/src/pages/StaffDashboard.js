@@ -13,9 +13,14 @@ import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { SciBarChart } from '../components/charts/EChartsComponents';
+import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
+import { useCurrentDashboard } from '../hooks/useCurrentDashboard';
+import { getRoleBasedChartsType } from '../utils/roleDashboardChartType';
 
 const StaffDashboard = () => {
   const { user } = useAuth();
+  const { loading: currentDashLoading, dashboard: currentDash } = useCurrentDashboard();
+  const useDynamicLayout = !currentDashLoading && Boolean(currentDash?.id);
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
@@ -111,6 +116,19 @@ const StaffDashboard = () => {
             </div>
           ) : null}
 
+          {currentDashLoading ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading dashboard layout…</p>
+            </div>
+          ) : useDynamicLayout ? (
+            <RoleDashboardRenderer
+              stats={stats}
+              type={getRoleBasedChartsType(user?.role)}
+              filters={debouncedFilters}
+            />
+          ) : (
+          <>
           {/* Top staff KPI strip */}
           <Card className="border shadow-sm">
             <CardHeader className="pb-3">
@@ -257,6 +275,8 @@ const StaffDashboard = () => {
               </CardContent>
             </Card>
           </div>
+          </>
+          )}
         </>
       )}
     </div>

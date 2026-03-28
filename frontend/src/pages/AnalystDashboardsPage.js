@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
-import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2, XCircle } from 'lucide-react';
+import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2, XCircle, RotateCcw } from 'lucide-react';
 import {
   KPI_OPTIONS,
   CHART_OPTIONS,
@@ -46,6 +46,7 @@ const AnalystDashboardsPage = () => {
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, dash: null });
   const [messageModal, setMessageModal] = useState({ open: false, message: '' });
   const [removingRole, setRemovingRole] = useState(null);
+  const [resettingRole, setResettingRole] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [contentDashboard, setContentDashboard] = useState(null);
   const [contentPageKey, setContentPageKey] = useState(null);
@@ -218,6 +219,11 @@ const AnalystDashboardsPage = () => {
       // Do not clear customDashboards on error so recently created dashboard is not lost
     } finally {
       setLoading(false);
+      try {
+        window.dispatchEvent(new Event('ucu-dashboard-current-changed'));
+      } catch {
+        /* ignore */
+      }
     }
   };
 
@@ -454,6 +460,25 @@ const AnalystDashboardsPage = () => {
       setMessageModal({ open: true, message: msg });
     } finally {
       setRemovingRole(null);
+    }
+  };
+
+  const handleResetToDefault = async (role) => {
+    setResettingRole(role);
+    try {
+      const token = authToken || sessionStorage.getItem('ucu_session_token');
+      await axios.post(
+        '/api/dashboard-manager/reset-to-default',
+        { role },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      await loadData();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.error || err?.message || 'Failed to reset dashboard to the system default.';
+      setMessageModal({ open: true, message: msg });
+    } finally {
+      setResettingRole(null);
     }
   };
 
@@ -722,7 +747,10 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            One card per role. All roles with dashboard pages are listed here. Use &quot;Edit content&quot; to change KPIs and charts; &quot;Make current&quot; from Custom to swap; &quot;Remove current&quot; to unassign.
+            One card per role. <strong>Preview</strong> / <strong>Edit content</strong> — inspect or change KPIs and charts.
+            <strong> Reset to default</strong> — restore the system template for that role. <strong>Hide from users</strong> — unassign
+            the live dashboard (users fall back to the built-in page until you assign again). <strong>Make current</strong> (under Custom)
+            swaps in a saved dashboard.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -809,12 +837,28 @@ const AnalystDashboardsPage = () => {
                               <Button
                                 size="xs"
                                 variant="outline"
+                                className="h-6 px-2 text-[10px]"
+                                onClick={() => handleResetToDefault(rname)}
+                                disabled={!!resettingRole}
+                                title="Replace this role’s live dashboard with the system default KPI/chart set."
+                              >
+                                {resettingRole === rname ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="h-3 w-3" />
+                                )}
+                                <span className="ml-0.5">Reset to default</span>
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="outline"
                                 className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                                 onClick={() => handleRemoveCurrent(rname)}
                                 disabled={!!removingRole}
+                                title="Unassign the live dashboard for this role. Users see the built-in layout until you assign a dashboard again."
                               >
                                 {removingRole === rname ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                                <span className="ml-0.5">Remove current</span>
+                                <span className="ml-0.5">Hide from users</span>
                               </Button>
                             </>
                           )}

@@ -1,7 +1,7 @@
 /**
  * Finance Dashboard - Smooth, Clean UI
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
@@ -21,9 +21,15 @@ import {
 } from '../lib/analytics-ui';
 import { MODERN_CHART_PALETTE } from '../lib/chartTheme';
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
+import RoleDashboardRenderer from '../components/RoleDashboardRenderer';
+import { useCurrentDashboard } from '../hooks/useCurrentDashboard';
+import { getRoleBasedChartsType } from '../utils/roleDashboardChartType';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
+  const { loading: currentDashLoading, dashboard: currentDash } = useCurrentDashboard();
+  const useDynamicLayout = !currentDashLoading && Boolean(currentDash?.id);
+  const [dwStats, setDwStats] = useState(null);
   const role = (user?.role || '').toString().toLowerCase();
   const lockedFacultyId = role === 'dean' ? user?.faculty_id : undefined;
   const lockedDepartmentId = role === 'hod' ? user?.department_id : undefined;
@@ -49,6 +55,23 @@ const FinanceDashboard = () => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!useDynamicLayout) {
+      setDwStats(null);
+      return;
+    }
+    const headers = { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` };
+    axios
+      .get('/api/dashboard/stats', { headers, params: { ...debouncedFilters, lite: 1 } })
+      .then((r) => setDwStats(r.data))
+      .catch(() => setDwStats(null));
+  }, [debouncedFilters, useDynamicLayout]);
+
+  const mergedStats = useMemo(
+    () => ({ ...(stats || {}), ...(dwStats || {}) }),
+    [stats, dwStats],
+  );
 
   const lastName =
     (user?.last_name && user.last_name.toString().trim()) ||
@@ -347,6 +370,19 @@ const FinanceDashboard = () => {
         </div>
       ) : (
         <>
+          {currentDashLoading ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading dashboard layout…</p>
+            </div>
+          ) : useDynamicLayout ? (
+            <RoleDashboardRenderer
+              stats={mergedStats}
+              type={getRoleBasedChartsType(user?.role)}
+              filters={debouncedFilters}
+            />
+          ) : (
+          <>
           {/* Top finance KPI strip */}
           <Card className={kpiStripCardClass}>
             <CardHeader className={chartCardHeaderClass}>
@@ -568,6 +604,8 @@ const FinanceDashboard = () => {
               </CardContent>
             </Card>
           </div>
+          </>
+          )}
         </>
       )}
     </div>
