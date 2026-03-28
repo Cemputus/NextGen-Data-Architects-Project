@@ -177,6 +177,19 @@ Skip Airflow on Render and use **Render Cron Jobs** to call your backend's ETL e
 3. **Airflow (if used):**  
    Open the Airflow URL, log in (admin user created in Dockerfile or init), and unpause the `etl_auto_scheduler` DAG if you use it.
 
+### Dashboard Manager, RBAC, and analytics (same behavior as local)
+
+These features are **not** localhost-only: they use the **same Flask API** and **same PostgreSQL** you configure for Render.
+
+| Requirement | Production (Render) |
+|-------------|---------------------|
+| **API base URL** | The SPA must use `REACT_APP_API_URL=https://<your-backend>.onrender.com` at **build** time so `axios` calls `/api/dashboard-manager/*`, `/api/dashboards/*`, `/api/page-config`, etc., on the Render service. |
+| **`ucu_rbac` database** | Created automatically when the backend connects (same as local). Dashboard definitions and `role_current_dashboard` live here; **no extra service** is required. |
+| **First load of Dashboard Manager** | The backend runs **`POST /api/dashboard-manager/ensure-wired`** (from the UI) then **`GET /api/dashboard-manager/current`** — same routes on Render; ensure the **Internal** Postgres URL and `DATABASE_URL` / `PG_*` match the DB the Web Service uses. |
+| **PostgreSQL booleans** | `dashboards.is_active` is a **boolean** column. Deploy a backend build that uses `IS TRUE` / `FALSE` in SQL (current `main`); do **not** compare `is_active` to integer `1`/`0` or Postgres will error. |
+
+**Analyst / Sysadmin routes** (`/analyst/dashboards`, etc.) require a normal JWT from login against the **Render** API — same CORS and session rules as [PRODUCTION_URLS_AND_SESSIONS.md](PRODUCTION_URLS_AND_SESSIONS.md).
+
 ---
 
 ## Step 7: Using a Blueprint (`render.yaml`)
@@ -222,6 +235,8 @@ See **[PRODUCTION_URLS_AND_SESSIONS.md](PRODUCTION_URLS_AND_SESSIONS.md)** for t
 - **DB connection refused:** Use the **Internal** Database URL (and correct host/port/user/password). Ensure the Backend and DB are in the same region and the DB is **Available**.
 - **Frontend calls 404:** Confirm `REACT_APP_API_URL` was set at **build** time and matches the backend URL. Rebuild the Static Site after changing it.
 - **ETL / Airflow:** If you don't deploy Airflow, disable the "Run ETL automatically" or rely on Render Cron calling your backend ETL endpoint; the in-app timer is disabled when not using the Flask scheduler.
+- **Dashboard Manager: “Could not load current dashboards fully” / `boolean = integer`:** Redeploy the **latest backend** with PostgreSQL-safe boolean SQL (`is_active IS TRUE`, not `= 1`). Confirm `DATABASE_URL` (or `PG_*`) so the API can open `ucu_rbac`.
+- **Dashboard Manager empty after deploy:** Run **Admin → Run ETL** once or open **Dashboard Manager** and click **Refresh** (the UI triggers `ensure-wired`); both need the RBAC DB reachable.
 
 ---
 
@@ -233,3 +248,4 @@ See **[PRODUCTION_URLS_AND_SESSIONS.md](PRODUCTION_URLS_AND_SESSIONS.md)** for t
 - [ ] CORS on backend allows frontend origin.
 - [ ] First ETL or DB setup run so warehouse (and optional source/RBAC DBs) exist.
 - [ ] (Optional) Airflow or Render Cron configured for scheduled ETL.
+- [ ] **Dashboard Manager:** Log in as Analyst/Sysadmin on **production** URL; confirm **Current Dashboards** loads (or shows a clear DB error if RBAC is unreachable). Rebuild frontend after any `REACT_APP_API_URL` change.

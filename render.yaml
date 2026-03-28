@@ -46,9 +46,10 @@ services:
     staticPublishPath: ./build
     region: oregon
     envVars:
-      # Point API requests to the backend (replace with your backend URL after first deploy)
+      # Required at build time: SPA must call the Render API (same as Vercel production if frontend is on Vercel).
+      # Set in Blueprint UI to the backend URL, e.g. https://nextgen-mis.onrender.com — Dashboard Manager, RBAC, and all /api/* routes use this.
       - key: REACT_APP_API_URL
-        sync: false  # e.g. https://nextgen-mis.onrender.com (match Vercel production if frontend is on Vercel)
+        sync: false
       # 0 = session rules active (idle + 401 handling); 1 = disable for demo builds
       - key: REACT_APP_DISABLE_SESSION_EXPIRY
         value: "0"
