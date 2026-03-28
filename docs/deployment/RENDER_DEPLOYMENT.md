@@ -2,7 +2,9 @@
 
 Step-by-step guide to deploy the **backend** and all related services (PostgreSQL, optional Airflow, frontend) on [Render](https://render.com).
 
-**Quick option:** Use the **Blueprint** (`render.yaml` in the repo root): in Render Dashboard go to **Blueprints** → **New Blueprint Instance** → connect your repo and apply. Then set `REACT_APP_API_URL` on the frontend service to your backend URL (e.g. `https://nextgen-backend.onrender.com`). See [Step 7: Using a Blueprint](#step-7-using-a-blueprint-renderyaml) below.
+**Current production split:** The live **frontend** is hosted on **Vercel** at [https://nextgen-mis.vercel.app](https://nextgen-mis.vercel.app/login), and the **API** on **Render** at [https://nextgen-mis.onrender.com](https://nextgen-mis.onrender.com/). Session behavior, CORS, and environment variables for that setup are documented in **[PRODUCTION_URLS_AND_SESSIONS.md](PRODUCTION_URLS_AND_SESSIONS.md)**.
+
+**Quick option:** Use the **Blueprint** (`render.yaml` in the repo root): in Render Dashboard go to **Blueprints** → **New Blueprint Instance** → connect your repo and apply. Then set `REACT_APP_API_URL` on the frontend service (Vercel or Render static site) to your backend URL (e.g. `https://nextgen-mis.onrender.com`). See [Step 7: Using a Blueprint](#step-7-using-a-blueprint-renderyaml) below.
 
 ---
 
@@ -96,7 +98,7 @@ Render gives one database per instance. Your app expects multiple DBs (`ucu_data
 6. **Health Check (optional):**  
    Path: `/api/health` or `/api/user-mgmt/ping` if you have it. Render will mark the service healthy.
 
-7. Click **Create Web Service**. Note the URL, e.g. `https://nextgen-backend.onrender.com`.
+7. Click **Create Web Service**. Note the URL (production API example: `https://nextgen-mis.onrender.com`).
 
 ---
 
@@ -116,8 +118,8 @@ You can deploy as a **Static Site** (recommended) or as a **Web Service**.
    - **Publish Directory**: `build` (Create React App output).
 
 4. **Environment (build-time):**
-   - `REACT_APP_API_URL` = `https://nextgen-backend.onrender.com` (your backend URL from Step 2).  
-   This sets `axios.defaults.baseURL` so all `/api/...` requests go to the backend.
+   - `REACT_APP_API_URL` = your backend URL from Step 2 (production example: `https://nextgen-mis.onrender.com`).  
+   This must match the Render API origin so all `/api/...` requests hit the backend. If you use **Vercel** for the SPA instead of Render static hosting, set the same variable in the Vercel project **Environment Variables** (production) and redeploy.
 
 5. **Create Static Site**. Use the given URL, e.g. `https://nextgen-frontend.onrender.com`.
 
@@ -200,12 +202,17 @@ You can define services in a **Blueprint** so Render creates them from one place
 | `SECRET_KEY` | Random string |
 | `JWT_SECRET_KEY` | Random string |
 | `PYTHONUNBUFFERED` | `1` |
+| `DISABLE_SESSION_EXPIRY` | `0` for 60-minute access tokens (default in repo); `1` for long-lived JWTs (local/demo only) |
+| `FRONTEND_URL` / `FRONTEND_URLS` | Optional; extra CORS origins (e.g. Vercel preview URLs) |
 
-**Frontend (Static Site build)**
+**Frontend (Vercel or Static Site build)**
 
 | Variable | Example / Note |
 |----------|-----------------|
-| `REACT_APP_API_URL` | `https://nextgen-backend.onrender.com` |
+| `REACT_APP_API_URL` | `https://nextgen-mis.onrender.com` (must be your live API origin) |
+| `REACT_APP_DISABLE_SESSION_EXPIRY` | Omit or `0` to match backend session rules; `1` only for demo builds without idle handling |
+
+See **[PRODUCTION_URLS_AND_SESSIONS.md](PRODUCTION_URLS_AND_SESSIONS.md)** for the full session model.
 
 ---
 

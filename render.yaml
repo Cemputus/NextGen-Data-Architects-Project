@@ -28,7 +28,10 @@ services:
         generateValue: true
       - key: JWT_SECRET_KEY
         generateValue: true
-      # Enforce short-lived JWTs in production (local default is expiry disabled)
+      # CORS + operational reference for the live Vercel SPA
+      - key: FRONTEND_URL
+        value: "https://nextgen-mis.vercel.app"
+      # 60-minute JWT access tokens (set to 1 for long-lived tokens / local demo only)
       - key: DISABLE_SESSION_EXPIRY
         value: "0"
       - key: PYTHONUNBUFFERED
@@ -45,6 +48,7 @@ services:
     envVars:
       # Point API requests to the backend (replace with your backend URL after first deploy)
       - key: REACT_APP_API_URL
-        sync: false  # Set in Dashboard to https://nextgen-backend.onrender.com (or your backend URL)
+        sync: false  # e.g. https://nextgen-mis.onrender.com (match Vercel production if frontend is on Vercel)
+      # 0 = session rules active (idle + 401 handling); 1 = disable for demo builds
       - key: REACT_APP_DISABLE_SESSION_EXPIRY
         value: "0"

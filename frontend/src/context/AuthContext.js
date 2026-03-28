@@ -1,35 +1,47 @@
 /**
- * AuthContext — Enterprise-grade session security
+ * AuthContext — Session security (default: 60-minute active session)
  *
- * By default (REACT_APP_DISABLE_SESSION_EXPIRY unset or not "0") idle logout, 401 auto-logout,
- * and short JWT expiry are disabled for local/demo. Set REACT_APP_DISABLE_SESSION_EXPIRY=0 to enable.
+ * Session expiry is ON unless REACT_APP_DISABLE_SESSION_EXPIRY=1 (use that for local/demo without idle/401 rules).
  *
  * When session expiry is enabled:
- *  1. Access token (~25 min) with silent background refresh (every 10 min)
- *  2. Idle/inactivity timeout — auto-logout after configured minutes of no user activity
- *  3. Browser-close logout — sessionStorage for the token; localStorage only holds
- *     a non-sensitive flag so the tab-close clears the session automatically.
- *  4. Visibility-change detection — when user returns to tab after a long absence,
- *     the token is immediately validated and if stale, logout is triggered.
- *  5. Axios 401 interceptor — any 401 from the API triggers immediate logout.
+ *  1. Access token (~60 min) with silent refresh before expiry (see REFRESH_INTERVAL_MS)
+ *  2. Idle timeout — same 60 minutes for all roles (no short 25‑min student cut-off)
+ *  3. Browser-close clears sessionStorage; localStorage only holds a cross-tab flag
+ *  4. Tab focus only resets the idle timer (no profile ping — avoids spurious logouts while navigating)
+ *  5. Axios — refresh + retry on 401/422; logout only on confirmed auth failures from the server
  */
 import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
 
-// Session expiry: default off (set REACT_APP_DISABLE_SESSION_EXPIRY=0 to enable idle + 401 auto-logout).
-const DISABLE_SESSION_EXPIRY = process.env.REACT_APP_DISABLE_SESSION_EXPIRY !== '0';
+// Session expiry: off only when explicitly set to "1" (local/demo long sessions without idle rules).
+const DISABLE_SESSION_EXPIRY = process.env.REACT_APP_DISABLE_SESSION_EXPIRY === '1';
 
-// ─── Security Constants ────────────────────────────────────────────────────────
-const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // Refresh access token every 10 min (before 25-min expiry)
-const ACTIVITY_EVENTS   = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'pointerdown'];
+/** Wall-clock session: keep idle limit aligned with backend JWT access lifetime (60 min). */
+const SESSION_MINUTES = 60;
+const SESSION_IDLE_MS = SESSION_MINUTES * 60 * 1000; // same for all roles — no surprise early logouts
+const IDLE_WARNING_BEFORE_MS = 5 * 60 * 1000; // warn 5 min before idle logout
+
+// Refresh before access token expires (backend: 60 min).
+const REFRESH_INTERVAL_MS = 45 * 60 * 1000;
+
+const ACTIVITY_EVENTS = [
+  'mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'pointerdown',
+  'wheel', 'focusin', // keyboard-only / navigation without mouse move
+];
 
 // We store the token in sessionStorage (cleared on tab/browser close) NOT localStorage.
 // Only a non-sensitive flag ("session_active") lives in localStorage as a cross-tab signal.
 const TOKEN_KEY   = 'ucu_session_token';
 const REFRESH_KEY = 'ucu_session_refresh';
 const USER_KEY    = 'ucu_session_user';
+
+/** Server returned 401/422 (session/auth). No response ⇒ network/CORS/timeout — not an auth verdict. */
+function isUnauthorizedHttp(err) {
+  const s = err?.response?.status;
+  return s === 401 || s === 422;
+}
 
 const sessionStore = {
   get:    (key)        => sessionStorage.getItem(key),
@@ -56,7 +68,6 @@ export const AuthProvider = ({ children }) => {
   const refreshTimerRef = useRef(null);
   const warningTimerRef = useRef(null);
   const isLoggedInRef   = useRef(false); // avoid stale closures in event listeners
-  const currentRoleRef  = useRef('');    // track role for role-based idle behaviour
 
   // ── Internal: clear all timers ─────────────────────────────────────────────
   const clearAllTimers = useCallback(() => {
@@ -99,12 +110,7 @@ export const AuthProvider = ({ children }) => {
   const resetIdleTimer = useCallback(() => {
     if (!isLoggedInRef.current) return;
 
-    // Role-based idle timeout (product requirement: session at least 25 min):
-    // - sysadmin + analyst: 3 hours of inactivity
-    // - all other roles: 25 minutes of inactivity (aligned with access token expiry)
-    const role = (currentRoleRef.current || '').toString().toLowerCase();
-    const isLongLived = role === 'sysadmin' || role === 'analyst';
-    const timeoutMs = isLongLived ? 3 * 60 * 60 * 1000 : 25 * 60 * 1000;
+    const timeoutMs = SESSION_IDLE_MS;
 
     clearTimeout(idleTimerRef.current);
     clearTimeout(warningTimerRef.current);
@@ -114,12 +120,11 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    // Show warning 5 minutes before idle logout
+    const warnAt = Math.max(0, timeoutMs - IDLE_WARNING_BEFORE_MS);
     warningTimerRef.current = setTimeout(() => {
       if (isLoggedInRef.current) setSessionWarning(true);
-    }, timeoutMs - 5 * 60 * 1000);
+    }, warnAt);
 
-    // Logout after full idle timeout
     idleTimerRef.current = setTimeout(() => {
       if (isLoggedInRef.current) logout('idle');
     }, timeoutMs);
@@ -145,10 +150,10 @@ export const AuthProvider = ({ children }) => {
         return;
       }
       // Refresh token itself has expired (8h) or server rejected it → logout
-      if (err.response?.status === 401 || err.response?.status === 422) {
+      if (isUnauthorizedHttp(err)) {
         logout('expired');
       }
-      // Network errors: stay logged in, will retry on next interval
+      // No response (network) or other errors: stay logged in; next interval retries
     }
   }, [logout]);
 
@@ -174,12 +179,6 @@ export const AuthProvider = ({ children }) => {
 
     setToken(accessToken);
     setUserState(userData);
-    try {
-      const role = (userData?.role || '').toString().toLowerCase();
-      currentRoleRef.current = role;
-    } catch {
-      currentRoleRef.current = '';
-    }
     setIsAuthenticated(true);
     isLoggedInRef.current = true;
     axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
@@ -192,29 +191,66 @@ export const AuthProvider = ({ children }) => {
     return startActivityListeners();
   }, [resetIdleTimer, startRefreshLoop, startActivityListeners]);
 
-  // ── Axios auth interceptor (401/422) ───────────────────────────────────────
+  // ── Axios auth interceptor (401/422): refresh once, then optional logout ─────
   useEffect(() => {
     const id = axios.interceptors.response.use(
       (res) => res,
-      (err) => {
+      async (err) => {
+        const config = err.config || {};
         const status = err.response?.status;
-        const url = err.config?.url || '';
+        const url = config.url || '';
 
-        // Endpoints that may be long-running or noisy (ETL, admin status/logs).
-        // For these, we surface the error to the page but do NOT auto-logout,
-        // so a transient failure while ETL is running doesn't kick the user out.
+        // Recover expired access token without forcing re-login (single retry).
+        if (
+          (status === 401 || status === 422) &&
+          !config._retryRefresh &&
+          sessionStore.get(REFRESH_KEY) &&
+          isLoggedInRef.current
+        ) {
+          const skipAuth =
+            url.includes('/api/auth/login') ||
+            url.includes('/api/auth/refresh');
+          if (!skipAuth) {
+            config._retryRefresh = true;
+            try {
+              const rt = sessionStore.get(REFRESH_KEY);
+              const res = await axios.post('/api/auth/refresh', {}, {
+                headers: { Authorization: `Bearer ${rt}` },
+                timeout: 8000,
+              });
+              const newTok = res.data?.access_token;
+              if (newTok) {
+                sessionStore.set(TOKEN_KEY, newTok);
+                setToken(newTok);
+                axios.defaults.headers.common['Authorization'] = `Bearer ${newTok}`;
+                config.headers = config.headers || {};
+                config.headers.Authorization = `Bearer ${newTok}`;
+                return axios(config);
+              }
+            } catch (refreshErr) {
+              // Refresh failed: only logout if the server rejected the refresh token.
+              // Network loss has no err.response — keep session and surface the original error.
+              if (!DISABLE_SESSION_EXPIRY && isLoggedInRef.current && isUnauthorizedHttp(refreshErr)) {
+                logout('expired');
+              }
+              return Promise.reject(err);
+            }
+          }
+        }
+
+        // Endpoints that may be long-running or noisy (ETL, admin status/logs/settings).
         const isLongRunningAdminEndpoint =
           url.startsWith('/api/admin/system-status') ||
           url.startsWith('/api/admin/run-etl') ||
           url.startsWith('/api/admin/etl-log') ||
-          url.startsWith('/api/admin/audit-logs');
+          url.startsWith('/api/admin/audit-logs') ||
+          url.startsWith('/api/admin/settings');
 
-        // Treat both 401 and 422 from most APIs as "session no longer valid",
-        // but skip auto-logout for long-running admin/ETL endpoints.
         if (
           !DISABLE_SESSION_EXPIRY &&
           !isLongRunningAdminEndpoint &&
-          (status === 401 || status === 422) &&
+          err.response &&
+          isUnauthorizedHttp(err) &&
           isLoggedInRef.current
         ) {
           logout('expired');
@@ -223,29 +259,17 @@ export const AuthProvider = ({ children }) => {
       }
     );
     return () => axios.interceptors.response.eject(id);
-  }, [logout]);
+  }, [logout, setToken]);
 
-  // ── Visibility-change guard: check token when tab regains focus ─────────────
+  // ── Visibility: extend idle timer only (no profile API — avoids surprise logouts while switching tabs)
   useEffect(() => {
-    const onVisibilityChange = async () => {
+    const onVisibilityChange = () => {
       if (document.visibilityState !== 'visible' || !isLoggedInRef.current) return;
-      // Validate the stored token immediately when the user switches back to the tab
-      try {
-        await axios.get('/api/auth/profile', { timeout: 5000 });
-        // Token is still valid — reset idle timer since user just came back
-        resetIdleTimer();
-      } catch (err) {
-        if (
-          !DISABLE_SESSION_EXPIRY &&
-          (err.response?.status === 401 || err.response?.status === 422)
-        ) {
-          logout('expired');
-        }
-      }
+      resetIdleTimer();
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, [logout, resetIdleTimer]);
+  }, [resetIdleTimer]);
 
   // ── Cross-tab logout: if localStorage flag is removed, logout all tabs ──────
   useEffect(() => {
@@ -291,11 +315,37 @@ export const AuthProvider = ({ children }) => {
             axios.get('/api/auth/profile'),
             new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
           ]);
-          // Token is valid — start session machinery
           cleanupListeners = startSession();
         } catch (err) {
-          if (err.response?.status === 401 || err.response?.status === 422) {
-            // Stored token is no longer valid — clear and redirect
+          if (isUnauthorizedHttp(err)) {
+            const rt = sessionStore.get(REFRESH_KEY);
+            if (rt) {
+              try {
+                const refRes = await axios.post('/api/auth/refresh', {}, {
+                  headers: { Authorization: `Bearer ${rt}` },
+                  timeout: 8000,
+                });
+                const newTok = refRes.data?.access_token;
+                if (newTok) {
+                  sessionStore.set(TOKEN_KEY, newTok);
+                  axios.defaults.headers.common['Authorization'] = `Bearer ${newTok}`;
+                  setToken(newTok);
+                  await Promise.race([
+                    axios.get('/api/auth/profile'),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
+                  ]);
+                  cleanupListeners = startSession();
+                  return;
+                }
+              } catch (re) {
+                if (isUnauthorizedHttp(re)) {
+                  /* refresh rejected — clear session below */
+                } else {
+                  cleanupListeners = startSession();
+                  return;
+                }
+              }
+            }
             sessionStore.clear();
             setToken(null);
             setUserState(null);
@@ -303,7 +353,6 @@ export const AuthProvider = ({ children }) => {
             isLoggedInRef.current = false;
             delete axios.defaults.headers.common['Authorization'];
           } else {
-            // Network/timeout error: keep optimistic state, retry on next API call
             cleanupListeners = startSession();
           }
         }

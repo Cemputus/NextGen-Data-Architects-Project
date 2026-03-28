@@ -4,17 +4,17 @@ import axios from 'axios';
 import './index.css';
 import App from './App';
 
-// API base URL policy:
-// - Development: default direct backend (127.0.0.1:5000), can be overridden by REACT_APP_API_URL.
-// - Production: default relative '/api' calls (same-origin). This avoids browser CORS preflights
-//   when deployed on Vercel with API rewrites.
-// - If you explicitly need absolute cross-origin API in production, set REACT_APP_FORCE_ABSOLUTE_API=1.
-const forceAbsoluteApi = String(process.env.REACT_APP_FORCE_ABSOLUTE_API || '').trim() === '1';
-const envApiUrl = process.env.REACT_APP_API_URL;
+// API base URL policy (see docs/deployment/PRODUCTION_URLS_AND_SESSIONS.md)
+// - Development: default http://127.0.0.1:5000, or REACT_APP_API_URL if set.
+// - Production (e.g. Vercel → Render): if REACT_APP_API_URL is set (https://nextgen-mis.onrender.com),
+//   axios calls the API directly; backend CORS must allow https://nextgen-mis.vercel.app (default in app.py).
+// - If REACT_APP_API_URL is unset, use same-origin /api (Vercel rewrites in vercel.json).
+const envApiUrlRaw = process.env.REACT_APP_API_URL;
+const envApiUrl = typeof envApiUrlRaw === 'string' ? envApiUrlRaw.trim().replace(/\/$/, '') : '';
 if (process.env.NODE_ENV === 'development') {
-  axios.defaults.baseURL = envApiUrl !== undefined ? envApiUrl : 'http://127.0.0.1:5000';
+  axios.defaults.baseURL = envApiUrl || 'http://127.0.0.1:5000';
 } else {
-  axios.defaults.baseURL = forceAbsoluteApi ? (envApiUrl || '') : '';
+  axios.defaults.baseURL = envApiUrl || '';
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

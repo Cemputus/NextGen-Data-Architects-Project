@@ -272,11 +272,11 @@ except Exception as e:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
-# Session expiry: default off for local/demo (set DISABLE_SESSION_EXPIRY=0 to enforce short-lived JWTs).
-_session_expiry_on = os.environ.get('DISABLE_SESSION_EXPIRY', '1').strip().lower() in ('0', 'false', 'no')
+# Session expiry: on by default (60-minute access token). Set DISABLE_SESSION_EXPIRY=1 for long-lived JWTs (local/demo only).
+_session_expiry_on = os.environ.get('DISABLE_SESSION_EXPIRY', '0').strip().lower() in ('0', 'false', 'no')
 if _session_expiry_on:
-    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=25)
-    app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=8)
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=60)
+    app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=12)
 else:
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=3650)
     app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=3650)

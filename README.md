@@ -8,6 +8,7 @@ This project has migrated from demo-style sample data to a reproducible syntheti
 
 - [Repository structure](#repository-structure)
 - [Documentation](#documentation)
+- [Production deployment](#production-deployment)
 - [What Changed](#what-changed)
 - [System Overview](#system-overview)
 - [Synthetic Data Package (Canonical)](#synthetic-data-package-canonical)
@@ -45,6 +46,19 @@ See **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** for the full directory tree
 - **Doc index** → [docs/README.md](docs/README.md) (links to all guides)
 - **Deploy to Render** → [docs/deployment/RENDER_DEPLOYMENT.md](docs/deployment/RENDER_DEPLOYMENT.md)
 - **Run backend locally** → [docs/backend/RUNNING.md](docs/backend/RUNNING.md)
+
+---
+
+## Production deployment
+
+The public app is split across two hosts:
+
+| | URL |
+|---|-----|
+| **Frontend** | [https://nextgen-mis.vercel.app](https://nextgen-mis.vercel.app) (login: `/login`) |
+| **Backend API** | [https://nextgen-mis.onrender.com](https://nextgen-mis.onrender.com) |
+
+Vercel serves the SPA at `nextgen-mis.vercel.app` and rewrites `/api/*` to the Render API (`frontend/vercel.json`). **`REACT_APP_API_URL`** in `frontend/.env.production` should still match the backend for absolute links (e.g. profile photos). JWT access and refresh tokens, idle timeout, and silent refresh are documented in **[docs/deployment/PRODUCTION_URLS_AND_SESSIONS.md](docs/deployment/PRODUCTION_URLS_AND_SESSIONS.md)**.
 
 ---
 

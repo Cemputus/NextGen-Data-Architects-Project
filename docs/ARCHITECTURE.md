@@ -29,7 +29,7 @@ Single source and boundaries for each domain. Align with `PROJECT_STATUS.md` mas
 
 | Module | Location | Responsibility |
 |--------|----------|----------------|
-| **auth** | `context/AuthContext.js` | Session, token refresh, logout, idle/session expiry |
+| **auth** | `context/AuthContext.js` | Session, token refresh, logout, idle/session expiry (production: see [deployment/PRODUCTION_URLS_AND_SESSIONS.md](deployment/PRODUCTION_URLS_AND_SESSIONS.md)) |
 | **rbac** | `utils/rbac.js` (uses `config/`) | canAccess, getDefaultRoute; roles/routes from config |
 | **shared-ui** | `components/ui/`, `components/shared/` | Buttons, cards, tables, modals, FilterBar, MetricCard, PageShell |
 | **chart-library** | `components/charts/` (EChartsComponents), RoleBasedCharts | Bar, Line, Area, Pie, Stacked; role-based chart config |

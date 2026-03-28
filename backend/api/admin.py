@@ -489,6 +489,27 @@ def _read_etl_run_ledger_tail(log_dir: Path, max_lines=8000):
     return rows
 
 
+def _sanitize_etl_run_statuses_newest_only_in_progress(combined):
+    """After sorting newest-first, only the latest run may stay in_progress.
+
+    Older rows that still say in_progress/running are stale (a newer run already finished).
+    They are coerced to failed so the UI never shows multiple concurrent in-progress runs.
+    """
+    if not combined:
+        return combined
+    out = []
+    for i, row in enumerate(combined):
+        row = dict(row)
+        st = (row.get('status') or '').strip().lower()
+        if i > 0 and st in ('in_progress', 'running', 'in progress'):
+            row['status'] = 'failed'
+            row['success'] = False
+            if not (row.get('error_message') or '').strip():
+                row['error_message'] = 'Superseded by a newer ETL run (incomplete log).'
+        out.append(row)
+    return out
+
+
 def _get_etl_run_history(log_dir, max_runs=500):
     """Return ETL run history: warehouse DB rows merged with orphan log files and ledger backup.
 
@@ -635,6 +656,7 @@ def _get_etl_run_history(log_dir, max_runs=500):
         combined.append(row)
 
     combined.sort(key=lambda x: x.get('_sort') or datetime.min, reverse=True)
+    combined = _sanitize_etl_run_statuses_newest_only_in_progress(combined)
     out = []
     for row in combined[: int(max_runs)]:
         row = dict(row)
