@@ -29,31 +29,15 @@ CHART_IDS = [
     "attendance_trends",
 ]
 
-# Page keys for analytics and role pages (analyst-editable KPIs/charts)
+# Standalone analytics page keys (role dashboards are managed in Dashboard Manager, not page_config).
 PAGE_CONFIG_KEYS = [
     "fex_analytics",
     "high_school_analytics",
     "risk_analytics",
-    "analyst_dashboard",
-    "dean_dashboard",
-    "hod_dashboard",
-    "senate_dashboard",
-    "staff_dashboard",
-    "student_dashboard",
-    "finance_dashboard",
-    "hr_dashboard",
 ]
 
 PAGE_CONFIG_LABELS = {
     "fex_analytics": "FEX Analytics",
     "high_school_analytics": "High School Analytics",
     "risk_analytics": "Risk Analytics",
-    "analyst_dashboard": "Analyst Dashboard",
-    "dean_dashboard": "Dean Dashboard",
-    "hod_dashboard": "HoD Dashboard",
-    "senate_dashboard": "Senate Dashboard",
-    "staff_dashboard": "Staff Dashboard",
-    "student_dashboard": "Student Dashboard",
-    "finance_dashboard": "Finance Dashboard",
-    "hr_dashboard": "HR Dashboard",
 }
