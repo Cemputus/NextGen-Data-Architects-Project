@@ -272,10 +272,14 @@ except Exception as e:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
-# Security: access token 25 minutes (per product requirement), refresh tokens 8 hours.
-# Frontend should refresh the access token before it expires via /api/auth/refresh.
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=25)
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=8)
+# Session expiry: default off for local/demo (set DISABLE_SESSION_EXPIRY=0 to enforce short-lived JWTs).
+_session_expiry_on = os.environ.get('DISABLE_SESSION_EXPIRY', '1').strip().lower() in ('0', 'false', 'no')
+if _session_expiry_on:
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=25)
+    app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=8)
+else:
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=3650)
+    app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=3650)
 
 # CORS: allow local dev + configured production frontend origins.
 # Supports:

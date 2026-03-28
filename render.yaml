@@ -28,6 +28,9 @@ services:
         generateValue: true
       - key: JWT_SECRET_KEY
         generateValue: true
+      # Enforce short-lived JWTs in production (local default is expiry disabled)
+      - key: DISABLE_SESSION_EXPIRY
+        value: "0"
       - key: PYTHONUNBUFFERED
         value: "1"
 
@@ -43,3 +46,5 @@ services:
       # Point API requests to the backend (replace with your backend URL after first deploy)
       - key: REACT_APP_API_URL
         sync: false  # Set in Dashboard to https://nextgen-backend.onrender.com (or your backend URL)
+      - key: REACT_APP_DISABLE_SESSION_EXPIRY
+        value: "0"

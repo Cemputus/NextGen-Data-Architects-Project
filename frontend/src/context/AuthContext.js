@@ -1,8 +1,11 @@
 /**
  * AuthContext — Enterprise-grade session security
  *
- * Security features implemented:
- *  1. Access token (25 min) with silent background refresh (every 10 min)
+ * By default (REACT_APP_DISABLE_SESSION_EXPIRY unset or not "0") idle logout, 401 auto-logout,
+ * and short JWT expiry are disabled for local/demo. Set REACT_APP_DISABLE_SESSION_EXPIRY=0 to enable.
+ *
+ * When session expiry is enabled:
+ *  1. Access token (~25 min) with silent background refresh (every 10 min)
  *  2. Idle/inactivity timeout — auto-logout after configured minutes of no user activity
  *  3. Browser-close logout — sessionStorage for the token; localStorage only holds
  *     a non-sensitive flag so the tab-close clears the session automatically.
@@ -15,8 +18,10 @@ import axios from 'axios';
 
 const AuthContext = createContext();
 
+// Session expiry: default off (set REACT_APP_DISABLE_SESSION_EXPIRY=0 to enable idle + 401 auto-logout).
+const DISABLE_SESSION_EXPIRY = process.env.REACT_APP_DISABLE_SESSION_EXPIRY !== '0';
+
 // ─── Security Constants ────────────────────────────────────────────────────────
-const IDLE_TIMEOUT_MS   = 25 * 60 * 1000;  // fallback; actual timeout is role-based (25 min or 3h)
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // Refresh access token every 10 min (before 25-min expiry)
 const ACTIVITY_EVENTS   = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'pointerdown'];
 
@@ -105,6 +110,10 @@ export const AuthProvider = ({ children }) => {
     clearTimeout(warningTimerRef.current);
     setSessionWarning(false);
 
+    if (DISABLE_SESSION_EXPIRY) {
+      return;
+    }
+
     // Show warning 5 minutes before idle logout
     warningTimerRef.current = setTimeout(() => {
       if (isLoggedInRef.current) setSessionWarning(true);
@@ -132,6 +141,9 @@ export const AuthProvider = ({ children }) => {
         axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       }
     } catch (err) {
+      if (DISABLE_SESSION_EXPIRY) {
+        return;
+      }
       // Refresh token itself has expired (8h) or server rejected it → logout
       if (err.response?.status === 401 || err.response?.status === 422) {
         logout('expired');
@@ -199,7 +211,12 @@ export const AuthProvider = ({ children }) => {
 
         // Treat both 401 and 422 from most APIs as "session no longer valid",
         // but skip auto-logout for long-running admin/ETL endpoints.
-        if (!isLongRunningAdminEndpoint && (status === 401 || status === 422) && isLoggedInRef.current) {
+        if (
+          !DISABLE_SESSION_EXPIRY &&
+          !isLongRunningAdminEndpoint &&
+          (status === 401 || status === 422) &&
+          isLoggedInRef.current
+        ) {
           logout('expired');
         }
         return Promise.reject(err);
@@ -218,7 +235,10 @@ export const AuthProvider = ({ children }) => {
         // Token is still valid — reset idle timer since user just came back
         resetIdleTimer();
       } catch (err) {
-        if (err.response?.status === 401 || err.response?.status === 422) {
+        if (
+          !DISABLE_SESSION_EXPIRY &&
+          (err.response?.status === 401 || err.response?.status === 422)
+        ) {
           logout('expired');
         }
       }
