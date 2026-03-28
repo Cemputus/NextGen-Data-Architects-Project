@@ -3868,11 +3868,38 @@ _HR_DIM_PT_SQL = """COALESCE(NULLIF(TRIM(e.position_title), ''), CASE e.position
     END)"""
 
 HR_RETIREMENT_AGE = 60
-HR_RETIREMENT_WARNING_YEARS = 5
+
+
+def _hr_months_between(d1: date, d2: date) -> int:
+    """Full calendar months from d1 to d2 (d1 <= d2)."""
+    if d2 < d1:
+        return 0
+    m = (d2.year - d1.year) * 12 + (d2.month - d1.month)
+    if d2.day < d1.day:
+        m -= 1
+    return max(0, m)
+
+
+def _hr_retirement_countdown_label(today: date, retirement_date: date) -> str:
+    """Human-readable years/months (and days if under one month) until retirement_date."""
+    days_left = (retirement_date - today).days
+    if days_left <= 0:
+        return 'At retirement or retired'
+    total_months = _hr_months_between(today, retirement_date)
+    y = total_months // 12
+    mo = total_months % 12
+    parts = []
+    if y > 0:
+        parts.append(f'{y} year{"s" if y != 1 else ""}')
+    if mo > 0:
+        parts.append(f'{mo} month{"s" if mo != 1 else ""}')
+    if parts:
+        return f'{", ".join(parts)} remaining to retirement'
+    return f'{days_left} day{"s" if days_left != 1 else ""} remaining to retirement'
 
 
 def _hr_retirement_fields_from_dob(dob_raw):
-    """Age, years remaining to retirement (default 60), and proximity for HR JSON."""
+    """Age and retirement labels: <55 far only; 55–59 years+months left; 60+ at/retired."""
     empty = {
         'date_of_birth': None,
         'age': None,
@@ -3902,32 +3929,48 @@ def _hr_retirement_fields_from_dob(dob_raw):
     age = today.year - d.year - ((today.month, today.day) < (d.month, d.day))
     retirement_date = date(d.year + HR_RETIREMENT_AGE, d.month, d.day)
     days_left = (retirement_date - today).days
-    if days_left < 0:
+    yrs_approx = round(max(0, days_left) / 365.25, 2) if days_left > 0 else 0.0
+
+    # At or past 60th birthday (or past retirement date)
+    if age >= HR_RETIREMENT_AGE or days_left <= 0:
         return {
             'date_of_birth': d.isoformat(),
             'age': int(age),
             'years_to_retirement': 0.0,
             'retirement_proximity': 'retired',
-            'retirement_label': 'At or past retirement age',
+            'retirement_label': 'At retirement or retired',
             'retirement_alert': False,
         }
-    yrs_left = round(days_left / 365.25, 1)
-    if yrs_left > HR_RETIREMENT_WARNING_YEARS:
+
+    if age < 55:
         return {
             'date_of_birth': d.isoformat(),
             'age': int(age),
-            'years_to_retirement': float(yrs_left),
+            'years_to_retirement': float(yrs_approx),
             'retirement_proximity': 'far',
-            'retirement_label': f'Far from retirement ({yrs_left} yrs left)',
+            'retirement_label': 'Far from retirement',
             'retirement_alert': False,
         }
+
+    # Ages 55–59: show years and months remaining (highlighted in UI)
+    if 55 <= age <= 59:
+        return {
+            'date_of_birth': d.isoformat(),
+            'age': int(age),
+            'years_to_retirement': float(yrs_approx),
+            'retirement_proximity': 'approaching',
+            'retirement_label': _hr_retirement_countdown_label(today, retirement_date),
+            'retirement_alert': True,
+        }
+
+    # Fallback (should not hit if age < 60 and days_left > 0)
     return {
         'date_of_birth': d.isoformat(),
         'age': int(age),
-        'years_to_retirement': float(yrs_left),
-        'retirement_proximity': 'within_5_years',
-        'retirement_label': f'{yrs_left} yrs to retirement',
-        'retirement_alert': True,
+        'years_to_retirement': float(yrs_approx),
+        'retirement_proximity': 'far',
+        'retirement_label': 'Far from retirement',
+        'retirement_alert': False,
     }
 
 
