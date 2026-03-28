@@ -53,6 +53,10 @@ const DEFAULTS = {
     activeTab: 'general',
   },
   dashboard: {},
+  /** HR Staff Management page — same visual/raw pattern as ETL & Audit */
+  hrStaff: {
+    dataViewMode: 'raw', // 'raw' | 'visual'
+  },
 };
 
 function load() {
