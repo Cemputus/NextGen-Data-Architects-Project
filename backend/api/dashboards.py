@@ -75,17 +75,6 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
         ),
       },
     )
-    for rname in all_roles:
-      conn.execute(
-        text(
-          """
-          INSERT INTO dashboard_role_access (dashboard_id, role_name)
-          VALUES (:dashboard_id, :role_name)
-          ON CONFLICT (dashboard_id, role_name) DO NOTHING
-          """
-        ),
-        {"dashboard_id": default_dashboard_id, "role_name": rname},
-      )
 
   # Resolve dashboard to assign: use newly created default, or first active dashboard
   dashboard_to_assign = default_dashboard_id
@@ -97,6 +86,18 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
       dashboard_to_assign = row[0]
 
   if dashboard_to_assign is not None:
+    # So Dashboard Manager "Custom" filters and role metadata see this dashboard for every role.
+    for rname in all_roles:
+      conn.execute(
+        text(
+          """
+          INSERT INTO dashboard_role_access (dashboard_id, role_name)
+          VALUES (:dashboard_id, :role_name)
+          ON CONFLICT (dashboard_id, role_name) DO NOTHING
+          """
+        ),
+        {"dashboard_id": dashboard_to_assign, "role_name": rname},
+      )
     for rname in all_roles:
       exists = conn.execute(
         text(
@@ -360,13 +361,19 @@ def get_current_dashboards():
     engine = _get_engine()
     result_payload = []
     with engine.connect() as conn:
-      # Only auto-seed defaults on first install (no active dashboards).
-      # If the analyst removes a role from "current", we must not re-assign
-      # it automatically on every reload.
+      # 1) No active dashboards → create Default Analytics Dashboard + pointers for all roles.
+      # 2) At least one active dashboard but role_current_dashboard has zero rows → wire every
+      #    role to the oldest active dashboard (first-time / import). If some pointers already
+      #    exist, we do nothing here so per-role "Hide from users" is preserved.
       total_active_dashboards = conn.execute(
         text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active = TRUE")
       ).scalar() or 0
+      role_pointer_count = conn.execute(
+        text("SELECT COUNT(*) AS c FROM role_current_dashboard")
+      ).scalar() or 0
       if total_active_dashboards == 0:
+        _ensure_default_role_dashboards(conn, all_roles, username)
+      elif role_pointer_count == 0:
         _ensure_default_role_dashboards(conn, all_roles, username)
 
       # Fetch role->dashboard mapping
