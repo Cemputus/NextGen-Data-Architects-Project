@@ -30,8 +30,5 @@ env/
 etl_*.txt
 etl_*.out
 
-# Optional: shrink image (tests/docs not needed in container)
-test_scripts/
-Check_Scripts/
-verify_Scripts/
+# Optional: shrink image
 *.ipynb

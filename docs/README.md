@@ -10,7 +10,7 @@ Central index for all project documentation.
 | [Production URLs & sessions](deployment/PRODUCTION_URLS_AND_SESSIONS.md) | **Live stack:** Vercel frontend + Render backend, CORS, JWT session behavior. |
 | [Operations](operations/) | Day-to-day ops: password reset, support. |
 | [Backend](backend/) | Running and developing the Flask API and ETL. |
-| [Frontend](frontend/) | UI/UX plans, migration notes, design system. |
+| [Design system](DESIGN_SYSTEM.md) | UI tokens and patterns. |
 | [Backend API & SQL](backend/sql/README.md) | SQL scripts and API notes. |
 
 ## By audience
@@ -19,7 +19,7 @@ Central index for all project documentation.
 - **Production URLs (Vercel + Render) and sessions** → [deployment/PRODUCTION_URLS_AND_SESSIONS.md](deployment/PRODUCTION_URLS_AND_SESSIONS.md)
 - **Running the backend locally** → [backend/RUNNING.md](backend/RUNNING.md)
 - **Resetting a user password** → [operations/RESET_APP_USER_PASSWORD.md](operations/RESET_APP_USER_PASSWORD.md)
-- **Frontend UI/UX and charts** → [frontend/UI_PRODUCTIONIZATION_PLAN.md](frontend/UI_PRODUCTIONIZATION_PLAN.md), [frontend/MIGRATION_PLAN.md](frontend/MIGRATION_PLAN.md)
+- **Design system** → [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)
 
 ## Other docs
 

@@ -1,4 +1,4 @@
-## NextGen UCU Analytics – Business Model (Ugandan Context)
+## NextGen UCU Analytics – Business Model
 
 ### 1. Overview
 
@@ -144,7 +144,7 @@ This document summarises the business model in a way that can be shared as a PDF
 ### 7. How to Use This Document as a PDF
 
 - To produce a PDF for presentations or approvals:
-  1. Open this file (`BUSINESS_MODEL_UGANDA.md`) in a markdown viewer (e.g. VS Code, a markdown preview plugin, or GitHub).
+  1. Open this file (`BUSINESS_MODEL.md`) in a markdown viewer (e.g. VS Code, a markdown preview plugin, or GitHub).
   2. Use “Print to PDF” or an export‑to‑PDF option from your editor or browser.
   3. Share the resulting PDF with university leadership, project supervisors, or potential partner institutions.
 

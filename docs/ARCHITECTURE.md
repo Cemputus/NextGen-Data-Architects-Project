@@ -2,7 +2,7 @@
 
 ## 1. Feature modules
 
-Single source and boundaries for each domain. Align with `PROJECT_STATUS.md` master plan.
+Single source and boundaries for each domain.
 
 ### Backend
 

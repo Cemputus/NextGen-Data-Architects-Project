@@ -18,10 +18,6 @@ NextGen-Data-Architects-Project/
 │   ├── etl_pipeline.py      # Medallion ETL (Bronze → Silver → Gold)
 │   ├── api/                 # Blueprints: admin, auth, dashboards, analytics, etc.
 │   ├── sql/                 # DDL and reference SQL
-│   ├── scripts/             # One-off and utility scripts
-│   ├── Check_Scripts/       # Data and system checks
-│   ├── verify_Scripts/      # Data verification
-│   ├── test_scripts/        # API and integration tests
 │   ├── etl_seeds/           # Versioned seeds (user snapshot, admin settings)
 │   ├── data/                # Runtime data (Synthetic_Data, bronze/silver/gold, admin_settings.json)
 │   └── logs/                # ETL run logs (gitignored; created at runtime)
@@ -49,8 +45,7 @@ NextGen-Data-Architects-Project/
     ├── deployment/          # Render and other deployment guides
     ├── operations/          # Ops runbooks (e.g. password reset)
     ├── backend/             # Backend runbooks and API notes
-    ├── frontend/            # UI/UX and migration docs
-    └── mds/                 # Historical and reference markdown
+    └── mds/                 # Reference markdown (users, quick start)
 ```
 
 ## Key paths for deployment
