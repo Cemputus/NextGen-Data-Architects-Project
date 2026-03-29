@@ -31,8 +31,10 @@ const StudentDashboard = () => {
     error: currentDashError,
     userMessage: currentDashMessage,
   } = useCurrentDashboard();
-  /** Home content always comes from RBAC-assigned dashboard (GET /api/dashboards/current), not a hardcoded default. */
-  const useAssignedDashboardLayout = !currentDashLoading && !currentDashError;
+  const useDynamicLayout =
+    !currentDashLoading &&
+    !currentDashError &&
+    (Boolean(currentDash?.id) || Boolean(currentDashMessage));
   const isStudentRole = (user?.role || '').toString().toLowerCase() === 'student';
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
@@ -323,23 +325,92 @@ const StudentDashboard = () => {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Loading dashboard layout…</p>
         </div>
-      ) : useAssignedDashboardLayout ? (
+      ) : useDynamicLayout ? (
         <RoleDashboardRenderer
           stats={stats}
           type={getRoleBasedChartsType(user?.role || 'student')}
           filters={{}}
         />
       ) : (
-        <Card className="border-dashed border-2 border-amber-200/80 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-semibold">Dashboard unavailable</CardTitle>
-            <CardDescription className="text-xs text-foreground/90">
-              {currentDashError
-                ? 'Could not load your assigned dashboard. Try refreshing the page.'
-                : currentDashMessage || 'No dashboard is assigned for your role yet.'}
+      <>
+      {/* Top student KPI strip */}
+      <Card className={kpiStripCardClass}>
+        <CardHeader className={chartCardHeaderClass}>
+          <CardTitle className="text-base font-semibold tracking-tight">My academic overview</CardTitle>
+          <CardDescription className={chartCardDescriptionClass}>
+            KPIs use your enrollment, grades, attendance sessions, and tuition payments from the data warehouse.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0 pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <KPICard
+              title="Courses registered"
+              value={coursesRegistered !== null ? formatNumber(coursesRegistered) : '–'}
+              icon={BookOpen}
+              subtitle={
+                isStudentAnalyticsPayload && stats?.enrollment_row_count != null
+                  ? `${coursesRegistered ?? 0} distinct course code(s) · ${stats.enrollment_row_count} enrollment row(s) in facts.`
+                  : isStudentScopedDashboard
+                    ? 'Distinct course codes from your enrollments and grades (dashboard scope).'
+                    : 'Distinct course codes from enrollments and grades (matched by student ID, reg. no., or access number).'
+              }
+            />
+            <KPICard
+              title="Average grade"
+              value={showAverageGrade ? formatNumber(stats?.avg_grade) : '–'}
+              icon={GraduationCap}
+              subtitle={
+                avgGpa != null && Number(avgGpa) > 0
+                  ? `Numeric average on completed attempts · GPA ${Number(avgGpa).toFixed(2)}`
+                  : 'Mean numeric score (coursework + exam) where the attempt is completed.'
+              }
+            />
+            <KPICard
+              title="Attendance"
+              value={attendanceKpi.value}
+              icon={CalendarCheck}
+              subtitle={attendanceKpi.subtitle}
+            />
+            <KPICard
+              title="Fees paid vs pending"
+              value={`${formatPercent(paidPercentage)} paid`}
+              icon={Wallet}
+              subtitle={`${formatNumber(totalPaid)} paid / ${formatNumber(totalPending)} pending (successful vs outstanding)`}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Academic performance & attendance (placeholders) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className={chartSurfaceCard('h-full')}>
+          <CardHeader className={chartCardHeaderClass}>
+            <CardTitle className={chartCardTitleClass}>Attendance over time</CardTitle>
+            <CardDescription className={chartCardDescriptionClass}>
+              Monthly buckets from the warehouse (dim_time), scoped to your JWT (student ID / access number).
+              Green area: % of attendance records marked present; cyan: average hours per record in each month.
             </CardDescription>
           </CardHeader>
+          <CardContent className="pt-0">
+            <StudentAttendanceTrendChart data={attendanceTrends} />
+          </CardContent>
         </Card>
+
+        <Card className={chartSurfaceCard('h-full')}>
+          <CardHeader className={chartCardHeaderClass}>
+            <CardTitle className={chartCardTitleClass}>Grades by course</CardTitle>
+            <CardDescription className={chartCardDescriptionClass}>
+              Average numeric score (completed attempts only) for each course × semester from{' '}
+              <code className="text-[11px] bg-muted/80 px-1 rounded">fact_grade</code>. Bars are colored by
+              score band (60 / 70 / 80).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <StudentGradesByCourseChart rows={stats?.course_performance} />
+          </CardContent>
+        </Card>
+      </div>
+      </>
       )}
     </div>
   );

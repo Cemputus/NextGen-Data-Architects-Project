@@ -33,7 +33,10 @@ const FinanceDashboard = () => {
     error: currentDashError,
     userMessage: currentDashMessage,
   } = useCurrentDashboard();
-  const useAssignedDashboardLayout = !currentDashLoading && !currentDashError;
+  const useDynamicLayout =
+    !currentDashLoading &&
+    !currentDashError &&
+    (Boolean(currentDash?.id) || Boolean(currentDashMessage));
   const [dwStats, setDwStats] = useState(null);
   const role = (user?.role || '').toString().toLowerCase();
   const lockedFacultyId = role === 'dean' ? user?.faculty_id : undefined;
@@ -62,7 +65,7 @@ const FinanceDashboard = () => {
   }, []);
 
   useEffect(() => {
-    if (!useAssignedDashboardLayout) {
+    if (!useDynamicLayout) {
       setDwStats(null);
       return;
     }
@@ -71,7 +74,7 @@ const FinanceDashboard = () => {
       .get('/api/dashboard/stats', { headers, params: { ...debouncedFilters, lite: 1 } })
       .then((r) => setDwStats(r.data))
       .catch(() => setDwStats(null));
-  }, [debouncedFilters, useAssignedDashboardLayout]);
+  }, [debouncedFilters, useDynamicLayout]);
 
   const mergedStats = useMemo(
     () => ({ ...(stats || {}), ...(dwStats || {}) }),
@@ -380,18 +383,236 @@ const FinanceDashboard = () => {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Loading dashboard layout…</p>
             </div>
-          ) : useAssignedDashboardLayout ? (
+          ) : useDynamicLayout ? (
             <RoleDashboardRenderer
               stats={mergedStats}
               type={getRoleBasedChartsType(user?.role)}
               filters={debouncedFilters}
             />
           ) : (
-            <div className="rounded-lg border border-dashed border-amber-200/80 bg-amber-50/40 dark:bg-amber-950/20 px-4 py-3 text-sm text-foreground/90">
-              {currentDashError
-                ? 'Could not load your assigned dashboard. Try refreshing the page.'
-                : currentDashMessage || 'No dashboard is assigned for your role yet.'}
-            </div>
+          <>
+          {/* Top finance KPI strip */}
+          <Card className={kpiStripCardClass}>
+            <CardHeader className={chartCardHeaderClass}>
+              <CardTitle className="text-base font-semibold tracking-tight">Finance overview</CardTitle>
+              <CardDescription className={chartCardDescriptionClass}>
+                Institution-wide finance KPIs, scoped to the Finance role via the finance analytics/dashboard endpoints.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 pb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <KPICard
+                  title="Total revenue"
+                  value={formatUGX(stats?.total_revenue)}
+                  icon={Receipt}
+                />
+                <KPICard
+                  title="Outstanding"
+                  value={formatUGX(stats?.outstanding)}
+                  icon={CreditCard}
+                />
+                <KPICard
+                  title="Payment rate"
+                  value={formatPercent(stats?.payment_rate)}
+                  icon={Activity}
+                />
+                <KPICard
+                  title="Students in scope"
+                  value={formatNumber(stats?.total_students)}
+                  icon={Users}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Row 1: Revenue & outstanding */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Revenue trend</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
+                  Quarter-by-quarter revenue trend using payment facts; filters control faculty/department scope.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <SciLineChart
+                  data={paymentTrends}
+                  xDataKey="period"
+                  yDataKey="amount"
+                  xAxisLabel="Period"
+                  yAxisLabel="Revenue"
+                  showLegend={false}
+                  minHeight={420}
+                  maxHeight={640}
+                  gridPadding={{ bottom: 70 }}
+                />
+              </CardContent>
+            </Card>
+
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>
+                  {financeBreakdown === 'faculty'
+                    ? 'Outstanding by faculty'
+                    : financeBreakdown === 'department'
+                      ? 'Outstanding by department'
+                      : 'Outstanding by program'}
+                </CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
+                  Pending/failed tuition balances grouped by{' '}
+                  {FINANCE_BREAKDOWN_AXIS[financeBreakdown] || 'unit'}, matching your faculty / department /
+                  program filters.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <SciBarChart
+                  data={outstandingFacultyProgram}
+                  xDataKey="name"
+                  yDataKey="value"
+                  tooltipNameKey="fullName"
+                  xAxisLabel={FINANCE_BREAKDOWN_AXIS[financeBreakdown] || 'Unit'}
+                  yAxisLabel="Outstanding"
+                  showLegend={false}
+                  xAxisLabelRotate={35}
+                  axisFontSize={11}
+                  showGrid
+                  gridPadding={{ bottom: 115 }}
+                  fillColor={MODERN_CHART_PALETTE[4]}
+                  minHeight={460}
+                  maxHeight={660}
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: Payment mix & risk */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Payment status mix</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
+                  Status distribution (Completed vs Pending vs Partial) from `fact_payment`.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <SciDonutChart
+                  data={paymentStatusMix}
+                  title="Payment status"
+                  colors={MODERN_CHART_PALETTE}
+                />
+              </CardContent>
+            </Card>
+
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>High outstanding by unit</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
+                  Largest outstanding balances (pending/failed) by{' '}
+                  {FINANCE_BREAKDOWN_AXIS[financeBreakdown]?.toLowerCase() || 'unit'}, following the same filter
+                  depth as other finance bars.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {highRiskDebtSegments.length > 0 ? (
+                  <SciBarChart
+                    data={highRiskDebtSegments}
+                    xDataKey="name"
+                    yDataKey="value"
+                    tooltipNameKey="fullName"
+                    xAxisLabel={FINANCE_BREAKDOWN_AXIS[financeBreakdown] || 'Unit'}
+                    yAxisLabel="Outstanding"
+                    showLegend={false}
+                    xAxisLabelRotate={35}
+                    axisFontSize={11}
+                    showGrid
+                    gridPadding={{ bottom: 115 }}
+                    fillColor={MODERN_CHART_PALETTE[4]}
+                    minHeight={460}
+                    maxHeight={660}
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground px-2 py-8 text-center">
+                    No high-risk debt segments for the selected filters.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 3: Tuition analytics */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Tuition/fees defaulters</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
+                  Distinct students with pending/failed tuition in the latest semester, shown by{' '}
+                  {FINANCE_BREAKDOWN_AXIS[financeBreakdown]?.toLowerCase() || 'unit'} only (no mixed dimensions).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <SciBarChart
+                  data={tuitionDefaultersBar}
+                  xDataKey="name"
+                  yDataKey="value"
+                  tooltipNameKey="fullName"
+                  xAxisLabel={FINANCE_BREAKDOWN_AXIS[financeBreakdown] || 'Unit'}
+                  yAxisLabel="Defaulters"
+                  showLegend={false}
+                  xAxisLabelRotate={35}
+                  axisFontSize={12}
+                  showGrid
+                  gridPadding={{ bottom: 125 }}
+                  fillColor={MODERN_CHART_PALETTE[0]}
+                  minHeight={480}
+                  maxHeight={660}
+                />
+              </CardContent>
+            </Card>
+
+            <Card className={chartSurfaceCard('h-full')}>
+              <CardHeader className={chartCardHeaderClass}>
+                <CardTitle className={chartCardTitleClass}>Tuition payment trends</CardTitle>
+                <CardDescription className={chartCardDescriptionClass}>
+                  Time series of avg completed tuition payments over time for{" "}
+                  {filters?.program_id
+                    ? 'the selected program'
+                    : filters?.department_id
+                      ? 'the selected department'
+                      : filters?.faculty_id
+                        ? 'the selected faculty'
+                        : 'all faculties'}.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <SciLineChart
+                  data={tuitionPaymentTrendsDim}
+                  xDataKey="period"
+                  yDataKey={
+                    filters?.program_id
+                      ? 'program_amount'
+                      : filters?.department_id
+                        ? 'department_amount'
+                        : 'faculty_amount'
+                  }
+                  xAxisLabel="Period"
+                  yAxisLabel={`Avg completed tuition payment${
+                    filters?.program_id
+                      ? ' (Program)'
+                      : filters?.department_id
+                        ? ' (Department)'
+                        : filters?.faculty_id
+                          ? ' (Faculty)'
+                          : ' (All Faculties)'
+                  }`}
+                  showLegend={false}
+                  showGrid
+                  minHeight={360}
+                  maxHeight={580}
+                />
+              </CardContent>
+            </Card>
+          </div>
+          </>
           )}
         </>
       )}
