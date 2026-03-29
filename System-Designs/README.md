@@ -12,5 +12,7 @@ Professional design views for the **UCU NextGen Analytics & Prediction Platform*
 | 6 | [06-rbac-security](./06-rbac-security.md) | Roles, resources, authentication |
 | 7 | [07-api-and-integrations](./07-api-and-integrations.md) | API surface and key sequences |
 | 8 | [08-operations-nfrs](./08-operations-nfrs.md) | Hosting, env vars, NFR assumptions |
+| — | [09-etl-data-warehouse-erd](./09-etl-data-warehouse-erd.md) | Detailed ERD: warehouse star schema, views, HR mirror, `dim_app_user` |
+| — | [10-users-and-employees-domain-erd](./10-users-and-employees-domain-erd.md) | Nine roles + employees: entities, org scope, cross-role relationships |
 
 **Source of truth:** behaviour and names are derived from the codebase (`backend/`, `frontend/`, `render.yaml`, `backend/rbac.py`), not from this folder alone.
