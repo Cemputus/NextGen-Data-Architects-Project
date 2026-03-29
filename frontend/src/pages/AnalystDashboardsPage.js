@@ -8,7 +8,6 @@
  * Swaps are handled by /api/dashboard-manager/swap and immediately reflected in both sections.
  */
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { PageHeader } from '../components/ui/page-header';
@@ -16,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
-import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2, XCircle } from 'lucide-react';
+import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2 } from 'lucide-react';
 import {
   KPI_OPTIONS,
   CHART_OPTIONS,
@@ -25,8 +24,6 @@ import {
   PAGES_WITH_VISUALS_KEYS,
   PAGE_CONFIG_LABELS,
   ROLE_LIST,
-  getDefaultRoute,
-  getRoleDashboardNavLabel,
 } from '../config';
 
 /** Roles that analysts can assign dashboards to (excludes Admin). Sysadmin sees all roles. */
@@ -50,7 +47,6 @@ const AnalystDashboardsPage = () => {
   const [swapConfirm, setSwapConfirm] = useState({ open: false, dash: null, targetRole: '' });
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, dash: null });
   const [messageModal, setMessageModal] = useState({ open: false, message: '' });
-  const [removingRole, setRemovingRole] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [contentDashboard, setContentDashboard] = useState(null);
   const [contentPageKey, setContentPageKey] = useState(null);
@@ -274,18 +270,6 @@ const AnalystDashboardsPage = () => {
     return (text || '').toString().toLowerCase().includes(s);
   };
 
-  const filteredCurrent = currentByRole.filter((entry) => {
-    if (filterRole && normalizeRole(entry.role) !== filterRole) return false;
-    const dash = entry.dashboard;
-    if (!dash) return matchesSearch(entry.role);
-    return (
-      matchesSearch(dash.name) ||
-      matchesSearch(dash.description) ||
-      matchesSearch(dash.created_by_username) ||
-      matchesSearch(entry.role)
-    );
-  });
-
   const filteredCustom = customDashboards.filter((dash) => {
     if (filterRole) {
       const roles = Array.isArray(dash.roles) ? dash.roles.map(normalizeRole) : [];
@@ -443,23 +427,6 @@ const AnalystDashboardsPage = () => {
     return currentByRole
       .filter((e) => e.dashboard && e.dashboard.id === dashboardId)
       .map((e) => e.role);
-  };
-
-  const handleRemoveCurrent = async (role) => {
-    setRemovingRole(role);
-    try {
-      await axios.post(
-        '/api/dashboard-manager/remove-current',
-        { role },
-        { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
-      );
-      await loadData();
-    } catch (err) {
-      const msg = err?.response?.data?.error || err?.message || 'Failed to remove current dashboard.';
-      setMessageModal({ open: true, message: msg });
-    } finally {
-      setRemovingRole(null);
-    }
   };
 
   const handleDeleteCustom = (dash) => {
@@ -727,15 +694,9 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            <span className="block">
-              <strong>Role home dashboards</strong> — Dean, HoD, Senate, Staff, Student, Finance, HR: Default, View, Edit,
-              Reset, Copy from… (same <code className="text-[10px]">/api/page-config/</code> as before; not listed under
-              Pages with visuals).
-            </span>
-            <span className="block mt-2">
-              <strong>Assigned dashboard</strong> — one card per role when a custom dashboard is swapped in; live route
-              on each card.
-            </span>
+            <strong>Role home dashboards</strong> — Dean, HoD, Senate, Staff, Student, Finance, HR: Default, View, Edit,
+            Reset, Copy from… (same <code className="text-[10px]">/api/page-config/</code> as before; not listed under
+            Pages with visuals). Use <strong>Custom Dashboards</strong> below to swap or edit a shared dashboard definition.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -848,117 +809,6 @@ const AnalystDashboardsPage = () => {
                 </div>
               </div>
             )}
-            <p className="text-xs font-semibold text-foreground mb-3">Assigned dashboard (per role)</p>
-            <div
-              className={
-                viewMode === 'grid'
-                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'
-                  : 'space-y-2'
-              }
-            >
-              {currentByRole.map((entry) => {
-                const rname = entry.role;
-                const dash = entry.dashboard;
-                return (
-                  <div
-                    key={rname}
-                    className="border rounded-md px-3 py-2 flex flex-col justify-between text-[11px] min-h-[110px]"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase font-semibold text-muted-foreground">
-                          {rname}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Current
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-muted-foreground flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
-                        <span className="text-[9px] uppercase tracking-wide">Live page</span>
-                        <Link
-                          to={getDefaultRoute(rname)}
-                          className="font-mono text-[10px] text-primary hover:underline break-all"
-                          title={`Open ${getRoleDashboardNavLabel(rname)} for ${rname}`}
-                        >
-                          {getDefaultRoute(rname)}
-                        </Link>
-                        <span>· {getRoleDashboardNavLabel(rname)}</span>
-                      </div>
-                      <div className="font-semibold text-xs">
-                        {dash ? dash.name : 'No current dashboard assigned'}
-                      </div>
-                      {dash && dash.description && (
-                        <div className="text-muted-foreground line-clamp-2">
-                          {dash.description}
-                        </div>
-                      )}
-                      {dash && (
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            Created by{' '}
-                            <span className="font-medium">{dash.created_by_username}</span>
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            Roles:{' '}
-                            {Array.isArray(dash.roles) && dash.roles.length > 0
-                              ? dash.roles.join(', ')
-                              : 'None'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1 mt-2">
-                      {dash ? (
-                        <>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            className="h-6 px-2 text-[10px]"
-                            onClick={() =>
-                              setPreviewDashboard((prev) =>
-                                prev && prev.id === dash.id ? null : dash
-                              )
-                            }
-                          >
-                            {previewDashboard && previewDashboard.id === dash.id
-                              ? 'Hide'
-                              : 'Preview'}
-                          </Button>
-                          {canManage && (
-                            <>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                className="h-6 px-2 text-[10px]"
-                                onClick={() => openContentEditor(dash, false, rname)}
-                              >
-                                Edit content
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                onClick={() => handleRemoveCurrent(rname)}
-                                disabled={!!removingRole}
-                              >
-                                {removingRole === rname ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                                <span className="ml-0.5">Remove current</span>
-                              </Button>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        canManage && (
-                          <span className="text-[10px] text-muted-foreground">
-                            Use a Custom dashboard and &quot;Make current&quot; to assign one.
-                          </span>
-                        )
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
             </>
           )}
         </CardContent>
