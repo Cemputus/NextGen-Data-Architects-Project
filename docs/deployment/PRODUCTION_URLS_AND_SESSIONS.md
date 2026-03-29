@@ -57,21 +57,6 @@ Sessions are implemented in a standard way for SPAs:
 
 Rebuild the frontend after changing `REACT_APP_*` variables.
 
-## Dashboard Manager and RBAC APIs (production)
-
-Role dashboards, **Dashboard Manager** (`/analyst/dashboards`), and related endpoints are **not** limited to localhost. In production they behave the same as locally, as long as the browser talks to the **Render** API and the database is available.
-
-| Topic | Production behavior |
-|-------|---------------------|
-| **Base URL** | All dashboard calls use the same `axios.defaults.baseURL` as everything else: `REACT_APP_API_URL` (e.g. `https://nextgen-mis.onrender.com`). Relative paths like `/api/dashboard-manager/ensure-wired` resolve to that host. |
-| **No hardcoded localhost** | Production builds should set `REACT_APP_API_URL` in `.env.production` (or Vercel env) so the SPA never falls back to `127.0.0.1:5000`. |
-| **Auth** | Same JWT: `Authorization: Bearer …` after login to `https://nextgen-mis.onrender.com/api/auth/login`. Analyst/Sysadmin routes require that token. |
-| **CORS** | Same as [CORS](#cors-cross-origin): Vercel origin must be allowed on the Flask app (defaults include `nextgen-mis.vercel.app`). |
-| **Database** | `ucu_rbac` is on the **same** Render Postgres instance as the warehouse; `DATABASE_URL` / `PG_*` on the Web Service must match. Dashboard tables are created on first use. |
-| **PostgreSQL** | Use a backend image that compares boolean columns correctly (`is_active IS TRUE`, not `= 1`). |
-
-**Smoke test (production):** Log in as Analyst → open **Dashboard Manager** → **Refresh**. You should see **Current Dashboards** populate (or a clear error if the API cannot reach RBAC). That confirms `ensure-wired` and `GET /api/dashboard-manager/current` work on Render.
-
 ## Checklist for a new production deploy
 
 - [ ] Backend URL is `https://nextgen-mis.onrender.com` (or your chosen Render service URL).
@@ -79,7 +64,6 @@ Role dashboards, **Dashboard Manager** (`/analyst/dashboards`), and related endp
 - [ ] Backend CORS includes your exact frontend origin (defaults cover `nextgen-mis.vercel.app`).
 - [ ] `JWT_SECRET_KEY` and `SECRET_KEY` are set and not committed to git.
 - [ ] Optional: set `FRONTEND_URL` or `FRONTEND_URLS` on Render if you use extra domains or Vercel preview URLs.
-- [ ] **Dashboard Manager:** After deploy, open `/analyst/dashboards` on the Vercel URL and verify Current Dashboards or RBAC error banner (not silent failure).
 
 ## Related documentation
 
