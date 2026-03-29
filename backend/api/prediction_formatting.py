@@ -12,6 +12,40 @@ from sqlalchemy import create_engine, text
 from config import DATA_WAREHOUSE_CONN_STRING
 
 
+def json_safe(value: Any) -> Any:
+    """
+    Recursively convert numpy/pandas scalars to native Python types for Flask jsonify.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [json_safe(v) for v in value]
+    if isinstance(value, dict):
+        return {k: json_safe(v) for k, v in value.items()}
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and pd.isna(value):
+            return None
+        return value
+    if hasattr(value, "item"):
+        try:
+            return json_safe(value.item())
+        except (ValueError, AttributeError, TypeError):
+            pass
+    try:
+        fv = float(value)
+        if pd.isna(fv):
+            return None
+        if fv == int(fv):
+            return int(fv)
+        return fv
+    except (TypeError, ValueError):
+        return str(value)
+
+
 def resolve_student_identifier(identifier: Optional[str]) -> Optional[str]:
     """
     Resolve access number, registration number, or student_id to dim_student.student_id.
@@ -155,7 +189,7 @@ def fetch_student_profile(student_id: str) -> Dict[str, Any]:
         for k in list(out.keys()):
             v = row.get(k)
             if v is not None and not (isinstance(v, float) and pd.isna(v)):
-                out[k] = v
+                out[k] = json_safe(v)
         # Normalize empty name
         sn = out.get('student_name')
         if isinstance(sn, str) and not sn.strip():
@@ -215,8 +249,8 @@ def build_prediction_payload(
     if extra:
         for k, v in extra.items():
             if v is not None:
-                payload[k] = v
-    return payload
+                payload[k] = json_safe(v)
+    return json_safe(payload)
 
 
 def enrich_model_prediction_block(raw_percent: float) -> Dict[str, Any]:
@@ -226,16 +260,18 @@ def enrich_model_prediction_block(raw_percent: float) -> Dict[str, Any]:
     except (TypeError, ValueError):
         raw = 0.0
     calibrated = calibrate_percent(raw)
-    return {
-        'predicted_grade': round(calibrated, 2),
-        'predicted_grade_raw': round(raw, 2),
-        'predicted_letter_grade': letter_grade_from_percent(calibrated),
-        'gpa': percent_to_gpa(calibrated),
-        'gpa_scale_max': 5.0,
-        'calibration_applied': raw >= 96.0,
-        'calibration_note': (
-            'Raw scores between 96% and 100% are reported as 94.1%–95.4% for consistency.'
-            if raw >= 96.0
-            else None
-        ),
-    }
+    return json_safe(
+        {
+            'predicted_grade': round(calibrated, 2),
+            'predicted_grade_raw': round(raw, 2),
+            'predicted_letter_grade': letter_grade_from_percent(calibrated),
+            'gpa': percent_to_gpa(calibrated),
+            'gpa_scale_max': 5.0,
+            'calibration_applied': raw >= 96.0,
+            'calibration_note': (
+                'Raw scores between 96% and 100% are reported as 94.1%–95.4% for consistency.'
+                if raw >= 96.0
+                else None
+            ),
+        }
+    )
