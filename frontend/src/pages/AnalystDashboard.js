@@ -876,14 +876,12 @@ const AnalystDashboard = ({
           <CardHeader className={chartCardHeaderClass}>
             <CardTitle className={chartCardTitleClass}>Top students by performance</CardTitle>
             <CardDescription className={chartCardDescriptionClass}>
-              {isSenateWorkspace &&
-                'Highest average grades (completed exam attempts) in scope — institution-wide unless you narrow filters above.'}
+              {(isSenateWorkspace || (!isDeanWorkspace && !isHodWorkspace)) &&
+                'Highest average numeric grades from recorded exam outcomes. With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
               {isDeanWorkspace &&
-                'Highest average grades among students in your faculty; department/program filters apply within your faculty.'}
+                'Highest average numeric grades from recorded exam outcomes. Ranking is limited to your faculty; add department, program, semester, or course filters to narrow.'}
               {isHodWorkspace &&
-                'Highest average grades among students in your department; program filter narrows further.'}
-              {!isSenateWorkspace && !isDeanWorkspace && !isHodWorkspace &&
-                'Highest average grades (completed exam attempts) in scope — use filters to narrow by faculty, department, or program.'}
+                'Highest average numeric grades from recorded exam outcomes. Ranking is limited to your department; add program, semester, or course filters to narrow.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
@@ -892,8 +890,11 @@ const AnalystDashboard = ({
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : topStudentsPerformance.length === 0 ? (
-              <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex items-center justify-center text-sm')}>
-                No graded students in the current scope, or not enough data to rank averages.
+              <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex flex-col items-center justify-center gap-1 px-4 text-sm text-center')}>
+                <span>No rows in scope with a numeric grade in fact_grade.</span>
+                <span className="text-xs text-muted-foreground max-w-md">
+                  Clear semester or course filters if they are too narrow, or confirm ETL has loaded grades.
+                </span>
               </div>
             ) : (
               <SciBarChart

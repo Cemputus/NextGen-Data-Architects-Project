@@ -637,12 +637,17 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Top 10 Students</CardTitle>
               <CardDescription className="text-xs">
-                {role === 'senate' && 'Overall top 10 students across institution'}
-                {role === 'dean' && 'Top 10 students in your faculty/school'}
-                {role === 'hod' && 'Top 10 students in your department'}
-                {role === 'staff' && 'Top 10 students in your program/class'}
-                {role === 'analyst' && 'Top 10 students in your filtered scope (institution-wide by default)'}
-                {role === 'sysadmin' && 'Top 10 students in your filtered scope (institution-wide by default)'}
+                {role === 'senate' &&
+                  'Highest average numeric grades from recorded exam outcomes. With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
+                {role === 'analyst' &&
+                  'Highest average numeric grades from recorded exam outcomes. With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
+                {role === 'sysadmin' &&
+                  'Highest average numeric grades from recorded exam outcomes. With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
+                {role === 'dean' &&
+                  'Highest average numeric grades from recorded exam outcomes. Ranking is limited to your faculty; add department, program, semester, or course filters to narrow.'}
+                {role === 'hod' &&
+                  'Highest average numeric grades from recorded exam outcomes. Ranking is limited to your department; add program, semester, or course filters to narrow.'}
+                {role === 'staff' && 'Top 10 students in your program/class scope (numeric grades in fact_grade).'}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4 pt-0">

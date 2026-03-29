@@ -3954,11 +3954,11 @@ def get_grade_performance_breakdown():
 @jwt_required()
 def get_top_students_filtered():
     """
-    Top students by average grade (completed exams), RBAC-scoped:
-      - Dean: JWT faculty only; optional department/program filters narrow within that faculty.
-      - HOD: JWT department only; optional program filter.
-      - Staff: department and/or program scope (existing behaviour).
-      - Senate / Analyst / Sysadmin: institution-wide, or narrowed by faculty/department/program query params.
+    Top students by average numeric fact_grade.grade (any non-null grade row), RBAC-scoped:
+      - Dean: JWT faculty; optional department/program/semester/course/intake/high_school filters.
+      - HOD: JWT department; optional program/semester/course/etc.
+      - Staff: department and/or program scope.
+      - Senate / Analyst / Sysadmin: institution-wide when no faculty filter; same optional filters as other dashboards.
     """
     try:
         from flask_jwt_extended import get_jwt
@@ -3998,8 +3998,11 @@ def get_top_students_filtered():
         fi = _int_param('faculty_id')
         di = _int_param('department_id')
         pi = _int_param('program_id')
+        semester_id = _int_param('semester_id')
 
-        where_clauses = []
+        # Rank by numeric fact_grade.grade only (recorded outcomes). Do not rely solely on exam_status,
+        # which varies by ETL and was excluding valid rows in some warehouses.
+        where_clauses = ["fg.grade IS NOT NULL"]
 
         if role == Role.DEAN:
             fid = claims.get('faculty_id')
@@ -4025,13 +4028,31 @@ def get_top_students_filtered():
             elif pi is not None:
                 where_clauses.append(f"ds.program_id = {pi}")
         else:
-            # Senate, Analyst, Sysadmin — optional drill-down (JWT does not lock scope)
+            # Senate, Analyst, Sysadmin — institution-wide when no faculty/department/program filter
             if fi is not None:
                 where_clauses.append(f"df.faculty_id = {fi}")
             if di is not None:
                 where_clauses.append(f"ddept.department_id = {di}")
             if pi is not None:
                 where_clauses.append(f"ds.program_id = {pi}")
+
+        # Same optional slice as grade-distribution / students-by-department (semester on fact_grade)
+        if semester_id is not None:
+            where_clauses.append(f"fg.semester_id = {semester_id}")
+        iy = qf.get('intake_year')
+        if iy and str(iy).strip().lower() not in ('', 'all'):
+            try:
+                where_clauses.append(f"EXTRACT(YEAR FROM ds.admission_date) = {int(iy)}")
+            except Exception:
+                pass
+        hs = qf.get('high_school')
+        if hs and str(hs).strip().lower() not in ('', 'all'):
+            hs_esc = str(hs).replace("'", "''")
+            where_clauses.append(f"ds.high_school ILIKE '%{hs_esc}%'")
+        cc = qf.get('course_code')
+        if cc and str(cc).strip().lower() not in ('', 'all'):
+            cc_esc = str(cc).replace("'", "''")
+            where_clauses.append(f"fg.course_code = '{cc_esc}'")
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
@@ -4044,27 +4065,35 @@ def get_top_students_filtered():
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
             """
 
-        _cmp = _sql_exam_completed_predicate('fg')
         query = f"""
         SELECT 
-            CONCAT(ds.first_name, ' ', ds.last_name) as student_name,
-            AVG(CASE WHEN {_cmp} THEN fg.grade ELSE NULL END) as avg_grade
+            TRIM(CONCAT(COALESCE(ds.first_name, ''), ' ', COALESCE(ds.last_name, ''))) as student_name,
+            AVG(fg.grade) as avg_grade
         FROM fact_grade fg
         JOIN dim_student ds ON fg.student_id = ds.student_id
         {join_clause}
         {where_clause}
         GROUP BY ds.student_id, ds.first_name, ds.last_name
-        HAVING AVG(CASE WHEN {_cmp} THEN fg.grade ELSE NULL END) IS NOT NULL
+        HAVING AVG(fg.grade) IS NOT NULL
         ORDER BY avg_grade DESC
         LIMIT {limit}
         """
         
         df = pd.read_sql_query(text(query), engine)
-        
-        return jsonify({
-            'students': df['student_name'].tolist(),
-            'grades': df['avg_grade'].round(2).tolist()
-        })
+        if df.empty:
+            return jsonify({'students': [], 'grades': []}), 200
+
+        names = []
+        grades = []
+        for _, row in df.iterrows():
+            nm = str(row.get('student_name') or '').strip() or '—'
+            ag = row.get('avg_grade')
+            if pd.isna(ag):
+                continue
+            names.append(nm)
+            grades.append(round(float(ag), 2))
+
+        return jsonify({'students': names, 'grades': grades})
     except Exception as e:
         print(f"Error in get_top_students_filtered: {e}")
         import traceback
