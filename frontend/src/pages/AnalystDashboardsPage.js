@@ -209,16 +209,7 @@ const AnalystDashboardsPage = () => {
         byRole[normalizeRole(item.role)] = item;
       });
       const rolesToShow = getAssignableRoles(user?.role);
-      const merged = rolesToShow.map((r) => {
-        const item = byRole[r];
-        if (item) {
-          return {
-            hidden_from_users: false,
-            ...item,
-          };
-        }
-        return { role: r, dashboard: null, hidden_from_users: false };
-      });
+      const merged = rolesToShow.map((r) => byRole[r] || { role: r, dashboard: null });
 
       setCurrentByRole(merged);
       setCustomDashboards(customResp.data?.dashboards || []);
@@ -242,9 +233,7 @@ const AnalystDashboardsPage = () => {
       setManagerBackendError(err?.response?.data?.error || err?.message || null);
       setApiForbidden(err.response?.status === 403);
       const fallbackRoles = getAssignableRoles(user?.role);
-      setCurrentByRole(
-        fallbackRoles.map((r) => ({ role: r, dashboard: null, hidden_from_users: false }))
-      );
+      setCurrentByRole(fallbackRoles.map((r) => ({ role: r, dashboard: null })));
       // Do not clear customDashboards on error so recently created dashboard is not lost
     } finally {
       setLoading(false);
@@ -304,10 +293,16 @@ const AnalystDashboardsPage = () => {
     return (text || '').toString().toLowerCase().includes(s);
   };
 
-  /** Current Dashboards: role filter only (search applies to Custom dashboards below). */
-  const currentDashboardRows = currentByRole.filter((entry) => {
+  const filteredCurrent = currentByRole.filter((entry) => {
     if (filterRole && normalizeRole(entry.role) !== filterRole) return false;
-    return true;
+    const dash = entry.dashboard;
+    if (!dash) return matchesSearch(entry.role);
+    return (
+      matchesSearch(dash.name) ||
+      matchesSearch(dash.description) ||
+      matchesSearch(dash.created_by_username) ||
+      matchesSearch(entry.role)
+    );
   });
 
   const filteredCustom = customDashboards.filter((dash) => {
@@ -730,9 +725,7 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-sm font-semibold">Filters</CardTitle>
-            <CardDescription className="text-xs">
-              Role filter applies to both sections. Search applies to Custom dashboards only.
-            </CardDescription>
+            <CardDescription className="text-xs">Role, creator, or name.</CardDescription>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="flex items-center gap-2">
@@ -810,11 +803,10 @@ const AnalystDashboardsPage = () => {
                   : 'space-y-2'
               }
             >
-              {currentDashboardRows.map((entry) => {
+              {currentByRole.map((entry) => {
                 const rname = entry.role;
                 const dash = entry.dashboard;
                 const hiddenFromUsers = entry.hidden_from_users === true;
-                const dashInactive = dash && dash.is_inactive === true;
                 return (
                   <div
                     key={rname}
@@ -832,11 +824,6 @@ const AnalystDashboardsPage = () => {
                           {dash && hiddenFromUsers && (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
                               Hidden from users
-                            </span>
-                          )}
-                          {dash && dashInactive && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                              Inactive
                             </span>
                           )}
                         </div>
