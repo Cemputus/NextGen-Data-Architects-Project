@@ -901,10 +901,8 @@ const AnalystDashboard = ({
                 </div>
               ) : topStudentsPerformance.length === 0 ? (
                 <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex flex-col items-center justify-center gap-1 px-4 text-sm text-center')}>
-                  <span>No scored exam outcomes in this scope (numeric grade or letter grade).</span>
-                  <span className="text-xs text-muted-foreground max-w-md">
-                    Clear semester or course filters if they are too narrow. Other charts may use enrollment or
-                    exam flags without a score column.
+                  <span className="max-w-md">
+                    Use filters to check for faculty/department student performance.
                   </span>
                 </div>
               ) : (
@@ -1016,7 +1014,7 @@ const AnalystDashboard = ({
                 />
               ) : (
                 <p className="text-xs text-muted-foreground px-2 py-12 text-center min-h-[360px] flex items-center justify-center">
-                  No tuition payment trend data for the selected filters.
+                  Coming soon.
                 </p>
               )}
             </CardContent>
@@ -1151,7 +1149,7 @@ const AnalystDashboard = ({
                       />
                     ) : (
                       <p className="text-xs text-muted-foreground px-2 py-12 text-center min-h-[360px] flex items-center justify-center">
-                        No tuition payment trend data for the selected filters.
+                        Coming soon.
                       </p>
                     )}
                   </CardContent>

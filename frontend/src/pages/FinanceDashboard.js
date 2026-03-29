@@ -570,7 +570,7 @@ const FinanceDashboard = () => {
                   />
                 ) : (
                   <p className="text-xs text-muted-foreground px-2 py-12 text-center min-h-[360px] flex items-center justify-center">
-                    No tuition payment trend data for the selected filters.
+                    Coming soon.
                   </p>
                 )}
               </CardContent>
