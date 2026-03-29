@@ -2,7 +2,7 @@
  * Central config (Phase 1) — single source for roles, routes, KPIs, and page keys.
  */
 export { ROLES, ROLE_LIST, ROLE_FILTER_OPTIONS } from './roles';
-export { getDefaultRoute, getRoleDashboardNavLabel, DEFAULT_ROUTE_BY_ROLE } from './routes';
+export { getDefaultRoute, DEFAULT_ROUTE_BY_ROLE } from './routes';
 export {
   KPI_OPTIONS,
   CHART_OPTIONS,

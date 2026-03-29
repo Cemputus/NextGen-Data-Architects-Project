@@ -8,7 +8,6 @@
  * Swaps are handled by /api/dashboard-manager/swap and immediately reflected in both sections.
  */
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { PageHeader } from '../components/ui/page-header';
@@ -23,8 +22,6 @@ import {
   PAGE_CONFIG_KEYS,
   PAGE_CONFIG_LABELS,
   ROLE_LIST,
-  getDefaultRoute,
-  getRoleDashboardNavLabel,
 } from '../config';
 
 /** Roles that analysts can assign dashboards to (excludes Admin). Sysadmin sees all roles. */
@@ -725,9 +722,7 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            One card per role. Each role’s live app page is the route shown on the card (e.g.{' '}
-            <span className="font-mono">/student/dashboard</span> → Dashboard). Use &quot;Edit content&quot; to change KPIs
-            and charts; &quot;Make current&quot; from Custom to swap; &quot;Remove current&quot; to unassign.
+            One card per role. All roles with dashboard pages are listed here. Use &quot;Edit content&quot; to change KPIs and charts; &quot;Make current&quot; from Custom to swap; &quot;Remove current&quot; to unassign.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -760,17 +755,6 @@ const AnalystDashboardsPage = () => {
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                           Current
                         </span>
-                      </div>
-                      <div className="text-[10px] text-muted-foreground flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
-                        <span className="text-[9px] uppercase tracking-wide">Live page</span>
-                        <Link
-                          to={getDefaultRoute(rname)}
-                          className="font-mono text-[10px] text-primary hover:underline break-all"
-                          title={`Open ${getRoleDashboardNavLabel(rname)} for ${rname}`}
-                        >
-                          {getDefaultRoute(rname)}
-                        </Link>
-                        <span>· {getRoleDashboardNavLabel(rname)}</span>
                       </div>
                       <div className="font-semibold text-xs">
                         {dash ? dash.name : 'No current dashboard assigned'}

@@ -17,20 +17,6 @@ const DEFAULT_ROUTE_BY_ROLE = {
   [ROLES.FINANCE]: '/finance/dashboard',
 };
 
-/** Primary dashboard nav label per role (matches `LayoutModern` sidebar). */
-const ROLE_DASHBOARD_NAV_LABEL = {
-  [ROLES.STUDENT]: 'Dashboard',
-  [ROLES.STAFF]: 'Dashboard',
-  [ROLES.HOD]: 'Dashboard',
-  [ROLES.DEAN]: 'Dashboard',
-  [ROLES.SENATE]: 'Dashboard',
-  [ROLES.ANALYST]: 'Workspace',
-  [ROLES.SYSADMIN]: 'Console',
-  admin: 'Console',
-  [ROLES.HR]: 'Dashboard',
-  [ROLES.FINANCE]: 'Dashboard',
-};
-
 /**
  * @param {string} [role]
  * @returns {string} Default path for the role
@@ -38,15 +24,6 @@ const ROLE_DASHBOARD_NAV_LABEL = {
 export function getDefaultRoute(role) {
   const key = (role || '').toString().toLowerCase();
   return DEFAULT_ROUTE_BY_ROLE[key] ?? '/dashboard';
-}
-
-/**
- * @param {string} [role]
- * @returns {string} Nav label for that role’s home dashboard (Dashboard | Workspace | Console)
- */
-export function getRoleDashboardNavLabel(role) {
-  const key = (role || '').toString().toLowerCase();
-  return ROLE_DASHBOARD_NAV_LABEL[key] ?? 'Dashboard';
 }
 
 export { DEFAULT_ROUTE_BY_ROLE };
