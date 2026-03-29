@@ -4053,6 +4053,12 @@ def get_top_students_filtered():
         if cc and str(cc).strip().lower() not in ('', 'all'):
             cc_esc = str(cc).replace("'", "''")
             where_clauses.append(f"fg.course_code = '{cc_esc}'")
+        yos = qf.get('year_of_study')
+        if yos is not None and str(yos).strip().lower() not in ('', 'all'):
+            try:
+                where_clauses.append(f"COALESCE(ds.year_of_study, 0) = {int(yos)}")
+            except Exception:
+                pass
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 

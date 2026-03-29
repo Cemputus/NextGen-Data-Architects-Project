@@ -35,6 +35,7 @@ import {
   chartEmptyStateClass,
 } from '../lib/analytics-ui';
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
+import { buildDashboardQueryParams } from '../utils/filterUtils';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -122,6 +123,9 @@ const AnalystDashboard = ({
     }
     return f;
   }, [globalFilters, lockedFacultyId, lockedDepartmentId]);
+
+  /** Stable query params for APIs (no empty keys); keeps KPIs/charts in sync when filters are cleared without refresh. */
+  const dashboardQueryParams = useMemo(() => buildDashboardQueryParams(apiFilters), [apiFilters]);
 
   const distributionGroupBy = useMemo(() => {
     // User chose a program → always show year-of-study breakdown
@@ -236,7 +240,7 @@ const AnalystDashboard = ({
 
       const response = await axios.get('/api/dashboard/stats', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: { ...apiFilters, lite: 1 },
+        params: { ...dashboardQueryParams, lite: 1 },
       });
 
       if (reqId !== statsRequestSeqRef.current) return;
@@ -373,7 +377,7 @@ const AnalystDashboard = ({
         axios
           .get('/api/analytics/academic-risk-summary', {
             headers,
-            params: apiFilters,
+            params: dashboardQueryParams,
           })
           .catch(() => ({ data: { summary: null } })),
       ];
@@ -384,13 +388,13 @@ const AnalystDashboard = ({
             axios
               .get('/api/dashboard/payment-status', {
                 headers,
-                params: apiFilters,
+                params: dashboardQueryParams,
               })
               .catch(() => ({ data: { statuses: [], counts: [] } })),
             axios
               .get('/api/dashboard/payment-trends', {
                 headers,
-                params: { period: 'quarterly', ...apiFilters },
+                params: { period: 'quarterly', ...dashboardQueryParams },
               })
               .catch(() => ({ data: { periods: [], amounts: [] } })),
           ];
@@ -411,7 +415,7 @@ const AnalystDashboard = ({
             axios
               .get('/api/dashboard/tuition-defaulters', {
                 headers,
-                params: apiFilters,
+                params: dashboardQueryParams,
               })
               .catch(() => ({ data: { tuition_defaulters: [], semester_id: null } })),
           ];
@@ -420,7 +424,7 @@ const AnalystDashboard = ({
         axios
           .get('/api/dashboard/tuition-payment-trends-dimensions', {
             headers,
-            params: { period: tuitionTrendPeriod, ...apiFilters },
+            params: { period: tuitionTrendPeriod, ...dashboardQueryParams },
           })
           .catch(() => ({
             data: {
@@ -527,7 +531,7 @@ const AnalystDashboard = ({
       const res = await axios
         .get('/api/dashboard/students-by-department', {
           headers,
-          params: { group_by: distributionGroupBy, ...apiFilters },
+          params: { group_by: distributionGroupBy, ...dashboardQueryParams },
         })
         .catch(() => ({ data: { labels: [], counts: [] } }));
       const enrollLabels = res.data.labels || res.data.departments || [];
@@ -567,7 +571,7 @@ const AnalystDashboard = ({
       if (!hasLoadedPipeline) setLoadingPipeline(true);
       const token = sessionStorage.getItem('ucu_session_token');
       const headers = { Authorization: `Bearer ${token}` };
-      const params = { ...apiFilters };
+      const params = { ...dashboardQueryParams };
       const res = await axios
         .get('/api/analytics/enrollment-pipeline', {
           headers,
@@ -611,7 +615,7 @@ const AnalystDashboard = ({
       const res = await axios
         .get('/api/dashboard/top-students', {
           headers,
-          params: { ...apiFilters, limit: 10 },
+          params: { ...dashboardQueryParams, limit: 10 },
         })
         .catch(() => ({ data: { students: [], grades: [] } }));
       if (reqId !== topStudentsRequestSeqRef.current) return;
@@ -656,11 +660,11 @@ const AnalystDashboard = ({
       loadStudentDistributionChart();
       loadPipelineChart();
       loadTopStudents();
-    }, 250);
+    }, 100);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    globalFilters,
+    dashboardQueryParams,
     distributionGroupBy,
     lockedFacultyId,
     lockedDepartmentId,
@@ -982,15 +986,6 @@ const AnalystDashboard = ({
                 <SciLineChart
                   data={tuitionPaymentTrendsDim}
                   xDataKey="period"
-                  yDataKeys={
-                    !apiFilters?.program_id && !apiFilters?.department_id
-                      ? [
-                          { key: 'faculty_amount', label: 'Faculty average', color: CHART_PALETTE_THEME[0] },
-                          { key: 'department_amount', label: 'Department average', color: CHART_PALETTE_THEME[1] },
-                          { key: 'program_amount', label: 'Program average', color: CHART_PALETTE_THEME[2] },
-                        ]
-                      : undefined
-                  }
                   yDataKey={
                     apiFilters?.program_id
                       ? 'program_amount'
@@ -999,24 +994,17 @@ const AnalystDashboard = ({
                         : 'faculty_amount'
                   }
                   xAxisLabel="Period"
-                  yAxisLabel={
-                    !apiFilters?.program_id && !apiFilters?.department_id
-                      ? 'Avg completed amount (per unit)'
-                      : `Avg completed tuition payment${
-                          apiFilters?.program_id
-                            ? ' (Program)'
-                            : apiFilters?.department_id
-                              ? ' (Department)'
-                              : apiFilters?.faculty_id
-                                ? ' (Faculty)'
-                                : ' (All Faculties)'
-                        }`
-                  }
-                  showLegend={!apiFilters?.program_id && !apiFilters?.department_id}
+                  yAxisLabel={`Avg completed tuition payment${
+                    apiFilters?.program_id
+                      ? ' (Program)'
+                      : apiFilters?.department_id
+                        ? ' (Department)'
+                        : apiFilters?.faculty_id
+                          ? ' (Faculty)'
+                          : ' (All Faculties)'
+                  }`}
+                  showLegend={false}
                   showGrid
-                  gridPadding={
-                    !apiFilters?.program_id && !apiFilters?.department_id ? { bottom: 88 } : undefined
-                  }
                   minHeight={360}
                   maxHeight={580}
                 />
@@ -1133,15 +1121,6 @@ const AnalystDashboard = ({
                       <SciLineChart
                         data={tuitionPaymentTrendsDim}
                         xDataKey="period"
-                        yDataKeys={
-                          !apiFilters?.program_id && !apiFilters?.department_id
-                            ? [
-                                { key: 'faculty_amount', label: 'Faculty average', color: CHART_PALETTE_THEME[0] },
-                                { key: 'department_amount', label: 'Department average', color: CHART_PALETTE_THEME[1] },
-                                { key: 'program_amount', label: 'Program average', color: CHART_PALETTE_THEME[2] },
-                              ]
-                            : undefined
-                        }
                         yDataKey={
                           apiFilters?.program_id
                             ? 'program_amount'
@@ -1150,26 +1129,17 @@ const AnalystDashboard = ({
                               : 'faculty_amount'
                         }
                         xAxisLabel="Period"
-                        yAxisLabel={
-                          !apiFilters?.program_id && !apiFilters?.department_id
-                            ? 'Avg completed amount (per unit)'
-                            : `Avg completed tuition payment${
-                                apiFilters?.program_id
-                                  ? ' (Program)'
-                                  : apiFilters?.department_id
-                                    ? ' (Department)'
-                                    : apiFilters?.faculty_id
-                                      ? ' (Faculty)'
-                                      : ' (All Faculties)'
-                              }`
-                        }
-                        showLegend={!apiFilters?.program_id && !apiFilters?.department_id}
+                        yAxisLabel={`Avg completed tuition payment${
+                          apiFilters?.program_id
+                            ? ' (Program)'
+                            : apiFilters?.department_id
+                              ? ' (Department)'
+                              : apiFilters?.faculty_id
+                                ? ' (Faculty)'
+                                : ' (All Faculties)'
+                        }`}
+                        showLegend={false}
                         showGrid
-                        gridPadding={
-                          !apiFilters?.program_id && !apiFilters?.department_id
-                            ? { bottom: 88 }
-                            : undefined
-                        }
                         minHeight={360}
                         maxHeight={580}
                       />

@@ -1,7 +1,7 @@
 /**
  * Finance Dashboard - Smooth, Clean UI
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
@@ -19,8 +19,9 @@ import {
   chartCardTitleClass,
   chartCardDescriptionClass,
 } from '../lib/analytics-ui';
-import { MODERN_CHART_PALETTE, CHART_PALETTE_THEME } from '../lib/chartTheme';
+import { MODERN_CHART_PALETTE } from '../lib/chartTheme';
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
+import { buildDashboardQueryParams } from '../utils/filterUtils';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
@@ -30,7 +31,8 @@ const FinanceDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [filters, setFilters] = useState({});
-  const debouncedFilters = useDebouncedValue(filters, 300);
+  const debouncedFilters = useDebouncedValue(filters, 120);
+  const dashboardQueryParams = useMemo(() => buildDashboardQueryParams(debouncedFilters), [debouncedFilters]);
   const [showWelcome, setShowWelcome] = useState(true);
   const [paymentTrends, setPaymentTrends] = useState([]);
   const [outstandingFacultyProgram, setOutstandingFacultyProgram] = useState([]);
@@ -63,11 +65,11 @@ const FinanceDashboard = () => {
       const headers = { Authorization: `Bearer ${token}` };
       const response = await axios.get('/api/analytics/finance', {
         headers,
-        params: debouncedFilters
+        params: dashboardQueryParams,
       }).catch(() => {
         return axios.get('/api/dashboard/stats', {
           headers,
-          params: debouncedFilters
+          params: dashboardQueryParams,
         });
       });
 
@@ -115,12 +117,12 @@ const FinanceDashboard = () => {
         highRiskRes,
       ] = await Promise.all([
         axios
-          .get('/api/dashboard/tuition-defaulters', { headers, params: debouncedFilters })
+          .get('/api/dashboard/tuition-defaulters', { headers, params: dashboardQueryParams })
           .catch(() => ({ data: { tuition_defaulters: [], semester_id: null } })),
         axios
           .get('/api/dashboard/tuition-payment-trends-dimensions', {
             headers,
-            params: { period: tuitionTrendPeriod, ...debouncedFilters },
+            params: { period: tuitionTrendPeriod, ...dashboardQueryParams },
           })
           .catch(() => ({
             data: {
@@ -133,25 +135,25 @@ const FinanceDashboard = () => {
         axios
           .get('/api/dashboard/payment-trends', {
             headers,
-            params: { period: 'quarterly', ...debouncedFilters },
+            params: { period: 'quarterly', ...dashboardQueryParams },
           })
           .catch(() => ({ data: { periods: [], amounts: [] } })),
         axios
           .get('/api/dashboard/outstanding-by-faculty-program', {
             headers,
-            params: { ...debouncedFilters },
+            params: { ...dashboardQueryParams },
           })
           .catch(() => ({ data: { outstanding_by_faculty_program: [], semester_id: null } })),
         axios
           .get('/api/dashboard/payment-status', {
             headers,
-            params: { ...debouncedFilters },
+            params: { ...dashboardQueryParams },
           })
           .catch(() => ({ data: { statuses: [], counts: [] } })),
         axios
           .get('/api/dashboard/high-risk-debt-segments', {
             headers,
-            params: { ...debouncedFilters },
+            params: { ...dashboardQueryParams },
           })
           .catch(() => ({
             data: { high_risk_debt_segments: [], semester_id: null },
@@ -544,15 +546,6 @@ const FinanceDashboard = () => {
                   <SciLineChart
                     data={tuitionPaymentTrendsDim}
                     xDataKey="period"
-                    yDataKeys={
-                      !debouncedFilters?.program_id && !debouncedFilters?.department_id
-                        ? [
-                            { key: 'faculty_amount', label: 'Faculty average', color: CHART_PALETTE_THEME[0] },
-                            { key: 'department_amount', label: 'Department average', color: CHART_PALETTE_THEME[1] },
-                            { key: 'program_amount', label: 'Program average', color: CHART_PALETTE_THEME[2] },
-                          ]
-                        : undefined
-                    }
                     yDataKey={
                       debouncedFilters?.program_id
                         ? 'program_amount'
@@ -561,26 +554,17 @@ const FinanceDashboard = () => {
                           : 'faculty_amount'
                     }
                     xAxisLabel="Period"
-                    yAxisLabel={
-                      !debouncedFilters?.program_id && !debouncedFilters?.department_id
-                        ? 'Avg completed amount (per unit)'
-                        : `Avg completed tuition payment${
-                            debouncedFilters?.program_id
-                              ? ' (Program)'
-                              : debouncedFilters?.department_id
-                                ? ' (Department)'
-                                : debouncedFilters?.faculty_id
-                                  ? ' (Faculty)'
-                                  : ' (All Faculties)'
-                          }`
-                    }
-                    showLegend={!debouncedFilters?.program_id && !debouncedFilters?.department_id}
+                    yAxisLabel={`Avg completed tuition payment${
+                      debouncedFilters?.program_id
+                        ? ' (Program)'
+                        : debouncedFilters?.department_id
+                          ? ' (Department)'
+                          : debouncedFilters?.faculty_id
+                            ? ' (Faculty)'
+                            : ' (All Faculties)'
+                    }`}
+                    showLegend={false}
                     showGrid
-                    gridPadding={
-                      !debouncedFilters?.program_id && !debouncedFilters?.department_id
-                        ? { bottom: 88 }
-                        : undefined
-                    }
                     minHeight={360}
                     maxHeight={580}
                   />
