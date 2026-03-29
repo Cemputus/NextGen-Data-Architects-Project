@@ -29,125 +29,9 @@ def _get_rbac_conn_string() -> str:
   return DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
 
 
-def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
-  """
-  Ensure that each role in all_roles has a current dashboard assigned.
-  If no dashboards exist at all, create a single default analytics dashboard
-  and assign it to all roles. If dashboards exist but some roles have no
-  current assignment, assign the first active dashboard to those roles.
-  """
-  total_dashboards = conn.execute(
-    text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active IS TRUE")
-  ).scalar() or 0
-
-  default_dashboard_id = None
-
-  if total_dashboards == 0:
-    default_dashboard_id = uuid.uuid4().hex
-    conn.execute(
-      text(
-        """
-        INSERT INTO dashboards (
-          id, name, description, created_by_username, created_by_role, definition, is_active
-        ) VALUES (
-          :id, :name, :description, :created_by_username, :created_by_role, :definition, TRUE
-        )
-        """
-      ),
-      {
-        "id": default_dashboard_id,
-        "name": "Default Analytics Dashboard",
-        "description": "Auto-created default dashboard showing core analytics for all roles.",
-        "created_by_username": updated_by_username or "system",
-        "created_by_role": "sysadmin",
-        "definition": json.dumps(
-          {
-            "template": "analytics_dashboard",
-            "source": "analyst_dashboard",
-            "kpis": [
-              "total_students",
-              "avg_grade",
-              "failed_exams",
-              "missed_exams",
-              "avg_attendance",
-            ],
-            "charts": [
-              "student_distribution",
-              "grades_over_time",
-              "grade_distribution",
-            ],
-          }
-        ),
-      },
-    )
-
-  # Resolve dashboard to assign: use newly created default, or first active dashboard
-  dashboard_to_assign = default_dashboard_id
-  if dashboard_to_assign is None and total_dashboards > 0:
-    row = conn.execute(
-      text("SELECT id FROM dashboards WHERE is_active IS TRUE ORDER BY created_at ASC LIMIT 1")
-    ).fetchone()
-    if row:
-      dashboard_to_assign = row[0]
-
-  if dashboard_to_assign is not None:
-    # So Dashboard Manager "Custom" filters and role metadata see this dashboard for every role.
-    for rname in all_roles:
-      conn.execute(
-        text(
-          """
-          INSERT INTO dashboard_role_access (dashboard_id, role_name)
-          VALUES (:dashboard_id, :role_name)
-          ON CONFLICT (dashboard_id, role_name) DO NOTHING
-          """
-        ),
-        {"dashboard_id": dashboard_to_assign, "role_name": rname},
-      )
-    for rname in all_roles:
-      exists = conn.execute(
-        text(
-          """
-          SELECT 1 FROM role_current_dashboard
-          WHERE role_name = :role_name
-          """
-        ),
-        {"role_name": rname},
-      ).scalar()
-      if not exists:
-        conn.execute(
-          text(
-            """
-            INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username)
-            VALUES (:role_name, :dashboard_id, :updated_by_username)
-            ON CONFLICT (role_name) DO UPDATE SET
-              dashboard_id = EXCLUDED.dashboard_id,
-              updated_by_username = EXCLUDED.updated_by_username
-            """
-          ),
-          {
-            "role_name": rname,
-            "dashboard_id": dashboard_to_assign,
-            "updated_by_username": updated_by_username or "system",
-          },
-        )
-    conn.commit()
-
-
 def _ensure_role_dashboards_if_needed(conn, all_roles, updated_by_username: str):
-  """
-  Wire default dashboards: no active dashboards → create default + pointers;
-  dashboards exist but role_current_dashboard is empty → point all roles at oldest active.
-  """
-  total_active_dashboards = conn.execute(
-    text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active IS TRUE")
-  ).scalar() or 0
-  role_pointer_count = conn.execute(
-    text("SELECT COUNT(*) AS c FROM role_current_dashboard")
-  ).scalar() or 0
-  if total_active_dashboards == 0:
-    _ensure_default_role_dashboards(conn, all_roles, updated_by_username)
-  elif role_pointer_count == 0:
-    _ensure_default_role_dashboards(conn, all_roles, updated_by_username)
+  """No-op: do not auto-create or auto-assign dashboards (RBAC assignments only)."""
+  return
 
 
 def _ensure_dashboard_tables(engine):
@@ -488,8 +372,7 @@ def get_current_dashboards():
 @jwt_required()
 def ensure_wired_dashboards():
   """
-  Run the same wiring as GET /current (create default + pointers, or backfill when RCD is empty).
-  Call from Dashboard Manager on load so Current Dashboards populates even if GET failed earlier.
+  Legacy no-op hook for Dashboard Manager (no auto-seeding). Kept for API compatibility.
   """
   username, role = _current_user()
   if not _is_analyst_or_admin(role):
@@ -757,17 +640,16 @@ def reset_role_to_default_dashboard():
             ),
           },
         )
-        for rname in all_roles:
-          conn.execute(
-            text(
-              """
-              INSERT INTO dashboard_role_access (dashboard_id, role_name)
-              VALUES (:dashboard_id, :role_name)
-              ON CONFLICT (dashboard_id, role_name) DO NOTHING
-              """
-            ),
-            {"dashboard_id": default_id, "role_name": rname},
-          )
+      conn.execute(
+        text(
+          """
+          INSERT INTO dashboard_role_access (dashboard_id, role_name)
+          VALUES (:dashboard_id, :role_name)
+          ON CONFLICT (dashboard_id, role_name) DO NOTHING
+          """
+        ),
+        {"dashboard_id": default_id, "role_name": target_role},
+      )
 
       conn.execute(
         text(
@@ -996,10 +878,13 @@ def get_current_dashboard_for_role():
   """
   Return the current dashboard for the authenticated user's primary JWT role.
 
-  Uses role_current_dashboard + dashboards.id (active only). Same definition
-  users see on their home dashboard.
+  Resolves role_current_dashboard + active dashboards only if the user is allowed
+  to see that dashboard (dashboard_role_access for their role OR dashboard_user_access
+  for their username). Otherwise returns no dashboard.
   """
   username, role = _current_user()
+  uname = (username or "").strip().lower()
+  rname = (role or "").strip().lower()
   engine = None
   try:
     engine = _get_engine()
@@ -1012,11 +897,21 @@ def get_current_dashboard_for_role():
                  d.created_by_username AS d_created_by_username, d.created_by_role AS d_created_by_role,
                  d.definition AS d_definition, d.updated_at AS d_updated_at, d.is_active AS d_is_active
           FROM role_current_dashboard r
-          LEFT JOIN dashboards d ON d.id = r.dashboard_id
+          INNER JOIN dashboards d ON d.id = r.dashboard_id AND d.is_active IS TRUE
           WHERE LOWER(r.role_name) = :rname
+            AND (
+              EXISTS (
+                SELECT 1 FROM dashboard_role_access dra
+                WHERE dra.dashboard_id = d.id AND LOWER(dra.role_name) = :rname2
+              )
+              OR EXISTS (
+                SELECT 1 FROM dashboard_user_access dua
+                WHERE dua.dashboard_id = d.id AND LOWER(TRIM(dua.username)) = :uname
+              )
+            )
           """
         ),
-        {"rname": role},
+        {"rname": rname, "rname2": rname, "uname": uname},
       ).mappings().first()
       if not row:
         return jsonify({"dashboard": None, "message": MSG_NO_DASHBOARD_ASSIGNED}), 200

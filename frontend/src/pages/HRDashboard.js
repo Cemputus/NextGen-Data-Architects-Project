@@ -80,10 +80,7 @@ const HRDashboard = () => {
     error: currentDashError,
     userMessage: currentDashMessage,
   } = useCurrentDashboard();
-  const useDynamicLayout =
-    !currentDashLoading &&
-    !currentDashError &&
-    (Boolean(currentDash?.id) || Boolean(currentDashMessage));
+  const useAssignedDashboardLayout = !currentDashLoading && !currentDashError;
   const [dwStats, setDwStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
@@ -102,7 +99,7 @@ const HRDashboard = () => {
   }, []);
 
   useEffect(() => {
-    if (!useDynamicLayout) {
+    if (!useAssignedDashboardLayout) {
       setDwStats(null);
       return;
     }
@@ -111,7 +108,7 @@ const HRDashboard = () => {
       .get('/api/dashboard/stats', { headers, params: { ...debouncedFilters, lite: 1 } })
       .then((r) => setDwStats(r.data))
       .catch(() => setDwStats(null));
-  }, [debouncedFilters, useDynamicLayout]);
+  }, [debouncedFilters, useAssignedDashboardLayout]);
 
   const mergedStats = useMemo(
     () => ({ ...(stats || {}), ...(dwStats || {}) }),
@@ -384,265 +381,18 @@ const HRDashboard = () => {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Loading dashboard layout…</p>
             </div>
-          ) : useDynamicLayout ? (
+          ) : useAssignedDashboardLayout ? (
             <RoleDashboardRenderer
               stats={mergedStats}
               type={getRoleBasedChartsType(user?.role)}
               filters={debouncedFilters}
             />
           ) : (
-          <>
-          {/* Top HR KPI strip */}
-          <Card className={kpiStripCardClass}>
-            <CardHeader className={chartCardHeaderClass}>
-              <CardTitle className="text-base font-semibold tracking-tight">Workforce overview</CardTitle>
-              <CardDescription className={chartCardDescriptionClass}>
-                HR KPIs from the data warehouse (headcount by faculty/department), scoped by filters below.
-                {stats &&
-                (stats.total_employees ?? 0) > 0 &&
-                !(stats.attendance_by_role?.length || stats.payroll_by_role?.length) &&
-                (stats.attendance_rate ?? 0) === 0 &&
-                (Number(stats.total_payroll) || 0) === 0 ? (
-                  <span className="block mt-1 text-amber-700 dark:text-amber-400">
-                    When administration HR tables have no attendance or payroll rows, charts and KPIs can still be
-                    filled from <code className="text-xs">dim_employee</code> (synthetic attendance and estimated
-                    payroll by role).
-                  </span>
-                ) : null}
-              </CardDescription>
-                </CardHeader>
-            <CardContent className="pt-0 pb-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <KPICard
-                  title="Total employees"
-                  value={formatNumber(stats?.total_employees)}
-                  icon={Users}
-                  subtitle="Headcount in current filter scope."
-                />
-                <KPICard
-                  title="Departments"
-                  value={formatNumber(stats?.total_departments)}
-                  icon={Building2}
-                  subtitle="Distinct departments represented."
-                />
-                <KPICard
-                  title="Attendance rate"
-                  value={formatPercent(stats?.attendance_rate)}
-                  icon={Activity}
-                  subtitle={
-                    stats && (stats.attendance_rate ?? 0) === 0 && !(stats.attendance_by_role?.length)
-                      ? 'No attendance rows in current data source.'
-                      : 'From HR attendance analytics.'
-                  }
-                />
-                <KPICard
-                  title="Total payroll"
-                  value={formatNumber(stats?.total_payroll)}
-                  icon={Banknote}
-                  subtitle={
-                    stats && (Number(stats.total_payroll) || 0) === 0 && !(stats.payroll_by_role?.length)
-                      ? 'No payroll rows in current data source.'
-                      : 'Aggregate net pay in scope (administration payroll or estimated by role from dims).'
-                  }
-                />
-              </div>
-                </CardContent>
-              </Card>
-
-          {/* Row 1: Headcount distribution */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className={chartSurfaceCard('h-full')}>
-              <CardHeader className={chartCardHeaderClass}>
-                <CardTitle className={chartCardTitleClass}>Employees by faculty</CardTitle>
-                <CardDescription className={chartCardDescriptionClass}>
-                  Headcount per faculty from HR analytics. Axis: abbreviated labels — hover for full name. Legend:{' '}
-                  <span className="font-medium text-foreground/90">Lec.</span> lecturers,{' '}
-                  <span className="font-medium text-foreground/90">Asst.</span> assistant lecturers,{' '}
-                  <span className="font-medium text-foreground/90">Other</span> remaining staff.
-                  </CardDescription>
-                </CardHeader>
-              <CardContent className="pt-0">
-                {employeesByFacultyChartData.length > 0 ? (
-                  <div className={chartWrapClass}>
-                    <SciBarChart
-                      data={employeesByFacultyChartData}
-                      xDataKey="faculty_short"
-                      tooltipNameKey="faculty_name"
-                      yDataKeys={[
-                        { key: 'lecturers', label: HR_SERIES_LABELS.lecturers, color: UCU_COLORS.cyan },
-                        {
-                          key: 'assistant_lecturers',
-                          label: HR_SERIES_LABELS.assistant_lecturers,
-                          color: UCU_COLORS.gold,
-                        },
-                        { key: 'other_staff', label: HR_SERIES_LABELS.other_staff, color: UCU_COLORS.maroon },
-                      ]}
-                      xAxisLabel="Faculty (short)"
-                      yAxisLabel="Employees"
-                      showLegend
-                      showGrid
-                      axisFontSize={HR_AXIS_FONT_SIZE}
-                      gridPadding={HR_CHART_GRID}
-                      minHeight={HR_CHART_MIN_HEIGHT}
-                      maxHeight={HR_CHART_MAX_HEIGHT}
-                    />
-                  </div>
-                ) : (
-                  <div className={cn(chartEmptyStateClass, 'min-h-[280px]')}>
-                    No faculty headcount for the current filters. Run ETL to load{' '}
-                    <code className="text-xs">dim_employee</code> or widen filters (e.g. clear faculty / role).
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className={chartSurfaceCard('h-full')}>
-              <CardHeader className={chartCardHeaderClass}>
-                <CardTitle className={chartCardTitleClass}>Employees by department</CardTitle>
-                <CardDescription className={chartCardDescriptionClass}>
-                  Top 20 departments by headcount. Same legend as faculty chart (Lec. / Asst. / Other). Hover for full
-                  department and faculty.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {employeesByDepartmentChartData.length > 0 ? (
-                  <div className={chartWrapClass}>
-                    <SciBarChart
-                      data={employeesByDepartmentChartData}
-                      xDataKey="department_short"
-                      tooltipNameKey="tooltip_label"
-                      yDataKeys={[
-                        { key: 'lecturers', label: HR_SERIES_LABELS.lecturers, color: UCU_COLORS.cyan },
-                        {
-                          key: 'assistant_lecturers',
-                          label: HR_SERIES_LABELS.assistant_lecturers,
-                          color: UCU_COLORS.gold,
-                        },
-                        { key: 'other_staff', label: HR_SERIES_LABELS.other_staff, color: UCU_COLORS.maroon },
-                      ]}
-                      xAxisLabel="Department (short)"
-                      yAxisLabel="Employees"
-                      showLegend
-                      showGrid
-                      axisFontSize={HR_AXIS_FONT_SIZE}
-                      xAxisLabelRotate={employeesByDepartmentChartData.length > 8 ? 38 : 22}
-                      gridPadding={{ ...HR_CHART_GRID, bottom: 72 }}
-                      minHeight={HR_CHART_MIN_HEIGHT}
-                      maxHeight={HR_CHART_MAX_HEIGHT}
-                    />
-                  </div>
-                ) : (
-                  <div className={cn(chartEmptyStateClass, 'min-h-[280px]')}>
-                    No department headcount for the current filters. Run ETL or adjust filters.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-                  </div>
-
-          {/* Row 2: Role mix & attendance */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className={chartSurfaceCard('h-full')}>
-              <CardHeader className={chartCardHeaderClass}>
-                <CardTitle className={chartCardTitleClass}>Role mix</CardTitle>
-                <CardDescription className={chartCardDescriptionClass}>
-                  Share of staff by position type (lecturers, assistant lecturers, finance, HR, Senate, etc.). Data
-                  comes from <code className="text-[10px]">role_mix</code> on the HR analytics API. Uses the same
-                  faculty/department filters as above; the <strong>employee role</strong> dropdown does{' '}
-                  <strong>not</strong> change this chart so you always see the full mix in scope.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {roleMixDonutData.length > 0 ? (
-                  <div className={roleMixWrapClass}>
-                    <SciDonutChart
-                      data={roleMixDonutData}
-                      nameKey="name"
-                      valueKey="value"
-                      colors={CHART_PALETTE_THEME}
-                      innerRadius="52%"
-                      minHeight={400}
-                      maxHeight={520}
-                      />
-                    </div>
-                ) : (
-                  <div className={cn(chartEmptyStateClass, 'min-h-[300px]')}>
-                    No role breakdown for the current faculty/department filters. Run ETL to load employees or clear
-                    filters.
-                  </div>
-                )}
-                </CardContent>
-              </Card>
-
-            <Card className={chartSurfaceCard('h-full')}>
-              <CardHeader className={chartCardHeaderClass}>
-                <CardTitle className={chartCardTitleClass}>Attendance trend</CardTitle>
-                <CardDescription className={chartCardDescriptionClass}>
-                  Stacked daily counts from <code className="text-[10px]">employee_attendance_trend</code> (Present,
-                  Absent, Late, On leave). Scoped by faculty/department filters; employee-role filter does not apply.
-                  Each point also carries <code className="text-[10px]">present_rate</code> (% present vs absent) in
-                  the API for exports.
-                  </CardDescription>
-                </CardHeader>
-              <CardContent className="pt-0">
-                {attendanceTrendChartData.length > 0 ? (
-                  <div className={attendanceTrendWrapClass}>
-                    <SciStackedAreaChart
-                      data={attendanceTrendChartData}
-                      xDataKey="date_label"
-                      seriesKeys={HR_ATTENDANCE_STACK_SERIES}
-                      xAxisLabel="Date"
-                      yAxisLabel="Attendance records"
-                      minHeight={HR_CHART_MIN_HEIGHT}
-                      maxHeight={HR_CHART_MAX_HEIGHT}
-                      axisFontSize={HR_AXIS_FONT_SIZE}
-                    />
-                  </div>
-                ) : (
-                  <div className={cn(chartEmptyStateClass, 'min-h-[300px]')}>
-                    No attendance series yet — needs staff in <code className="text-xs">dim_employee</code> (run
-                    ETL) or administration <code className="text-xs">ucu_sourcedb2.employee_attendance</code>. When
-                    dims exist but admin tables are empty, the API derives the trend from warehouse employees.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-          </div>
-
-          {/* Row 3: Payroll analysis */}
-          <Card className={chartSurfaceCard()}>
-            <CardHeader className={chartCardHeaderClass}>
-              <CardTitle className={chartCardTitleClass}>Payroll by role</CardTitle>
-              <CardDescription className={chartCardDescriptionClass}>
-                <span className="font-medium text-foreground/90">3D pie chart.</span> Share of total net pay by role
-                category from <code className="text-xs">payroll_by_role</code>. When administration payroll is empty,
-                amounts are estimated from scoped warehouse employees (same role buckets as HR analytics).
-              </CardDescription>
-                </CardHeader>
-            <CardContent className="pt-0">
-              {payrollByRoleChartData.length > 0 ? (
-                <div className={cn(payrollByRoleWrapClass, 'w-full')} data-chart-container>
-                  <Sci3DFullPieChart
-                    data={payrollByRoleChartData}
-                    nameKey="name"
-                    valueKey="value"
-                    colors={MODERN_CHART_PALETTE}
-                    minHeight={HR_CHART_MIN_HEIGHT}
-                    maxHeight={HR_CHART_MAX_HEIGHT}
-                    outerRadius="68%"
-                    emphasizeDepth
-                  />
-                </div>
-              ) : (
-                <div className={cn(chartEmptyStateClass, 'min-h-[220px]')}>
-                  No payroll by role yet — needs staff in <code className="text-xs">dim_employee</code> (run ETL) or
-                  rows in <code className="text-xs">ucu_sourcedb2.payroll</code>. With dims only, the API estimates
-                  payroll by role for the chart and total payroll KPI.
-                  </div>
-              )}
-                </CardContent>
-              </Card>
-        </>
+            <div className="rounded-lg border border-dashed border-amber-200/80 bg-amber-50/40 dark:bg-amber-950/20 px-4 py-3 text-sm text-foreground/90">
+              {currentDashError
+                ? 'Could not load your assigned dashboard. Try refreshing the page.'
+                : currentDashMessage || 'No dashboard is assigned for your role yet.'}
+            </div>
           )}
         </>
       )}

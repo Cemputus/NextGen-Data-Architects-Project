@@ -25,10 +25,7 @@ const StaffDashboard = () => {
     error: currentDashError,
     userMessage: currentDashMessage,
   } = useCurrentDashboard();
-  const useDynamicLayout =
-    !currentDashLoading &&
-    !currentDashError &&
-    (Boolean(currentDash?.id) || Boolean(currentDashMessage));
+  const useAssignedDashboardLayout = !currentDashLoading && !currentDashError;
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
@@ -129,161 +126,18 @@ const StaffDashboard = () => {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Loading dashboard layout…</p>
             </div>
-          ) : useDynamicLayout ? (
+          ) : useAssignedDashboardLayout ? (
             <RoleDashboardRenderer
               stats={stats}
               type={getRoleBasedChartsType(user?.role)}
               filters={debouncedFilters}
             />
           ) : (
-          <>
-          {/* Top staff KPI strip */}
-          <Card className="border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">My teaching overview</CardTitle>
-              <CardDescription className="text-xs">
-                KPIs computed from your assigned classes only, via the staff analytics endpoint.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Classes taught
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.total_classes || classes.length)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Students taught
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.total_students)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Average class grade
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.avg_grade)}
-                  </p>
-                </div>
-                <div className="border rounded-md px-3 py-2 bg-muted/40">
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    FCW/MEX/FEX cases
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {formatNumber(stats?.risk_cases || stats?.total_fcw_mex_fex)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Row 1: Classes & performance */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Classes & enrollment</CardTitle>
-                <CardDescription className="text-xs">
-                  Overview of the classes you teach and their enrollment sizes.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {charts?.enrollment_by_course?.length ? (
-                  <SciBarChart
-                    data={charts.enrollment_by_course.map((r) => ({
-                      course: r.course,
-                      students: r.students,
-                    }))}
-                    xDataKey="course"
-                    yDataKey="students"
-                    xAxisLabel="Course"
-                    yAxisLabel="Students"
-                    showLegend={false}
-                  />
-                ) : (
-                  <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                    No enrollment data for your assigned classes.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Course performance</CardTitle>
-                <CardDescription className="text-xs">
-                  Average grades and pass/fail breakdown for your courses only.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {charts?.performance_by_course?.length ? (
-                  <SciBarChart
-                    data={charts.performance_by_course}
-                    xDataKey="course"
-                    yDataKeys={[
-                      { key: 'pass', label: 'Pass' },
-                      { key: 'fail', label: 'Fail' },
-                    ]}
-                    xAxisLabel="Course"
-                    yAxisLabel="Count"
-                    tooltipMode="breakdown"
-                  />
-                ) : (
-                  <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                    No performance data for your assigned classes.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Row 2: Risk & students list */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Risk in my classes</CardTitle>
-                <CardDescription className="text-xs">
-                  FCW/MEX/FEX incidence by course and class, constrained to your teaching scope.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {charts?.risk_by_course?.length ? (
-                  <SciBarChart
-                    data={charts.risk_by_course}
-                    xDataKey="course"
-                    yDataKey="risk_cases"
-                    xAxisLabel="Course"
-                    yAxisLabel="FCW/MEX/FEX"
-                    showLegend={false}
-                  />
-                ) : (
-                  <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                    No risk cases found for your assigned classes.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-sm h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Students in my classes</CardTitle>
-                <CardDescription className="text-xs">
-                  Search and filter students within the classes you teach (future enhancement).
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="min-h-[220px] flex items-center justify-center border border-dashed rounded-md text-xs text-muted-foreground">
-                  Table / list placeholder for scoped student view (no cross-department visibility).
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          </>
+            <div className="rounded-lg border border-dashed border-amber-200/80 bg-amber-50/40 dark:bg-amber-950/20 px-4 py-3 text-sm text-foreground/90">
+              {currentDashError
+                ? 'Could not load your assigned dashboard. Try refreshing the page.'
+                : currentDashMessage || 'No dashboard is assigned for your role yet.'}
+            </div>
           )}
         </>
       )}
