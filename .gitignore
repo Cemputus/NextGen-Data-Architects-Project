@@ -11,9 +11,6 @@ downloads/
 eggs/
 .eggs/
 lib/
-# Do not ignore React shared modules under frontend/src/lib (pattern `lib/` matches any lib/ directory)
-!frontend/src/lib/
-!frontend/src/lib/**
 lib64/
 parts/
 sdist/

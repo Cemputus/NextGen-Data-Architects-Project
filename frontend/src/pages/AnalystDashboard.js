@@ -35,7 +35,6 @@ import {
   chartEmptyStateClass,
 } from '../lib/analytics-ui';
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
-import { buildDemoTuitionPaymentTrendsDim } from '../lib/tuitionPaymentTrendsDemo';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -89,8 +88,6 @@ const AnalystDashboard = ({
   const [tuitionDefaultersBar, setTuitionDefaultersBar] = useState([]);
   const [tuitionDefaultersBreakdown, setTuitionDefaultersBreakdown] = useState('faculty');
   const [tuitionPaymentTrendsDim, setTuitionPaymentTrendsDim] = useState([]);
-  /** True when chart uses API synthetic flag or client demo (no warehouse rows). */
-  const [tuitionTrendsIsDemo, setTuitionTrendsIsDemo] = useState(false);
   const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
   const [loadingPipeline, setLoadingPipeline] = useState(true);
   const [hasLoadedPipeline, setHasLoadedPipeline] = useState(false);
@@ -125,29 +122,6 @@ const AnalystDashboard = ({
     }
     return f;
   }, [globalFilters, lockedFacultyId, lockedDepartmentId]);
-
-  /** Clean query params for top-students: omit empty / "all" so analyst/senate get institution-wide results when no faculty is chosen. */
-  const topStudentsRequestParams = useMemo(() => {
-    const f = apiFilters || {};
-    const out = { limit: 10 };
-    const keys = [
-      'faculty_id',
-      'department_id',
-      'program_id',
-      'semester_id',
-      'course_code',
-      'intake_year',
-      'high_school',
-    ];
-    for (const k of keys) {
-      const v = f[k];
-      if (v == null || v === '') continue;
-      const s = String(v).trim();
-      if (s === '' || s.toLowerCase() === 'all') continue;
-      out[k] = s;
-    }
-    return out;
-  }, [apiFilters]);
 
   const distributionGroupBy = useMemo(() => {
     // User chose a program → always show year-of-study breakdown
@@ -523,20 +497,14 @@ const AnalystDashboard = ({
       const fa = tuitionTrendsRes.data?.faculty_amounts || [];
       const da = tuitionTrendsRes.data?.department_amounts || [];
       const pa = tuitionTrendsRes.data?.program_amounts || [];
-      let dimRows = periods.map((p, idx) => ({
-        period: abbreviatePeriod(p),
-        faculty_amount: Number(fa[idx] ?? 0) || 0,
-        department_amount: Number(da[idx] ?? 0) || 0,
-        program_amount: Number(pa[idx] ?? 0) || 0,
-      }));
-      const apiSynthetic = !!tuitionTrendsRes.data?.synthetic;
-      if (dimRows.length === 0) {
-        dimRows = buildDemoTuitionPaymentTrendsDim(tuitionTrendPeriod);
-        setTuitionTrendsIsDemo(true);
-      } else {
-        setTuitionTrendsIsDemo(apiSynthetic);
-      }
-      setTuitionPaymentTrendsDim(dimRows);
+      setTuitionPaymentTrendsDim(
+        periods.map((p, idx) => ({
+          period: abbreviatePeriod(p),
+          faculty_amount: Number(fa[idx] ?? 0) || 0,
+          department_amount: Number(da[idx] ?? 0) || 0,
+          program_amount: Number(pa[idx] ?? 0) || 0,
+        })),
+      );
 
       setHasLoadedCharts(true);
     } catch (err) {
@@ -643,14 +611,9 @@ const AnalystDashboard = ({
       const res = await axios
         .get('/api/dashboard/top-students', {
           headers,
-          params: topStudentsRequestParams,
+          params: { ...apiFilters, limit: 10 },
         })
-        .catch((err) => {
-          if (err?.response?.status !== 403) {
-            console.warn('top-students request failed', err?.response?.data || err?.message);
-          }
-          return { data: { students: [], grades: [] } };
-        });
+        .catch(() => ({ data: { students: [], grades: [] } }));
       if (reqId !== topStudentsRequestSeqRef.current) return;
       const names = res.data?.students || [];
       const grades = res.data?.grades || [];
@@ -914,13 +877,13 @@ const AnalystDashboard = ({
             <CardTitle className={chartCardTitleClass}>Top students by performance</CardTitle>
             <CardDescription className={chartCardDescriptionClass}>
               {isSenateWorkspace &&
-                'Highest average numeric grades from recorded exam outcomes (institution-wide when no faculty/department/program filters are set). Narrow with filters above as needed.'}
+                'Highest average grades (completed exam attempts) in scope — institution-wide unless you narrow filters above.'}
               {isDeanWorkspace &&
                 'Highest average grades among students in your faculty; department/program filters apply within your faculty.'}
               {isHodWorkspace &&
                 'Highest average grades among students in your department; program filter narrows further.'}
               {!isSenateWorkspace && !isDeanWorkspace && !isHodWorkspace &&
-                'Highest average numeric grades from recorded exam outcomes. With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
+                'Highest average grades (completed exam attempts) in scope — use filters to narrow by faculty, department, or program.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
@@ -929,13 +892,8 @@ const AnalystDashboard = ({
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : topStudentsPerformance.length === 0 ? (
-              <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex flex-col items-center justify-center gap-2 px-4 text-sm text-center')}>
-                <span>
-                  No students with usable grade rows in this scope.{' '}
-                  {Object.keys(topStudentsRequestParams || {}).filter((k) => k !== 'limit').length > 0
-                    ? 'Try clearing semester, course, or other filters for a wider pool, or confirm fact_grade data is loaded.'
-                    : 'If you expect results, confirm ETL has loaded fact_grade with numeric grades for students.'}
-                </span>
+              <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex items-center justify-center text-sm')}>
+                No graded students in the current scope, or not enough data to rank averages.
               </div>
             ) : (
               <SciBarChart
@@ -1011,11 +969,6 @@ const AnalystDashboard = ({
                       ? 'the selected faculty'
                       : 'all faculties'}
                 .
-                {tuitionTrendsIsDemo ? (
-                  <span className="block mt-1.5 text-amber-800 dark:text-amber-200/90">
-                    Sample trend — no matching payment rows for this scope; illustrative averages are shown.
-                  </span>
-                ) : null}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
@@ -1172,11 +1125,6 @@ const AnalystDashboard = ({
                           : apiFilters?.faculty_id
                             ? 'the selected faculty'
                             : 'all faculties'}.
-                      {tuitionTrendsIsDemo ? (
-                        <span className="block mt-1.5 text-amber-800 dark:text-amber-200/90">
-                          Sample trend — no matching payment rows for this scope; illustrative averages are shown.
-                        </span>
-                      ) : null}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
