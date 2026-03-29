@@ -1,0 +1,102 @@
+2026-03-09 16:11:45,211 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260309_161145.log
+2026-03-09 16:11:45,213 - INFO - ============================================================
+2026-03-09 16:11:45,213 - INFO - ETL PIPELINE STARTED
+2026-03-09 16:11:45,214 - INFO - Start time: 2026-03-09 16:11:45
+2026-03-09 16:11:45,214 - INFO - ============================================================
+2026-03-09 16:11:45,492 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-09 16:11:45,591 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-09 16:11:45,630 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-09 16:11:50,744 - INFO - [RBAC seed] Seeded audit_logs with 1501 rows
+2026-03-09 16:11:50,746 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-09 16:11:50,762 - INFO - [RBAC seed] Restored profile photos from etl_seeds\profile_photos to data\profile_photos
+2026-03-09 16:11:50,766 - INFO - [RBAC seed] Restored admin_settings.json to data\admin_settings.json
+2026-03-09 16:11:51,092 - INFO - [RBAC seed] Restored ETL run logs from etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-09 16:11:51,095 - INFO - ============================================================
+2026-03-09 16:11:51,096 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-09 16:11:51,096 - INFO - ============================================================
+2026-03-09 16:11:51,097 - INFO - Using SYNTHETIC data source: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 16:11:51,099 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 16:11:51,102 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-09 16:11:51,140 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-09 16:11:51,141 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-09 16:12:28,997 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-09 16:12:29,216 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-09 16:12:29,268 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-09 16:12:31,948 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-09 16:12:32,250 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-09 16:12:34,121 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-09 16:12:55,363 - INFO -   -> Attendance: 3117871 (columns: 9)
+2026-03-09 16:12:55,500 - INFO -   -> Employees (synthetic): 253
+2026-03-09 16:12:55,516 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-09 16:12:55,716 - INFO -   -> Student–high school: 20000
+2026-03-09 16:12:56,140 - INFO -   -> Transcript: 36233
+2026-03-09 16:12:56,352 - INFO -   -> Academic performance: 36233
+2026-03-09 16:12:57,156 - INFO -   -> Sponsorships: 41866
+2026-03-09 16:14:02,112 - INFO -   -> Progression: 469956
+2026-03-09 16:14:02,121 - INFO -   -> Grades summary sheets: 0
+2026-03-09 16:14:02,572 - INFO -   -> Dim date: 1826
+2026-03-09 16:14:34,169 - INFO - Bronze (synthetic) extraction complete.
+2026-03-09 16:14:36,606 - INFO - ============================================================
+2026-03-09 16:14:36,606 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-09 16:14:36,608 - INFO - ============================================================
+2026-03-09 16:15:40,984 - INFO - Silver layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-09 16:15:40,986 - INFO -   → Students: 10000
+2026-03-09 16:15:40,986 - INFO -   → Courses: 3035
+2026-03-09 16:15:40,986 - INFO -   → Enrollments: 10000
+2026-03-09 16:15:40,988 - INFO -   → Attendance: 3117871
+2026-03-09 16:15:40,988 - INFO -   → Payments: 130871
+2026-03-09 16:15:40,988 - INFO -   → Grades: 234978
+2026-03-09 16:15:40,988 - INFO -   → Transcript: 36233
+2026-03-09 16:15:40,988 - INFO -   → Academic performance: 36233
+2026-03-09 16:15:40,988 - INFO -   → Sponsorships: 41866
+2026-03-09 16:15:40,988 - INFO -   → Progression: 469956
+2026-03-09 16:15:40,990 - INFO -   → Student–high school: 20000
+2026-03-09 16:15:40,990 - INFO -   → High schools: 73
+2026-03-09 16:15:40,990 - INFO - Silver layer transformation complete!
+2026-03-09 16:15:41,001 - INFO - ============================================================
+2026-03-09 16:15:41,003 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-09 16:15:41,003 - INFO - ============================================================
+2026-03-09 16:15:41,003 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2026-03-09 16:15:41,117 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2026-03-09 16:15:41,134 - INFO - Creating dimension tables...
+2026-03-09 16:15:57,890 - INFO -   → Loaded 1823 courses into dim_course (from catalog)
+2026-03-09 16:15:58,316 - INFO -   → Loaded 1823 courses into dim_course (from silver)
+2026-03-09 16:16:42,524 - INFO -   → Loaded 10000 students into dim_student (50 columns)
+2026-03-09 16:16:42,584 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-09 16:16:43,228 - INFO -   → Loaded 14 app users into dim_app_user
+2026-03-09 16:16:43,268 - INFO -   -> Loaded 11 faculties into dim_faculty
+2026-03-09 16:16:43,290 - INFO -   -> Loaded 18 departments into dim_department
+2026-03-09 16:16:43,324 - INFO -   -> Loaded 91 programs into dim_program
+2026-03-09 16:16:43,384 - INFO -   -> Loaded 253 employees (staff/lecturers) into dim_employee
+2026-03-09 16:16:43,449 - INFO -   -> Loaded 73 high schools into dim_high_school (all columns)
+2026-03-09 16:16:44,146 - INFO - Populating time dimension...
+2026-03-09 16:16:44,606 - INFO -   → Loaded 1826 time dimension records
+2026-03-09 16:16:45,674 - INFO -   → fact_enrollment incremental: 10000 new rows (skipped 0 existing)
+2026-03-09 16:16:50,776 - INFO -   → Loaded 10000 enrollments into fact_enrollment
+2026-03-09 16:17:37,064 - ERROR - ETL Pipeline failed after 0:05:51.833148: Unable to allocate 214. MiB for an array with shape (9, 3117871) and data type object
+Traceback (most recent call last):
+  File "etl_pipeline.py", line 2409, in run
+    self.load_to_warehouse(silver_data)
+  File "etl_pipeline.py", line 1509, in load_to_warehouse
+    self._create_facts(engine, silver_data)
+  File "etl_pipeline.py", line 2123, in _create_facts
+    att_valid = att_valid[
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\pandas\core\frame.py", line 3752, in __getitem__
+    return self._getitem_bool_array(key)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\pandas\core\frame.py", line 3808, in _getitem_bool_array
+    return self.copy(deep=None)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\pandas\core\generic.py", line 6452, in copy
+    data = self._mgr.copy(deep=deep)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\pandas\core\internals\managers.py", line 664, in copy
+    res._consolidate_inplace()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\pandas\core\internals\managers.py", line 1829, in _consolidate_inplace
+    self.blocks = _consolidate(self.blocks)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\pandas\core\internals\managers.py", line 2272, in _consolidate
+    merged_blocks, _ = _merge_blocks(
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\pandas\core\internals\managers.py", line 2297, in _merge_blocks
+    new_values = np.vstack([b.values for b in blocks])  # type: ignore[misc]
+  File "<__array_function__ internals>", line 200, in vstack
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\numpy\core\shape_base.py", line 296, in vstack
+    return _nx.concatenate(arrs, 0, dtype=dtype, casting=casting)
+  File "<__array_function__ internals>", line 200, in concatenate
+numpy.core._exceptions._ArrayMemoryError: Unable to allocate 214. MiB for an array with shape (9, 3117871) and data type object

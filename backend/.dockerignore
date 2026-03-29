@@ -1,4 +1,9 @@
 data/
+!data/Synthetic_Data/
+!data/Synthetic_Data/**
+!data/profile_photos/
+!data/profile_photos/**
+!data/admin_settings.json
 
 # Python
 __pycache__/
@@ -25,8 +30,5 @@ env/
 etl_*.txt
 etl_*.out
 
-# Optional: shrink image (tests/docs not needed in container)
-test_scripts/
-Check_Scripts/
-verify_Scripts/
+# Optional: shrink image
 *.ipynb

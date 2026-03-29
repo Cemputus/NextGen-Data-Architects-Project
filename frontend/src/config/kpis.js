@@ -22,10 +22,8 @@ export const CHART_OPTIONS = [
   'attendance_trends',
 ];
 
-export const PAGE_CONFIG_KEYS = [
-  'fex_analytics',
-  'risk_analytics',
-  'analyst_dashboard',
+/** Role home dashboards — edited under Dashboard Manager → “Current dashboard”, not “Pages with visuals”. */
+export const ROLE_DASHBOARD_PAGE_KEYS = [
   'dean_dashboard',
   'hod_dashboard',
   'senate_dashboard',
@@ -34,6 +32,12 @@ export const PAGE_CONFIG_KEYS = [
   'finance_dashboard',
   'hr_dashboard',
 ];
+
+/** Analytics / workspace pages — “Pages with visuals” section only. */
+export const PAGES_WITH_VISUALS_KEYS = ['fex_analytics', 'risk_analytics', 'analyst_dashboard'];
+
+/** Full union (page-config API, copy operations, fallbacks). */
+export const PAGE_CONFIG_KEYS = [...PAGES_WITH_VISUALS_KEYS, ...ROLE_DASHBOARD_PAGE_KEYS];
 
 export const PAGE_CONFIG_LABELS = {
   fex_analytics: 'FEX Analytics',

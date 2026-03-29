@@ -30,6 +30,12 @@ except ImportError:
     enhanced_predictor = None
     print("Enhanced predictions module not available")
 from config import DATA_WAREHOUSE_CONN_STRING
+from api.prediction_formatting import (
+    build_prediction_payload,
+    enrich_model_prediction_block,
+    fetch_student_profile,
+    resolve_student_identifier,
+)
 
 try:
     from audit_log import log as audit_log
@@ -127,6 +133,204 @@ def safe_int(value, default=0):
     except (ValueError, TypeError):
         return default
 
+
+def _days_since_payment_to_float(val, default=45.0):
+    """Normalize SQL interval / numeric days to float for modelling."""
+    if val is None:
+        return default
+    if isinstance(val, float) and pd.isna(val):
+        return default
+    if hasattr(val, 'days'):
+        try:
+            return float(val.days)
+        except (TypeError, ValueError):
+            return default
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+
+def apply_scenario_to_tuition_feature_row(
+    student_features: pd.DataFrame,
+    modified_payment_rate: float,
+    modified_attendance_rate: float,
+    modified_courses: int,
+    has_significant_balance: bool,
+    base_payment_rate: float,
+    base_attendance_rate: float,
+    base_courses: int,
+) -> pd.DataFrame:
+    """
+    Rewrite tuition/attendance feature columns so they stay internally consistent when
+    scenario parameters change. Previously only a few columns were updated, so the
+    tuition model often saw nearly identical inputs for different scenarios.
+    """
+    mf = student_features.copy()
+    tr = safe_float(mf['total_required'].iloc[0], 0.0)
+
+    # --- Payment coherence (rates, totals, counts, recency) ---
+    if tr > 1e-6:
+        new_paid = tr * (modified_payment_rate / 100.0)
+        mf['total_paid'] = new_paid
+        mf['total_pending'] = max(0.0, tr - new_paid)
+    mf['payment_completion_rate'] = modified_payment_rate
+
+    bcp = safe_float(mf['completed_payments'].iloc[0], 0.0)
+    bpp = safe_float(mf['pending_payments'].iloc[0], 0.0)
+    if base_payment_rate > 1e-6:
+        mf['completed_payments'] = max(0.0, bcp * (modified_payment_rate / base_payment_rate))
+    else:
+        mf['completed_payments'] = max(0.0, bcp + modified_payment_rate / 15.0)
+    if base_payment_rate < 99.9:
+        denom = max(100.0 - base_payment_rate, 1e-6)
+        mf['pending_payments'] = max(0.0, bpp * ((100.0 - modified_payment_rate) / denom))
+    else:
+        mf['pending_payments'] = max(0.0, bpp * ((100.0 - modified_payment_rate) / 100.0))
+
+    dsl = _days_since_payment_to_float(mf['days_since_last_payment'].iloc[0])
+    if modified_payment_rate >= 92:
+        mf['days_since_last_payment'] = max(0.0, dsl * 0.2)
+    elif modified_payment_rate <= 38:
+        mf['days_since_last_payment'] = dsl * 1.35 + 40.0
+    else:
+        mf['days_since_last_payment'] = max(0.0, dsl)
+
+    mf['has_significant_balance'] = 1 if has_significant_balance else 0
+
+    # --- Attendance: scale hours/days with rate; keep avg_hours per course consistent ---
+    base_ar = max(base_attendance_rate, 1.0)
+    ar_scale = modified_attendance_rate / base_ar
+    ar_scale = max(0.28, min(3.2, ar_scale))
+
+    base_h = safe_float(mf['total_attendance_hours'].iloc[0], 0.0)
+    tdp = safe_float(mf['total_days_present'].iloc[0], 0.0)
+    mf['attendance_rate'] = modified_attendance_rate
+    mf['total_attendance_hours'] = base_h * ar_scale
+    mf['total_days_present'] = tdp * ar_scale
+    mf['courses_attended'] = int(max(0, modified_courses))
+
+    mc = max(int(modified_courses), 1)
+    mf['avg_hours_per_course'] = (base_h * ar_scale) / float(mc)
+
+    mf['attendance_payment_score'] = (modified_attendance_rate * modified_payment_rate) / 100.0
+
+    return mf
+
+
+def ensure_tuition_feature_columns_for_scenario(df: pd.DataFrame) -> pd.DataFrame:
+    """Match training dataframe: derived columns missing from the scenario SQL query."""
+    out = df.copy()
+    if 'attendance_payment_score' not in out.columns:
+        ar = safe_float(out['attendance_rate'].iloc[0], 0.0)
+        pr = safe_float(out['payment_completion_rate'].iloc[0], 0.0)
+        out['attendance_payment_score'] = (ar * pr) / 100.0
+    return out
+
+
+def predict_tuition_attendance_from_feature_row(enhanced_predictor, feature_df: pd.DataFrame):
+    """
+    Run the tuition+attendance regressor on one warehouse row (baseline or scenario-adjusted).
+    Returns None if the model or required columns are unavailable.
+    """
+    if not enhanced_predictor or 'tuition_attendance_performance' not in (enhanced_predictor.models or {}):
+        return None
+    if 'tuition_attendance_performance' not in (enhanced_predictor.feature_cols or {}):
+        return None
+    feature_cols = enhanced_predictor.feature_cols['tuition_attendance_performance']
+    missing = set(feature_cols) - set(feature_df.columns)
+    if missing:
+        print(f"Tuition scenario prediction missing columns: {missing}")
+        return None
+    try:
+        X_df = feature_df[feature_cols].copy()
+        for col in X_df.columns:
+            X_df[col] = pd.to_numeric(X_df[col], errors='coerce').fillna(0)
+        X = X_df.values.astype(np.float64)
+        scaler = enhanced_predictor.scalers.get('tuition_attendance_performance')
+        model = enhanced_predictor.models.get('tuition_attendance_performance')
+        if not scaler or model is None:
+            return None
+        X_scaled = scaler.transform(X)
+        pred = model.predict(X_scaled)[0]
+        return safe_float(pred, 0.0)
+    except Exception as ex:
+        print(f"predict_tuition_attendance_from_feature_row: {ex}")
+        return None
+
+
+def _norm_scope_id(value):
+    """Normalize IDs from JWT or warehouse for comparison."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    return s if s else None
+
+
+def ensure_prediction_scope_dean_hod(user_scope, resolved_student_id: str):
+    """
+    Dean: student must belong to the dean's faculty.
+    HOD: student must belong to the HOD's department.
+    Returns a Flask (response, status) tuple if access is denied, or None if allowed.
+    """
+    role = user_scope['role']
+    if role not in (Role.DEAN, Role.HOD):
+        return None
+    prof = fetch_student_profile(resolved_student_id)
+    student_faculty_id = _norm_scope_id(prof.get('faculty_id'))
+    student_dept_id = _norm_scope_id(prof.get('department_id'))
+
+    if role == Role.DEAN:
+        user_fid = _norm_scope_id(user_scope.get('faculty_id'))
+        if not user_fid:
+            return (
+                jsonify(
+                    {
+                        'error': 'Your account is not linked to a faculty. Please contact an administrator.',
+                    }
+                ),
+                403,
+            )
+        if not student_faculty_id or student_faculty_id != user_fid:
+            return (
+                jsonify(
+                    {
+                        'error': (
+                            'This student is not in your faculty or in a department under your faculty. '
+                            'Please try again with a student whose program belongs to your faculty.'
+                        ),
+                    }
+                ),
+                403,
+            )
+        return None
+
+    if role == Role.HOD:
+        user_did = _norm_scope_id(user_scope.get('department_id'))
+        if not user_did:
+            return (
+                jsonify(
+                    {
+                        'error': 'Your account is not linked to a department. Please contact an administrator.',
+                    }
+                ),
+                403,
+            )
+        if not student_dept_id or student_dept_id != user_did:
+            return (
+                jsonify(
+                    {
+                        'error': (
+                            'This student is not in your department. '
+                            'Please try again with a student whose program belongs to your department.'
+                        ),
+                    }
+                ),
+                403,
+            )
+    return None
+
+
 def get_user_scope(claims):
     """Get user's data scope based on role"""
     role_str = claims.get('role', 'student')
@@ -166,38 +370,39 @@ def predict_student_performance():
         student_id = data.get('student_id') or data.get('access_number') or data.get('reg_number')
         model_type = data.get('model_type', 'ensemble')  # 'random_forest', 'gradient_boosting', 'neural_network', 'ensemble'
         
-        # Check scope permissions
-        if user_scope['role'] == Role.STUDENT:
-            # Students can only predict their own performance
-            if user_scope['access_number'] and student_id != user_scope['access_number']:
-                return jsonify({'error': 'Permission denied: Can only predict own performance'}), 403
-            if user_scope['student_id'] and student_id != user_scope['student_id']:
-                return jsonify({'error': 'Permission denied: Can only predict own performance'}), 403
-        
         if not student_id:
             return jsonify({'error': 'Student ID, Access Number, or Reg Number required'}), 400
         
-        # Resolve student_id if access_number or reg_number provided
-        if student_id.startswith('A') or student_id.startswith('B'):
-            engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-            result = pd.read_sql_query(
-                text("SELECT student_id FROM dim_student WHERE access_number = :access_number"),
-                engine,
-                params={'access_number': student_id}
-            )
-            if not result.empty:
-                student_id = result['student_id'].iloc[0]
-            engine.dispose()
+        resolved = resolve_student_identifier(student_id)
+        if not resolved:
+            return jsonify({'error': 'Student not found'}), 404
         
-        prediction = predictor.predict(student_id, model_type)
+        # Students can only predict their own performance (match by warehouse id or access number)
+        if user_scope['role'] == Role.STUDENT:
+            uid = user_scope.get('student_id')
+            uacc = user_scope.get('access_number')
+            prof = fetch_student_profile(resolved)
+            match_sid = bool(uid and str(resolved).strip() == str(uid).strip())
+            acc = prof.get('access_number')
+            match_acc = bool(
+                uacc and acc is not None and str(acc).strip() == str(uacc).strip()
+            )
+            if not (match_sid or match_acc):
+                return jsonify({'error': 'Permission denied: Can only predict own performance'}), 403
+        
+        denied = ensure_prediction_scope_dean_hod(user_scope, resolved)
+        if denied is not None:
+            return denied
+
+        prediction = predictor.predict(resolved, model_type)
         if audit_log:
-            audit_log('prediction', 'predictions', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id=str(student_id), status='success')
-        return jsonify({
-            'student_id': student_id,
-            'model_type': model_type,
-            'predicted_grade': round(float(prediction), 2),
-            'predicted_letter_grade': get_letter_grade(prediction)
-        }), 200
+            audit_log('prediction', 'predictions', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id=str(resolved), status='success')
+        payload = build_prediction_payload(
+            student_id_resolved=resolved,
+            raw_percent=float(prediction),
+            model_type=model_type,
+        )
+        return jsonify(payload), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -222,20 +427,12 @@ def predict_scenario():
         if not student_id:
             return jsonify({'error': 'Student ID or Access Number required'}), 400
         
-        # Resolve student_id if access_number provided
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        if student_id.startswith('A') or student_id.startswith('B'):
-            result = pd.read_sql_query(
-                text("SELECT student_id FROM dim_student WHERE access_number = :access_number"),
-                engine,
-                params={'access_number': student_id}
-            )
-            if not result.empty:
-                student_id = result['student_id'].iloc[0]
-            else:
-                engine.dispose()
-                return jsonify({'error': 'Student not found'}), 404
+        resolved = resolve_student_identifier(student_id)
+        if not resolved:
+            return jsonify({'error': 'Student not found'}), 404
+        student_id = resolved
         
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         # Get base student features (tuition and attendance data)
         query = text("""
         SELECT 
@@ -277,44 +474,19 @@ def predict_scenario():
         if student_features.empty:
             return jsonify({'error': 'Student data not found'}), 404
         
-        # Apply scenario parameters to modify features
-        # Safely convert to numeric, handling NaN, None, and string values
-        def safe_float(value, default=0.0):
-            """Safely convert value to float, handling various edge cases"""
-            if pd.isna(value) or value is None:
-                return default
-            if isinstance(value, str):
-                # Try to convert string, return default if it fails
-                try:
-                    return float(value)
-                except (ValueError, TypeError):
-                    return default
-            try:
-                return float(value)
-            except (ValueError, TypeError):
-                return default
-        
-        def safe_int(value, default=0):
-            """Safely convert value to int"""
-            if pd.isna(value) or value is None:
-                return default
-            if isinstance(value, str):
-                try:
-                    return int(float(value))
-                except (ValueError, TypeError):
-                    return default
-            try:
-                return int(value)
-            except (ValueError, TypeError):
-                return default
-        
         base_payment_rate = safe_float(student_features['payment_completion_rate'].iloc[0], 0.0)
         base_attendance_rate = safe_float(student_features['attendance_rate'].iloc[0], 0.0)
         base_courses = safe_int(student_features['courses_attended'].iloc[0], 0)
         
-        # Override with scenario parameters if provided
-        modified_payment_rate = scenario_params.get('payment_completion_rate', base_payment_rate)
-        modified_attendance_rate = scenario_params.get('attendance_rate', base_attendance_rate)
+        # Override with scenario parameters if provided (clamp to valid % range)
+        modified_payment_rate = safe_float(
+            scenario_params.get('payment_completion_rate', base_payment_rate), base_payment_rate
+        )
+        modified_attendance_rate = safe_float(
+            scenario_params.get('attendance_rate', base_attendance_rate), base_attendance_rate
+        )
+        modified_payment_rate = max(0.0, min(100.0, modified_payment_rate))
+        modified_attendance_rate = max(0.0, min(100.0, modified_attendance_rate))
         
         # Handle courses_enrolled changes
         courses_change = scenario_params.get('courses_enrolled', 0)
@@ -335,94 +507,97 @@ def predict_scenario():
                                                       bool(student_features['has_significant_balance'].iloc[0]))
         
         # Prepare modified feature vector for prediction
-        # Use tuition-attendance model if available, otherwise use standard models
         predictions = {}
-        
-        # Try tuition-attendance model first (most accurate for scenario analysis)
+        raw_by_model = {}
+        scenario_signal = None  # tuition(scenario) − tuition(baseline), applied to RF/GB/NN
+
+        student_features = ensure_tuition_feature_columns_for_scenario(student_features)
+
+        # Tuition + attendance: baseline row vs scenario row — same model, two inputs
         if enhanced_predictor and 'tuition_attendance_performance' in enhanced_predictor.models:
             try:
-                # Create modified feature vector
-                modified_features = student_features.copy()
-                modified_features['payment_completion_rate'] = modified_payment_rate
-                modified_features['attendance_rate'] = modified_attendance_rate
-                modified_features['courses_attended'] = modified_courses
-                modified_features['has_significant_balance'] = 1 if has_significant_balance else 0
-                
-                # Recalculate derived features
-                modified_features['attendance_payment_score'] = (
-                    modified_attendance_rate * modified_payment_rate / 100
+                pred_base_tuition = predict_tuition_attendance_from_feature_row(
+                    enhanced_predictor, student_features
                 )
-                
-                # Get feature columns and scale
-                if 'tuition_attendance_performance' in enhanced_predictor.feature_cols:
-                    feature_cols = enhanced_predictor.feature_cols['tuition_attendance_performance']
-                    # Ensure all values are numeric before converting to array
-                    X_df = modified_features[feature_cols].copy()
-                    # Convert all columns to numeric, coercing errors to NaN then filling with 0
-                    for col in X_df.columns:
-                        X_df[col] = pd.to_numeric(X_df[col], errors='coerce').fillna(0)
-                    X = X_df.values.astype(np.float64)
-                    
-                    scaler = enhanced_predictor.scalers.get('tuition_attendance_performance')
-                    if scaler:
-                        X_scaled = scaler.transform(X)
-                        model = enhanced_predictor.models['tuition_attendance_performance']
-                        pred = model.predict(X_scaled)[0]
-                        
-                        pred_float = safe_float(pred, 0.0)
-                        predictions['tuition_attendance_performance'] = {
-                            'predicted_grade': round(pred_float, 2),
-                            'predicted_letter_grade': get_letter_grade(pred_float)
-                        }
+                modified_features = apply_scenario_to_tuition_feature_row(
+                    student_features,
+                    modified_payment_rate,
+                    modified_attendance_rate,
+                    modified_courses,
+                    has_significant_balance,
+                    base_payment_rate,
+                    base_attendance_rate,
+                    base_courses,
+                )
+                pred_scenario_tuition = predict_tuition_attendance_from_feature_row(
+                    enhanced_predictor, modified_features
+                )
+                if pred_base_tuition is not None and pred_scenario_tuition is not None:
+                    scenario_signal = pred_scenario_tuition - pred_base_tuition
+                    raw_by_model['tuition_attendance_performance'] = pred_scenario_tuition
+                    predictions['tuition_attendance_performance'] = {
+                        **enrich_model_prediction_block(pred_scenario_tuition),
+                    }
             except Exception as e:
                 print(f"Error in tuition-attendance scenario prediction: {e}")
-        
-        # Also run standard models for comparison
+
+        # Random forest, gradient boosting, neural network: shift by the same scenario delta as
+        # tuition+attendance (so all four tracks respond to the what-if consistently).
+        d_att = modified_attendance_rate - base_attendance_rate
+        d_pay = modified_payment_rate - base_payment_rate
+        d_crs = modified_courses - base_courses
+        # Same tuition-driven scenario shift applied to each base model (RF / GB / NN differ via base_pred).
+        model_scenario_blend = {
+            'random_forest': 1.0,
+            'gradient_boosting': 1.0,
+            'neural_network': 1.0,
+        }
         for model_type in ['random_forest', 'gradient_boosting', 'neural_network']:
             try:
-                # For standard models, we adjust the prediction based on scenario changes
                 base_pred = predictor.predict(student_id, model_type)
-                
-                # Apply scenario-based adjustments
-                # Higher attendance and payment = better performance
-                attendance_factor = (modified_attendance_rate - base_attendance_rate) / 100 * 5  # 5 points per 10% change
-                payment_factor = (modified_payment_rate - base_payment_rate) / 100 * 3  # 3 points per 10% change
-                courses_factor = (modified_courses - base_courses) * 0.5  # 0.5 points per course
-                
-                adjusted_pred = base_pred + attendance_factor + payment_factor + courses_factor
-                
-                # If significant balance, reduce prediction
-                if has_significant_balance:
-                    adjusted_pred -= 5
-                
-                # Clamp between 0 and 100
-                adjusted_pred = max(0, min(100, adjusted_pred))
-                
+                if scenario_signal is not None:
+                    adjusted_pred = base_pred + scenario_signal * model_scenario_blend[model_type]
+                else:
+                    attendance_factor = d_att * 0.68
+                    payment_factor = d_pay * 0.55
+                    courses_factor = d_crs * 1.15
+                    if model_type == 'neural_network':
+                        attendance_factor *= 1.12
+                        payment_factor *= 1.12
+                    adjusted_pred = (
+                        base_pred + attendance_factor + payment_factor + courses_factor
+                    )
+                    if has_significant_balance:
+                        adjusted_pred -= 12.0
+
+                adjusted_pred = max(0.0, min(100.0, adjusted_pred))
                 pred_float = safe_float(adjusted_pred, 0.0)
+                raw_by_model[model_type] = pred_float
                 predictions[model_type] = {
-                    'predicted_grade': round(pred_float, 2),
-                    'predicted_letter_grade': get_letter_grade(pred_float)
+                    **enrich_model_prediction_block(pred_float),
                 }
             except Exception as e:
                 print(f"Error in {model_type} scenario prediction: {e}")
         
-        # Create ensemble prediction
-        if predictions:
-            avg_grade = sum([p['predicted_grade'] for p in predictions.values()]) / len(predictions)
+        if raw_by_model:
+            avg_raw = sum(raw_by_model.values()) / len(raw_by_model)
             predictions['ensemble'] = {
-                'predicted_grade': round(avg_grade, 2),
-                'predicted_letter_grade': get_letter_grade(avg_grade)
+                **enrich_model_prediction_block(avg_raw),
             }
         
         # Build scenario description
         scenario_description = {
             'name': 'Custom Scenario',
-            'description': f'Modified: Attendance={modified_attendance_rate:.1f}%, Payment={modified_payment_rate:.1f}%, Courses={modified_courses}'
+            'description': (
+                f'Modified: Attendance={modified_attendance_rate:.1f}%, '
+                f'Payment={modified_payment_rate:.1f}%, course load adjusted'
+            ),
         }
         
         if audit_log:
             audit_log('scenario_analysis', 'predictions', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id=str(student_id), status='success')
-        return jsonify({
+        prof = fetch_student_profile(student_id)
+        scenario_body = {
             'scenario': {
                 **scenario_description,
                 'parameters': {
@@ -432,9 +607,18 @@ def predict_scenario():
                     'has_significant_balance': has_significant_balance
                 }
             },
+            'student_id': student_id,
             'predictions': predictions,
-            'analysis': analyze_scenario(scenario_params, predictions)
-        }), 200
+            'analysis': analyze_scenario(scenario_params, predictions),
+            'student': prof,
+            'student_name': prof.get('student_name'),
+            'access_number': prof.get('access_number'),
+            'reg_number': prof.get('reg_number'),
+            'faculty_name': prof.get('faculty_name'),
+            'department_name': prof.get('department_name'),
+            'program_name': prof.get('program_name'),
+        }
+        return jsonify(scenario_body), 200
         
     except Exception as e:
         import traceback
@@ -501,12 +685,20 @@ def batch_predict():
         results = []
         for student_id in student_ids:
             try:
-                prediction = predictor.predict(student_id, model_type)
-                results.append({
-                    'student_id': student_id,
-                    'predicted_grade': round(float(prediction), 2),
-                    'predicted_letter_grade': get_letter_grade(prediction)
-                })
+                resolved = resolve_student_identifier(str(student_id))
+                if not resolved:
+                    results.append({
+                        'student_id': student_id,
+                        'error': 'Student not found',
+                    })
+                    continue
+                prediction = predictor.predict(resolved, model_type)
+                row = build_prediction_payload(
+                    student_id_resolved=resolved,
+                    raw_percent=float(prediction),
+                    model_type=model_type,
+                )
+                results.append(row)
             except Exception as e:
                 results.append({
                     'student_id': student_id,
@@ -594,21 +786,6 @@ def get_scenario_templates():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-def get_letter_grade(score):
-    """Convert numeric score to letter grade"""
-    if score >= 80:
-        return 'A'
-    elif score >= 75:
-        return 'B+'
-    elif score >= 70:
-        return 'B'
-    elif score >= 60:
-        return 'C'
-    elif score >= 50:
-        return 'D'
-    else:
-        return 'F'
 
 def analyze_scenario(scenario, predictions):
     """Analyze scenario predictions and provide insights"""
@@ -705,11 +882,31 @@ def predict_tuition_attendance_performance():
             return jsonify({'error': 'Model not trained. Please train the tuition-attendance-performance model first.'}), 503
         
         data = request.get_json()
-        student_id = data.get('student_id') or data.get('access_number')
+        student_id = data.get('student_id') or data.get('access_number') or data.get('reg_number')
         
         if not student_id:
             return jsonify({'error': 'Student ID or Access Number required'}), 400
         
+        resolved = resolve_student_identifier(str(student_id))
+        if not resolved:
+            return jsonify({'error': 'Student not found'}), 404
+        
+        if user_scope['role'] == Role.STUDENT:
+            uid = user_scope.get('student_id')
+            uacc = user_scope.get('access_number')
+            prof = fetch_student_profile(resolved)
+            match_sid = bool(uid and str(resolved).strip() == str(uid).strip())
+            acc = prof.get('access_number')
+            match_acc = bool(
+                uacc and acc is not None and str(acc).strip() == str(uacc).strip()
+            )
+            if not (match_sid or match_acc):
+                return jsonify({'error': 'Permission denied: Can only predict own performance'}), 403
+        
+        denied = ensure_prediction_scope_dean_hod(user_scope, resolved)
+        if denied is not None:
+            return denied
+
         # Get student features
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         # Use the same query structure as in enhanced_predictions.py
@@ -752,11 +949,11 @@ def predict_tuition_attendance_performance():
         FROM dim_student ds
         LEFT JOIN fact_payment fp ON ds.student_id = fp.student_id
         LEFT JOIN fact_attendance fa ON ds.student_id = fa.student_id
-        WHERE ds.student_id = :student_id OR ds.access_number = :student_id
+        WHERE ds.student_id = :student_id
         GROUP BY ds.student_id
         """)
         
-        student_data = pd.read_sql_query(query, engine, params={'student_id': student_id})
+        student_data = pd.read_sql_query(query, engine, params={'student_id': resolved})
         engine.dispose()
         
         if student_data.empty:
@@ -816,18 +1013,22 @@ def predict_tuition_attendance_performance():
         if total_required == 0 and total_paid == 0:
             payment_completion = 0.0
         
-        return jsonify({
-            'student_id': student_id,
-            'model_type': 'tuition_attendance_performance',
-            'predicted_grade': round(pred_float, 2),
-            'predicted_letter_grade': get_letter_grade(pred_float),
+        resolved_id = str(student_data['student_id'].iloc[0])
+        extra = {
             'payment_completion_rate': round(payment_completion, 2),
             'attendance_rate': round(attendance_rate, 2),
             'attendance_payment_score': safe_float(student_data['attendance_payment_score'].iloc[0], 0.0),
             'total_paid': round(total_paid, 2),
             'total_required': round(total_required, 2),
-            'total_attendance_records': int(total_attendance_records)
-        }), 200
+            'total_attendance_records': int(total_attendance_records),
+        }
+        payload = build_prediction_payload(
+            student_id_resolved=resolved_id,
+            raw_percent=pred_float,
+            model_type='tuition_attendance_performance',
+            extra=extra,
+        )
+        return jsonify(payload), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

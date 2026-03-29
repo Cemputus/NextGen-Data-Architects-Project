@@ -39,8 +39,20 @@ def ensure_database(dbname: str):
 
 
 def ensure_ucu_rbac_database():
-    """Ensure the ucu_rbac database exists."""
-    ensure_database("ucu_rbac")
+    """
+    Ensure the RBAC database exists.
+
+    In production (Render) we often run in a *single database* mode where RBAC tables
+    live in the same database as the warehouse. In that case, creating a separate
+    database is unnecessary and can be disallowed by managed Postgres permissions.
+    """
+    try:
+        from config.connection import RBAC_DB_NAME
+    except Exception:
+        RBAC_DB_NAME = "ucu_rbac"
+    if RBAC_DB_NAME == DATA_WAREHOUSE_NAME:
+        return
+    ensure_database(RBAC_DB_NAME)
 
 
 def ensure_data_warehouse():

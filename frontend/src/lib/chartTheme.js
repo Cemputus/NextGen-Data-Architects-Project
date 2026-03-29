@@ -29,9 +29,49 @@ export const defaultTooltip = {
   borderWidth: 1, textStyle: { color: '#f1f5f9', fontSize: 12 }, confine: true,
 };
 
+/**
+ * Short axis/tooltip numbers: 1.2K, 3.4M, 100M, 1.5B (not raw 100000000).
+ */
+export function formatCompactNumber(value) {
+  if (value == null || value === '') return '—';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  if (n === 0) return '0';
+
+  const sign = n < 0 ? '-' : '';
+  const x = Math.abs(n);
+
+  if (x < 1000) {
+    if (Number.isInteger(n)) return `${sign}${Math.trunc(x)}`;
+    const rounded = Math.round(x * 100) / 100;
+    if (Math.abs(rounded - Math.round(rounded)) < 1e-9) {
+      return `${sign}${Math.round(rounded)}`;
+    }
+    return `${sign}${rounded.toFixed(2).replace(/\.?0+$/, '')}`;
+  }
+
+  const tiers = [
+    [1e12, 'T'],
+    [1e9, 'B'],
+    [1e6, 'M'],
+    [1e3, 'K'],
+  ];
+  for (const [div, suf] of tiers) {
+    if (x >= div) {
+      const d = x / div;
+      let s;
+      if (d >= 100) s = d.toFixed(0);
+      else if (d >= 10) s = d.toFixed(1);
+      else s = d.toFixed(2);
+      s = s.replace(/\.0+$/, '').replace(/(\.\d)0$/, '$1');
+      return `${sign}${s}${suf}`;
+    }
+  }
+  return `${sign}${x}`;
+}
+
 export function formatTooltipValue(value, isPercent = false) {
   if (value == null) return '—';
   if (isPercent) return `${Number(value).toFixed(1)}%`;
-  if (Number.isInteger(value)) return value.toLocaleString();
-  return Number(value).toFixed(2);
+  return formatCompactNumber(value);
 }

@@ -7,6 +7,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PersistentToastProvider } from './context/PersistentToastContext';
+import { PredictionWorkspaceProvider } from './context/PredictionWorkspaceContext';
 import { rbac } from './utils/rbac';
 import { Loader2 } from 'lucide-react';
 
@@ -115,6 +116,7 @@ function App() {
       <ThemeProvider>
         <PersistentToastProvider>
           <Router>
+            <PredictionWorkspaceProvider>
             <Routes>
               {/* Public Routes */}
               <Route path="/login" element={<Login />} />
@@ -355,6 +357,7 @@ function App() {
                 }
               />
             </Routes>
+            </PredictionWorkspaceProvider>
           </Router>
         </PersistentToastProvider>
       </ThemeProvider>

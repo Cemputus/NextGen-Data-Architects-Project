@@ -1,7 +1,7 @@
 /**
  * Finance Dashboard - Smooth, Clean UI
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import ExportButtons from '../components/ExportButtons';
@@ -11,7 +11,6 @@ import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import { SciLineChart, SciBarChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import { KPICard } from '../components/ui/kpi-card';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import {
   kpiStripCardClass,
   chartSurfaceCard,
@@ -21,6 +20,7 @@ import {
 } from '../lib/analytics-ui';
 import { MODERN_CHART_PALETTE } from '../lib/chartTheme';
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
+import { buildDashboardQueryParams } from '../utils/filterUtils';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
@@ -30,7 +30,8 @@ const FinanceDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [filters, setFilters] = useState({});
-  const debouncedFilters = useDebouncedValue(filters, 300);
+  const debouncedFilters = useDebouncedValue(filters, 120);
+  const dashboardQueryParams = useMemo(() => buildDashboardQueryParams(debouncedFilters), [debouncedFilters]);
   const [showWelcome, setShowWelcome] = useState(true);
   const [paymentTrends, setPaymentTrends] = useState([]);
   const [outstandingFacultyProgram, setOutstandingFacultyProgram] = useState([]);
@@ -43,7 +44,7 @@ const FinanceDashboard = () => {
 
   useEffect(() => {
     loadFinanceData();
-  }, [debouncedFilters]);
+  }, [filters]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -63,11 +64,11 @@ const FinanceDashboard = () => {
       const headers = { Authorization: `Bearer ${token}` };
       const response = await axios.get('/api/analytics/finance', {
         headers,
-        params: debouncedFilters
+        params: dashboardQueryParams,
       }).catch(() => {
         return axios.get('/api/dashboard/stats', {
           headers,
-          params: debouncedFilters
+          params: dashboardQueryParams,
         });
       });
 
@@ -92,7 +93,7 @@ const FinanceDashboard = () => {
       });
 
       const tuitionTrendPeriod = (() => {
-        const effective = { ...debouncedFilters };
+        const effective = { ...filters };
         if (lockedFacultyId != null && lockedFacultyId !== '') {
           if (effective.faculty_id != null && String(effective.faculty_id) === String(lockedFacultyId)) {
             delete effective.faculty_id;
@@ -115,12 +116,12 @@ const FinanceDashboard = () => {
         highRiskRes,
       ] = await Promise.all([
         axios
-          .get('/api/dashboard/tuition-defaulters', { headers, params: debouncedFilters })
+          .get('/api/dashboard/tuition-defaulters', { headers, params: dashboardQueryParams })
           .catch(() => ({ data: { tuition_defaulters: [], semester_id: null } })),
         axios
           .get('/api/dashboard/tuition-payment-trends-dimensions', {
             headers,
-            params: { period: tuitionTrendPeriod, ...debouncedFilters },
+            params: { period: tuitionTrendPeriod, ...dashboardQueryParams },
           })
           .catch(() => ({
             data: {
@@ -133,25 +134,25 @@ const FinanceDashboard = () => {
         axios
           .get('/api/dashboard/payment-trends', {
             headers,
-            params: { period: 'quarterly', ...debouncedFilters },
+            params: { period: 'quarterly', ...dashboardQueryParams },
           })
           .catch(() => ({ data: { periods: [], amounts: [] } })),
         axios
           .get('/api/dashboard/outstanding-by-faculty-program', {
             headers,
-            params: { ...debouncedFilters },
+            params: { ...dashboardQueryParams },
           })
           .catch(() => ({ data: { outstanding_by_faculty_program: [], semester_id: null } })),
         axios
           .get('/api/dashboard/payment-status', {
             headers,
-            params: { ...debouncedFilters },
+            params: { ...dashboardQueryParams },
           })
           .catch(() => ({ data: { statuses: [], counts: [] } })),
         axios
           .get('/api/dashboard/high-risk-debt-segments', {
             headers,
-            params: { ...debouncedFilters },
+            params: { ...dashboardQueryParams },
           })
           .catch(() => ({
             data: { high_risk_debt_segments: [], semester_id: null },
@@ -193,7 +194,7 @@ const FinanceDashboard = () => {
         outstandingRes.data?.breakdown ||
         defRes.data?.breakdown ||
         highRiskRes.data?.breakdown ||
-        deriveFinanceBreakdown(debouncedFilters);
+        deriveFinanceBreakdown(filters);
       setFinanceBreakdown(breakdown);
 
       setOutstandingFacultyProgram(
@@ -529,42 +530,49 @@ const FinanceDashboard = () => {
               <CardHeader className={chartCardHeaderClass}>
                 <CardTitle className={chartCardTitleClass}>Tuition payment trends</CardTitle>
                 <CardDescription className={chartCardDescriptionClass}>
-                  Time series of avg completed tuition payments over time for{" "}
+                  Time series showing avg completed tuition payments over time for{' '}
                   {filters?.program_id
                     ? 'the selected program'
                     : filters?.department_id
                       ? 'the selected department'
                       : filters?.faculty_id
                         ? 'the selected faculty'
-                        : 'all faculties'}.
+                        : 'all faculties'}
+                  .
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <SciLineChart
-                  data={tuitionPaymentTrendsDim}
-                  xDataKey="period"
-                  yDataKey={
-                    filters?.program_id
-                      ? 'program_amount'
-                      : filters?.department_id
-                        ? 'department_amount'
-                        : 'faculty_amount'
-                  }
-                  xAxisLabel="Period"
-                  yAxisLabel={`Avg completed tuition payment${
-                    filters?.program_id
-                      ? ' (Program)'
-                      : filters?.department_id
-                        ? ' (Department)'
-                        : filters?.faculty_id
-                          ? ' (Faculty)'
-                          : ' (All Faculties)'
-                  }`}
-                  showLegend={false}
-                  showGrid
-                  minHeight={360}
-                  maxHeight={580}
-                />
+                {tuitionPaymentTrendsDim.length > 0 ? (
+                  <SciLineChart
+                    data={tuitionPaymentTrendsDim}
+                    xDataKey="period"
+                    yDataKey={
+                      filters?.program_id
+                        ? 'program_amount'
+                        : filters?.department_id
+                          ? 'department_amount'
+                          : 'faculty_amount'
+                    }
+                    xAxisLabel="Period"
+                    yAxisLabel={`Avg completed tuition payment${
+                      filters?.program_id
+                        ? ' (Program)'
+                        : filters?.department_id
+                          ? ' (Department)'
+                          : filters?.faculty_id
+                            ? ' (Faculty)'
+                            : ' (All Faculties)'
+                    }`}
+                    showLegend={false}
+                    showGrid
+                    minHeight={360}
+                    maxHeight={580}
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground px-2 py-12 text-center min-h-[360px] flex items-center justify-center">
+                    Coming soon.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -15,11 +15,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
-import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2, XCircle } from 'lucide-react';
+import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2 } from 'lucide-react';
 import {
   KPI_OPTIONS,
   CHART_OPTIONS,
   PAGE_CONFIG_KEYS,
+  ROLE_DASHBOARD_PAGE_KEYS,
+  PAGES_WITH_VISUALS_KEYS,
   PAGE_CONFIG_LABELS,
   ROLE_LIST,
 } from '../config';
@@ -45,7 +47,6 @@ const AnalystDashboardsPage = () => {
   const [swapConfirm, setSwapConfirm] = useState({ open: false, dash: null, targetRole: '' });
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, dash: null });
   const [messageModal, setMessageModal] = useState({ open: false, message: '' });
-  const [removingRole, setRemovingRole] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [contentDashboard, setContentDashboard] = useState(null);
   const [contentPageKey, setContentPageKey] = useState(null);
@@ -157,9 +158,16 @@ const AnalystDashboardsPage = () => {
     }
   };
 
-  const loadData = async () => {
+  /**
+   * @param {{ silent?: boolean }} [opts]
+   * When silent is true, skips global loading state so only affected cards update (no full-page spinner).
+   */
+  const loadData = async (opts = {}) => {
+    const silent = opts.silent === true;
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setApiForbidden(false);
       const token = authToken || sessionStorage.getItem('ucu_session_token');
 
@@ -217,7 +225,9 @@ const AnalystDashboardsPage = () => {
       setCurrentByRole(fallbackRoles.map((r) => ({ role: r, dashboard: null })));
       // Do not clear customDashboards on error so recently created dashboard is not lost
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -268,18 +278,6 @@ const AnalystDashboardsPage = () => {
     const s = search.trim().toLowerCase();
     return (text || '').toString().toLowerCase().includes(s);
   };
-
-  const filteredCurrent = currentByRole.filter((entry) => {
-    if (filterRole && normalizeRole(entry.role) !== filterRole) return false;
-    const dash = entry.dashboard;
-    if (!dash) return matchesSearch(entry.role);
-    return (
-      matchesSearch(dash.name) ||
-      matchesSearch(dash.description) ||
-      matchesSearch(dash.created_by_username) ||
-      matchesSearch(entry.role)
-    );
-  });
 
   const filteredCustom = customDashboards.filter((dash) => {
     if (filterRole) {
@@ -360,7 +358,7 @@ const AnalystDashboardsPage = () => {
       await axios.delete(`/api/page-config/${pageKey}`, {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
-      await loadData();
+      await loadData({ silent: true });
       setMessageModal({ open: true, message: 'Page reset to default. It will use default KPIs and charts.' });
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to reset page.';
@@ -391,7 +389,7 @@ const AnalystDashboardsPage = () => {
         { definition },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      await loadData();
+      await loadData({ silent: true });
       setMessageModal({
         open: true,
         message: `Content copied from ${PAGE_CONFIG_LABELS[fromPageKey] || fromPageKey} to ${PAGE_CONFIG_LABELS[toPageKey] || toPageKey}.`,
@@ -425,7 +423,7 @@ const AnalystDashboardsPage = () => {
         { role: targetRole, dashboard_id: dash.id },
         { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
       );
-      await loadData();
+      await loadData({ silent: true });
     } catch (err) {
       console.error('Error swapping dashboard:', err);
       const msg = err?.response?.data?.error || err?.message || 'Unknown error while swapping dashboard.';
@@ -438,23 +436,6 @@ const AnalystDashboardsPage = () => {
     return currentByRole
       .filter((e) => e.dashboard && e.dashboard.id === dashboardId)
       .map((e) => e.role);
-  };
-
-  const handleRemoveCurrent = async (role) => {
-    setRemovingRole(role);
-    try {
-      await axios.post(
-        '/api/dashboard-manager/remove-current',
-        { role },
-        { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
-      );
-      await loadData();
-    } catch (err) {
-      const msg = err?.response?.data?.error || err?.message || 'Failed to remove current dashboard.';
-      setMessageModal({ open: true, message: msg });
-    } finally {
-      setRemovingRole(null);
-    }
   };
 
   const handleDeleteCustom = (dash) => {
@@ -478,7 +459,7 @@ const AnalystDashboardsPage = () => {
       await axios.delete(`/api/dashboards/${dash.id}`, {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
-      await loadData();
+      await loadData({ silent: true });
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to delete dashboard.';
       setMessageModal({ open: true, message: msg });
@@ -505,7 +486,7 @@ const AnalystDashboardsPage = () => {
           { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
         );
         setContentPageKey(null);
-        await loadData();
+        await loadData({ silent: true });
       } catch (err) {
         console.error('Error updating page config:', err);
         const msg =
@@ -545,7 +526,7 @@ const AnalystDashboardsPage = () => {
         }
       );
       setContentDashboard(null);
-      await loadData();
+      await loadData({ silent: true });
     } catch (err) {
       console.error('Error updating dashboard content:', err);
       const msg =
@@ -591,7 +572,7 @@ const AnalystDashboardsPage = () => {
         setCustomDashboards((prev) => [created, ...prev]);
       }
       try {
-      await loadData();
+      await loadData({ silent: true });
       } finally {
         // Keep created dashboard in list if GET /custom didn't return it (timing/filter)
         if (created && created.id) {
@@ -638,7 +619,8 @@ const AnalystDashboardsPage = () => {
             <Button
               size="sm"
               className="gap-2"
-              onClick={loadData}
+              type="button"
+              onClick={() => loadData()}
               disabled={loading}
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -722,7 +704,7 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            One card per role. All roles with dashboard pages are listed here. Use &quot;Edit content&quot; to change KPIs and charts; &quot;Make current&quot; from Custom to swap; &quot;Remove current&quot; to unassign.
+            Per-role home layouts via page-config. Custom dashboard swaps are managed in the section below.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -732,6 +714,15 @@ const AnalystDashboardsPage = () => {
               Loading current dashboards…
             </div>
           ) : (
+            <>
+            {canManage && (
+              <div className="mb-6 space-y-3">
+                <p className="text-xs font-semibold text-foreground">
+                  Role home dashboards
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Dean, HoD, Senate, Staff, Student, Finance, HR. Copy applies only within this set.
+                </p>
             <div
               className={
                 viewMode === 'grid'
@@ -739,98 +730,92 @@ const AnalystDashboardsPage = () => {
                   : 'space-y-2'
               }
             >
-              {currentByRole.map((entry) => {
-                const rname = entry.role;
-                const dash = entry.dashboard;
-                return (
-                  <div
-                    key={rname}
-                    className="border rounded-md px-3 py-2 flex flex-col justify-between text-[11px] min-h-[110px]"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase font-semibold text-muted-foreground">
-                          {rname}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Current
-                        </span>
-                      </div>
-                      <div className="font-semibold text-xs">
-                        {dash ? dash.name : 'No current dashboard assigned'}
-                      </div>
-                      {dash && dash.description && (
-                        <div className="text-muted-foreground line-clamp-2">
-                          {dash.description}
+                  {ROLE_DASHBOARD_PAGE_KEYS.map((key) => {
+                    const page = pageConfigs.find((p) => p.page_key === key) || { page_key: key };
+                    const label = PAGE_CONFIG_LABELS[key] || key.replace(/_/g, ' ');
+                    const hasCustom =
+                      page.definition &&
+                      typeof page.definition === 'object' &&
+                      (Array.isArray(page.definition.kpis) || Array.isArray(page.definition.charts));
+                    const isResetting = resettingPageKey === key;
+                    const isCopying = copyingPageKey === key;
+                    const otherRolePages = ROLE_DASHBOARD_PAGE_KEYS.filter((k2) => k2 !== key);
+                    return (
+                      <div
+                        key={key}
+                        className="border rounded-md px-3 py-2 flex flex-col justify-between text-[11px] min-h-[120px]"
+                      >
+                        <div>
+                          <div className="font-semibold text-xs">{label}</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {hasCustom ? (
+                              <>Custom{page.updated_by_username ? ` · by ${page.updated_by_username}` : ''}</>
+                            ) : (
+                              'Default'
+                            )}
+                          </div>
                         </div>
-                      )}
-                      {dash && (
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            Created by{' '}
-                            <span className="font-medium">{dash.created_by_username}</span>
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            Roles:{' '}
-                            {Array.isArray(dash.roles) && dash.roles.length > 0
-                              ? dash.roles.join(', ')
-                              : 'None'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1 mt-2">
-                      {dash ? (
-                        <>
+                        <div className="flex flex-wrap items-center gap-1 mt-2">
                           <Button
                             size="xs"
                             variant="outline"
                             className="h-6 px-2 text-[10px]"
-                            onClick={() =>
-                              setPreviewDashboard((prev) =>
-                                prev && prev.id === dash.id ? null : dash
-                              )
-                            }
+                            onClick={() => openPageContentEditor(key, true)}
                           >
-                            {previewDashboard && previewDashboard.id === dash.id
-                              ? 'Hide'
-                              : 'Preview'}
+                            View
                           </Button>
-                          {canManage && (
-                            <>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                className="h-6 px-2 text-[10px]"
-                                onClick={() => openContentEditor(dash, false, rname)}
-                              >
-                                Edit content
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                onClick={() => handleRemoveCurrent(rname)}
-                                disabled={!!removingRole}
-                              >
-                                {removingRole === rname ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                                <span className="ml-0.5">Remove current</span>
-                              </Button>
-                            </>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={() => openPageContentEditor(key, false)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleResetPageConfig(key)}
+                            disabled={!!resettingPageKey || !!copyingPageKey}
+                          >
+                            {isResetting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reset'}
+                          </Button>
+                          {otherRolePages.length > 0 && (
+                            <select
+                              className="h-6 px-2 text-[10px] border rounded-md bg-background max-w-[140px]"
+                              value=""
+                              disabled={!!copyingPageKey}
+                              onChange={(e) => {
+                                const from = e.target.value;
+                                if (from) {
+                                  handleCopyPageConfigFrom(from, key);
+                                  e.target.value = '';
+                                }
+                              }}
+                            >
+                              <option value="">Copy from…</option>
+                              {otherRolePages.map((other) => (
+                                <option key={other} value={other}>
+                                  {PAGE_CONFIG_LABELS[other] || other}
+                                </option>
+                              ))}
+                            </select>
                           )}
-                        </>
-                      ) : (
-                        canManage && (
-                          <span className="text-[10px] text-muted-foreground">
-                            Use a Custom dashboard and &quot;Make current&quot; to assign one.
-                          </span>
-                        )
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                        </div>
+                        {(isResetting || isCopying) && (
+                          <div className="mt-1 text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            {isResetting ? 'Resetting…' : 'Copying…'}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -947,24 +932,25 @@ const AnalystDashboardsPage = () => {
         </CardContent>
       </Card>
 
-      {/* Pages with visuals – view, edit, reset, copy for analytics and role pages */}
+      {/* Pages with visuals — FEX / Risk / Analyst only (role home dashboards live under Current Dashboards) */}
       {canManage && (
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold">Pages with visuals</CardTitle>
             <CardDescription className="text-xs">
-              View, edit, reset, or copy content for analytics pages (FEX, High School, Risk) and every role dashboard. Changes apply to what users see on that page.
+              FEX Analytics, Risk Analytics, and Analyst Dashboard only — not role home dashboards (those are under Current
+              Dashboards). Same <code className="text-[10px]">/api/page-config/</code> endpoints.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {(pageConfigs.length > 0 ? pageConfigs : PAGE_CONFIG_KEYS.map((k) => ({ page_key: k }))).map((page) => {
-                const key = page.page_key || page;
+              {PAGES_WITH_VISUALS_KEYS.map((key) => {
+                const page = pageConfigs.find((p) => p.page_key === key) || { page_key: key };
                 const label = PAGE_CONFIG_LABELS[key] || key.replace(/_/g, ' ');
                 const hasCustom = page.definition && typeof page.definition === 'object' && (Array.isArray(page.definition.kpis) || Array.isArray(page.definition.charts));
                 const isResetting = resettingPageKey === key;
                 const isCopying = copyingPageKey === key;
-                const otherPages = PAGE_CONFIG_KEYS.filter((k2) => k2 !== key);
+                const otherPages = PAGES_WITH_VISUALS_KEYS.filter((k2) => k2 !== key);
                 return (
                   <div
                     key={key}

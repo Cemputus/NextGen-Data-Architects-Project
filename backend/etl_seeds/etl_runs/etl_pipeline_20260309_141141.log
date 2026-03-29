@@ -1,0 +1,33 @@
+2026-03-09 14:11:41,918 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260309_141141.log
+2026-03-09 14:11:41,920 - INFO - ============================================================
+2026-03-09 14:11:41,920 - INFO - ETL PIPELINE STARTED
+2026-03-09 14:11:41,920 - INFO - Start time: 2026-03-09 14:11:41
+2026-03-09 14:11:41,920 - INFO - ============================================================
+2026-03-09 14:11:42,222 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-09 14:11:42,483 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-09 14:11:42,530 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-09 14:11:47,187 - INFO - [RBAC seed] Seeded audit_logs with 1501 rows
+2026-03-09 14:11:47,190 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-09 14:11:47,232 - INFO - [RBAC seed] Restored profile photos from etl_seeds\profile_photos to data\profile_photos
+2026-03-09 14:11:47,242 - INFO - [RBAC seed] Restored admin_settings.json to data\admin_settings.json
+2026-03-09 14:11:48,331 - INFO - [RBAC seed] Restored ETL run logs from etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-09 14:11:48,339 - INFO - ============================================================
+2026-03-09 14:11:48,339 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-09 14:11:48,339 - INFO - ============================================================
+2026-03-09 14:11:48,347 - INFO - Using SYNTHETIC data source: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 14:11:48,355 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 14:11:48,374 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-09 14:11:48,636 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-09 14:11:48,637 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-09 14:12:46,964 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-09 14:12:47,155 - ERROR - ETL Pipeline failed after 0:01:05.233771: arg must be a list, tuple, 1-d array, or Series
+Traceback (most recent call last):
+  File "etl_pipeline.py", line 2358, in run
+    bronze_data = self.extract()
+  File "etl_pipeline.py", line 236, in extract
+    return self._extract_from_synthetic_data()
+  File "etl_pipeline.py", line 585, in _extract_from_synthetic_data
+    students_db1['YearOfStudy'] = pd.to_numeric(students_df.get('YearOfStudy', 1), errors='coerce').fillna(1).astype(int)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\pandas\core\tools\numeric.py", line 191, in to_numeric
+    raise TypeError("arg must be a list, tuple, 1-d array, or Series")
+TypeError: arg must be a list, tuple, 1-d array, or Series

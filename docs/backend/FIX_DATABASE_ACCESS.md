@@ -16,14 +16,7 @@ If the backend server is running:
 
 ### Step 2: Verify Your Credentials
 
-Run this to verify your database connection:
-```powershell
-cd backend
-.\.venv\Scripts\activate
-python test_scripts\test_db_connection.py
-```
-
-You should see: `✓ All connection tests passed!`
+Verify Postgres is reachable with your usual client (e.g. `psql` using `PG_*` from your `.env`), or start the backend — if it connects, credentials are loaded.
 
 ### Step 3: Restart the Backend Server
 

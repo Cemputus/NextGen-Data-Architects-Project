@@ -9,6 +9,7 @@ import {
   defaultTooltip,
   defaultTextStyle,
   UCU_COLORS,
+  formatCompactNumber,
 } from '../../lib/chartTheme';
 import { chartEmptyStateClass } from '../../lib/analytics-ui';
 import { cn } from '../../lib/utils';
@@ -37,7 +38,7 @@ export function StudentAttendanceTrendChart({ data = [], className }) {
             if (String(p.seriesName || '').includes('%')) {
               return `${p.marker} ${p.seriesName}: ${n.toFixed(1)}%`;
             }
-            return `${p.marker} ${p.seriesName}: ${n.toFixed(2)} hrs`;
+            return `${p.marker} ${p.seriesName}: ${formatCompactNumber(n)} hrs`;
           });
           return `${label}<br/>${lines.join('<br/>')}`;
         },
@@ -76,7 +77,10 @@ export function StudentAttendanceTrendChart({ data = [], className }) {
           type: 'value',
           name: 'Avg hours',
           nameTextStyle: defaultTextStyle,
-          axisLabel: defaultTextStyle,
+          axisLabel: {
+            ...defaultTextStyle,
+            formatter: (v) => formatCompactNumber(v),
+          },
           splitLine: { show: false },
         },
       ],

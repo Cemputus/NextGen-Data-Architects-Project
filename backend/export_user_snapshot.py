@@ -1,7 +1,9 @@
 """
 Export RBAC / app-user data and activity data to JSON snapshots for reproducible ETL.
 
-Run manually or automatically (on user create/update/delete and profile save):
+Run manually or automatically:
+  - At the start of every `etl_pipeline` run (`export_seeds_from_live_db`), so seeds match the DB before RBAC seed/bootstrap.
+  - After admin settings save and app-user CRUD (async from Flask).
 
     cd backend
     python export_user_snapshot.py
@@ -17,6 +19,7 @@ admin settings, and ETL run history.
 """
 from pathlib import Path
 import json
+import os
 import shutil
 import threading
 
@@ -34,8 +37,8 @@ from api.auth import (
 
 # Max audit log rows to export (oldest dropped if more)
 AUDIT_LOGS_EXPORT_LIMIT = 5000
-# Max ETL log files to copy into etl_seeds/etl_runs
-ETL_RUNS_COPY_LIMIT = 30
+# Max ETL log files to copy into etl_seeds/etl_runs (mirrors recent runs for seeds)
+ETL_RUNS_COPY_LIMIT = 50
 
 
 def get_rbac_conn_string():
@@ -122,8 +125,12 @@ def export_user_snapshot():
         except Exception as e:
             print(f"Warning: failed to copy admin_settings: {e}")
 
-    # ETL run history (last N log files) so branches show same ETL jobs
-    log_dir = backend_dir / "logs"
+    # ETL run history (last N log files) — same directory as etl_pipeline / admin ETL_LOG_DIR
+    raw_log = os.environ.get("ETL_LOG_DIR")
+    if raw_log and str(raw_log).strip():
+        log_dir = Path(str(raw_log).strip()).resolve()
+    else:
+        log_dir = (backend_dir / "logs").resolve()
     etl_runs_dst = seeds_dir / "etl_runs"
     if log_dir.exists():
         try:

@@ -1,0 +1,115 @@
+2026-03-11 21:19:10,772 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_211910.log
+2026-03-11 21:19:10,827 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_211910.log
+2026-03-11 21:19:10,838 - INFO - ============================================================
+2026-03-11 21:19:10,842 - INFO - ETL PIPELINE STARTED
+2026-03-11 21:19:10,845 - INFO - Start time: 2026-03-11 21:19:10
+2026-03-11 21:19:10,848 - INFO - ============================================================
+2026-03-11 21:19:11,437 - INFO - [RBAC seed] Seeding table app_users with 1 rows from snapshot
+2026-03-11 21:19:11,473 - INFO - [RBAC seed] Seeding table app_users with 1 rows from snapshot
+2026-03-11 21:19:11,761 - INFO - [RBAC seed] Seeding table user_profiles with 0 rows from snapshot
+2026-03-11 21:19:11,768 - INFO - [RBAC seed] Seeding table user_state with 0 rows from snapshot
+2026-03-11 21:19:11,784 - ERROR - Failed to seed user system from snapshot: Execution failed on sql 'INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (:id, :username, :password_hash, :role, :full_name, :faculty_id, :department_id, :created_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(11) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id)s, %(username)s, %(password_hash)s, %(role)s, %(full_name)s, %(faculty_id)s, %(department_id)s, %(created_at)s)]
+[parameters: {'id': 11, 'username': 'Cemputus', 'password_hash': 'pbkdf2:sha256:600000$TBBxYtpmbkAcuc4B$719f803ca3af9dfc48b3ad906b75e1fec28e573281d4bbf7f2c0bda0ddc9d080', 'role': 'staff', 'full_name': 'Emmanuel Nsubuga', 'faculty_id': 1, 'department_id': 1, 'created_at': '2026-03-11 20:52:52.254618'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(11) already exists.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1679, in execute
+    return execute_function(sql, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.IntegrityError: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(11) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id)s, %(username)s, %(password_hash)s, %(role)s, %(full_name)s, %(faculty_id)s, %(department_id)s, %(created_at)s)]
+[parameters: {'id': 11, 'username': 'Cemputus', 'password_hash': 'pbkdf2:sha256:600000$TBBxYtpmbkAcuc4B$719f803ca3af9dfc48b3ad906b75e1fec28e573281d4bbf7f2c0bda0ddc9d080', 'role': 'staff', 'full_name': 'Emmanuel Nsubuga', 'faculty_id': 1, 'department_id': 1, 'created_at': '2026-03-11 20:52:52.254618'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/etl_pipeline.py", line 108, in seed_user_system_from_snapshot
+    upsert_table("app_users", snapshot.get("app_users", []))
+  File "/app/etl_pipeline.py", line 106, in upsert_table
+    df.to_sql(table_name, engine, if_exists="append", index=False)
+  File "/usr/local/lib/python3.11/site-packages/pandas/core/generic.py", line 3052, in to_sql
+    return sql.to_sql(
+           ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 841, in to_sql
+    return pandas_sql.to_sql(
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 2037, in to_sql
+    total_inserted = sql_engine.insert_records(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1571, in insert_records
+    return table.insert(chunksize=chunksize, method=method)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1122, in insert
+    num_inserted = exec_insert(conn, keys, chunk_iter)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1014, in _execute_insert
+    result = self.pd_sql.execute(self.table.insert(), data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/pandas/io/sql.py", line 1681, in execute
+    raise DatabaseError(f"Execution failed on sql '{sql}': {exc}") from exc
+pandas.errors.DatabaseError: Execution failed on sql 'INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (:id, :username, :password_hash, :role, :full_name, :faculty_id, :department_id, :created_at)': (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "app_users_pkey"
+DETAIL:  Key (id)=(11) already exists.
+
+[SQL: INSERT INTO app_users (id, username, password_hash, role, full_name, faculty_id, department_id, created_at) VALUES (%(id)s, %(username)s, %(password_hash)s, %(role)s, %(full_name)s, %(faculty_id)s, %(department_id)s, %(created_at)s)]
+[parameters: {'id': 11, 'username': 'Cemputus', 'password_hash': 'pbkdf2:sha256:600000$TBBxYtpmbkAcuc4B$719f803ca3af9dfc48b3ad906b75e1fec28e573281d4bbf7f2c0bda0ddc9d080', 'role': 'staff', 'full_name': 'Emmanuel Nsubuga', 'faculty_id': 1, 'department_id': 1, 'created_at': '2026-03-11 20:52:52.254618'}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-03-11 21:19:11,942 - INFO - ============================================================
+2026-03-11 21:19:11,946 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 21:19:11,948 - INFO - [RBAC seed] Seeded audit_logs with 4 rows
+2026-03-11 21:19:11,952 - INFO - ============================================================
+2026-03-11 21:19:11,954 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-11 21:19:11,982 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 21:19:12,036 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 21:19:12,070 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 21:19:12,375 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 21:19:12,380 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-11 21:19:13,338 - INFO - [RBAC seed] Restored profile photos from /app/etl_seeds/profile_photos to /app/data/profile_photos
+2026-03-11 21:19:13,581 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json
+2026-03-11 21:20:13,896 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-11 21:20:14,507 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-11 21:20:14,679 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-11 21:20:15,223 - INFO - [RBAC seed] Restored ETL run logs from /app/etl_seeds/etl_runs to /app/logs
+2026-03-11 21:20:15,228 - INFO - ============================================================
+2026-03-11 21:20:15,229 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 21:20:15,231 - INFO - ============================================================
+2026-03-11 21:20:15,234 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 21:20:15,261 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 21:20:15,320 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 21:20:15,482 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 21:20:15,483 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91

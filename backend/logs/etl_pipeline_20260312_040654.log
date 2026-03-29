@@ -1,0 +1,76 @@
+2026-03-12 04:06:54,904 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260312_040654.log
+2026-03-12 04:06:54,905 - INFO - ============================================================
+2026-03-12 04:06:54,906 - INFO - ETL PIPELINE STARTED
+2026-03-12 04:06:54,908 - INFO - Start time: 2026-03-12 04:06:54
+2026-03-12 04:06:54,909 - INFO - ============================================================
+2026-03-12 04:06:55,360 - INFO - [RBAC seed] Seeding table app_users with 1 rows from snapshot
+2026-03-12 04:06:55,587 - INFO - [RBAC seed] Seeding table user_profiles with 0 rows from snapshot
+2026-03-12 04:06:55,594 - INFO - [RBAC seed] Seeding table user_state with 0 rows from snapshot
+2026-03-12 04:06:55,785 - INFO - [RBAC seed] Seeded audit_logs with 9 rows
+2026-03-12 04:06:55,794 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-12 04:06:56,249 - INFO - [RBAC seed] Restored profile photos from /app/etl_seeds/profile_photos to /app/data/profile_photos
+2026-03-12 04:06:56,300 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json
+2026-03-12 04:07:11,138 - INFO - [RBAC seed] Restored ETL run logs from /app/etl_seeds/etl_runs to /app/logs
+2026-03-12 04:07:11,139 - INFO - ============================================================
+2026-03-12 04:07:11,140 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-12 04:07:11,141 - INFO - ============================================================
+2026-03-12 04:07:11,143 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-12 04:07:11,154 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-12 04:07:11,169 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-12 04:07:11,303 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-12 04:07:11,303 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-12 04:07:28,940 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-12 04:07:29,136 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-12 04:07:29,176 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-12 04:07:31,655 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-12 04:07:31,856 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-12 04:07:34,311 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-12 04:07:49,640 - INFO -   -> Attendance: 3117871 (columns: 9)
+2026-03-12 04:07:49,756 - INFO -   -> Employees (synthetic): 253
+2026-03-12 04:07:49,807 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-12 04:07:50,111 - INFO -   -> Student–high school: 20000
+2026-03-12 04:07:50,605 - INFO -   -> Transcript: 36233
+2026-03-12 04:07:50,956 - INFO -   -> Academic performance: 36233
+2026-03-12 04:07:51,580 - INFO -   -> Sponsorships: 41866
+2026-03-12 04:08:10,802 - INFO -   -> Progression: 469956
+2026-03-12 04:08:10,804 - INFO -   -> Grades summary sheets: 0
+2026-03-12 04:08:10,886 - INFO -   -> Dim date: 1826
+2026-03-12 04:08:16,732 - INFO - Bronze (synthetic) extraction complete.
+2026-03-12 04:08:16,750 - INFO - ============================================================
+2026-03-12 04:08:16,751 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-12 04:08:16,752 - INFO - ============================================================
+2026-03-12 04:08:46,979 - INFO - Silver layer files saved to: /app/data/silver
+2026-03-12 04:08:46,981 - INFO -   → Students: 10000
+2026-03-12 04:08:46,981 - INFO -   → Courses: 3035
+2026-03-12 04:08:46,982 - INFO -   → Enrollments: 10000
+2026-03-12 04:08:46,983 - INFO -   → Attendance: 3117871
+2026-03-12 04:08:46,984 - INFO -   → Payments: 130871
+2026-03-12 04:08:46,985 - INFO -   → Grades: 234978
+2026-03-12 04:08:46,986 - INFO -   → Transcript: 36233
+2026-03-12 04:08:46,987 - INFO -   → Academic performance: 36233
+2026-03-12 04:08:46,988 - INFO -   → Sponsorships: 41866
+2026-03-12 04:08:46,988 - INFO -   → Progression: 469956
+2026-03-12 04:08:46,989 - INFO -   → Student–high school: 20000
+2026-03-12 04:08:46,990 - INFO -   → High schools: 73
+2026-03-12 04:08:46,991 - INFO - Silver layer transformation complete!
+2026-03-12 04:08:46,995 - INFO - ============================================================
+2026-03-12 04:08:46,996 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-12 04:08:46,997 - INFO - ============================================================
+2026-03-12 04:08:46,998 - INFO - Creating data warehouse database: ucu_datawarehouse
+2026-03-12 04:08:47,062 - INFO - Data warehouse database ucu_datawarehouse ready
+2026-03-12 04:08:47,064 - INFO - Creating dimension tables...
+2026-03-12 04:08:48,860 - INFO -   → Loaded 1823 courses into dim_course (from catalog)
+2026-03-12 04:08:49,938 - INFO -   → Loaded 1823 courses into dim_course (from silver)
+2026-03-12 04:09:16,705 - INFO -   → Loaded 10000 students into dim_student (50 columns)
+2026-03-12 04:09:16,719 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-12 04:09:16,817 - INFO -   → Loaded 1 app users into dim_app_user
+2026-03-12 04:09:16,841 - INFO -   -> Loaded 11 faculties into dim_faculty
+2026-03-12 04:09:16,867 - INFO -   -> Loaded 18 departments into dim_department
+2026-03-12 04:09:16,899 - INFO -   -> Loaded 91 programs into dim_program
+2026-03-12 04:09:16,945 - INFO -   -> Loaded 253 employees (staff/lecturers) into dim_employee
+2026-03-12 04:09:16,973 - INFO -   -> Loaded 73 high schools into dim_high_school (all columns)
+2026-03-12 04:09:17,025 - INFO - Populating time dimension...
+2026-03-12 04:09:17,247 - INFO -   → Loaded 1826 time dimension records
+2026-03-12 04:09:18,131 - INFO -   → fact_enrollment incremental: 10000 new rows (skipped 0 existing)
+2026-03-12 04:09:20,449 - INFO -   → Loaded 10000 enrollments into fact_enrollment
+2026-03-12 04:10:11,799 - INFO -   -> Attendance: 3117871 rows pre-filter, 3117871 new rows after incremental watermark (max_id=0)

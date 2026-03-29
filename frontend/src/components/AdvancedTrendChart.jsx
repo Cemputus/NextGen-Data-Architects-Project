@@ -4,7 +4,7 @@
  */
 import React, { useMemo } from 'react';
 import { BaseChart } from './charts/BaseChart';
-import { UCU_COLORS, defaultGrid, defaultTooltip, defaultTextStyle } from '../lib/chartTheme';
+import { UCU_COLORS, defaultGrid, defaultTooltip, defaultTextStyle, formatTooltipValue } from '../lib/chartTheme';
 
 export default function AdvancedTrendChart({
   data = [],
@@ -47,7 +47,18 @@ export default function AdvancedTrendChart({
 
     return {
       grid: defaultGrid,
-      tooltip: defaultTooltip,
+      tooltip: {
+        ...defaultTooltip,
+        trigger: 'axis',
+        formatter: (params) => {
+          const arr = Array.isArray(params) ? params : [params];
+          const label = arr[0]?.axisValueLabel ?? arr[0]?.name ?? '';
+          const lines = arr.map(
+            (p) => `${p?.marker || ''} ${p?.seriesName || ''}: ${formatTooltipValue(p?.value)}`,
+          );
+          return `${label}<br/>${lines.join('<br/>')}`;
+        },
+      },
       legend: showLegend ? { show: true, bottom: 0, textStyle: defaultTextStyle } : { show: false },
       xAxis: {
         type: 'category',
@@ -61,7 +72,10 @@ export default function AdvancedTrendChart({
         type: 'value',
         name: yAxisLabel,
         nameTextStyle: defaultTextStyle,
-        axisLabel: defaultTextStyle,
+        axisLabel: {
+          ...defaultTextStyle,
+          formatter: (v) => formatTooltipValue(v),
+        },
         splitLine: { lineStyle: { type: 'dashed', opacity: 0.4 } },
       },
       series,

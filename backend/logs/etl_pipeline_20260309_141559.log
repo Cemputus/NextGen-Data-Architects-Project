@@ -1,0 +1,6 @@
+2026-03-09 14:15:59,906 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260309_141559.log
+2026-03-09 14:15:59,908 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-09 14:15:59,912 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-09 14:15:59,987 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-09 14:15:59,987 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-09 14:16:43,910 - INFO -   -> Combined student lists: 10000 unique (by RegNo)

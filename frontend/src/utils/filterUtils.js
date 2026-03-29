@@ -27,3 +27,34 @@ export function sanitizeDashboardFilters(input) {
   }
   return out;
 }
+
+/** Keys forwarded to dashboard/analytics APIs (drops blanks; avoids stray UI-only fields). */
+const DASHBOARD_PARAM_KEYS = new Set([
+  'faculty_id',
+  'department_id',
+  'program_id',
+  'semester_id',
+  'course_code',
+  'intake_year',
+  'high_school',
+  'year_of_study',
+  'access_number',
+  'reg_number',
+  'student_name',
+]);
+
+/**
+ * @param {Record<string, unknown>|null|undefined} filters — typically sanitized `apiFilters`
+ * @returns {Record<string, unknown>}
+ */
+export function buildDashboardQueryParams(filters) {
+  if (!filters || typeof filters !== 'object' || Array.isArray(filters)) return {};
+  const out = {};
+  for (const k of DASHBOARD_PARAM_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(filters, k)) continue;
+    const v = filters[k];
+    if (isBlankFilterValue(v)) continue;
+    out[k] = v;
+  }
+  return out;
+}

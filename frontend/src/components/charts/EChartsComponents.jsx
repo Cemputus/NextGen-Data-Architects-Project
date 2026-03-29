@@ -4,7 +4,7 @@
  */
 import React, { useMemo } from 'react';
 import { BaseChart } from './BaseChart';
-import { UCU_COLORS, CHART_PALETTE_THEME, defaultGrid, defaultTooltip, defaultTextStyle, defaultTitleTextStyle, formatTooltipValue } from '../../lib/chartTheme';
+import { UCU_COLORS, CHART_PALETTE_THEME, defaultGrid, defaultTooltip, defaultTextStyle, defaultTitleTextStyle, formatCompactNumber, formatTooltipValue } from '../../lib/chartTheme';
 
 const chartHeight = 360;
 const chartMinHeight = 300;
@@ -81,12 +81,19 @@ export function SciLineChart({
           const pArr = Array.isArray(params) ? params : [params];
           const first = pArr[0] || {};
           const axisLabel = first?.axisValueLabel ?? first?.name ?? '';
+          const seriesY = (v) => {
+            if (v == null) return v;
+            if (Array.isArray(v) && v.length >= 2) return v[1];
+            return v;
+          };
           if (hasMultiple && pArr.length > 1) {
-            const lines = pArr.map((p) => `${p?.seriesName || ''}: ${formatTooltipValue(p?.value)}`).join('<br/>');
+            const lines = pArr
+              .map((p) => `${p?.seriesName || ''}: ${formatTooltipValue(seriesY(p?.value))}`)
+              .join('<br/>');
             return `${axisLabel}<br/>${lines}`;
           }
           const rawVal = first?.value;
-          const yVal = Array.isArray(rawVal) ? rawVal[1] : rawVal;
+          const yVal = seriesY(rawVal);
           return `${axisLabel}<br/>${yAxisLabel}: ${formatTooltipValue(yVal)}`;
         },
       },
@@ -101,7 +108,8 @@ export function SciLineChart({
           interval: xValues.length > 8 ? 'auto' : 0,
           rotate: xValues.length > 8 ? 45 : 0,
           hideOverlap: true,
-          formatter: (value) => String(value),
+          formatter: (value) =>
+            isNumericX ? formatCompactNumber(value) : String(value),
         },
         splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
       },
@@ -442,21 +450,41 @@ export function SciAreaChart({
     const yValues = data.map((d) => d[yDataKey] ?? 0);
     return {
       grid: defaultGrid,
-      tooltip: defaultTooltip,
+      tooltip: {
+        ...defaultTooltip,
+        trigger: 'axis',
+        formatter: (params) => {
+          const arr = Array.isArray(params) ? params : [params];
+          const label = arr[0]?.axisValueLabel ?? arr[0]?.name ?? '';
+          const lines = arr.map((p) => {
+            const raw = p?.value;
+            const y = Array.isArray(raw) ? raw[1] : raw;
+            return `${p?.marker || ''} ${p?.seriesName || ''}: ${formatTooltipValue(y)}`;
+          });
+          return `${label}<br/>${lines.join('<br/>')}`;
+        },
+      },
       legend: showLegend ? { show: true, bottom: 0, textStyle: defaultTextStyle } : { show: false },
       xAxis: {
         type: typeof xValues[0] === 'number' ? 'value' : 'category',
         data: typeof xValues[0] === 'number' ? undefined : xValues,
         name: xAxisLabel,
         nameTextStyle: defaultTextStyle,
-        axisLabel: defaultTextStyle,
+        axisLabel: {
+          ...defaultTextStyle,
+          formatter: (v) =>
+            typeof xValues[0] === 'number' ? formatCompactNumber(v) : String(v),
+        },
         splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
       },
       yAxis: {
         type: 'value',
         name: yAxisLabel,
         nameTextStyle: defaultTextStyle,
-        axisLabel: defaultTextStyle,
+        axisLabel: {
+          ...defaultTextStyle,
+          formatter: (v) => formatTooltipValue(v),
+        },
         splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
       },
       series: [
@@ -623,7 +651,7 @@ export function SciStackedColumnChart({
           const idx = p.dataIndex;
           const val = values[idx];
           const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0';
-          return `${categories[idx]}<br/>${yAxisLabel}: ${val} (${pct}%)`;
+          return `${categories[idx]}<br/>${yAxisLabel}: ${formatTooltipValue(val)} (${pct}%)`;
         },
       },
       legend: showLegend ? { show: true, bottom: 0, textStyle: defaultTextStyle } : { show: false },
@@ -639,7 +667,10 @@ export function SciStackedColumnChart({
         type: 'value',
         name: yAxisLabel,
         nameTextStyle: defaultTextStyle,
-        axisLabel: defaultTextStyle,
+        axisLabel: {
+          ...defaultTextStyle,
+          formatter: (v) => formatTooltipValue(v),
+        },
         splitLine: showGrid ? { lineStyle: { type: 'dashed', opacity: 0.4 } } : { show: false },
       },
       series,

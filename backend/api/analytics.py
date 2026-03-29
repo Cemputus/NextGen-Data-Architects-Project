@@ -1807,9 +1807,9 @@ def get_filter_options():
         else:
             try:
                 dept_query = """
-                    SELECT DISTINCT d.department_id, d.department_name, d.faculty_id
-                    FROM dim_department d
-                """
+            SELECT DISTINCT d.department_id, d.department_name, d.faculty_id
+            FROM dim_department d
+        """
                 dept_where = []
                 if role == Role.HOD and user_scope.get('department_id'):
                     dept_where.append(f"d.department_id = {user_scope['department_id']}")
@@ -1842,12 +1842,12 @@ def get_filter_options():
             if user_scope.get('student_id'):
                 try:
                     q = """
-                        SELECT DISTINCT p.program_id, p.program_name, p.department_id, d.faculty_id
-                        FROM dim_program p
-                        JOIN dim_department d ON p.department_id = d.department_id
-                        JOIN dim_student ds ON p.program_id = ds.program_id
-                        WHERE ds.student_id = :student_id
-                    """
+                    SELECT DISTINCT p.program_id, p.program_name, p.department_id, d.faculty_id
+                    FROM dim_program p
+                    JOIN dim_department d ON p.department_id = d.department_id
+                    JOIN dim_student ds ON p.program_id = ds.program_id
+                    WHERE ds.student_id = :student_id
+                """
                     df = pd.read_sql_query(text(q), engine, params={'student_id': user_scope['student_id']})
                     options['programs'] = df.to_dict('records') if not df.empty else []
                 except Exception:
@@ -1891,26 +1891,23 @@ def get_filter_options():
         # --- Courses (filtered by department/faculty; fallback from fact_grade) ---
         try:
             if role == Role.STUDENT:
-                # Restrict courses to those the current student has grades for.
                 if user_scope.get('student_id'):
                     q = """
-                        SELECT DISTINCT c.course_code, c.course_name
-                        FROM dim_course c
-                        JOIN fact_grade fg ON c.course_code = fg.course_code
+                SELECT DISTINCT c.course_code, c.course_name
+                FROM dim_course c
+                JOIN fact_grade fg ON c.course_code = fg.course_code
                         WHERE fg.student_id = :student_id
-                        ORDER BY c.course_code
-                    """
+                ORDER BY c.course_code
+            """
                     df = pd.read_sql_query(text(q), engine, params={'student_id': user_scope['student_id']})
                     options['courses'] = df.to_dict('records') if not df.empty else []
                 else:
                     options['courses'] = []
             else:
-                # Start with all courses, then narrow by department/faculty/role.
                 course_query = "SELECT DISTINCT course_code, course_name FROM dim_course ORDER BY course_code"
                 params = {}
 
                 if program_id:
-                    # When Program is selected, derive courses from fact_grade so the list cascades correctly.
                     scope_clause = ""
                     params = {'prog_id': program_id}
                     if role == Role.DEAN and faculty_id:
@@ -1937,20 +1934,20 @@ def get_filter_options():
                     """
                 elif department_id:
                     course_query = """
-                        SELECT DISTINCT c.course_code, c.course_name
-                        FROM dim_course c
-                        WHERE c.department = (SELECT department_name FROM dim_department WHERE department_id = :dept_id)
-                        ORDER BY c.course_code
-                    """
+                    SELECT DISTINCT c.course_code, c.course_name
+                    FROM dim_course c
+                    WHERE c.department = (SELECT department_name FROM dim_department WHERE department_id = :dept_id)
+                    ORDER BY c.course_code
+                """
                     params = {'dept_id': department_id}
                 elif faculty_id:
                     course_query = """
-                        SELECT DISTINCT c.course_code, c.course_name
-                        FROM dim_course c
-                        JOIN dim_department d ON c.department = d.department_name
-                        WHERE d.faculty_id = :fac_id
-                        ORDER BY c.course_code
-                    """
+                    SELECT DISTINCT c.course_code, c.course_name
+                    FROM dim_course c
+                    JOIN dim_department d ON c.department = d.department_name
+                    WHERE d.faculty_id = :fac_id
+                    ORDER BY c.course_code
+                """
                     params = {'fac_id': faculty_id}
                 elif role == Role.HOD and user_scope.get('department_id'):
                     course_query = """
@@ -1973,7 +1970,6 @@ def get_filter_options():
                 df = pd.read_sql_query(text(course_query), engine, params=params or None)
                 options['courses'] = df.to_dict('records') if not df.empty else []
 
-                # Fallback: derive course list from fact_grade when dim_course is sparse.
                 if not options['courses']:
                     df2 = pd.read_sql_query(
                         text(
@@ -2705,13 +2701,13 @@ def get_student_analytics():
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         role = user_scope['role']
-
+        
         # Check permission
         if not has_permission(role, Resource.ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
-
+        
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-
+        
         # Students may only ever see their own record (ignore forged query params).
         if role == Role.STUDENT:
             access_number = user_scope.get('access_number')
@@ -2719,10 +2715,10 @@ def get_student_analytics():
         else:
             access_number = request.args.get('access_number') or user_scope.get('access_number')
             student_id = request.args.get('student_id') or user_scope.get('student_id')
-
+        
         if not access_number and not student_id:
             return jsonify({'error': 'Student identifier required'}), 400
-
+        
         # Build query to get student data
         if student_id:
             where_clause = "WHERE ds.student_id = :student_id"
@@ -2746,7 +2742,7 @@ def get_student_analytics():
 
         # Courses registered: distinct course codes from enrollment ∪ grade facts (realistic when ids differ).
         query = f"""
-        SELECT
+        SELECT 
             ds.student_id,
             ds.access_number,
             ds.reg_no,
@@ -2814,7 +2810,7 @@ def get_student_analytics():
             OR (ds.access_number IS NOT NULL AND TRIM(COALESCE(ds.access_number::text, '')) <> ''
                 AND UPPER(TRIM(fe.student_id)) = UPPER(TRIM(ds.access_number)))
         )"""
-
+        
         df = pd.read_sql_query(text(query), engine, params=params)
         
         if df.empty:
@@ -3000,7 +2996,7 @@ def get_student_analytics():
             _analytics_log.warning("student analytics enroll_stats_sql: %s", ex)
 
         engine.dispose()
-
+        
         def _num(row, key, default=0):
             v = row.get(key)
             if v is None or (isinstance(v, float) and pd.isna(v)):
@@ -3867,6 +3863,112 @@ _HR_DIM_PT_SQL = """COALESCE(NULLIF(TRIM(e.position_title), ''), CASE e.position
         ELSE 'Staff'
     END)"""
 
+HR_RETIREMENT_AGE = 60
+
+
+def _hr_months_between(d1: date, d2: date) -> int:
+    """Full calendar months from d1 to d2 (d1 <= d2)."""
+    if d2 < d1:
+        return 0
+    m = (d2.year - d1.year) * 12 + (d2.month - d1.month)
+    if d2.day < d1.day:
+        m -= 1
+    return max(0, m)
+
+
+def _hr_retirement_countdown_label(today: date, retirement_date: date) -> str:
+    """Human-readable years/months (and days if under one month) until retirement_date."""
+    days_left = (retirement_date - today).days
+    if days_left <= 0:
+        return 'At retirement or retired'
+    total_months = _hr_months_between(today, retirement_date)
+    y = total_months // 12
+    mo = total_months % 12
+    parts = []
+    if y > 0:
+        parts.append(f'{y} year{"s" if y != 1 else ""}')
+    if mo > 0:
+        parts.append(f'{mo} month{"s" if mo != 1 else ""}')
+    if parts:
+        return f'{", ".join(parts)} remaining to retirement'
+    return f'{days_left} day{"s" if days_left != 1 else ""} remaining to retirement'
+
+
+def _hr_retirement_fields_from_dob(dob_raw):
+    """Age and retirement labels: <55 far only; 55–59 years+months left; 60+ at/retired."""
+    empty = {
+        'date_of_birth': None,
+        'age': None,
+        'years_to_retirement': None,
+        'retirement_proximity': None,
+        'retirement_label': None,
+        'retirement_alert': False,
+    }
+    if dob_raw is None:
+        return empty
+    try:
+        if pd.isna(dob_raw):
+            return empty
+    except Exception:
+        pass
+    try:
+        if isinstance(dob_raw, date):
+            d = dob_raw
+        else:
+            ts = pd.to_datetime(dob_raw, errors='coerce')
+            if pd.isna(ts):
+                return empty
+            d = ts.date()
+    except Exception:
+        return empty
+    today = date.today()
+    age = today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+    retirement_date = date(d.year + HR_RETIREMENT_AGE, d.month, d.day)
+    days_left = (retirement_date - today).days
+    yrs_approx = round(max(0, days_left) / 365.25, 2) if days_left > 0 else 0.0
+
+    # At or past 60th birthday (or past retirement date)
+    if age >= HR_RETIREMENT_AGE or days_left <= 0:
+        return {
+            'date_of_birth': d.isoformat(),
+            'age': int(age),
+            'years_to_retirement': 0.0,
+            'retirement_proximity': 'retired',
+            'retirement_label': 'At retirement or retired',
+            'retirement_alert': False,
+        }
+
+    if age < 55:
+        return {
+            'date_of_birth': d.isoformat(),
+            'age': int(age),
+            'years_to_retirement': float(yrs_approx),
+            'retirement_proximity': 'far',
+            'retirement_label': 'Far from retirement',
+            'retirement_alert': False,
+        }
+
+    # Ages 55–59: show years and months remaining (highlighted in UI)
+    if 55 <= age <= 59:
+        return {
+            'date_of_birth': d.isoformat(),
+            'age': int(age),
+            'years_to_retirement': float(yrs_approx),
+            'retirement_proximity': 'approaching',
+            'retirement_label': _hr_retirement_countdown_label(today, retirement_date),
+            'retirement_alert': True,
+        }
+
+    # Fallback (should not hit if age < 60 and days_left > 0)
+    return {
+        'date_of_birth': d.isoformat(),
+        'age': int(age),
+        'years_to_retirement': float(yrs_approx),
+        'retirement_proximity': 'far',
+        'retirement_label': 'Far from retirement',
+        'retirement_alert': False,
+    }
+
 
 def _hr_parse_faculty_dept_filters(filters: dict):
     """Faculty/department query params for dim_employee scoped SQL (trend + synthetic)."""
@@ -4211,6 +4313,9 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
             conn.execute(
                 text("ALTER TABLE dim_employee ADD COLUMN IF NOT EXISTS position_title VARCHAR(200)")
             )
+            conn.execute(
+                text("ALTER TABLE dim_employee ADD COLUMN IF NOT EXISTS date_of_birth DATE")
+            )
             conn.commit()
     except Exception:
         pass
@@ -4460,6 +4565,7 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
             SELECT
                 e.employee_id,
                 e.full_name,
+                e.date_of_birth,
                 df.faculty_name,
                 ddept.department_name,
                 {pt_sql} AS pt
@@ -4494,14 +4600,17 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
     if not employees_df.empty:
         for _, r in employees_df.iterrows():
             title = str(r.get('pt') or '')
-            employees_list.append({
+            ret = _hr_retirement_fields_from_dob(r.get('date_of_birth'))
+            row = {
                 'employee_id': int(r['employee_id']) if pd.notna(r.get('employee_id')) else None,
                 'full_name': str(r.get('full_name') or ''),
                 'position_title': title,
                 'role_group': _classify_role_group(title),
                 'faculty_name': str(r.get('faculty_name') or ''),
                 'department_name': str(r.get('department_name') or ''),
-            })
+            }
+            row.update(ret)
+            employees_list.append(row)
 
     lecturer_employment_sql = f"""
         WITH b AS (
@@ -4695,6 +4804,15 @@ def get_hr_analytics():
 
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
+        try:
+            with engine.connect() as conn:
+                conn.execute(
+                    text(f'ALTER TABLE {DB2_NAME}.employees ADD COLUMN IF NOT EXISTS "DateOfBirth" DATE')
+                )
+                conn.commit()
+        except Exception:
+            pass
+
         # 1) Employee counts by role category (lecturer, assistant lecturer, other)
         summary_sql = f"""
         SELECT
@@ -4795,14 +4913,32 @@ def get_hr_analytics():
             e."FullName" AS full_name,
             p."PositionTitle" AS position_title,
             f."FacultyName" AS faculty_name,
-            d."DepartmentName" AS department_name
+            d."DepartmentName" AS department_name,
+            e."DateOfBirth" AS date_of_birth
         FROM {DB2_NAME}.employees e
         JOIN {DB2_NAME}.positions p ON e."PositionID" = p."PositionID"
         JOIN {DB1_NAME}.departments d ON e."DepartmentID" = d."DepartmentID"
         JOIN {DB1_NAME}.faculties f ON d."FacultyID" = f."FacultyID"
         {where_sql}
         """
-        employees_df = pd.read_sql_query(text(employees_sql), engine)
+        try:
+            employees_df = pd.read_sql_query(text(employees_sql), engine)
+        except Exception:
+            employees_sql_fb = f"""
+        SELECT
+            e."EmployeeID" AS employee_id,
+            e."FullName" AS full_name,
+            p."PositionTitle" AS position_title,
+            f."FacultyName" AS faculty_name,
+            d."DepartmentName" AS department_name,
+            NULL::date AS date_of_birth
+        FROM {DB2_NAME}.employees e
+        JOIN {DB2_NAME}.positions p ON e."PositionID" = p."PositionID"
+        JOIN {DB1_NAME}.departments d ON e."DepartmentID" = d."DepartmentID"
+        JOIN {DB1_NAME}.faculties f ON d."FacultyID" = f."FacultyID"
+        {where_sql}
+        """
+            employees_df = pd.read_sql_query(text(employees_sql_fb), engine)
 
         def _classify_role_group(title: str) -> str:
             """Map position title to HR-friendly role group."""
@@ -4828,14 +4964,17 @@ def get_hr_analytics():
             for _, r in employees_df.iterrows():
                 title = str(r.get("position_title") or "")
                 role_group = _classify_role_group(title)
-                employees_list.append({
+                ret = _hr_retirement_fields_from_dob(r.get("date_of_birth"))
+                row = {
                     "employee_id": int(r["employee_id"]) if pd.notna(r.get("employee_id")) else None,
                     "full_name": str(r.get("full_name") or ""),
                     "position_title": title,
                     "role_group": role_group,
                     "faculty_name": str(r.get("faculty_name") or ""),
                     "department_name": str(r.get("department_name") or ""),
-                })
+                }
+                row.update(ret)
+                employees_list.append(row)
 
         # 2d) Lecturer employment type breakdown (Full-time vs Part-time vs Other)
         lecturer_employment_sql = f"""

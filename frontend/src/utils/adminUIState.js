@@ -26,7 +26,7 @@ const storageKey = () => `${STORAGE_PREFIX}${getCurrentUserKey()}`;
 
 const DEFAULTS = {
   etl: {
-    runsLimit: 5,
+    runsLimit: 300,
     perPage: 20,
     page: 1,
     dataViewMode: 'raw', // 'raw' | 'visual'
@@ -53,6 +53,10 @@ const DEFAULTS = {
     activeTab: 'general',
   },
   dashboard: {},
+  /** HR Staff Management page — same visual/raw pattern as ETL & Audit */
+  hrStaff: {
+    dataViewMode: 'raw', // 'raw' | 'visual'
+  },
 };
 
 function load() {

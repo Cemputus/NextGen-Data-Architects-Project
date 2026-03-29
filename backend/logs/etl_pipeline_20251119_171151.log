@@ -1,0 +1,135 @@
+2025-11-19 17:11:51,549 - INFO - ETL Pipeline initialized. Log file: logs\etl_pipeline_20251119_171151.log
+2025-11-19 17:11:51,551 - INFO - ============================================================
+2025-11-19 17:11:51,551 - INFO - ETL PIPELINE STARTED
+2025-11-19 17:11:51,551 - INFO - Start time: 2025-11-19 17:11:51
+2025-11-19 17:11:51,551 - INFO - ============================================================
+2025-11-19 17:11:51,551 - INFO - ============================================================
+2025-11-19 17:11:51,551 - INFO - EXTRACT PHASE - Bronze Layer
+2025-11-19 17:11:51,554 - INFO - ============================================================
+2025-11-19 17:11:51,554 - INFO - Extracting from Source Database 1 (ACADEMICS)...
+2025-11-19 17:11:51,716 - INFO -   → Extracted 1000 students
+2025-11-19 17:11:51,763 - INFO -   → Extracted 1000 courses
+2025-11-19 17:11:51,822 - INFO -   → Extracted 1000 enrollments
+2025-11-19 17:11:51,865 - INFO -   → Extracted 1000 attendance records
+2025-11-19 17:11:51,959 - INFO -   → Extracted 1000 grades
+2025-11-19 17:11:52,035 - INFO -   → Extracted 1000 student fees
+2025-11-19 17:11:52,039 - INFO -   → Extracted 11 faculties
+2025-11-19 17:11:52,087 - INFO -   → Extracted 1000 departments
+2025-11-19 17:11:52,153 - INFO -   → Extracted 1000 programs
+2025-11-19 17:11:52,155 - INFO - Extracting from Source Database 2 (ADMINISTRATION)...
+2025-11-19 17:11:52,225 - INFO -   → Extracted 1000 employees
+2025-11-19 17:11:52,265 - INFO -   → Extracted 1000 payroll records
+2025-11-19 17:11:52,507 - INFO - Bronze layer files saved to: D:\final year project\backend\data\bronze
+2025-11-19 17:11:52,507 - INFO - Bronze layer extraction complete!
+2025-11-19 17:11:52,512 - INFO - ============================================================
+2025-11-19 17:11:52,512 - INFO - TRANSFORM PHASE - Silver Layer
+2025-11-19 17:11:52,512 - INFO - ============================================================
+2025-11-19 17:11:52,723 - INFO - Silver layer files saved to: D:\final year project\backend\data\silver
+2025-11-19 17:11:52,723 - INFO -   → Students: 1000
+2025-11-19 17:11:52,726 - INFO -   → Courses: 1000
+2025-11-19 17:11:52,726 - INFO -   → Enrollments: 1000
+2025-11-19 17:11:52,726 - INFO -   → Attendance: 1000
+2025-11-19 17:11:52,726 - INFO -   → Payments: 1000
+2025-11-19 17:11:52,727 - INFO -   → Grades: 1000
+2025-11-19 17:11:52,727 - INFO - Silver layer transformation complete!
+2025-11-19 17:11:52,731 - INFO - ============================================================
+2025-11-19 17:11:52,731 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2025-11-19 17:11:52,731 - INFO - ============================================================
+2025-11-19 17:11:52,733 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2025-11-19 17:11:52,741 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2025-11-19 17:11:52,744 - INFO - Creating dimension tables...
+2025-11-19 17:11:54,880 - INFO -   → Loaded 996 students into dim_student
+2025-11-19 17:11:54,994 - INFO -   → Loaded 705 courses into dim_course
+2025-11-19 17:11:55,021 - INFO -   → Loaded 4 semesters into dim_semester
+2025-11-19 17:11:55,168 - INFO -   → Loaded 11 faculties into dim_faculty
+2025-11-19 17:11:55,353 - INFO -   → Loaded 1000 departments into dim_department
+2025-11-19 17:11:55,506 - INFO -   → Loaded 1000 programs into dim_program
+2025-11-19 17:11:55,508 - INFO - Populating time dimension...
+2025-11-19 17:11:56,389 - INFO -   → Loaded 1096 time dimension records
+2025-11-19 17:11:57,579 - INFO -   → Loaded 1000 enrollments into fact_enrollment
+2025-11-19 17:11:58,276 - ERROR - ETL Pipeline failed after 0:00:06.725241: (pymysql.err.IntegrityError) (1452, 'Cannot add or update a child row: a foreign key constraint fails (`ucu_datawarehouse`.`fact_attendance`, CONSTRAINT `fact_attendance_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `dim_student` (`student_id`) ON DELETE CASCADE)')
+[SQL: INSERT INTO fact_attendance (student_id, course_code, date_key, total_hours, days_present) VALUES (%(student_id_m0)s, %(course_code_m0)s, %(date_key_m0)s, %(total_hours_m0)s, %(days_present_m0)s), (%(student_id_m1)s, %(course_code_m1)s, %(date_key_m1)s, %(total_hours_m1)s, %(days_present_m1)s), (%(student_id_m2)s, %(course_code_m2)s, %(date_key_m2)s, %(total_hours_m2)s, %(days_present_m2)s), (%(student_id_m3)s, %(course_code_m3)s, %(date_key_m3)s, %(total_hours_m3)s, %(days_present_m3)s), (%(student_id_m4)s, %(course_code_m4)s, %(date_key_m4)s, %(total_hours_m4)s, %(days_present_m4)s), (%(student_id_m5)s, %(course_code_m5)s, %(date_key_m5)s, %(total_hours_m5)s, %(days_present_m5)s), (%(student_id_m6)s, %(course_code_m6)s, %(date_key_m6)s, %(total_hours_m6)s, %(days_present_m6)s), (%(student_id_m7)s, %(course_code_m7)s, %(date_key_m7)s, %(total_hours_m7)s, %(days_present_m7)s), (%(student_id_m8)s, %(course_code_m8)s, %(date_key_m8)s, %(total_hours_m8)s, %(days_present_m8)s), (%(student_id_m9)s, %(course_code_m9)s, %(date_key_m9)s, %(total_hours_m9)s, %(days_present_m9)s), (%(student_id_m10)s, %(course_code_m10)s, %(date_key_m10)s, %(total_hours_m10)s, %(days_present_m10)s), (%(student_id_m11)s, %(course_code_m11)s, %(date_key_m11)s, %(total_hours_m11)s, %(days_present_m11)s), (%(student_id_m12)s, %(course_code_m12)s, %(date_key_m12)s, %(total_hours_m12)s, %(days_present_m12)s), (%(student_id_m13)s, %(course_code_m13)s, %(date_key_m13)s, %(total_hours_m13)s, %(days_present_m13)s), (%(student_id_m14)s, %(course_code_m14)s, %(date_key_m14)s, %(total_hours_m14)s, %(days_present_m14)s), (%(student_id_m15)s, %(course_code_m15)s, %(date_key_m15)s, %(total_hours_m15)s, %(days_present_m15)s), (%(student_id_m16)s, %(course_code_m16)s, %(date_key_m16)s, %(total_hours_m16)s, %(days_present_m16)s), (%(student_id_m17)s, %(course_code_m17)s, %(date_key_m17)s, %(total_hours_m17)s, %(days_present_m17)s), (%(student_id_m18)s, %(course_code_m18)s, %(date_key_m18)s, %(total_hours_m18)s, %(days_present_m18)s), (%(student_id_m19)s, %(course_code_m19)s, %(date_key_m19)s, %(total_hours_m19)s, %(days_present_m19)s), (%(student_id_m20)s, %(course_code_m20)s, %(date_key_m20)s, %(total_hours_m20)s, %(days_present_m20)s), (%(student_id_m21)s, %(course_code_m21)s, %(date_key_m21)s, %(total_hours_m21)s, %(days_present_m21)s), (%(student_id_m22)s, %(course_code_m22)s, %(date_key_m22)s, %(total_hours_m22)s, %(days_present_m22)s), (%(student_id_m23)s, %(course_code_m23)s, %(date_key_m23)s, %(total_hours_m23)s, %(days_present_m23)s), (%(student_id_m24)s, %(course_code_m24)s, %(date_key_m24)s, %(total_hours_m24)s, %(days_present_m24)s), (%(student_id_m25)s, %(course_code_m25)s, %(date_key_m25)s, %(total_hours_m25)s, %(days_present_m25)s), (%(student_id_m26)s, %(course_code_m26)s, %(date_key_m26)s, %(total_hours_m26)s, %(days_present_m26)s), (%(student_id_m27)s, %(course_code_m27)s, %(date_key_m27)s, %(total_hours_m27)s, %(days_present_m27)s), (%(student_id_m28)s, %(course_code_m28)s, %(date_key_m28)s, %(total_hours_m28)s, %(days_present_m28)s), (%(student_id_m29)s, %(course_code_m29)s, %(date_key_m29)s, %(total_hours_m29)s, %(days_present_m29)s), (%(student_id_m30)s, %(course_code_m30)s, %(date_key_m30)s, %(total_hours_m30)s, %(days_present_m30)s), (%(student_id_m31)s, %(course_code_m31)s, %(date_key_m31)s, %(total_hours_m31)s, %(days_present_m31)s), (%(student_id_m32)s, %(course_code_m32)s, %(date_key_m32)s, %(total_hours_m32)s, %(days_present_m32)s), (%(student_id_m33)s, %(course_code_m33)s, %(date_key_m33)s, %(total_hours_m33)s, %(days_present_m33)s), (%(student_id_m34)s, %(course_code_m34)s, %(date_key_m34)s, %(total_hours_m34)s, %(days_present_m34)s), (%(student_id_m35)s, %(course_code_m35)s, %(date_key_m35)s, %(total_hours_m35)s, %(days_present_m35)s), (%(student_id_m36)s, %(course_code_m36)s, %(date_key_m36)s, %(total_hours_m36)s, %(days_present_m36)s), (%(student_id_m37)s, %(course_code_m37)s, %(date_key_m37)s, %(total_hours_m37)s, %(days_present_m37)s), (%(student_id_m38)s, %(course_code_m38)s, %(date_key_m38)s, %(total_hours_m38)s, %(days_present_m38)s), (%(student_id_m39)s, %(course_code_m39)s, %(date_key_m39)s, %(total_hours_m39)s, %(days_present_m39)s), (%(student_id_m40)s, %(course_code_m40)s, %(date_key_m40)s, %(total_hours_m40)s, %(days_present_m40)s), (%(student_id_m41)s, %(course_code_m41)s, %(date_key_m41)s, %(total_hours_m41)s, %(days_present_m41)s), (%(student_id_m42)s, %(course_code_m42)s, %(date_key_m42)s, %(total_hours_m42)s, %(days_present_m42)s), (%(student_id_m43)s, %(course_code_m43)s, %(date_key_m43)s, %(total_hours_m43)s, %(days_present_m43)s), (%(student_id_m44)s, %(course_code_m44)s, %(date_key_m44)s, %(total_hours_m44)s, %(days_present_m44)s), (%(student_id_m45)s, %(course_code_m45)s, %(date_key_m45)s, %(total_hours_m45)s, %(days_present_m45)s), (%(student_id_m46)s, %(course_code_m46)s, %(date_key_m46)s, %(total_hours_m46)s, %(days_present_m46)s), (%(student_id_m47)s, %(course_code_m47)s, %(date_key_m47)s, %(total_hours_m47)s, %(days_present_m47)s), (%(student_id_m48)s, %(course_code_m48)s, %(date_key_m48)s, %(total_hours_m48)s, %(days_present_m48)s), (%(student_id_m49)s, %(course_code_m49)s, %(date_key_m49)s, %(total_hours_m49)s, %(days_present_m49)s)]
+[parameters: {'student_id_m0': 'J24D22/003', 'course_code_m0': 'BIT260', 'date_key_m0': '20251119', 'total_hours_m0': 2.0, 'days_present_m0': 1, 'student_id_m1': 'J24D22/003', 'course_code_m1': 'EDU174', 'date_key_m1': '20251118', 'total_hours_m1': 2.0, 'days_present_m1': 1, 'student_id_m2': 'J24D22/003', 'course_code_m2': 'GEN116', 'date_key_m2': '20251118', 'total_hours_m2': 0.0, 'days_present_m2': 0, 'student_id_m3': 'J24D23/001', 'course_code_m3': 'GEN497', 'date_key_m3': '20251119', 'total_hours_m3': 2.0, 'days_present_m3': 1, 'student_id_m4': 'J24D23/003', 'course_code_m4': 'GEN116', 'date_key_m4': '20251118', 'total_hours_m4': 2.0, 'days_present_m4': 1, 'student_id_m5': 'J24D23/003', 'course_code_m5': 'THE103', 'date_key_m5': '20251118', 'total_hours_m5': 2.0, 'days_present_m5': 1, 'student_id_m6': 'J24D23/004', 'course_code_m6': 'EDU174', 'date_key_m6': '20251118', 'total_hours_m6': 2.0, 'days_present_m6': 1, 'student_id_m7': 'J24D23/004', 'course_code_m7': 'GEN349', 'date_key_m7': '20251119', 'total_hours_m7': 0.0, 'days_present_m7': 0, 'student_id_m8': 'J24D32/001', 'course_code_m8': 'GEN112', 'date_key_m8': '20251119', 'total_hours_m8': 2.0, 'days_present_m8': 1, 'student_id_m9': 'J24D32/001', 'course_code_m9': 'GEN349', 'date_key_m9': '20251119', 'total_hours_m9': 2.0, 'days_present_m9': 1 ... 150 parameters truncated ... 'student_id_m40': 'J24P19/002', 'course_code_m40': 'GEN119', 'date_key_m40': '20251118', 'total_hours_m40': 2.0, 'days_present_m40': 1, 'student_id_m41': 'J24P19/004', 'course_code_m41': 'BIT295', 'date_key_m41': '20251118', 'total_hours_m41': 2.0, 'days_present_m41': 1, 'student_id_m42': 'J24P19/004', 'course_code_m42': 'GEN116', 'date_key_m42': '20251118', 'total_hours_m42': 2.0, 'days_present_m42': 1, 'student_id_m43': 'J24P19/004', 'course_code_m43': 'GEN161', 'date_key_m43': '20251118', 'total_hours_m43': 2.0, 'days_present_m43': 1, 'student_id_m44': 'J24P19/004', 'course_code_m44': 'GEN358', 'date_key_m44': '20251119', 'total_hours_m44': 2.0, 'days_present_m44': 1, 'student_id_m45': 'J24P19/005', 'course_code_m45': 'BIT295', 'date_key_m45': '20251118', 'total_hours_m45': 2.0, 'days_present_m45': 1, 'student_id_m46': 'J24P25/001', 'course_code_m46': 'GEN130', 'date_key_m46': '20251119', 'total_hours_m46': 2.0, 'days_present_m46': 1, 'student_id_m47': 'J24P25/001', 'course_code_m47': 'LAW253', 'date_key_m47': '20251119', 'total_hours_m47': 2.0, 'days_present_m47': 1, 'student_id_m48': 'J24P26/001', 'course_code_m48': 'GEN482', 'date_key_m48': '20251118', 'total_hours_m48': 2.0, 'days_present_m48': 1, 'student_id_m49': 'J24P27/001', 'course_code_m49': 'EDU278', 'date_key_m49': '20251119', 'total_hours_m49': 2.0, 'days_present_m49': 1}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+Traceback (most recent call last):
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 558, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 822, in _read_query_result
+    result.read()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1200, in read
+    first_packet = self.connection._read_packet()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 772, in _read_packet
+    packet.raise_for_error()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\protocol.py", line 221, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\err.py", line 143, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.IntegrityError: (1452, 'Cannot add or update a child row: a foreign key constraint fails (`ucu_datawarehouse`.`fact_attendance`, CONSTRAINT `fact_attendance_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `dim_student` (`student_id`) ON DELETE CASCADE)')
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "etl_pipeline.py", line 929, in run
+    self.load_to_warehouse(silver_data)
+  File "etl_pipeline.py", line 453, in load_to_warehouse
+    self._create_facts(engine, silver_data)
+  File "etl_pipeline.py", line 862, in _create_facts
+    fact_attendance.to_sql('fact_attendance', engine, if_exists='append', index=False, method='multi', chunksize=50)
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\core\generic.py", line 2878, in to_sql
+    return sql.to_sql(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 769, in to_sql
+    return pandas_sql.to_sql(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 1920, in to_sql
+    total_inserted = sql_engine.insert_records(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 1470, in insert_records
+    raise err
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 1461, in insert_records
+    return table.insert(chunksize=chunksize, method=method)
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 1023, in insert
+    num_inserted = exec_insert(conn, keys, chunk_iter)
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 945, in _execute_insert_multi
+    result = conn.execute(stmt)
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\sql\elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 558, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 822, in _read_query_result
+    result.read()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1200, in read
+    first_packet = self.connection._read_packet()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 772, in _read_packet
+    packet.raise_for_error()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\protocol.py", line 221, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\err.py", line 143, in raise_mysql_exception
+    raise errorclass(errno, errval)
+sqlalchemy.exc.IntegrityError: (pymysql.err.IntegrityError) (1452, 'Cannot add or update a child row: a foreign key constraint fails (`ucu_datawarehouse`.`fact_attendance`, CONSTRAINT `fact_attendance_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `dim_student` (`student_id`) ON DELETE CASCADE)')
+[SQL: INSERT INTO fact_attendance (student_id, course_code, date_key, total_hours, days_present) VALUES (%(student_id_m0)s, %(course_code_m0)s, %(date_key_m0)s, %(total_hours_m0)s, %(days_present_m0)s), (%(student_id_m1)s, %(course_code_m1)s, %(date_key_m1)s, %(total_hours_m1)s, %(days_present_m1)s), (%(student_id_m2)s, %(course_code_m2)s, %(date_key_m2)s, %(total_hours_m2)s, %(days_present_m2)s), (%(student_id_m3)s, %(course_code_m3)s, %(date_key_m3)s, %(total_hours_m3)s, %(days_present_m3)s), (%(student_id_m4)s, %(course_code_m4)s, %(date_key_m4)s, %(total_hours_m4)s, %(days_present_m4)s), (%(student_id_m5)s, %(course_code_m5)s, %(date_key_m5)s, %(total_hours_m5)s, %(days_present_m5)s), (%(student_id_m6)s, %(course_code_m6)s, %(date_key_m6)s, %(total_hours_m6)s, %(days_present_m6)s), (%(student_id_m7)s, %(course_code_m7)s, %(date_key_m7)s, %(total_hours_m7)s, %(days_present_m7)s), (%(student_id_m8)s, %(course_code_m8)s, %(date_key_m8)s, %(total_hours_m8)s, %(days_present_m8)s), (%(student_id_m9)s, %(course_code_m9)s, %(date_key_m9)s, %(total_hours_m9)s, %(days_present_m9)s), (%(student_id_m10)s, %(course_code_m10)s, %(date_key_m10)s, %(total_hours_m10)s, %(days_present_m10)s), (%(student_id_m11)s, %(course_code_m11)s, %(date_key_m11)s, %(total_hours_m11)s, %(days_present_m11)s), (%(student_id_m12)s, %(course_code_m12)s, %(date_key_m12)s, %(total_hours_m12)s, %(days_present_m12)s), (%(student_id_m13)s, %(course_code_m13)s, %(date_key_m13)s, %(total_hours_m13)s, %(days_present_m13)s), (%(student_id_m14)s, %(course_code_m14)s, %(date_key_m14)s, %(total_hours_m14)s, %(days_present_m14)s), (%(student_id_m15)s, %(course_code_m15)s, %(date_key_m15)s, %(total_hours_m15)s, %(days_present_m15)s), (%(student_id_m16)s, %(course_code_m16)s, %(date_key_m16)s, %(total_hours_m16)s, %(days_present_m16)s), (%(student_id_m17)s, %(course_code_m17)s, %(date_key_m17)s, %(total_hours_m17)s, %(days_present_m17)s), (%(student_id_m18)s, %(course_code_m18)s, %(date_key_m18)s, %(total_hours_m18)s, %(days_present_m18)s), (%(student_id_m19)s, %(course_code_m19)s, %(date_key_m19)s, %(total_hours_m19)s, %(days_present_m19)s), (%(student_id_m20)s, %(course_code_m20)s, %(date_key_m20)s, %(total_hours_m20)s, %(days_present_m20)s), (%(student_id_m21)s, %(course_code_m21)s, %(date_key_m21)s, %(total_hours_m21)s, %(days_present_m21)s), (%(student_id_m22)s, %(course_code_m22)s, %(date_key_m22)s, %(total_hours_m22)s, %(days_present_m22)s), (%(student_id_m23)s, %(course_code_m23)s, %(date_key_m23)s, %(total_hours_m23)s, %(days_present_m23)s), (%(student_id_m24)s, %(course_code_m24)s, %(date_key_m24)s, %(total_hours_m24)s, %(days_present_m24)s), (%(student_id_m25)s, %(course_code_m25)s, %(date_key_m25)s, %(total_hours_m25)s, %(days_present_m25)s), (%(student_id_m26)s, %(course_code_m26)s, %(date_key_m26)s, %(total_hours_m26)s, %(days_present_m26)s), (%(student_id_m27)s, %(course_code_m27)s, %(date_key_m27)s, %(total_hours_m27)s, %(days_present_m27)s), (%(student_id_m28)s, %(course_code_m28)s, %(date_key_m28)s, %(total_hours_m28)s, %(days_present_m28)s), (%(student_id_m29)s, %(course_code_m29)s, %(date_key_m29)s, %(total_hours_m29)s, %(days_present_m29)s), (%(student_id_m30)s, %(course_code_m30)s, %(date_key_m30)s, %(total_hours_m30)s, %(days_present_m30)s), (%(student_id_m31)s, %(course_code_m31)s, %(date_key_m31)s, %(total_hours_m31)s, %(days_present_m31)s), (%(student_id_m32)s, %(course_code_m32)s, %(date_key_m32)s, %(total_hours_m32)s, %(days_present_m32)s), (%(student_id_m33)s, %(course_code_m33)s, %(date_key_m33)s, %(total_hours_m33)s, %(days_present_m33)s), (%(student_id_m34)s, %(course_code_m34)s, %(date_key_m34)s, %(total_hours_m34)s, %(days_present_m34)s), (%(student_id_m35)s, %(course_code_m35)s, %(date_key_m35)s, %(total_hours_m35)s, %(days_present_m35)s), (%(student_id_m36)s, %(course_code_m36)s, %(date_key_m36)s, %(total_hours_m36)s, %(days_present_m36)s), (%(student_id_m37)s, %(course_code_m37)s, %(date_key_m37)s, %(total_hours_m37)s, %(days_present_m37)s), (%(student_id_m38)s, %(course_code_m38)s, %(date_key_m38)s, %(total_hours_m38)s, %(days_present_m38)s), (%(student_id_m39)s, %(course_code_m39)s, %(date_key_m39)s, %(total_hours_m39)s, %(days_present_m39)s), (%(student_id_m40)s, %(course_code_m40)s, %(date_key_m40)s, %(total_hours_m40)s, %(days_present_m40)s), (%(student_id_m41)s, %(course_code_m41)s, %(date_key_m41)s, %(total_hours_m41)s, %(days_present_m41)s), (%(student_id_m42)s, %(course_code_m42)s, %(date_key_m42)s, %(total_hours_m42)s, %(days_present_m42)s), (%(student_id_m43)s, %(course_code_m43)s, %(date_key_m43)s, %(total_hours_m43)s, %(days_present_m43)s), (%(student_id_m44)s, %(course_code_m44)s, %(date_key_m44)s, %(total_hours_m44)s, %(days_present_m44)s), (%(student_id_m45)s, %(course_code_m45)s, %(date_key_m45)s, %(total_hours_m45)s, %(days_present_m45)s), (%(student_id_m46)s, %(course_code_m46)s, %(date_key_m46)s, %(total_hours_m46)s, %(days_present_m46)s), (%(student_id_m47)s, %(course_code_m47)s, %(date_key_m47)s, %(total_hours_m47)s, %(days_present_m47)s), (%(student_id_m48)s, %(course_code_m48)s, %(date_key_m48)s, %(total_hours_m48)s, %(days_present_m48)s), (%(student_id_m49)s, %(course_code_m49)s, %(date_key_m49)s, %(total_hours_m49)s, %(days_present_m49)s)]
+[parameters: {'student_id_m0': 'J24D22/003', 'course_code_m0': 'BIT260', 'date_key_m0': '20251119', 'total_hours_m0': 2.0, 'days_present_m0': 1, 'student_id_m1': 'J24D22/003', 'course_code_m1': 'EDU174', 'date_key_m1': '20251118', 'total_hours_m1': 2.0, 'days_present_m1': 1, 'student_id_m2': 'J24D22/003', 'course_code_m2': 'GEN116', 'date_key_m2': '20251118', 'total_hours_m2': 0.0, 'days_present_m2': 0, 'student_id_m3': 'J24D23/001', 'course_code_m3': 'GEN497', 'date_key_m3': '20251119', 'total_hours_m3': 2.0, 'days_present_m3': 1, 'student_id_m4': 'J24D23/003', 'course_code_m4': 'GEN116', 'date_key_m4': '20251118', 'total_hours_m4': 2.0, 'days_present_m4': 1, 'student_id_m5': 'J24D23/003', 'course_code_m5': 'THE103', 'date_key_m5': '20251118', 'total_hours_m5': 2.0, 'days_present_m5': 1, 'student_id_m6': 'J24D23/004', 'course_code_m6': 'EDU174', 'date_key_m6': '20251118', 'total_hours_m6': 2.0, 'days_present_m6': 1, 'student_id_m7': 'J24D23/004', 'course_code_m7': 'GEN349', 'date_key_m7': '20251119', 'total_hours_m7': 0.0, 'days_present_m7': 0, 'student_id_m8': 'J24D32/001', 'course_code_m8': 'GEN112', 'date_key_m8': '20251119', 'total_hours_m8': 2.0, 'days_present_m8': 1, 'student_id_m9': 'J24D32/001', 'course_code_m9': 'GEN349', 'date_key_m9': '20251119', 'total_hours_m9': 2.0, 'days_present_m9': 1 ... 150 parameters truncated ... 'student_id_m40': 'J24P19/002', 'course_code_m40': 'GEN119', 'date_key_m40': '20251118', 'total_hours_m40': 2.0, 'days_present_m40': 1, 'student_id_m41': 'J24P19/004', 'course_code_m41': 'BIT295', 'date_key_m41': '20251118', 'total_hours_m41': 2.0, 'days_present_m41': 1, 'student_id_m42': 'J24P19/004', 'course_code_m42': 'GEN116', 'date_key_m42': '20251118', 'total_hours_m42': 2.0, 'days_present_m42': 1, 'student_id_m43': 'J24P19/004', 'course_code_m43': 'GEN161', 'date_key_m43': '20251118', 'total_hours_m43': 2.0, 'days_present_m43': 1, 'student_id_m44': 'J24P19/004', 'course_code_m44': 'GEN358', 'date_key_m44': '20251119', 'total_hours_m44': 2.0, 'days_present_m44': 1, 'student_id_m45': 'J24P19/005', 'course_code_m45': 'BIT295', 'date_key_m45': '20251118', 'total_hours_m45': 2.0, 'days_present_m45': 1, 'student_id_m46': 'J24P25/001', 'course_code_m46': 'GEN130', 'date_key_m46': '20251119', 'total_hours_m46': 2.0, 'days_present_m46': 1, 'student_id_m47': 'J24P25/001', 'course_code_m47': 'LAW253', 'date_key_m47': '20251119', 'total_hours_m47': 2.0, 'days_present_m47': 1, 'student_id_m48': 'J24P26/001', 'course_code_m48': 'GEN482', 'date_key_m48': '20251118', 'total_hours_m48': 2.0, 'days_present_m48': 1, 'student_id_m49': 'J24P27/001', 'course_code_m49': 'EDU278', 'date_key_m49': '20251119', 'total_hours_m49': 2.0, 'days_present_m49': 1}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)

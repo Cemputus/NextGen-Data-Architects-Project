@@ -1,0 +1,59 @@
+2025-11-19 21:57:37,030 - INFO - ETL Pipeline initialized. Log file: logs\etl_pipeline_20251119_215737.log
+2025-11-19 21:57:37,030 - INFO - ============================================================
+2025-11-19 21:57:37,032 - INFO - ETL PIPELINE STARTED
+2025-11-19 21:57:37,032 - INFO - Start time: 2025-11-19 21:57:37
+2025-11-19 21:57:37,032 - INFO - ============================================================
+2025-11-19 21:57:37,035 - INFO - ============================================================
+2025-11-19 21:57:37,035 - INFO - EXTRACT PHASE - Bronze Layer
+2025-11-19 21:57:37,035 - INFO - ============================================================
+2025-11-19 21:57:37,037 - INFO - Extracting from Source Database 1 (ACADEMICS)...
+2025-11-19 21:57:37,259 - INFO -   → Extracted 1000 students
+2025-11-19 21:57:37,283 - INFO -   → Extracted 532 courses
+2025-11-19 21:57:37,333 - INFO -   → Extracted 1000 enrollments
+2025-11-19 21:57:37,396 - INFO -   → Extracted 1000 attendance records
+2025-11-19 21:57:37,469 - INFO -   → Extracted 1000 grades
+2025-11-19 21:57:37,556 - INFO -   → Extracted 1000 student fees
+2025-11-19 21:57:37,563 - INFO -   → Extracted 12 faculties
+2025-11-19 21:57:37,572 - INFO -   → Extracted 47 departments
+2025-11-19 21:57:37,588 - INFO -   → Extracted 92 programs
+2025-11-19 21:57:37,589 - INFO - Extracting from Source Database 2 (ADMINISTRATION)...
+2025-11-19 21:57:37,681 - INFO -   → Extracted 1000 employees
+2025-11-19 21:57:37,754 - INFO -   → Extracted 1000 payroll records
+2025-11-19 21:57:39,936 - INFO - Bronze layer files saved to: D:\final year project\backend\data\bronze
+2025-11-19 21:57:39,937 - INFO - Bronze layer extraction complete!
+2025-11-19 21:57:39,939 - INFO - ============================================================
+2025-11-19 21:57:39,939 - INFO - TRANSFORM PHASE - Silver Layer
+2025-11-19 21:57:39,942 - INFO - ============================================================
+2025-11-19 21:57:40,354 - INFO - Silver layer files saved to: D:\final year project\backend\data\silver
+2025-11-19 21:57:40,354 - INFO -   → Students: 1000
+2025-11-19 21:57:40,356 - INFO -   → Courses: 532
+2025-11-19 21:57:40,356 - INFO -   → Enrollments: 1000
+2025-11-19 21:57:40,357 - INFO -   → Attendance: 1000
+2025-11-19 21:57:40,357 - INFO -   → Payments: 1000
+2025-11-19 21:57:40,357 - INFO -   → Grades: 1000
+2025-11-19 21:57:40,357 - INFO - Silver layer transformation complete!
+2025-11-19 21:57:40,365 - INFO - ============================================================
+2025-11-19 21:57:40,368 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2025-11-19 21:57:40,368 - INFO - ============================================================
+2025-11-19 21:57:40,368 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2025-11-19 21:57:40,386 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2025-11-19 21:57:40,386 - INFO - Creating dimension tables...
+2025-11-19 21:57:42,838 - INFO -   → Loaded 997 students into dim_student
+2025-11-19 21:57:42,938 - INFO -   → Loaded 487 courses into dim_course
+2025-11-19 21:57:42,956 - INFO -   → Loaded 3 semesters into dim_semester
+2025-11-19 21:57:43,094 - INFO -   -> Loaded 12 faculties into dim_faculty
+2025-11-19 21:57:43,138 - INFO -   -> Loaded 47 departments into dim_department
+2025-11-19 21:57:43,185 - INFO -   -> Loaded 92 programs into dim_program
+2025-11-19 21:57:43,187 - INFO - Populating time dimension...
+2025-11-19 21:57:44,164 - INFO -   → Loaded 1096 time dimension records
+2025-11-19 21:57:45,342 - INFO -   → Loaded 1000 enrollments into fact_enrollment
+2025-11-19 21:57:46,405 - INFO -   → Loaded 998 attendance records into fact_attendance
+2025-11-19 21:57:46,436 - ERROR - ETL Pipeline failed after 0:00:09.405441: 'int' object has no attribute 'fillna'
+Traceback (most recent call last):
+  File "etl_pipeline.py", line 1034, in run
+    self.load_to_warehouse(silver_data)
+  File "etl_pipeline.py", line 467, in load_to_warehouse
+    self._create_facts(engine, silver_data)
+  File "etl_pipeline.py", line 940, in _create_facts
+    payments['tuition_national'] = pd.to_numeric(payments.get('tuition_national', 0), errors='coerce').fillna(0)
+AttributeError: 'int' object has no attribute 'fillna'

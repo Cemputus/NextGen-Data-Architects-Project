@@ -1,0 +1,17 @@
+2026-03-11 20:10:05,529 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_201003.log
+2026-03-11 20:10:49,535 - INFO - [RBAC seed] Seeding table app_users with 0 rows from snapshot
+2026-03-11 20:10:49,940 - INFO - [RBAC seed] Seeding table user_profiles with 0 rows from snapshot
+2026-03-11 20:10:50,167 - INFO - [RBAC seed] Seeding table user_state with 0 rows from snapshot
+2026-03-11 20:11:25,290 - INFO - [RBAC seed] Seeded audit_logs with 1501 rows
+2026-03-11 20:11:25,457 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-11 20:11:41,462 - INFO - [RBAC seed] Restored profile photos from /app/etl_seeds/profile_photos to /app/data/profile_photos
+2026-03-11 20:11:44,853 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json
+2026-03-11 20:22:24,367 - INFO - [RBAC seed] Restored ETL run logs from /app/etl_seeds/etl_runs to /app/logs
+2026-03-11 20:22:41,598 - INFO - ============================================================
+2026-03-11 20:22:41,850 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 20:22:41,891 - INFO - ============================================================
+2026-03-11 20:22:42,153 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 20:22:44,130 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 20:22:46,555 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 20:23:10,827 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 20:23:10,926 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91

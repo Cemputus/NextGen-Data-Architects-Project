@@ -169,7 +169,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       }
       
       // Top Students (role-specific scope) - NOT for Finance pages
-      if (!isFinancePage && ['senate', 'dean', 'hod', 'staff'].includes(role)) {
+      if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst', 'sysadmin'].includes(role)) {
         requests.push(
           axios.get('/api/dashboard/top-students', {
             headers: { Authorization: `Bearer ${token}` },
@@ -258,7 +258,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       }
       
       // Process Top Students (NOT for Finance pages)
-      if (!isFinancePage && ['senate', 'dean', 'hod', 'staff'].includes(role)) {
+      if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst', 'sysadmin'].includes(role)) {
         const topStudentsRes = results[resultIndex++];
         data.topStudents = (topStudentsRes.data.students || []).slice(0, 10).map((student, idx) => ({
           name: student && student.length > 15 ? student.substring(0, 15) + '...' : (student || 'Unknown'),
@@ -632,15 +632,22 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Top 10 Students - Role-specific scope (NOT for Finance) */}
-        {!isFinancePage && ['senate', 'dean', 'hod', 'staff'].includes(role) && (
+        {!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst', 'sysadmin'].includes(role) && (
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base font-semibold" style={{ color: UCU_COLORS.navy }}>Top 10 Students</CardTitle>
               <CardDescription className="text-xs">
-                {role === 'senate' && 'Overall top 10 students across institution'}
-                {role === 'dean' && 'Top 10 students in your faculty/school'}
-                {role === 'hod' && 'Top 10 students in your department'}
-                {role === 'staff' && 'Top 10 students in your program/class'}
+                {role === 'senate' &&
+                  'Highest average numeric grades from recorded exam outcomes. With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
+                {role === 'analyst' &&
+                  'Highest average numeric grades from recorded exam outcomes. With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
+                {role === 'sysadmin' &&
+                  'Highest average numeric grades from recorded exam outcomes. With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
+                {role === 'dean' &&
+                  'Highest average numeric grades from recorded exam outcomes. Ranking is limited to your faculty; add department, program, semester, or course filters to narrow.'}
+                {role === 'hod' &&
+                  'Highest average numeric grades from recorded exam outcomes. Ranking is limited to your department; add program, semester, or course filters to narrow.'}
+                {role === 'staff' && 'Top 10 students in your program/class scope (numeric grades in fact_grade).'}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4 pt-0">

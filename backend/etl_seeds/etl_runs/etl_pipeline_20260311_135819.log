@@ -1,0 +1,95 @@
+2026-03-11 13:58:19,074 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_135819.log
+2026-03-11 13:58:19,076 - INFO - ============================================================
+2026-03-11 13:58:19,077 - INFO - ETL PIPELINE STARTED
+2026-03-11 13:58:19,078 - INFO - Start time: 2026-03-11 13:58:19
+2026-03-11 13:58:19,079 - INFO - ============================================================
+2026-03-11 13:58:19,566 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-11 13:58:19,777 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-11 13:58:19,814 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-11 13:58:21,980 - INFO - [RBAC seed] Seeded audit_logs with 1501 rows
+2026-03-11 13:58:21,985 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-11 13:58:22,658 - INFO - [RBAC seed] Restored profile photos from /app/etl_seeds/profile_photos to /app/data/profile_photos
+2026-03-11 13:58:22,707 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json
+2026-03-11 13:58:31,647 - INFO - [RBAC seed] Restored ETL run logs from /app/etl_seeds/etl_runs to /app/logs
+2026-03-11 13:58:31,649 - INFO - ============================================================
+2026-03-11 13:58:31,652 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-11 13:58:31,653 - INFO - ============================================================
+2026-03-11 13:58:31,659 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-11 13:58:31,688 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-11 13:58:31,718 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-11 13:58:31,947 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-11 13:58:31,948 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-11 13:59:02,599 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-11 13:59:03,562 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-11 13:59:03,939 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-11 13:59:10,828 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-11 13:59:11,303 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-11 13:59:15,971 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-11 13:59:40,153 - INFO -   -> Attendance: 3117871 (columns: 9)
+2026-03-11 13:59:40,245 - INFO -   -> Employees (synthetic): 253
+2026-03-11 13:59:40,302 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-11 13:59:40,665 - INFO -   -> Student–high school: 20000
+2026-03-11 13:59:41,229 - INFO -   -> Transcript: 36233
+2026-03-11 13:59:41,628 - INFO -   -> Academic performance: 36233
+2026-03-11 13:59:42,362 - INFO -   -> Sponsorships: 41866
+2026-03-11 14:00:08,039 - INFO -   -> Progression: 469956
+2026-03-11 14:00:08,043 - INFO -   -> Grades summary sheets: 0
+2026-03-11 14:00:08,187 - INFO -   -> Dim date: 1826
+2026-03-11 14:00:15,681 - INFO - Bronze (synthetic) extraction complete.
+2026-03-11 14:00:15,713 - INFO - ============================================================
+2026-03-11 14:00:15,714 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-11 14:00:15,715 - INFO - ============================================================
+2026-03-11 14:02:09,310 - INFO -   → Loaded 10000 students into dim_student (50 columns)
+2026-03-11 14:02:09,415 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-11 14:02:10,105 - INFO -   → Loaded 14 app users into dim_app_user
+2026-03-11 14:02:10,301 - ERROR - ETL Pipeline failed after 0:03:51.224264: (psycopg2.errors.UndefinedTable) relation "dim_faculty" does not exist
+LINE 1: DELETE FROM dim_faculty
+                    ^
+
+[SQL: DELETE FROM dim_faculty]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedTable: relation "dim_faculty" does not exist
+LINE 1: DELETE FROM dim_faculty
+                    ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/etl_pipeline.py", line 2445, in run
+    self.load_to_warehouse(silver_data)
+  File "/app/etl_pipeline.py", line 1486, in load_to_warehouse
+    self._create_dimensions(engine, silver_data)
+  File "/app/etl_pipeline.py", line 1726, in _create_dimensions
+    conn.execute(text("DELETE FROM dim_faculty"))
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedTable) relation "dim_faculty" does not exist
+LINE 1: DELETE FROM dim_faculty
+                    ^
+
+[SQL: DELETE FROM dim_faculty]
+(Background on this error at: https://sqlalche.me/e/20/f405)

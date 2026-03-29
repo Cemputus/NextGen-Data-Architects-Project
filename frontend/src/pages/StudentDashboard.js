@@ -71,7 +71,7 @@ const StudentDashboard = () => {
             // fact_attendance.days_present is 0/1 per row; AVG → share of sessions present (0–1)
             const pctPresent = Math.min(100, Math.max(0, avgDaysPresent * 100));
             return {
-              period,
+            period,
               avgHours: Number(trendsRes.data.attendance?.[idx] ?? 0),
               pctPresent,
             };

@@ -19,14 +19,13 @@ import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import {
   SciBarChart,
   SciLineChart,
-  SciDonutChart,
   Sci3DPieChart,
   SciStackedColumnChart,
 } from '../components/charts/EChartsComponents';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { KPICard } from '../components/ui/kpi-card';
 import { cn } from '../lib/utils';
-import { UCU_COLORS } from '../lib/chartTheme';
+import { UCU_COLORS, CHART_PALETTE_THEME } from '../lib/chartTheme';
 import {
   kpiStripCardClass,
   chartSurfaceCard,
@@ -36,6 +35,7 @@ import {
   chartEmptyStateClass,
 } from '../lib/analytics-ui';
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
+import { buildDashboardQueryParams } from '../utils/filterUtils';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -54,7 +54,10 @@ const AnalystDashboard = ({
   const isSenateWorkspace = filterPageName === 'senate_dashboard';
   const isDeanWorkspace = filterPageName === 'dean_analytics';
   const isHodWorkspace = filterPageName === 'hod_analytics';
-  /** Dean / HOD: no payment KPIs or payment charts (finance stays in Finance role). */
+  /**
+   * Dean / HOD: hide payment KPIs, payment status/trends, and tuition defaulters (finance stays in Finance role).
+   * Tuition payment trends (avg completed amounts over time) is still loaded and shown — scoped to their faculty/department.
+   */
   const hidePaymentsAnalysis =
     filterPageName === 'dean_analytics' || filterPageName === 'hod_analytics';
   const scopeNoun = isDeanWorkspace ? 'faculty' : isHodWorkspace ? 'department' : 'institution';
@@ -63,6 +66,12 @@ const AnalystDashboard = ({
     : isHodWorkspace
       ? 'Use Program and other filters to narrow charts; you cannot view other departments.'
       : 'Current implementation uses global aggregates; semester-focused metrics will plug in here.';
+
+  /** Top students by avg grade — same API/RBAC as /api/dashboard/top-students (workspace + role). */
+  const showTopStudentsChart = useMemo(() => {
+    const r = (user?.role || '').toLowerCase();
+    return ['analyst', 'senate', 'dean', 'hod', 'sysadmin'].includes(r);
+  }, [user?.role]);
 
   const [loadingStats, setLoadingStats] = useState(true);
   const [stats, setStats] = useState(null);
@@ -74,8 +83,6 @@ const AnalystDashboard = ({
   const [loadingStudentDist, setLoadingStudentDist] = useState(false);
   const [hasLoadedStudentDist, setHasLoadedStudentDist] = useState(false);
   const [enrollmentByFaculty, setEnrollmentByFaculty] = useState([]);
-  const [gradesOverTime, setGradesOverTime] = useState([]);
-  const [gradeDistribution, setGradeDistribution] = useState([]);
   const [riskSummary, setRiskSummary] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState([]);
   const [paymentTrends, setPaymentTrends] = useState([]);
@@ -85,11 +92,15 @@ const AnalystDashboard = ({
   const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
   const [loadingPipeline, setLoadingPipeline] = useState(true);
   const [hasLoadedPipeline, setHasLoadedPipeline] = useState(false);
+  const [topStudentsPerformance, setTopStudentsPerformance] = useState([]);
+  const [loadingTopStudents, setLoadingTopStudents] = useState(true);
+  const [hasLoadedTopStudents, setHasLoadedTopStudents] = useState(false);
   const [globalFilters, setGlobalFilters] = useState({});
   const statsRequestSeqRef = useRef(0);
   const chartsRequestSeqRef = useRef(0);
   const studentDistRequestSeqRef = useRef(0);
   const pipelineRequestSeqRef = useRef(0);
+  const topStudentsRequestSeqRef = useRef(0);
   /** For deans: department/program counts in their faculty → drives default distribution dimension. */
   const [facultyShape, setFacultyShape] = useState({
     loaded: false,
@@ -112,6 +123,9 @@ const AnalystDashboard = ({
     }
     return f;
   }, [globalFilters, lockedFacultyId, lockedDepartmentId]);
+
+  /** Stable query params for APIs (no empty keys); keeps KPIs/charts in sync when filters are cleared without refresh. */
+  const dashboardQueryParams = useMemo(() => buildDashboardQueryParams(apiFilters), [apiFilters]);
 
   const distributionGroupBy = useMemo(() => {
     // User chose a program → always show year-of-study breakdown
@@ -226,7 +240,7 @@ const AnalystDashboard = ({
 
       const response = await axios.get('/api/dashboard/stats', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-        params: { ...apiFilters, lite: 1 },
+        params: { ...dashboardQueryParams, lite: 1 },
       });
 
       if (reqId !== statsRequestSeqRef.current) return;
@@ -234,15 +248,22 @@ const AnalystDashboard = ({
       setHasLoadedStats(true);
     } catch (err) {
       if (reqId === statsRequestSeqRef.current) {
-        console.error('Error loading analyst dashboard stats:', err);
+      console.error('Error loading analyst dashboard stats:', err);
         // Keep existing stats on failure so KPIs don't disappear.
       }
     } finally {
       if (reqId === statsRequestSeqRef.current) {
-        setLoadingStats(false);
-        setRefreshing(false);
+      setLoadingStats(false);
+      setRefreshing(false);
       }
     }
+  };
+
+  const shortTopStudentAxisLabel = (fullName) => {
+    const s = String(fullName ?? '').trim();
+    if (!s) return '—';
+    if (s.length <= 22) return s;
+    return `${s.slice(0, 20)}…`;
   };
 
   const abbreviateName = (name) => {
@@ -354,21 +375,9 @@ const AnalystDashboard = ({
 
       const baseRequests = [
         axios
-          .get('/api/dashboard/grades-over-time', {
-            headers,
-            params: { period: 'quarterly', ...apiFilters },
-          })
-          .catch(() => ({ data: { periods: [], grades: [] } })),
-        axios
-          .get('/api/dashboard/grade-distribution', {
-            headers,
-            params: apiFilters,
-          })
-          .catch(() => ({ data: { grades: [], counts: [] } })),
-        axios
           .get('/api/analytics/academic-risk-summary', {
             headers,
-            params: apiFilters,
+            params: dashboardQueryParams,
           })
           .catch(() => ({ data: { summary: null } })),
       ];
@@ -379,13 +388,13 @@ const AnalystDashboard = ({
             axios
               .get('/api/dashboard/payment-status', {
                 headers,
-                params: apiFilters,
+                params: dashboardQueryParams,
               })
               .catch(() => ({ data: { statuses: [], counts: [] } })),
             axios
               .get('/api/dashboard/payment-trends', {
                 headers,
-                params: { period: 'quarterly', ...apiFilters },
+                params: { period: 'quarterly', ...dashboardQueryParams },
               })
               .catch(() => ({ data: { periods: [], amounts: [] } })),
           ];
@@ -400,72 +409,56 @@ const AnalystDashboard = ({
         return Object.keys(effective).length > 0 ? 'quarterly' : 'yearly';
       })();
 
-      const tuitionRequests = hidePaymentsAnalysis
+      const tuitionDefaultersRequest = hidePaymentsAnalysis
         ? []
         : [
             axios
               .get('/api/dashboard/tuition-defaulters', {
                 headers,
-                params: apiFilters,
+                params: dashboardQueryParams,
               })
               .catch(() => ({ data: { tuition_defaulters: [], semester_id: null } })),
-            axios
-              .get('/api/dashboard/tuition-payment-trends-dimensions', {
-                headers,
-                params: { period: tuitionTrendPeriod, ...apiFilters },
-              })
-              .catch(() => ({
-                data: {
-                  periods: [],
-                  faculty_amounts: [],
-                  department_amounts: [],
-                  program_amounts: [],
-                },
-              })),
           ];
 
-      const results = await Promise.all([...baseRequests, ...paymentRequests, ...tuitionRequests]);
+      const tuitionTrendsDimRequest = [
+        axios
+          .get('/api/dashboard/tuition-payment-trends-dimensions', {
+            headers,
+            params: { period: tuitionTrendPeriod, ...dashboardQueryParams },
+          })
+          .catch(() => ({
+            data: {
+              periods: [],
+              faculty_amounts: [],
+              department_amounts: [],
+              program_amounts: [],
+            },
+          })),
+      ];
+
+      const results = await Promise.all([
+        ...baseRequests,
+        ...paymentRequests,
+        ...tuitionDefaultersRequest,
+        ...tuitionTrendsDimRequest,
+      ]);
 
       if (reqId !== chartsRequestSeqRef.current) return;
 
-      const [
-        gradesRes,
-        gradeDistRes,
-        riskRes,
-        paymentStatusRes,
-        paymentTrendsRes,
-        tuitionDefaultersRes,
-        tuitionTrendsRes,
-      ] = hidePaymentsAnalysis
-        ? [
-            ...results,
-            { data: { statuses: [], counts: [] } },
-            { data: { periods: [], amounts: [] } },
-            { data: { tuition_defaulters: [], semester_id: null } },
-            {
-              data: {
-                periods: [],
-                faculty_amounts: [],
-                department_amounts: [],
-                program_amounts: [],
-              },
-            },
-          ]
-        : results;
+      let riskRes;
+      let paymentStatusRes;
+      let paymentTrendsRes;
+      let tuitionDefaultersRes;
+      let tuitionTrendsRes;
 
-      setGradesOverTime(
-        (gradesRes.data.periods || []).map((period, idx) => ({
-          period,
-          grade: gradesRes.data.grades?.[idx] || 0,
-        })),
-      );
-
-      setGradeDistribution(
-        (gradeDistRes.data.grades || []).map((grade, idx) => ({
-          name: grade,
-          value: gradeDistRes.data.counts?.[idx] || 0,
-        })),
-      );
+      if (hidePaymentsAnalysis) {
+        [riskRes, tuitionTrendsRes] = results;
+        paymentStatusRes = { data: { statuses: [], counts: [] } };
+        paymentTrendsRes = { data: { periods: [], amounts: [] } };
+        tuitionDefaultersRes = { data: { tuition_defaulters: [], semester_id: null } };
+      } else {
+        [riskRes, paymentStatusRes, paymentTrendsRes, tuitionDefaultersRes, tuitionTrendsRes] = results;
+      }
 
       setRiskSummary(riskRes.data.summary || null);
 
@@ -474,7 +467,6 @@ const AnalystDashboard = ({
         setPaymentTrends([]);
         setTuitionDefaultersBar([]);
         setTuitionDefaultersBreakdown('faculty');
-        setTuitionPaymentTrendsDim([]);
       } else {
         setPaymentStatus(
           (paymentStatusRes.data.statuses || []).map((status, idx) => ({
@@ -503,20 +495,20 @@ const AnalystDashboard = ({
             };
           }),
         );
-
-        const periods = tuitionTrendsRes.data?.periods || [];
-        const fa = tuitionTrendsRes.data?.faculty_amounts || [];
-        const da = tuitionTrendsRes.data?.department_amounts || [];
-        const pa = tuitionTrendsRes.data?.program_amounts || [];
-        setTuitionPaymentTrendsDim(
-          periods.map((p, idx) => ({
-            period: abbreviatePeriod(p),
-            faculty_amount: Number(fa[idx] ?? 0) || 0,
-            department_amount: Number(da[idx] ?? 0) || 0,
-            program_amount: Number(pa[idx] ?? 0) || 0,
-          })),
-        );
       }
+
+      const periods = tuitionTrendsRes.data?.periods || [];
+      const fa = tuitionTrendsRes.data?.faculty_amounts || [];
+      const da = tuitionTrendsRes.data?.department_amounts || [];
+      const pa = tuitionTrendsRes.data?.program_amounts || [];
+      setTuitionPaymentTrendsDim(
+        periods.map((p, idx) => ({
+          period: abbreviatePeriod(p),
+          faculty_amount: Number(fa[idx] ?? 0) || 0,
+          department_amount: Number(da[idx] ?? 0) || 0,
+          program_amount: Number(pa[idx] ?? 0) || 0,
+        })),
+      );
 
       setHasLoadedCharts(true);
     } catch (err) {
@@ -530,19 +522,6 @@ const AnalystDashboard = ({
     }
   };
 
-  const gradeColor = (grade) => {
-    const g = (grade ?? '').toString().trim().toUpperCase();
-    // Requested: F = red, A = green, others distributed distinctly.
-    if (g === 'F') return UCU_COLORS.red;
-    if (g === 'A') return UCU_COLORS.green;
-    if (g === 'B') return UCU_COLORS.gold;
-    if (g === 'C') return UCU_COLORS.blue;
-    if (g === 'D') return UCU_COLORS.purple;
-    // Fallback: cycle through palette so unknown grades still look consistent.
-    const idx = Math.abs(Array.from(g).reduce((s, ch) => s + ch.charCodeAt(0), 0)) % 5;
-    return [UCU_COLORS.gold, UCU_COLORS.blue, UCU_COLORS.purple, UCU_COLORS.cyan, UCU_COLORS.maroon][idx];
-  };
-
   const loadStudentDistributionChart = async () => {
     const reqId = ++studentDistRequestSeqRef.current;
     try {
@@ -552,7 +531,7 @@ const AnalystDashboard = ({
       const res = await axios
         .get('/api/dashboard/students-by-department', {
           headers,
-          params: { group_by: distributionGroupBy, ...apiFilters },
+          params: { group_by: distributionGroupBy, ...dashboardQueryParams },
         })
         .catch(() => ({ data: { labels: [], counts: [] } }));
       const enrollLabels = res.data.labels || res.data.departments || [];
@@ -592,7 +571,7 @@ const AnalystDashboard = ({
       if (!hasLoadedPipeline) setLoadingPipeline(true);
       const token = sessionStorage.getItem('ucu_session_token');
       const headers = { Authorization: `Bearer ${token}` };
-      const params = { ...apiFilters };
+      const params = { ...dashboardQueryParams };
       const res = await axios
         .get('/api/analytics/enrollment-pipeline', {
           headers,
@@ -622,11 +601,52 @@ const AnalystDashboard = ({
     }
   };
 
+  const loadTopStudents = async () => {
+    const reqId = ++topStudentsRequestSeqRef.current;
+    if (!showTopStudentsChart) {
+      setTopStudentsPerformance([]);
+      setLoadingTopStudents(false);
+      return;
+    }
+    try {
+      if (!hasLoadedTopStudents) setLoadingTopStudents(true);
+      const token = sessionStorage.getItem('ucu_session_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios
+        .get('/api/dashboard/top-students', {
+          headers,
+          params: { ...dashboardQueryParams, limit: 10 },
+        })
+        .catch(() => ({ data: { students: [], grades: [] } }));
+      if (reqId !== topStudentsRequestSeqRef.current) return;
+      const names = res.data?.students || [];
+      const grades = res.data?.grades || [];
+      setTopStudentsPerformance(
+        names.map((studentName, idx) => ({
+          name: shortTopStudentAxisLabel(studentName),
+          fullName: String(studentName ?? '').trim() || '—',
+          grade: Number(grades[idx]) || 0,
+        })),
+      );
+      setHasLoadedTopStudents(true);
+    } catch (err) {
+      if (reqId === topStudentsRequestSeqRef.current) {
+        console.error('Error loading top students:', err);
+        setTopStudentsPerformance([]);
+      }
+    } finally {
+      if (reqId === topStudentsRequestSeqRef.current) {
+        setLoadingTopStudents(false);
+      }
+    }
+  };
+
   useEffect(() => {
     loadStats();
     loadCharts();
     loadPipelineChart();
     loadStudentDistributionChart();
+    loadTopStudents();
     const interval = setInterval(loadStats, ANALYST_KPI_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -639,10 +659,20 @@ const AnalystDashboard = ({
       loadCharts();
       loadStudentDistributionChart();
       loadPipelineChart();
-    }, 250);
+      loadTopStudents();
+    }, 100);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalFilters, distributionGroupBy, lockedFacultyId, lockedDepartmentId, facultyShape.loaded, deptScopeShape.loaded]);
+  }, [
+    dashboardQueryParams,
+    distributionGroupBy,
+    lockedFacultyId,
+    lockedDepartmentId,
+    facultyShape.loaded,
+    deptScopeShape.loaded,
+    showTopStudentsChart,
+    user?.role,
+  ]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -844,69 +874,155 @@ const AnalystDashboard = ({
           </Card>
       </div>
 
-      {/* Section B – Performance & risk */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className={chartSurfaceCard('h-full')}>
-          <CardHeader className={chartCardHeaderClass}>
-            <CardTitle className={chartCardTitleClass}>Performance & grade distribution</CardTitle>
-            <CardDescription className={chartCardDescriptionClass}>
-              GPA/grade distribution and pass/fail ratios across faculties, departments and programs.
+      {/* Top students + Risk — same row on lg; Risk full width when top students hidden (e.g. staff) */}
+      <div
+        className={cn(
+          'mt-6 grid gap-4 items-stretch',
+          showTopStudentsChart ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1',
+        )}
+      >
+        {showTopStudentsChart && (
+          <Card className={chartSurfaceCard('h-full')}>
+            <CardHeader className={chartCardHeaderClass}>
+              <CardTitle className={chartCardTitleClass}>Top students by performance</CardTitle>
+              <CardDescription className={chartCardDescriptionClass}>
+                {(isSenateWorkspace || (!isDeanWorkspace && !isHodWorkspace)) &&
+                  'Highest average scores from exam outcomes (numeric grade, or letter grade mapped to a percentage). With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
+                {isDeanWorkspace &&
+                  'Highest average scores from exam outcomes (numeric or mapped letter grades). Ranking is limited to your faculty; add department, program, semester, or course filters to narrow.'}
+                {isHodWorkspace &&
+                  'Highest average scores from exam outcomes (numeric or mapped letter grades). Ranking is limited to your department; add program, semester, or course filters to narrow.'}
               </CardDescription>
             </CardHeader>
-          <CardContent className="pt-0">
-            {loadingCharts && !hasLoadedCharts ? (
-              <div className="min-h-[220px] flex items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <SciDonutChart
-                data={(gradeDistribution || []).map((d) => ({
-                  ...d,
-                  color: gradeColor(d?.name),
-                }))}
-                nameKey="name"
-                valueKey="value"
-                title="Grade distribution"
-              />
-            )}
+            <CardContent className="pt-0">
+              {loadingTopStudents && !hasLoadedTopStudents ? (
+                <div className="min-h-[320px] flex items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+              ) : topStudentsPerformance.length === 0 ? (
+                <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex flex-col items-center justify-center gap-1 px-4 text-sm text-center')}>
+                  <span className="max-w-md">
+                    Use filters to check for faculty/department student performance.
+                  </span>
+                </div>
+              ) : (
+                <SciBarChart
+                  data={topStudentsPerformance}
+                  xDataKey="name"
+                  yDataKey="grade"
+                  tooltipNameKey="fullName"
+                  xAxisLabel="Student"
+                  yAxisLabel="Average grade (%)"
+                  showLegend={false}
+                  xAxisLabelRotate={28}
+                  axisFontSize={11}
+                  showGrid
+                  gridPadding={{ bottom: 72 }}
+                  fillColor={CHART_PALETTE_THEME[0]}
+                  minHeight={360}
+                  maxHeight={480}
+                />
+              )}
             </CardContent>
           </Card>
+        )}
 
+        {/* Section B – Risk */}
         <Card className={chartSurfaceCard('h-full')}>
           <CardHeader className={chartCardHeaderClass}>
             <CardTitle className={chartCardTitleClass}>Risk & FCW/MEX/FEX segments</CardTitle>
             <CardDescription className={chartCardDescriptionClass}>
               Concentration of FCW/MEX/FEX across courses and programs. Driven by FCW/MEX/FEX
               flags in `fact_grade` and risk endpoints.
-              </CardDescription>
-            </CardHeader>
+            </CardDescription>
+          </CardHeader>
           <CardContent className="pt-0">
             {loadingCharts && !hasLoadedCharts ? (
               <div className="min-h-[220px] flex items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : (
-            <SciStackedColumnChart
-              data={[
-                { name: 'FCW', value: riskSummary?.fcw_count || 0 },
-                { name: 'MEX', value: riskSummary?.mex_count || 0 },
-                { name: 'FEX', value: riskSummary?.fex_count || 0 },
-              ]}
-              xDataKey="name"
-              yDataKey="value"
-              xAxisLabel="Segment"
-              yAxisLabel="Number of course outcomes"
-              // Keep FCW/MEX/FEX colors consistent across hard refreshes/palette changes.
-              // Requested: FEX red, FCW "malon" (maroon), MEX orange.
-              colors={[UCU_COLORS.maroon, UCU_COLORS.gold, '#DC2626']}
-              showPercentages
-            />
+              <SciStackedColumnChart
+                data={[
+                  { name: 'FCW', value: riskSummary?.fcw_count || 0 },
+                  { name: 'MEX', value: riskSummary?.mex_count || 0 },
+                  { name: 'FEX', value: riskSummary?.fex_count || 0 },
+                ]}
+                xDataKey="name"
+                yDataKey="value"
+                xAxisLabel="Segment"
+                yAxisLabel="Number of course outcomes"
+                // Keep FCW/MEX/FEX colors consistent across hard refreshes/palette changes.
+                // Requested: FEX red, FCW "malon" (maroon), MEX orange.
+                colors={[UCU_COLORS.maroon, UCU_COLORS.gold, '#DC2626']}
+                showPercentages
+              />
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Section C – Payments & finance (not shown for Dean / HOD workspaces) */}
+      {/* Dean / HOD: tuition payment trends only (avg completed amounts over time; scoped to faculty/department) */}
+      {hidePaymentsAnalysis && (
+        <div className="grid grid-cols-1 gap-4 mt-4">
+          <Card className={chartSurfaceCard('h-full')}>
+            <CardHeader className={chartCardHeaderClass}>
+              <CardTitle className={chartCardTitleClass}>Tuition payment trends</CardTitle>
+              <CardDescription className={chartCardDescriptionClass}>
+                Time series showing avg completed tuition payments over time for{' '}
+                {apiFilters?.program_id
+                  ? 'the selected program'
+                  : apiFilters?.department_id
+                    ? 'the selected department'
+                    : apiFilters?.faculty_id
+                      ? 'the selected faculty'
+                      : 'all faculties'}
+                .
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {loadingCharts && !hasLoadedCharts ? (
+                <div className="min-h-[380px] flex flex-col items-center justify-center gap-2 py-10">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading tuition trends…</p>
+                </div>
+              ) : tuitionPaymentTrendsDim.length > 0 ? (
+                <SciLineChart
+                  data={tuitionPaymentTrendsDim}
+                  xDataKey="period"
+                  yDataKey={
+                    apiFilters?.program_id
+                      ? 'program_amount'
+                      : apiFilters?.department_id
+                        ? 'department_amount'
+                        : 'faculty_amount'
+                  }
+                  xAxisLabel="Period"
+                  yAxisLabel={`Avg completed tuition payment${
+                    apiFilters?.program_id
+                      ? ' (Program)'
+                      : apiFilters?.department_id
+                        ? ' (Department)'
+                        : apiFilters?.faculty_id
+                          ? ' (Faculty)'
+                          : ' (All Faculties)'
+                  }`}
+                  showLegend={false}
+                  showGrid
+                  minHeight={360}
+                  maxHeight={580}
+                />
+              ) : (
+                <p className="text-xs text-muted-foreground px-2 py-12 text-center min-h-[360px] flex items-center justify-center">
+                  Coming soon.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Section C – Payments & finance (Analyst / Senate only; Dean/HOD use tuition block above) */}
       {!hidePaymentsAnalysis && (
       <Card className={chartSurfaceCard()}>
         <CardHeader className={chartCardHeaderClass}>
@@ -939,101 +1055,108 @@ const AnalystDashboard = ({
             />
           </div>
           {loadingCharts && !hasLoadedCharts ? (
-            <div className="min-h-[220px] flex items-center justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="min-h-[420px] flex flex-col items-center justify-center gap-2 py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading payment charts…</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-              <Sci3DPieChart
-                data={paymentStatus}
-                nameKey="name"
-                valueKey="value"
-                title="Payment status mix"
-              />
-              <SciLineChart
-                data={paymentTrends}
-                xDataKey="period"
-                yDataKey="amount"
-                xAxisLabel="Period"
-                yAxisLabel="Amount paid"
-              />
-            </div>
-          )}
-          {!hidePaymentsAnalysis ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-              <Card className={chartSurfaceCard()}>
-                <CardHeader className={chartCardHeaderClass}>
-                  <CardTitle className={chartCardTitleClass}>Tuition/fees defaulters</CardTitle>
-                  <CardDescription className={chartCardDescriptionClass}>
-                    Distinct defaulters in the latest semester by{' '}
-                    {FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown]?.toLowerCase() || 'unit'} only, matching
-                    your filters.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <SciBarChart
-                    data={tuitionDefaultersBar}
-                    xDataKey="name"
-                    yDataKey="value"
-                    tooltipNameKey="fullName"
-                    xAxisLabel={FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown] || 'Unit'}
-                    yAxisLabel="Defaulters"
-                    showLegend={false}
-                    xAxisLabelRotate={35}
-                    axisFontSize={12}
-                    showGrid
-                    gridPadding={{ bottom: 125 }}
-                    fillColor={UCU_COLORS.cyan}
-                    minHeight={480}
-                    maxHeight={660}
-                  />
-                </CardContent>
-              </Card>
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                <Sci3DPieChart
+                  data={paymentStatus}
+                  nameKey="name"
+                  valueKey="value"
+                  title="Payment status mix"
+                />
+                <SciLineChart
+                  data={paymentTrends}
+                  xDataKey="period"
+                  yDataKey="amount"
+                  xAxisLabel="Period"
+                  yAxisLabel="Amount paid"
+                />
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                <Card className={chartSurfaceCard()}>
+                  <CardHeader className={chartCardHeaderClass}>
+                    <CardTitle className={chartCardTitleClass}>Tuition/fees defaulters</CardTitle>
+                    <CardDescription className={chartCardDescriptionClass}>
+                      Distinct defaulters in the latest semester by{' '}
+                      {FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown]?.toLowerCase() || 'unit'} only, matching
+                      your filters.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <SciBarChart
+                      data={tuitionDefaultersBar}
+                      xDataKey="name"
+                      yDataKey="value"
+                      tooltipNameKey="fullName"
+                      xAxisLabel={FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown] || 'Unit'}
+                      yAxisLabel="Defaulters"
+                      showLegend={false}
+                      xAxisLabelRotate={35}
+                      axisFontSize={12}
+                      showGrid
+                      gridPadding={{ bottom: 125 }}
+                      fillColor={UCU_COLORS.cyan}
+                      minHeight={480}
+                      maxHeight={660}
+                    />
+                  </CardContent>
+                </Card>
 
-              <Card className={chartSurfaceCard()}>
-                <CardHeader className={chartCardHeaderClass}>
-                  <CardTitle className={chartCardTitleClass}>Tuition payment trends</CardTitle>
-                  <CardDescription className={chartCardDescriptionClass}>
-                    Time series showing avg completed tuition payments over time for{" "}
-                    {apiFilters?.program_id
-                      ? 'the selected program'
-                      : apiFilters?.department_id
-                        ? 'the selected department'
-                        : apiFilters?.faculty_id
-                          ? 'the selected faculty'
-                          : 'all faculties'}.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <SciLineChart
-                    data={tuitionPaymentTrendsDim}
-                    xDataKey="period"
-                    yDataKey={
-                      apiFilters?.program_id
-                        ? 'program_amount'
+                <Card className={chartSurfaceCard()}>
+                  <CardHeader className={chartCardHeaderClass}>
+                    <CardTitle className={chartCardTitleClass}>Tuition payment trends</CardTitle>
+                    <CardDescription className={chartCardDescriptionClass}>
+                      Time series showing avg completed tuition payments over time for{" "}
+                      {apiFilters?.program_id
+                        ? 'the selected program'
                         : apiFilters?.department_id
-                          ? 'department_amount'
-                          : 'faculty_amount'
-                    }
-                    xAxisLabel="Period"
-                    yAxisLabel={`Avg completed tuition payment${
-                      apiFilters?.program_id
-                        ? ' (Program)'
-                        : apiFilters?.department_id
-                          ? ' (Department)'
+                          ? 'the selected department'
                           : apiFilters?.faculty_id
-                            ? ' (Faculty)'
-                            : ' (All Faculties)'
-                    }`}
-                    showLegend={false}
-                    showGrid
-                    minHeight={360}
-                    maxHeight={580}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-          ) : null}
+                            ? 'the selected faculty'
+                            : 'all faculties'}.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {tuitionPaymentTrendsDim.length > 0 ? (
+                      <SciLineChart
+                        data={tuitionPaymentTrendsDim}
+                        xDataKey="period"
+                        yDataKey={
+                          apiFilters?.program_id
+                            ? 'program_amount'
+                            : apiFilters?.department_id
+                              ? 'department_amount'
+                              : 'faculty_amount'
+                        }
+                        xAxisLabel="Period"
+                        yAxisLabel={`Avg completed tuition payment${
+                          apiFilters?.program_id
+                            ? ' (Program)'
+                            : apiFilters?.department_id
+                              ? ' (Department)'
+                              : apiFilters?.faculty_id
+                                ? ' (Faculty)'
+                                : ' (All Faculties)'
+                        }`}
+                        showLegend={false}
+                        showGrid
+                        minHeight={360}
+                        maxHeight={580}
+                      />
+                    ) : (
+                      <p className="text-xs text-muted-foreground px-2 py-12 text-center min-h-[360px] flex items-center justify-center">
+                        Coming soon.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
       )}

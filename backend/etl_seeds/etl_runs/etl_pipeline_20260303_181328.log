@@ -1,0 +1,143 @@
+2026-03-03 18:13:28,985 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260303_181328.log
+2026-03-03 18:13:28,985 - INFO - ============================================================
+2026-03-03 18:13:28,985 - INFO - ETL PIPELINE STARTED
+2026-03-03 18:13:28,985 - INFO - Start time: 2026-03-03 18:13:28
+2026-03-03 18:13:28,985 - INFO - ============================================================
+2026-03-03 18:13:29,685 - INFO - [RBAC seed] Seeding table app_users with 12 rows from snapshot
+2026-03-03 18:13:30,124 - INFO - [RBAC seed] Seeding table user_profiles with 2 rows from snapshot
+2026-03-03 18:13:30,235 - INFO - [RBAC seed] Seeding table user_state with 1 rows from snapshot
+2026-03-03 18:13:34,993 - INFO - [RBAC seed] Seeded audit_logs with 1337 rows
+2026-03-03 18:13:34,998 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-03 18:13:35,017 - INFO - [RBAC seed] Restored profile photos from D:\NextGen-Data-Architects-Project\backend\etl_seeds\profile_photos to D:\NextGen-Data-Architects-Project\backend\data\profile_photos
+2026-03-03 18:13:35,022 - INFO - [RBAC seed] Restored admin_settings.json to D:\NextGen-Data-Architects-Project\backend\data\admin_settings.json
+2026-03-03 18:13:35,591 - INFO - [RBAC seed] Restored ETL run logs from D:\NextGen-Data-Architects-Project\backend\etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-03 18:13:35,605 - INFO - ============================================================
+2026-03-03 18:13:35,606 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-03 18:13:35,607 - INFO - ============================================================
+2026-03-03 18:13:35,609 - INFO - Extracting from Source Database 1 (ACADEMICS)...
+2026-03-03 18:13:35,783 - INFO -   → Extracted 1000 students
+2026-03-03 18:13:35,829 - INFO -   → Extracted 488 courses
+2026-03-03 18:13:35,897 - INFO -   → Extracted 1000 enrollments
+2026-03-03 18:13:35,982 - INFO -   → Extracted 1000 attendance records
+2026-03-03 18:13:36,174 - INFO -   → Extracted 1000 grades
+2026-03-03 18:13:36,740 - INFO -   → Extracted 1000 student fees
+2026-03-03 18:13:36,750 - INFO -   → Extracted 11 faculties
+2026-03-03 18:13:36,759 - INFO -   → Extracted 18 departments
+2026-03-03 18:13:36,772 - INFO -   → Extracted 91 programs
+2026-03-03 18:13:36,773 - INFO - Extracting from Source Database 2 (ADMINISTRATION)...
+2026-03-03 18:13:36,939 - INFO -   → Extracted 1000 employees
+2026-03-03 18:13:37,034 - INFO -   → Extracted 1000 payroll records
+2026-03-03 18:13:42,164 - INFO - Bronze layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\bronze
+2026-03-03 18:13:42,166 - INFO - Bronze layer extraction complete!
+2026-03-03 18:13:42,166 - INFO - ============================================================
+2026-03-03 18:13:42,166 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-03 18:13:42,169 - INFO - ============================================================
+2026-03-03 18:13:43,969 - INFO - Silver layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-03 18:13:43,975 - INFO -   → Students: 1000
+2026-03-03 18:13:43,977 - INFO -   → Courses: 488
+2026-03-03 18:13:43,979 - INFO -   → Enrollments: 1000
+2026-03-03 18:13:43,979 - INFO -   → Attendance: 1000
+2026-03-03 18:13:43,979 - INFO -   → Payments: 1000
+2026-03-03 18:13:43,981 - INFO -   → Grades: 1000
+2026-03-03 18:13:43,981 - INFO - Silver layer transformation complete!
+2026-03-03 18:13:43,988 - INFO - ============================================================
+2026-03-03 18:13:43,988 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-03 18:13:43,988 - INFO - ============================================================
+2026-03-03 18:13:43,988 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2026-03-03 18:13:44,078 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2026-03-03 18:13:44,084 - INFO - Creating dimension tables...
+2026-03-03 18:13:46,849 - ERROR - ETL Pipeline failed after 0:00:17.863431: (pymysql.err.OperationalError) (1041, "Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space")
+[SQL: DESCRIBE `ucu_datawarehouse`.`dim_student`]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 558, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 822, in _read_query_result
+    result.read()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1207, in read
+    self._read_result_packet(first_packet)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1284, in _read_result_packet
+    self._read_rowdata_packet()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1331, in _read_rowdata_packet
+    packet = self.connection._read_packet()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 772, in _read_packet
+    packet.raise_for_error()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\protocol.py", line 221, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\err.py", line 143, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.OperationalError: (1041, "Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 1527, in run
+    self.load_to_warehouse(silver_data)
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 672, in load_to_warehouse
+    self._create_dimensions(engine, silver_data)
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 828, in _create_dimensions
+    students_dim.to_sql('dim_student', engine, if_exists='append', index=False, method='multi', chunksize=100)
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\core\generic.py", line 2878, in to_sql
+    return sql.to_sql(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 769, in to_sql
+    return pandas_sql.to_sql(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 1910, in to_sql
+    table = self.prep_table(
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 1814, in prep_table
+    table.create()
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 903, in create
+    if self.exists():
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 889, in exists
+    return self.pd_sql.has_table(self.name, self.schema)
+  File "D:\final year project\backend\.venv\lib\site-packages\pandas\io\sql.py", line 1943, in has_table
+    return insp.has_table(name, schema or self.meta.schema)
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\reflection.py", line 439, in has_table
+    return self.dialect.has_table(
+  File "<string>", line 2, in has_table
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\reflection.py", line 106, in cache
+    ret = fn(self, con, *args, **kw)
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\dialects\mysql\base.py", line 3052, in has_table
+    with connection.exec_driver_sql(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1779, in exec_driver_sql
+    ret = self._execute_context(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\final year project\backend\.venv\lib\site-packages\sqlalchemy\engine\default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 153, in execute
+    result = self._query(query)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\cursors.py", line 322, in _query
+    conn.query(q)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 558, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 822, in _read_query_result
+    result.read()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1207, in read
+    self._read_result_packet(first_packet)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1284, in _read_result_packet
+    self._read_rowdata_packet()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 1331, in _read_rowdata_packet
+    packet = self.connection._read_packet()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\connections.py", line 772, in _read_packet
+    packet.raise_for_error()
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\protocol.py", line 221, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "D:\final year project\backend\.venv\lib\site-packages\pymysql\err.py", line 143, in raise_mysql_exception
+    raise errorclass(errno, errval)
+sqlalchemy.exc.OperationalError: (pymysql.err.OperationalError) (1041, "Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space")
+[SQL: DESCRIBE `ucu_datawarehouse`.`dim_student`]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)

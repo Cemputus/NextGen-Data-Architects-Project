@@ -1,0 +1,8 @@
+2026-03-11 19:56:45,815 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_195645.log
+2026-03-11 19:56:48,186 - INFO - [RBAC seed] Seeding table app_users with 0 rows from snapshot
+2026-03-11 19:56:48,225 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-11 19:56:48,789 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-11 19:56:57,950 - INFO - [RBAC seed] Seeded audit_logs with 1501 rows
+2026-03-11 19:56:57,973 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-11 19:57:04,826 - INFO - [RBAC seed] Restored profile photos from /app/etl_seeds/profile_photos to /app/data/profile_photos
+2026-03-11 19:57:06,059 - INFO - [RBAC seed] Restored admin_settings.json to /app/data/admin_settings.json

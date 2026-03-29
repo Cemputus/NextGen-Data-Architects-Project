@@ -27,6 +27,7 @@ from config.connection import (
     PG_PORT,
     PG_USER,
     PG_PASSWORD,
+    TUITION_TRENDS_SYNTHETIC_FALLBACK,
 )
 from werkzeug.security import generate_password_hash
 from werkzeug.exceptions import NotFound
@@ -272,16 +273,36 @@ except Exception as e:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
-# Security: access token 25 minutes (per product requirement), refresh tokens 8 hours.
-# Frontend should refresh the access token before it expires via /api/auth/refresh.
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=25)
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=8)
+# Session expiry: on by default (60-minute access token). Set DISABLE_SESSION_EXPIRY=1 for long-lived JWTs (local/demo only).
+_session_expiry_on = os.environ.get('DISABLE_SESSION_EXPIRY', '0').strip().lower() in ('0', 'false', 'no')
+if _session_expiry_on:
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=60)
+    app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=12)
+else:
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=3650)
+    app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=3650)
 
-# CORS: allow local dev + any production frontend URL set via FRONTEND_URL env var
-_cors_origins = ['http://localhost:3000', 'http://localhost:5000', 'http://127.0.0.1:3000', 'http://127.0.0.1:5000']
+# CORS: allow local dev + configured production frontend origins.
+# Supports:
+# - FRONTEND_URL (single URL)
+# - FRONTEND_URLS (comma-separated URLs)
+# Includes Vercel production + preview domains by default.
+_cors_origins = [
+    'http://localhost:3000',
+    'http://localhost:5000',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5000',
+    'https://nextgen-mis.vercel.app',
+    'https://www.nextgen-mis.vercel.app',
+]
 _frontend_url = os.environ.get('FRONTEND_URL', '').strip()
 if _frontend_url:
     _cors_origins.append(_frontend_url)
+_frontend_urls_raw = os.environ.get('FRONTEND_URLS', '').strip()
+if _frontend_urls_raw:
+    _cors_origins.extend([u.strip() for u in _frontend_urls_raw.split(',') if u.strip()])
+# De-duplicate while preserving order
+_cors_origins = list(dict.fromkeys(_cors_origins))
 CORS(app, supports_credentials=True, origins=_cors_origins,
      allow_headers=['Content-Type', 'Authorization'], methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 jwt = JWTManager(app)
@@ -1685,15 +1706,7 @@ def _run_etl_subprocess():
     etl_failed = False
     log_tail = None
     try:
-        try:
-            subprocess.run(
-                [sys.executable, '-m', 'export_user_snapshot'],
-                cwd=str(backend_dir),
-                capture_output=False,
-                timeout=60,
-            )
-        except subprocess.TimeoutExpired:
-            pass
+        # export_user_snapshot runs inside etl_pipeline.run() (and bronze/silver phases) so seeds stay in sync.
         result = subprocess.run(
             [sys.executable, '-m', 'etl_pipeline'],
             cwd=str(backend_dir),
@@ -1742,10 +1755,8 @@ def _etl_scheduler_loop():
             interval_sec = max(min_interval_sec, int(interval_min * 60))
             last_run = settings.get('last_etl_auto_run')
             now_sec = time.time()
-            # First time auto is enabled: run ETL immediately, then set anchor for next interval
+            # First time / missing anchor: schedule first run after one full interval (no immediate run).
             if last_run is None:
-                # Run export_user_snapshot + etl_pipeline (same behavior as _run_etl_subprocess)
-                _run_etl_subprocess()
                 settings['last_etl_auto_run'] = now_sec
                 try:
                     _ADMIN_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1930,6 +1941,53 @@ def _dashboard_role_scope():
     except Exception:
         pass
     return '', ''
+
+
+def _sql_exam_completed_predicate(alias='fg'):
+    """
+    SQL boolean for fact_grade rows that count as completed exams.
+    ETL may store exam_status as 'Completed', 'COMPLETED', or leave it blank when grade is present.
+    """
+    a = alias
+    return (
+        f"(UPPER(TRIM(COALESCE({a}.exam_status, ''))) IN ('COMPLETED', 'COMPLETE') "
+        f"OR (COALESCE(TRIM({a}.exam_status::text), '') = '' AND {a}.grade IS NOT NULL))"
+    )
+
+
+def _sql_grade_has_outcome_for_analytics(alias='fg'):
+    """
+    Broader than strict "completed" only: any row usable for grade / pass-fail analytics
+    (completed exam OR numeric grade OR letter grade present). Used by grade-performance-breakdown.
+    """
+    a = alias
+    return (
+        f"({_sql_exam_completed_predicate(a)} OR "
+        f"{a}.grade IS NOT NULL OR "
+        f"NULLIF(TRIM({a}.letter_grade::text), '') IS NOT NULL)"
+    )
+
+
+def _sql_effective_grade_numeric(alias='fg'):
+    """
+    SQL expression for ranking averages: use numeric grade when present, else map letter_grade to
+    midpoint percentages (A–F). Matches how top-students must behave when ETL fills letter_grade
+    but leaves grade NULL — same rows faculty/department charts already show.
+    """
+    a = alias
+    letter_map = (
+        f"CASE UPPER(TRIM(COALESCE({a}.letter_grade::text, ''))) "
+        "WHEN 'A' THEN 95.0 "
+        "WHEN 'B+' THEN 87.5 "
+        "WHEN 'B' THEN 82.5 "
+        "WHEN 'C+' THEN 77.5 "
+        "WHEN 'C' THEN 72.5 "
+        "WHEN 'D+' THEN 67.5 "
+        "WHEN 'D' THEN 62.5 "
+        "WHEN 'F' THEN 45.0 "
+        "ELSE NULL END"
+    )
+    return f"COALESCE({a}.grade::numeric, {letter_map})"
 
 
 def _filter_query_int(filters, key):
@@ -2137,7 +2195,7 @@ def get_dashboard_stats():
             except Exception as e:
                 print(f"Error getting total_enrollments (lite): {e}")
             try:
-                grade_clauses = ["UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED'"]
+                grade_clauses = [_sql_exam_completed_predicate('fg')]
                 if semester_id_filter is not None:
                     grade_clauses.append(f"fg.semester_id = {semester_id_filter}")
                 if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
@@ -2412,7 +2470,7 @@ def get_dashboard_stats():
                 if staff_fg_parts is None:
                     avg_grade = 0.0
                 else:
-                    grade_clauses = ["fg.exam_status = 'Completed'"] + staff_fg_parts
+                    grade_clauses = [_sql_exam_completed_predicate('fg')] + staff_fg_parts
                     if enroll_student_filter_parts:
                         grade_clauses.append("(" + " AND ".join(enroll_student_filter_parts) + ")")
                     fj = f" {filter_join} " if (filter_join and str(filter_join).strip()) else ""
@@ -2424,8 +2482,7 @@ def get_dashboard_stats():
                     avg_grade_result = pd.read_sql_query(text(avg_q), engine)
                     avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
             else:
-                # Case-insensitive: warehouse may store 'Completed' or 'COMPLETED'
-                grade_clauses = ["UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED'"]
+                grade_clauses = [_sql_exam_completed_predicate('fg')]
                 if semester_id_filter is not None:
                     grade_clauses.append(f"fg.semester_id = {semester_id_filter}")
                 if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
@@ -2445,14 +2502,14 @@ def get_dashboard_stats():
                         f"JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join}{wsql}"
                     )
                 else:
-                    sem_grade_clause = f" AND semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                    sem_grade_clause = f" AND fg.semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
                     cc_clause = ""
                     if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
                         cc = str(filters.get('course_code')).replace("'", "''")
-                        cc_clause = f" AND course_code = '{cc}'"
+                        cc_clause = f" AND fg.course_code = '{cc}'"
                     avg_q = (
-                        f"SELECT AVG(grade) as avg FROM fact_grade "
-                        f"WHERE UPPER(TRIM(COALESCE(exam_status, ''))) = 'COMPLETED'{sem_grade_clause}{cc_clause}"
+                        f"SELECT AVG(fg.grade) as avg FROM fact_grade fg "
+                        f"WHERE {_sql_exam_completed_predicate('fg')}{sem_grade_clause}{cc_clause}"
                     )
                 avg_grade_result = pd.read_sql_query(text(avg_q), engine)
                 avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
@@ -3143,13 +3200,14 @@ def get_grades_over_time():
             group_by = "dt.year, dt.quarter"
             order_by = "dt.year ASC, dt.quarter ASC"
 
+        _cmp = _sql_exam_completed_predicate('fg')
         query = f"""
         SELECT
             {period_select} as period,
-            AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) as avg_grade,
-            COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) as completed_exams,
-            COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) as missed_exams,
-            COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END) as failed_exams,
+            AVG(CASE WHEN {_cmp} THEN fg.grade ELSE NULL END) as avg_grade,
+            COUNT(CASE WHEN {_cmp} THEN 1 END) as completed_exams,
+            COUNT(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'MEX' THEN 1 END) as missed_exams,
+            COUNT(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'FEX' THEN 1 END) as failed_exams,
             COUNT(DISTINCT fg.student_id) as total_students,
             COUNT(DISTINCT fg.course_code) as total_courses
         FROM fact_grade fg
@@ -3158,7 +3216,7 @@ def get_grades_over_time():
         {join_clause}
         {where_clause}
         GROUP BY {group_by}
-        HAVING COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) > 0
+        HAVING COUNT(CASE WHEN {_cmp} THEN 1 END) > 0
         ORDER BY {order_by}
         """
         
@@ -3650,19 +3708,20 @@ def get_grade_distribution():
                 cc = str(filters.get('course_code')).replace("'", "''")
                 where_clauses.append(f"fg.course_code = '{cc}'")
 
+        where_clauses.append(_sql_exam_completed_predicate('fg'))
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
         query = f"""
         SELECT 
-            fg.letter_grade,
+            COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—') AS letter_grade,
             COUNT(*) as count
         FROM fact_grade fg
         JOIN dim_student ds ON fg.student_id = ds.student_id
         {role_join}
         {where_clause}
-        GROUP BY fg.letter_grade
+        GROUP BY COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—')
         ORDER BY 
-            CASE fg.letter_grade
+            MIN(CASE COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—')
                 WHEN 'A' THEN 1
                 WHEN 'B+' THEN 2
                 WHEN 'B' THEN 3
@@ -3671,8 +3730,9 @@ def get_grade_distribution():
                 WHEN 'D+' THEN 6
                 WHEN 'D' THEN 7
                 WHEN 'F' THEN 8
-                ELSE 9
-            END
+                WHEN '—' THEN 9
+                ELSE 10
+            END)
         """
         
         df = pd.read_sql_query(text(query), engine)
@@ -3685,77 +3745,426 @@ def get_grade_distribution():
         print(f"Error in get_grade_distribution: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/dashboard/top-students', methods=['GET'])
+
+@app.route('/api/dashboard/grade-performance-breakdown', methods=['GET'])
 @jwt_required()
-def get_top_students_filtered():
-    """Get top performing students with role-based filtering"""
+def get_grade_performance_breakdown():
+    """
+    Letter-grade distribution (same semantics as /grade-distribution) plus pass/fail counts
+    grouped by faculty, department, program, or year of study for the Performance card.
+    """
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
-        
+
         claims = get_jwt()
         role_str = claims.get('role', 'student')
         try:
             role = Role(role_str.lower())
-        except:
+        except Exception:
             role = Role.STUDENT
-        
+
         engine = get_dw_engine()
         filters = request.args.to_dict()
-        limit = int(filters.get('limit', 10))
-        
-        # Build WHERE clause based on role
-        where_clauses = []
-        
-        # Role-based scoping
-        if role == Role.DEAN and claims.get('faculty_id'):
-            where_clauses.append(f"df.faculty_id = {claims['faculty_id']}")
-        elif role == Role.HOD and claims.get('department_id'):
-            where_clauses.append(f"ddept.department_id = {claims['department_id']}")
-        elif role == Role.STAFF and claims.get('department_id'):
-            where_clauses.append(f"ddept.department_id = {claims['department_id']}")
-        elif role == Role.STAFF and filters.get('program_id'):
-            where_clauses.append(f"ds.program_id = {filters['program_id']}")
+        role_join, role_where = _dashboard_role_scope()
 
-        # Apply user filters
-        if filters.get('faculty_id'):
-            where_clauses.append(f"df.faculty_id = {filters['faculty_id']}")
-        if filters.get('department_id'):
-            where_clauses.append(f"ddept.department_id = {filters['department_id']}")
-        if filters.get('program_id'):
-            where_clauses.append(f"ds.program_id = {filters['program_id']}")
-        
+        gb = (filters.get('group_by') or 'faculty').strip().lower()
+        if gb not in ('faculty', 'department', 'program', 'year_of_study'):
+            gb = 'faculty'
+
+        where_clauses = []
+        if role == Role.STUDENT:
+            student_id = claims.get('student_id')
+            access_number = claims.get('access_number')
+            if student_id:
+                safe_id = str(student_id).replace("'", "''")
+                where_clauses.append(f"ds.student_id = '{safe_id}'")
+            elif access_number:
+                safe_acc = str(access_number).replace("'", "''")
+                where_clauses.append(f"ds.access_number = '{safe_acc}'")
+            else:
+                return jsonify({
+                    'grades': [], 'counts': [], 'segment_axis': gb,
+                    'segments': [],
+                    'summary': {'total_exams': 0, 'pass_count': 0, 'fail_count': 0, 'pass_rate_pct': 0.0},
+                })
+        else:
+            if role_where:
+                where_clauses.append(role_where)
+            if filters.get('faculty_id'):
+                where_clauses.append(
+                    "ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id IN "
+                    f"(SELECT department_id FROM dim_department WHERE faculty_id = {filters['faculty_id']}))"
+                )
+            if filters.get('department_id'):
+                where_clauses.append(
+                    f"ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id = {filters['department_id']})"
+                )
+            if filters.get('program_id'):
+                where_clauses.append(f"ds.program_id = {filters['program_id']}")
+            if filters.get('semester_id'):
+                where_clauses.append(f"fg.semester_id = {filters['semester_id']}")
+            if filters.get('high_school') and str(filters.get('high_school')).strip().lower() not in ('', 'all'):
+                hs = str(filters.get('high_school')).replace("'", "''")
+                where_clauses.append(f"ds.high_school ILIKE '%{hs}%'")
+            if filters.get('intake_year') and str(filters.get('intake_year')).strip().lower() not in ('', 'all'):
+                try:
+                    where_clauses.append(f"EXTRACT(YEAR FROM ds.admission_date) = {int(filters['intake_year'])}")
+                except Exception:
+                    pass
+            if filters.get('course_code') and str(filters.get('course_code')).strip().lower() not in ('', 'all'):
+                cc = str(filters.get('course_code')).replace("'", "''")
+                where_clauses.append(f"fg.course_code = '{cc}'")
+
+        # Include any scoreable row so Performance charts populate when exam_status is missing or inconsistent.
+        where_clauses.append(_sql_grade_has_outcome_for_analytics('fg'))
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        join_tail = str(role_join).strip() or (
+            "LEFT JOIN dim_program dp ON ds.program_id = dp.program_id "
+            "LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id "
+            "LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id"
+        )
+
+        fail_case = (
+            "CASE WHEN UPPER(TRIM(COALESCE(fg.letter_grade, ''))) = 'F' THEN 1 "
+            "WHEN NULLIF(TRIM(fg.letter_grade::text), '') IS NULL AND fg.grade IS NOT NULL AND fg.grade < 50 THEN 1 "
+            "ELSE 0 END"
+        )
+        pass_case = (
+            "CASE WHEN UPPER(TRIM(COALESCE(fg.letter_grade, ''))) = 'F' THEN 0 "
+            "WHEN NULLIF(TRIM(fg.letter_grade::text), '') IS NOT NULL THEN 1 "
+            "WHEN fg.grade IS NOT NULL AND fg.grade >= 50 THEN 1 ELSE 0 END"
+        )
+
+        # --- Letter distribution ---
+        dist_q = f"""
+        SELECT
+            COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—') AS letter_grade,
+            COUNT(*) as count
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        {role_join}
+        {where_sql}
+        GROUP BY COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—')
+        ORDER BY
+            MIN(CASE COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—')
+                WHEN 'A' THEN 1 WHEN 'B+' THEN 2 WHEN 'B' THEN 3 WHEN 'C+' THEN 4
+                WHEN 'C' THEN 5 WHEN 'D+' THEN 6 WHEN 'D' THEN 7 WHEN 'F' THEN 8
+                WHEN '—' THEN 9 ELSE 10 END)
+        """
+        dist_df = pd.read_sql_query(text(dist_q), engine)
+
+        summary = {'total_exams': 0, 'pass_count': 0, 'fail_count': 0, 'pass_rate_pct': 0.0}
+        try:
+            sum_q = f"""
+            SELECT
+                COUNT(*)::bigint AS total_exams,
+                COALESCE(SUM({pass_case}), 0)::bigint AS pass_n,
+                COALESCE(SUM({fail_case}), 0)::bigint AS fail_n
+            FROM fact_grade fg
+            JOIN dim_student ds ON fg.student_id = ds.student_id
+            {role_join}
+            {where_sql}
+            """
+            sdf = pd.read_sql_query(text(sum_q), engine)
+            if not sdf.empty:
+                te = int(sdf['total_exams'].iloc[0] or 0)
+                pn = int(sdf['pass_n'].iloc[0] or 0)
+                fn = int(sdf['fail_n'].iloc[0] or 0)
+                summary = {
+                    'total_exams': te,
+                    'pass_count': pn,
+                    'fail_count': fn,
+                    'pass_rate_pct': round(100.0 * pn / te, 1) if te > 0 else 0.0,
+                }
+        except Exception as ex:
+            print(f"grade_performance_breakdown summary: {ex}")
+
+        segments = []
+        if role == Role.STUDENT:
+            seg_q = f"""
+            SELECT
+                'Your record' AS segment_name,
+                SUM({fail_case})::bigint AS fail_count,
+                SUM({pass_case})::bigint AS pass_count
+            FROM fact_grade fg
+            JOIN dim_student ds ON fg.student_id = ds.student_id
+            {where_sql}
+            """
+            seg_df = pd.read_sql_query(text(seg_q), engine)
+            if not seg_df.empty:
+                r = seg_df.iloc[0]
+                fc = int(r['fail_count'] or 0)
+                pc = int(r['pass_count'] or 0)
+                tot = fc + pc
+                pr = round(100.0 * pc / tot, 1) if tot > 0 else 0.0
+                segments.append({
+                    'name': 'Your record',
+                    'full_name': 'Your record',
+                    'pass': pc,
+                    'fail': fc,
+                    'total': tot,
+                    'pass_rate': pr,
+                })
+        else:
+            if gb == 'department':
+                seg_expr = "COALESCE(ddept.department_name, 'Unknown')"
+                group_sql = "ddept.department_id, ddept.department_name"
+            elif gb == 'program':
+                seg_expr = "COALESCE(dp.program_name, 'Unknown')"
+                group_sql = "dp.program_id, dp.program_name"
+            elif gb == 'year_of_study':
+                seg_expr = "COALESCE('Year ' || NULLIF(ds.year_of_study::text, ''), 'Unknown')"
+                group_sql = "ds.year_of_study"
+            else:
+                seg_expr = "COALESCE(df.faculty_name, 'Unknown')"
+                group_sql = "df.faculty_id, df.faculty_name"
+
+            seg_q = f"""
+            SELECT
+                {seg_expr} AS segment_name,
+                SUM({fail_case})::bigint AS fail_count,
+                SUM({pass_case})::bigint AS pass_count
+            FROM fact_grade fg
+            JOIN dim_student ds ON fg.student_id = ds.student_id
+            {join_tail}
+            {where_sql}
+            GROUP BY {group_sql}
+            HAVING COUNT(*) > 0
+            ORDER BY SUM({pass_case}) + SUM({fail_case}) DESC
+            LIMIT 16
+            """
+            seg_df = pd.read_sql_query(text(seg_q), engine)
+            for _, r in seg_df.iterrows():
+                fc = int(r['fail_count'] or 0)
+                pc = int(r['pass_count'] or 0)
+                tot = fc + pc
+                nm = str(r['segment_name'] or 'Unknown').strip() or 'Unknown'
+                pr = round(100.0 * pc / tot, 1) if tot > 0 else 0.0
+                segments.append({
+                    'name': nm,
+                    'full_name': nm,
+                    'pass': pc,
+                    'fail': fc,
+                    'total': tot,
+                    'pass_rate': pr,
+                })
+
+        return jsonify({
+            'grades': dist_df['letter_grade'].tolist() if not dist_df.empty else [],
+            'counts': dist_df['count'].astype(int).tolist() if not dist_df.empty else [],
+            'segment_axis': gb,
+            'segments': segments,
+            'summary': summary,
+        })
+    except Exception as e:
+        print(f"Error in get_grade_performance_breakdown: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'grades': [],
+            'counts': [],
+            'segment_axis': 'faculty',
+            'segments': [],
+            'summary': {'total_exams': 0, 'pass_count': 0, 'fail_count': 0, 'pass_rate_pct': 0.0},
+            'error': str(e),
+        }), 500
+
+
+@app.route('/api/dashboard/top-students', methods=['GET'])
+@jwt_required()
+def get_top_students_filtered():
+    """
+    Top students by average score: numeric fg.grade when present, else letter_grade mapped to a percentage.
+    Row scope matches grade-performance (completed / letter / numeric outcome), not fg.grade IS NOT NULL alone.
+    RBAC-scoped: Dean/HOD/Staff/Senate/Analyst/Sysadmin as for other dashboard endpoints.
+    Uses LEFT JOIN dim_student; optional fact-only fallback for institution roles when dim joins return no rows.
+    """
+    try:
+        from flask_jwt_extended import get_jwt
+        from rbac import Role
+
+        claims = get_jwt()
+        role_str = (claims.get('role') or 'student').strip().lower()
+        try:
+            role = Role(role_str)
+        except Exception:
+            role = Role.STUDENT
+
+        allowed = {
+            Role.SENATE, Role.ANALYST, Role.SYSADMIN, Role.DEAN, Role.HOD, Role.STAFF,
+        }
+        if role not in allowed:
+            return jsonify({'students': [], 'grades': [], 'error': 'Forbidden'}), 403
+
+        engine = get_dw_engine()
+        qf = request.args.to_dict()
+
+        try:
+            limit = int(qf.get('limit', 10))
+        except Exception:
+            limit = 10
+        limit = max(5, min(limit, 50))
+
+        def _int_param(key):
+            v = qf.get(key)
+            if v is None or str(v).strip().lower() in ('', 'all'):
+                return None
+            try:
+                return int(v)
+            except Exception:
+                return None
+
+        fi = _int_param('faculty_id')
+        di = _int_param('department_id')
+        pi = _int_param('program_id')
+        semester_id = _int_param('semester_id')
+
+        # Same row scope as grade-performance / distribution: completed or letter/numeric outcome.
+        # Require a computable score (numeric grade or mapped letter); raw fg.grade IS NOT NULL alone
+        # misses letter-only ETL rows while faculty filters still "work" on other charts.
+        where_clauses = [
+            _sql_grade_has_outcome_for_analytics('fg'),
+            f"({_sql_effective_grade_numeric('fg')}) IS NOT NULL",
+        ]
+
+        if role == Role.DEAN:
+            fid = claims.get('faculty_id')
+            if fid is None:
+                return jsonify({'students': [], 'grades': []}), 200
+            where_clauses.append(f"df.faculty_id = {int(fid)}")
+            if di is not None:
+                where_clauses.append(f"ddept.department_id = {di}")
+            if pi is not None:
+                where_clauses.append(f"ds.program_id = {pi}")
+        elif role == Role.HOD:
+            did = claims.get('department_id')
+            if did is None:
+                return jsonify({'students': [], 'grades': []}), 200
+            where_clauses.append(f"ddept.department_id = {int(did)}")
+            if pi is not None:
+                where_clauses.append(f"ds.program_id = {pi}")
+        elif role == Role.STAFF:
+            if claims.get('department_id') is not None:
+                where_clauses.append(f"ddept.department_id = {int(claims['department_id'])}")
+                if pi is not None:
+                    where_clauses.append(f"ds.program_id = {pi}")
+            elif pi is not None:
+                where_clauses.append(f"ds.program_id = {pi}")
+        else:
+            # Senate, Analyst, Sysadmin — institution-wide when no faculty/department/program filter
+            if fi is not None:
+                where_clauses.append(f"df.faculty_id = {fi}")
+            if di is not None:
+                where_clauses.append(f"ddept.department_id = {di}")
+            if pi is not None:
+                where_clauses.append(f"ds.program_id = {pi}")
+
+        # Same optional slice as grade-distribution / students-by-department (semester on fact_grade)
+        if semester_id is not None:
+            where_clauses.append(f"fg.semester_id = {semester_id}")
+        iy = qf.get('intake_year')
+        if iy and str(iy).strip().lower() not in ('', 'all'):
+            try:
+                where_clauses.append(f"EXTRACT(YEAR FROM ds.admission_date) = {int(iy)}")
+            except Exception:
+                pass
+        hs = qf.get('high_school')
+        if hs and str(hs).strip().lower() not in ('', 'all'):
+            hs_esc = str(hs).replace("'", "''")
+            where_clauses.append(f"ds.high_school ILIKE '%{hs_esc}%'")
+        cc = qf.get('course_code')
+        if cc and str(cc).strip().lower() not in ('', 'all'):
+            cc_esc = str(cc).replace("'", "''")
+            where_clauses.append(f"fg.course_code = '{cc_esc}'")
+        yos = qf.get('year_of_study')
+        if yos is not None and str(yos).strip().lower() not in ('', 'all'):
+            try:
+                where_clauses.append(f"COALESCE(ds.year_of_study, 0) = {int(yos)}")
+            except Exception:
+                pass
+
+        dim_filters_applied = bool(
+            (iy and str(iy).strip().lower() not in ('', 'all'))
+            or (hs and str(hs).strip().lower() not in ('', 'all'))
+            or (yos is not None and str(yos).strip().lower() not in ('', 'all'))
+        )
+
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-        
-        # Join with program, department, faculty for role-based filtering
-        join_clause = ""
-        if role in [Role.DEAN, Role.HOD, Role.STAFF] or filters.get('faculty_id') or filters.get('department_id'):
-            join_clause = """
+
+        # Always join the student → program → department → faculty chain so role filters and
+        # program_id / faculty_id clauses resolve (previously INNER JOIN + missing joins dropped all rows).
+        join_clause = """
+            LEFT JOIN dim_student ds ON fg.student_id = ds.student_id
             LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
             LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
-            """
+        """
 
+        eff = _sql_effective_grade_numeric('fg')
         query = f"""
         SELECT 
-            CONCAT(ds.first_name, ' ', ds.last_name) as student_name,
-            AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) as avg_grade
+            COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(MAX(ds.first_name::text), ''), ' ', COALESCE(MAX(ds.last_name::text), ''))), ''),
+                fg.student_id::text
+            ) AS student_name,
+            AVG({eff}) AS avg_grade
         FROM fact_grade fg
-        JOIN dim_student ds ON fg.student_id = ds.student_id
         {join_clause}
         {where_clause}
-        GROUP BY ds.student_id, ds.first_name, ds.last_name
-        HAVING AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) IS NOT NULL
+        GROUP BY fg.student_id
+        HAVING AVG({eff}) IS NOT NULL
         ORDER BY avg_grade DESC
         LIMIT {limit}
         """
         
         df = pd.read_sql_query(text(query), engine)
-        
-        return jsonify({
-            'students': df['student_name'].tolist(),
-            'grades': df['avg_grade'].round(2).tolist()
-        })
+        if df.empty:
+            # Fact-only path: institution-wide Senate/Analyst/Sysadmin with no org/dim slices that need dim_student.
+            use_fact_only_fallback = (
+                role in (Role.SENATE, Role.ANALYST, Role.SYSADMIN)
+                and fi is None
+                and di is None
+                and pi is None
+                and not dim_filters_applied
+            )
+            if use_fact_only_fallback:
+                eff_fb = _sql_effective_grade_numeric('fg')
+                fb_where = [
+                    _sql_grade_has_outcome_for_analytics('fg'),
+                    f"({eff_fb}) IS NOT NULL",
+                ]
+                if semester_id is not None:
+                    fb_where.append(f"fg.semester_id = {semester_id}")
+                if cc and str(cc).strip().lower() not in ('', 'all'):
+                    cc_esc = str(cc).replace("'", "''")
+                    fb_where.append(f"fg.course_code = '{cc_esc}'")
+                fb_sql = f"""
+                SELECT fg.student_id::text AS student_name,
+                       AVG({eff_fb}) AS avg_grade
+                FROM fact_grade fg
+                WHERE {' AND '.join(fb_where)}
+                GROUP BY fg.student_id
+                HAVING AVG({eff_fb}) IS NOT NULL
+                ORDER BY avg_grade DESC
+                LIMIT {limit}
+                """
+                df = pd.read_sql_query(text(fb_sql), engine)
+        if df.empty:
+            return jsonify({'students': [], 'grades': []}), 200
+
+        names = []
+        grades = []
+        for _, row in df.iterrows():
+            nm = str(row.get('student_name') or '').strip() or '—'
+            ag = row.get('avg_grade')
+            if pd.isna(ag):
+                continue
+            names.append(nm)
+            grades.append(round(float(ag), 2))
+
+        return jsonify({'students': names, 'grades': grades})
     except Exception as e:
         print(f"Error in get_top_students_filtered: {e}")
         import traceback
@@ -3955,7 +4364,8 @@ def get_payment_trends():
         period = (filters.get('period') or 'quarterly').strip().lower()
         if period not in ('monthly', 'quarterly', 'yearly'):
             period = 'quarterly'
-        min_year = 2020 if period == 'yearly' else 2023
+        # Include historical payments (pre-2023); a high floor was hiding all series when warehouse years were older.
+        min_year = 2000 if period == 'yearly' else 2010
         where_clauses.append(f"dt.year >= {min_year}")
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
@@ -4420,9 +4830,23 @@ def get_tuition_payment_trends_dimensions():
         if period not in ('monthly', 'quarterly', 'yearly'):
             period = 'quarterly'
 
-        min_year = 2020 if period == 'yearly' else 2023
+        # Align with /api/dashboard/payment-trends: a high floor (e.g. 2010) can hide all points when dim_time years are older.
+        min_year = 2000
 
         where_clauses = [f"dt.year >= {min_year}"]
+
+        def _sql_str(s):
+            if s is None:
+                return ''
+            return str(s).replace("'", "''")
+
+        # Same completed definition spirit as payment-trends; source systems vary (Completed, SUCCESS, PAID, etc.).
+        _paid_cond = (
+            "((UPPER(TRIM(COALESCE(fp.status::text, ''))) IN ("
+            "'COMPLETED', 'SUCCESS', 'PAID', 'COMPLETE', 'SETTLED', 'CLEARED', 'OK'"
+            ")) OR (UPPER(TRIM(COALESCE(fp.status::text, ''))) LIKE 'COMPLETE%')"
+            " OR (UPPER(TRIM(COALESCE(fp.status::text, ''))) LIKE 'PAID%'))"
+        )
 
         # Role-based scoping
         if role == Role.DEAN and claims.get('faculty_id') is not None:
@@ -4431,9 +4855,10 @@ def get_tuition_payment_trends_dimensions():
             where_clauses.append(f"ddept.department_id = {int(claims['department_id'])}")
         elif role == Role.STUDENT:
             if claims.get('student_id') is not None:
-                where_clauses.append(f"fp.student_id = '{claims['student_id']}'")
+                sid = _sql_str(claims['student_id'])
+                where_clauses.append(f"ds.student_id = '{sid}'")
             elif claims.get('access_number'):
-                where_clauses.append(f"ds.access_number = '{claims['access_number']}'")
+                where_clauses.append(f"ds.access_number = '{_sql_str(claims['access_number'])}'")
 
         if faculty_id is not None:
             where_clauses.append(f"df.faculty_id = {faculty_id}")
@@ -4462,6 +4887,11 @@ def get_tuition_payment_trends_dimensions():
 
         where_sql = " AND ".join(where_clauses)
 
+        # Narrow LATERAL student match when a program filter is applied (same idea as payment-trends fast paths).
+        program_pushdown = ""
+        if program_id is not None:
+            program_pushdown = f" AND ds.program_id = {int(program_id)}"
+
         if period == 'monthly':
             period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS TEXT))"
             group_by = "dt.year, dt.month, dt.month_name"
@@ -4475,20 +4905,38 @@ def get_tuition_payment_trends_dimensions():
             group_by = "dt.year, dt.quarter"
             order_by = "dt.year, dt.quarter"
 
+        # Resolve payments to dim_student the same way as /api/dashboard/payment-trends: fp.student_id may be REG_NO or access_number.
         query = f"""
         SELECT
             {period_select} AS period,
-            SUM(CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN fp.amount ELSE 0 END) AS total_completed_amount,
-            COUNT(DISTINCT CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN df.faculty_id END) AS faculty_units,
-            COUNT(DISTINCT CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN ddept.department_id END) AS department_units,
-            COUNT(DISTINCT CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN dp.program_id END) AS program_units
+            SUM(CASE WHEN {_paid_cond} THEN fp.amount ELSE 0 END) AS total_completed_amount,
+            COUNT(DISTINCT CASE WHEN {_paid_cond} THEN df.faculty_id END) AS faculty_units,
+            COUNT(DISTINCT CASE WHEN {_paid_cond} THEN ddept.department_id END) AS department_units,
+            COUNT(DISTINCT CASE WHEN {_paid_cond} THEN dp.program_id END) AS program_units
         FROM fact_payment fp
         JOIN dim_time dt ON fp.date_key = dt.date_key
-        JOIN dim_student ds ON fp.student_id = ds.student_id
+        LEFT JOIN LATERAL (
+            SELECT ds.*
+            FROM dim_student ds
+            WHERE (
+                ds.student_id = fp.student_id
+                OR ds.reg_no = fp.student_id
+                OR ds.access_number = fp.student_id
+            ){program_pushdown}
+            ORDER BY
+                CASE
+                    WHEN ds.student_id = fp.student_id THEN 1
+                    WHEN ds.reg_no = fp.student_id THEN 2
+                    WHEN ds.access_number = fp.student_id THEN 3
+                    ELSE 4
+                END
+            LIMIT 1
+        ) ds ON TRUE
         LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         WHERE {where_sql}
+          AND ds.student_id IS NOT NULL
         GROUP BY {group_by}
         ORDER BY {order_by}
         """
@@ -4504,13 +4952,29 @@ def get_tuition_payment_trends_dimensions():
                 periods.append(r.get('period'))
                 total_amt = float(r.get('total_completed_amount') or 0.0)
 
-                fu = r.get('faculty_units') or 0
-                du = r.get('department_units') or 0
-                pu = r.get('program_units') or 0
+                fu = int(r.get('faculty_units') or 0)
+                du = int(r.get('department_units') or 0)
+                pu = int(r.get('program_units') or 0)
 
-                faculty_amounts.append(round(total_amt / fu, 2) if fu else 0.0)
-                department_amounts.append(round(total_amt / du, 2) if du else 0.0)
-                program_amounts.append(round(total_amt / pu, 2) if pu else 0.0)
+                # If amounts exist but dimension joins are missing, still surface total (avoids all-zero lines).
+                faculty_amounts.append(
+                    round(total_amt / fu, 2) if fu > 0 else (round(total_amt, 2) if total_amt > 0 else 0.0)
+                )
+                department_amounts.append(
+                    round(total_amt / du, 2) if du > 0 else (round(total_amt, 2) if total_amt > 0 else 0.0)
+                )
+                program_amounts.append(
+                    round(total_amt / pu, 2) if pu > 0 else (round(total_amt, 2) if total_amt > 0 else 0.0)
+                )
+
+        if not periods:
+            from tuition_trends_synthetic import (
+                build_synthetic_tuition_trends,
+                should_use_synthetic_tuition_trends,
+            )
+
+            if should_use_synthetic_tuition_trends(filters, role, TUITION_TRENDS_SYNTHETIC_FALLBACK):
+                return jsonify(build_synthetic_tuition_trends(period)), 200
 
         return jsonify({
             'periods': periods,

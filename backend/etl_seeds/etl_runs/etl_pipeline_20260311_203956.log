@@ -1,0 +1,4 @@
+2026-03-11 20:39:56,881 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260311_203956.log
+2026-03-11 20:41:03,759 - INFO - [RBAC seed] Seeding table app_users with 0 rows from snapshot
+2026-03-11 20:41:04,995 - INFO - [RBAC seed] Seeding table user_profiles with 0 rows from snapshot
+2026-03-11 20:41:05,129 - INFO - [RBAC seed] Seeding table user_state with 0 rows from snapshot

@@ -97,14 +97,131 @@ class ETLPipeline:
 
         # Location for user snapshot seeds (for RBAC/app_users reproducibility)
         self.user_snapshot_path = Path(__file__).parent / "etl_seeds" / "user_snapshot.json"
+        self.current_run_id = None
+
+    def export_seeds_from_live_db(self):
+        """Write etl_seeds/user_snapshot.json and admin_settings.json from live DB before seeding."""
+        try:
+            from export_user_snapshot import export_user_snapshot
+
+            self.logger.info(
+                "Exporting etl_seeds from live RBAC (app users, profiles, state, audit, admin settings, ETL log copies)..."
+            )
+            export_user_snapshot()
+        except Exception as e:
+            self.logger.warning("export_user_snapshot failed (non-fatal): %s", e)
+
+    def _ensure_etl_run_history_table(self, conn):
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS etl_run_history (
+                run_id VARCHAR(64) PRIMARY KEY,
+                log_file VARCHAR(255),
+                status VARCHAR(20) NOT NULL,
+                started_at TIMESTAMP NOT NULL,
+                ended_at TIMESTAMP NULL,
+                duration_seconds DOUBLE PRECISION NULL,
+                error_message TEXT NULL,
+                source_mode VARCHAR(50) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_erh_started_at ON etl_run_history(started_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_erh_status ON etl_run_history(status)"))
+        conn.commit()
+
+    def _record_etl_run_start(self, start_time):
+        """Persist ETL run start so Admin UI can show in-progress status immediately."""
+        run_id = f"etl_{start_time.strftime('%Y%m%d_%H%M%S')}"
+        engine = None
+        try:
+            engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+            with engine.connect() as conn:
+                self._ensure_etl_run_history_table(conn)
+                conn.execute(
+                    text("""
+                        INSERT INTO etl_run_history
+                        (run_id, log_file, status, started_at, source_mode)
+                        VALUES (:run_id, :log_file, 'in_progress', :started_at, :source_mode)
+                    """),
+                    {
+                        'run_id': run_id,
+                        'log_file': Path(self.log_file).name,
+                        'started_at': start_time,
+                        'source_mode': 'synthetic' if USE_SYNTHETIC_DATA else 'database',
+                    }
+                )
+                conn.commit()
+            self.current_run_id = run_id
+            self._etl_start_time_for_ledger = start_time
+        except Exception as e:
+            self.logger.warning("Could not persist ETL run start record: %s", e)
+        finally:
+            if engine:
+                engine.dispose()
+
+    def _append_etl_run_ledger(self, start_time, end_time, duration, status, error_message=None):
+        """Append-only JSONL next to per-run logs so history survives DB issues; admin API merges this in."""
+        try:
+            path = self.log_dir / "etl_runs_ledger.jsonl"
+            rec = {
+                "run_id": self.current_run_id,
+                "log_file": Path(self.log_file).name,
+                "started_at": start_time.isoformat() if hasattr(start_time, "isoformat") else str(start_time),
+                "ended_at": end_time.isoformat() if hasattr(end_time, "isoformat") else str(end_time),
+                "status": status,
+                "duration_seconds": float(duration.total_seconds()) if duration is not None else None,
+                "source_mode": "synthetic" if USE_SYNTHETIC_DATA else "database",
+                "error_message": (str(error_message)[:2000] if error_message else None),
+            }
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            self.logger.info("Appended ETL run to ledger: %s", path.name)
+        except Exception as e:
+            self.logger.warning("Could not append ETL run ledger: %s", e)
+
+    def _record_etl_run_end(self, end_time, duration, status, error_message=None):
+        """Persist ETL run completion/failure for durable ETL history."""
+        if not self.current_run_id:
+            return
+        engine = None
+        try:
+            engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+            with engine.connect() as conn:
+                self._ensure_etl_run_history_table(conn)
+                conn.execute(
+                    text("""
+                        UPDATE etl_run_history
+                        SET status = :status,
+                            ended_at = :ended_at,
+                            duration_seconds = :duration_seconds,
+                            error_message = :error_message
+                        WHERE run_id = :run_id
+                    """),
+                    {
+                        'status': status,
+                        'ended_at': end_time,
+                        'duration_seconds': float(duration.total_seconds()) if duration is not None else None,
+                        'error_message': (str(error_message)[:4000] if error_message else None),
+                        'run_id': self.current_run_id,
+                    }
+                )
+                conn.commit()
+        except Exception as e:
+            self.logger.warning("Could not persist ETL run end record: %s", e)
+        finally:
+            if engine:
+                engine.dispose()
+        st_ledger = getattr(self, "_etl_start_time_for_ledger", None) or end_time
+        self._append_etl_run_ledger(st_ledger, end_time, duration, status, error_message)
 
     def seed_user_system_from_snapshot(self):
         """
         Seed ucu_rbac user-related tables (app_users, user_profiles, user_state)
         from a version-controlled JSON snapshot.
 
-        This makes app users, profiles, and workspace state reproducible on new
-        machines when ETL is run against a clean environment.
+        By default (ETL_USER_SNAPSHOT_MODE=bootstrap), existing production rows are
+        left intact so audit logs, app users, and admin settings are not wiped on
+        every ETL. Set ETL_USER_SNAPSHOT_MODE=replace for full delete+reload (dev/CI).
         """
         if not self.user_snapshot_path.exists():
             self.logger.info(f"No user snapshot found at {self.user_snapshot_path}; skipping RBAC/app_users seeding.")
@@ -124,6 +241,34 @@ class ETLPipeline:
             _ensure_app_users_table(engine)
             _ensure_user_profiles_table(engine)
             _ensure_user_state_table(engine)
+
+            snapshot_mode = os.environ.get("ETL_USER_SNAPSHOT_MODE", "bootstrap").strip().lower()
+            force_replace = snapshot_mode == "replace"
+
+            n_app_users = 0
+            n_audit = 0
+            with engine.connect() as conn:
+                try:
+                    n_app_users = conn.execute(text("SELECT COUNT(*) FROM app_users")).scalar() or 0
+                except Exception:
+                    pass
+                try:
+                    n_audit = conn.execute(text("SELECT COUNT(*) FROM audit_logs")).scalar() or 0
+                except Exception:
+                    pass
+
+            seed_users = force_replace or n_app_users == 0
+            seed_audit = force_replace or n_audit == 0
+            if not seed_users:
+                self.logger.info(
+                    "[RBAC seed] Skipping app_users/user_profiles/user_state snapshot "
+                    "(bootstrap: existing rows). Set ETL_USER_SNAPSHOT_MODE=replace to force."
+                )
+            audit_rows = snapshot.get("audit_logs") or []
+            if not seed_audit and audit_rows:
+                self.logger.info(
+                    "[RBAC seed] Skipping audit_logs snapshot (bootstrap: existing rows)."
+                )
 
             with engine.connect() as conn:
                 conn = conn.execution_options(autocommit=False)
@@ -151,21 +296,21 @@ class ETLPipeline:
 
                 # Seed app_users: clear FK-dependent table first so DELETE FROM app_users succeeds
                 app_users_rows = snapshot.get("app_users", [])
-                if app_users_rows:
-                    try:
-                        conn.execute(text("DELETE FROM staff_course_assignments"))
-                        conn.commit()
-                    except Exception as ex:
-                        # Table may not exist yet or FK might be missing; ensure transaction is clean
-                        self.logger.warning(f"[RBAC seed] Could not clear staff_course_assignments: {ex}")
-                        conn.rollback()
-                upsert_table("app_users", app_users_rows)
-                upsert_table("user_profiles", snapshot.get("user_profiles", []))
-                upsert_table("user_state", snapshot.get("user_state", []))
+                if seed_users:
+                    if app_users_rows:
+                        try:
+                            conn.execute(text("DELETE FROM staff_course_assignments"))
+                            conn.commit()
+                        except Exception as ex:
+                            # Table may not exist yet or FK might be missing; ensure transaction is clean
+                            self.logger.warning(f"[RBAC seed] Could not clear staff_course_assignments: {ex}")
+                            conn.rollback()
+                    upsert_table("app_users", app_users_rows)
+                    upsert_table("user_profiles", snapshot.get("user_profiles", []))
+                    upsert_table("user_state", snapshot.get("user_state", []))
 
-                # Seed audit_logs so branches get the same activity trail
-                audit_rows = snapshot.get("audit_logs") or []
-                if audit_rows:
+                # Seed audit_logs for fresh environments only (bootstrap) or when replace forced
+                if seed_audit and audit_rows:
                     try:
                         conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS audit_logs (
@@ -204,46 +349,53 @@ class ETLPipeline:
 
                 conn.commit()
             engine.dispose()
-            self.logger.info("[RBAC seed] User system seeded successfully from snapshot.")
+            self.logger.info("[RBAC seed] User system snapshot step completed.")
 
             # Restore profile photos from snapshot if available
             photos_src = self.user_snapshot_path.parent / "profile_photos"
             photos_dst = Path(__file__).parent / "data" / "profile_photos"
-            try:
-                if photos_src.exists():
-                    photos_dst.mkdir(parents=True, exist_ok=True)
-                    # Copy tree but do not delete potential runtime-only files
-                    for src_file in photos_src.rglob("*"):
-                        if src_file.is_file():
-                            rel = src_file.relative_to(photos_src)
-                            dest_file = photos_dst / rel
-                            dest_file.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(src_file, dest_file)
-                    self.logger.info(f"[RBAC seed] Restored profile photos from {photos_src} to {photos_dst}")
-            except Exception as e:
-                self.logger.warning(f"[RBAC seed] Failed to restore profile photos from snapshot: {e}")
+            if seed_users:
+                try:
+                    if photos_src.exists():
+                        photos_dst.mkdir(parents=True, exist_ok=True)
+                        # Copy tree but do not delete potential runtime-only files
+                        for src_file in photos_src.rglob("*"):
+                            if src_file.is_file():
+                                rel = src_file.relative_to(photos_src)
+                                dest_file = photos_dst / rel
+                                dest_file.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copy2(src_file, dest_file)
+                        self.logger.info(f"[RBAC seed] Restored profile photos from {photos_src} to {photos_dst}")
+                except Exception as e:
+                    self.logger.warning(f"[RBAC seed] Failed to restore profile photos from snapshot: {e}")
 
-            # Restore admin settings (notifications, ETL auto, etc.) so branches get same config
+            # Restore admin settings from repo seeds only when no live file yet (avoid wiping production)
             seeds_dir = self.user_snapshot_path.parent
             settings_src = seeds_dir / "admin_settings.json"
             settings_dst = Path(__file__).parent / "data" / "admin_settings.json"
-            if settings_src.exists():
+            if settings_src.exists() and (force_replace or not settings_dst.exists()):
                 try:
                     settings_dst.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(settings_src, settings_dst)
                     self.logger.info(f"[RBAC seed] Restored admin_settings.json to {settings_dst}")
                 except Exception as e:
                     self.logger.warning(f"[RBAC seed] Failed to restore admin_settings: {e}")
+            elif settings_src.exists():
+                self.logger.info("[RBAC seed] Skipping admin_settings.json copy (bootstrap: existing file).")
 
-            # Restore ETL run history (log files) so admin UI shows same ETL jobs
+            # Restore ETL log files from seeds only when none exist locally (DB-backed history is primary)
             etl_runs_src = seeds_dir / "etl_runs"
-            if etl_runs_src.exists():
+            has_etl_logs = self.log_dir.exists() and any(self.log_dir.glob("etl_pipeline_*.log"))
+            if etl_runs_src.exists() and (force_replace or not has_etl_logs):
                 try:
+                    self.log_dir.mkdir(parents=True, exist_ok=True)
                     for log_file in etl_runs_src.glob("etl_pipeline_*.log"):
                         shutil.copy2(log_file, self.log_dir / log_file.name)
                     self.logger.info(f"[RBAC seed] Restored ETL run logs from {etl_runs_src} to {self.log_dir}")
                 except Exception as e:
                     self.logger.warning(f"[RBAC seed] Failed to restore ETL runs: {e}")
+            elif etl_runs_src.exists():
+                self.logger.info("[RBAC seed] Skipping ETL log file restore from seeds (bootstrap: existing logs).")
         except Exception as e:
             self.logger.error(f"Failed to seed user system from snapshot: {e}", exc_info=True)
         
@@ -267,8 +419,8 @@ class ETLPipeline:
         self.logger.info("=" * 60)
         print("Extracting data to Bronze layer...")
 
-        if USE_SYNTHETIC_DATA and SYNTHETIC_DATA_DIR and Path(SYNTHETIC_DATA_DIR).exists():
-            self.logger.info("Using SYNTHETIC data source: %s", SYNTHETIC_DATA_DIR)
+        if USE_SYNTHETIC_DATA:
+            self.logger.info("Synthetic mode enabled. Primary source: %s", SYNTHETIC_DATA_DIR)
             print("Using synthetic data from:", SYNTHETIC_DATA_DIR)
             return self._extract_from_synthetic_data()
 
@@ -372,11 +524,21 @@ class ETLPipeline:
         root = (Path(__file__).resolve().parent / "data" / "Synthetic_Data").resolve()
         if not root.exists():
             root = Path(SYNTHETIC_DATA_DIR).resolve()
+        if not root.exists():
+            raise FileNotFoundError(
+                f"Synthetic_Data directory not found at expected paths. Checked: "
+                f"{(Path(__file__).resolve().parent / 'data' / 'Synthetic_Data').resolve()} and {Path(SYNTHETIC_DATA_DIR).resolve()}"
+            )
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.logger.info("Synthetic data root: %s", root)
         try:
             found_files = list(root.glob("*.csv")) + list(root.glob("*.xlsx"))
             self.logger.info("  -> Found %d CSV/XLSX files in Synthetic_Data", len(found_files))
+            if len(found_files) < 35:
+                self.logger.warning(
+                    "  -> Expected around 35 CSV/XLSX synthetic files but found %d. ETL will continue with available files.",
+                    len(found_files),
+                )
         except Exception:
             found_files = []
 
@@ -1017,6 +1179,8 @@ class ETLPipeline:
 
     def _build_employees_for_synthetic(self, faculties_db1, departments_db1):
         """Build employees so each department has 7-13 employees and each faculty has 6-8 (faculty-level)."""
+        from datetime import date as date_cls
+
         first_names = ["James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael", "Linda", "William", "Elizabeth", "David", "Barbara", "Joseph", "Susan", "Charles", "Jessica"]
         last_names = ["Okello", "Namakula", "Kato", "Achieng", "Mukasa", "Wekesa", "Akol", "Atwine", "Kasule", "Mugisha"]
         positions = [1, 2, 3]  # position_id
@@ -1024,6 +1188,15 @@ class ETLPipeline:
         rows = []
         eid = 1
         np.random.seed(42)
+        today = date_cls.today()
+
+        def _synthetic_dob(emp_id: int) -> date_cls:
+            # Deterministic ages 25–60 so some staff are within 5 years of retirement (age ≥ 55).
+            age_years = 25 + (emp_id * 7919) % 36
+            m = (emp_id % 12) + 1
+            d = (emp_id % 27) + 1
+            y = today.year - age_years
+            return date_cls(y, m, d)
         # Per-department: 7-13 employees
         if not departments_db1.empty:
             fid_col = 'FacultyID' if 'FacultyID' in departments_db1.columns else 'faculty_id'
@@ -1038,6 +1211,7 @@ class ETLPipeline:
                         'DepartmentID': int(dept[did_col]),
                         'ContractType': np.random.choice(contract_types),
                         'Status': 'Active',
+                        'DateOfBirth': _synthetic_dob(eid),
                     })
                     eid += 1
         # Per-faculty: 6-8 (assign to first department of that faculty)
@@ -1059,9 +1233,10 @@ class ETLPipeline:
                         'DepartmentID': first_dept_id,
                         'ContractType': np.random.choice(contract_types),
                         'Status': 'Active',
+                        'DateOfBirth': _synthetic_dob(eid),
                     })
                     eid += 1
-        df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=['EmployeeID', 'FullName', 'PositionID', 'DepartmentID', 'ContractType', 'Status'])
+        df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=['EmployeeID', 'FullName', 'PositionID', 'DepartmentID', 'ContractType', 'Status', 'DateOfBirth'])
         self.logger.info("  -> Employees (synthetic): %d", len(df))
         return df
 
@@ -1969,6 +2144,10 @@ class ETLPipeline:
                 employees_dim['contract_type'] = employees_dim['ContractType']
             if 'Status' in employees_dim.columns:
                 employees_dim['status'] = employees_dim['Status']
+            if 'DateOfBirth' in employees_dim.columns:
+                employees_dim['date_of_birth'] = pd.to_datetime(employees_dim['DateOfBirth'], errors='coerce')
+            elif 'date_of_birth' in employees_dim.columns:
+                employees_dim['date_of_birth'] = pd.to_datetime(employees_dim['date_of_birth'], errors='coerce')
             # HR analytics: title from source or synthetic position_id map
             if 'PositionTitle' in employees_dim.columns:
                 employees_dim['position_title'] = employees_dim['PositionTitle'].astype(str)
@@ -1979,7 +2158,7 @@ class ETLPipeline:
                 employees_dim['position_title'] = 'Staff'
             emp_cols = [
                 'employee_id', 'full_name', 'position_id', 'department_id',
-                'contract_type', 'status', 'position_title',
+                'contract_type', 'status', 'position_title', 'date_of_birth',
             ]
             available_emp_cols = [c for c in emp_cols if c in employees_dim.columns]
             if available_emp_cols:
@@ -1993,11 +2172,15 @@ class ETLPipeline:
                             department_id INT,
                             contract_type VARCHAR(50),
                             status VARCHAR(50),
-                            position_title VARCHAR(200)
+                            position_title VARCHAR(200),
+                            date_of_birth DATE
                         )
                     """))
                     conn.execute(text(
                         "ALTER TABLE dim_employee ADD COLUMN IF NOT EXISTS position_title VARCHAR(200)"
+                    ))
+                    conn.execute(text(
+                        "ALTER TABLE dim_employee ADD COLUMN IF NOT EXISTS date_of_birth DATE"
                     ))
                     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_de_department ON dim_employee(department_id)"))
                     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_de_status ON dim_employee(status)"))
@@ -2732,6 +2915,7 @@ class ETLPipeline:
     def run(self):
         """Run the complete ETL pipeline"""
         start_time = _etl_log_now()
+        self._record_etl_run_start(start_time)
         self.logger.info("=" * 60)
         self.logger.info("ETL PIPELINE STARTED")
         self.logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -2740,6 +2924,9 @@ class ETLPipeline:
         print(f"Log file: {self.log_file}")
         
         try:
+            # Refresh etl_seeds/ from live DB so user_snapshot.json and admin_settings.json
+            # include all current users and settings before seed/bootstrap.
+            self.export_seeds_from_live_db()
             # First: seed RBAC / app-users system from snapshot so user-related
             # data (app users, profiles, workspace state) is reproducible.
             self.seed_user_system_from_snapshot()
@@ -2751,6 +2938,7 @@ class ETLPipeline:
             end_time = _etl_log_now()
             duration = end_time - start_time
             self.logger.info(f"ETL Pipeline completed successfully in {duration}")
+            self._record_etl_run_end(end_time, duration, 'success')
             print("ETL Pipeline completed successfully!")
             print(f"Duration: {duration}")
             print(f"Log file: {self.log_file}")
@@ -2758,6 +2946,7 @@ class ETLPipeline:
             end_time = _etl_log_now()
             duration = end_time - start_time
             self.logger.error(f"ETL Pipeline failed after {duration}: {e}", exc_info=True)
+            self._record_etl_run_end(end_time, duration, 'failed', error_message=e)
             print(f"ETL Pipeline failed: {e}")
             print(f"Check log file for details: {self.log_file}")
             raise
@@ -2782,11 +2971,13 @@ if __name__ == "__main__":
 
     if phase == "bronze":
         # Bronze container: seed RBAC + extract and persist raw data only.
+        pipeline.export_seeds_from_live_db()
         pipeline.seed_user_system_from_snapshot()
         pipeline.extract()
     elif phase == "silver":
         # Silver container: seed RBAC, extract from sources into Bronze,
         # then transform into cleaned Silver datasets (no load to warehouse).
+        pipeline.export_seeds_from_live_db()
         pipeline.seed_user_system_from_snapshot()
         bronze_data = pipeline.extract()
         pipeline.transform(bronze_data)

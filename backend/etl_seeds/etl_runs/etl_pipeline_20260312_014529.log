@@ -1,0 +1,188 @@
+2026-03-12 01:45:29,578 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260312_014529.log
+2026-03-12 01:45:29,578 - INFO - ============================================================
+2026-03-12 01:45:29,578 - INFO - ETL PIPELINE STARTED
+2026-03-12 01:45:29,579 - INFO - Start time: 2026-03-12 01:45:29
+2026-03-12 01:45:29,579 - INFO - ============================================================
+2026-03-12 01:45:29,689 - ERROR - Failed to seed user system from snapshot: (psycopg2.OperationalError) connection to server at "localhost" (::1), port 5432 failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+
+(Background on this error at: https://sqlalche.me/e/14/e3q8)
+Traceback (most recent call last):
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\base.py", line 3371, in _wrap_pool_connect
+    return fn()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 327, in connect
+    return _ConnectionFairy._checkout(self)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 894, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 493, in checkout
+    rec = pool._do_get()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\impl.py", line 146, in _do_get
+    self._dec_overflow()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\util\langhelpers.py", line 70, in __exit__
+    compat.raise_(
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\util\compat.py", line 211, in raise_
+    raise exception
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\impl.py", line 143, in _do_get
+    return self._create_connection()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 273, in _create_connection
+    return _ConnectionRecord(self)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 388, in __init__
+    self.__connect()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 691, in __connect
+    pool.logger.debug("Error on connect(): %s", e)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\util\langhelpers.py", line 70, in __exit__
+    compat.raise_(
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\util\compat.py", line 211, in raise_
+    raise exception
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 686, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\create.py", line 574, in connect
+    return dialect.connect(*cargs, **cparams)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\default.py", line 598, in connect
+    return self.dbapi.connect(*cargs, **cparams)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\psycopg2\__init__.py", line 122, in connect
+    conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 90, in seed_user_system_from_snapshot
+    with engine.connect() as conn:
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\base.py", line 3325, in connect
+    return self._connection_cls(self, close_with_result=close_with_result)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\base.py", line 96, in __init__
+    else engine.raw_connection()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\base.py", line 3404, in raw_connection
+    return self._wrap_pool_connect(self.pool.connect, _connection)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\base.py", line 3374, in _wrap_pool_connect
+    Connection._handle_dbapi_exception_noconnection(
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\base.py", line 2208, in _handle_dbapi_exception_noconnection
+    util.raise_(
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\util\compat.py", line 211, in raise_
+    raise exception
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\base.py", line 3371, in _wrap_pool_connect
+    return fn()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 327, in connect
+    return _ConnectionFairy._checkout(self)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 894, in _checkout
+    fairy = _ConnectionRecord.checkout(pool)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 493, in checkout
+    rec = pool._do_get()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\impl.py", line 146, in _do_get
+    self._dec_overflow()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\util\langhelpers.py", line 70, in __exit__
+    compat.raise_(
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\util\compat.py", line 211, in raise_
+    raise exception
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\impl.py", line 143, in _do_get
+    return self._create_connection()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 273, in _create_connection
+    return _ConnectionRecord(self)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 388, in __init__
+    self.__connect()
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 691, in __connect
+    pool.logger.debug("Error on connect(): %s", e)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\util\langhelpers.py", line 70, in __exit__
+    compat.raise_(
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\util\compat.py", line 211, in raise_
+    raise exception
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\pool\base.py", line 686, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\create.py", line 574, in connect
+    return dialect.connect(*cargs, **cparams)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\sqlalchemy\engine\default.py", line 598, in connect
+    return self.dbapi.connect(*cargs, **cparams)
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\psycopg2\__init__.py", line 122, in connect
+    conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) connection to server at "localhost" (::1), port 5432 failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+
+(Background on this error at: https://sqlalche.me/e/14/e3q8)
+2026-03-12 01:45:29,938 - INFO - ============================================================
+2026-03-12 01:45:29,938 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-12 01:45:29,938 - INFO - ============================================================
+2026-03-12 01:45:29,938 - INFO - Using SYNTHETIC data source: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-12 01:45:29,938 - INFO - Synthetic data root: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-12 01:45:29,938 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-12 01:45:29,996 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-12 01:45:29,996 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-12 01:45:57,804 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-12 01:45:57,938 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-12 01:45:57,973 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-12 01:46:00,188 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-12 01:46:00,442 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-12 01:46:01,957 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-12 01:46:15,130 - INFO -   -> Attendance: 3117871 (columns: 9)
+2026-03-12 01:46:15,266 - INFO -   -> Employees (synthetic): 253
+2026-03-12 01:46:15,280 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-12 01:46:15,440 - INFO -   -> Student–high school: 20000
+2026-03-12 01:46:15,749 - INFO -   -> Transcript: 36233
+2026-03-12 01:46:16,096 - INFO -   -> Academic performance: 36233
+2026-03-12 01:46:16,579 - INFO -   -> Sponsorships: 41866
+2026-03-12 01:46:53,245 - INFO -   -> Progression: 469956
+2026-03-12 01:46:53,248 - INFO -   -> Grades summary sheets: 0
+2026-03-12 01:46:53,636 - INFO -   -> Dim date: 1826
+2026-03-12 01:47:19,437 - INFO - Bronze (synthetic) extraction complete.
+2026-03-12 01:47:21,394 - INFO - ============================================================
+2026-03-12 01:47:21,396 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-12 01:47:21,396 - INFO - ============================================================
+2026-03-12 01:48:09,888 - INFO - Silver layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-12 01:48:09,888 - INFO -   → Students: 10000
+2026-03-12 01:48:09,895 - INFO -   → Courses: 3035
+2026-03-12 01:48:09,896 - INFO -   → Enrollments: 10000
+2026-03-12 01:48:09,897 - INFO -   → Attendance: 3117871
+2026-03-12 01:48:09,897 - INFO -   → Payments: 130871
+2026-03-12 01:48:09,898 - INFO -   → Grades: 234978
+2026-03-12 01:48:09,898 - INFO -   → Transcript: 36233
+2026-03-12 01:48:09,899 - INFO -   → Academic performance: 36233
+2026-03-12 01:48:09,900 - INFO -   → Sponsorships: 41866
+2026-03-12 01:48:09,900 - INFO -   → Progression: 469956
+2026-03-12 01:48:09,900 - INFO -   → Student–high school: 20000
+2026-03-12 01:48:09,900 - INFO -   → High schools: 73
+2026-03-12 01:48:09,900 - INFO - Silver layer transformation complete!
+2026-03-12 01:48:09,904 - INFO - ============================================================
+2026-03-12 01:48:09,904 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-12 01:48:09,904 - INFO - ============================================================
+2026-03-12 01:48:09,904 - INFO - Creating data warehouse database: ucu_datawarehouse
+2026-03-12 01:48:10,009 - ERROR - Error creating data warehouse: connection to server at "localhost" (::1), port 5432 failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+Traceback (most recent call last):
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 201, in create_data_warehouse
+    ensure_database(self.dw_name)
+  File "D:\NextGen-Data-Architects-Project\backend\pg_helpers.py", line 29, in ensure_database
+    conn = get_pg_conn(autocommit=True)
+  File "D:\NextGen-Data-Architects-Project\backend\pg_helpers.py", line 15, in get_pg_conn
+    conn = psycopg2.connect(
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\psycopg2\__init__.py", line 122, in connect
+    conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+
+2026-03-12 01:48:10,021 - ERROR - ETL Pipeline failed after 0:02:40.442366: connection to server at "localhost" (::1), port 5432 failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+Traceback (most recent call last):
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 2545, in run
+    self.load_to_warehouse(silver_data)
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 1481, in load_to_warehouse
+    self.create_data_warehouse()
+  File "D:\NextGen-Data-Architects-Project\backend\etl_pipeline.py", line 201, in create_data_warehouse
+    ensure_database(self.dw_name)
+  File "D:\NextGen-Data-Architects-Project\backend\pg_helpers.py", line 29, in ensure_database
+    conn = get_pg_conn(autocommit=True)
+  File "D:\NextGen-Data-Architects-Project\backend\pg_helpers.py", line 15, in get_pg_conn
+    conn = psycopg2.connect(
+  File "C:\Users\CEN\AppData\Local\Programs\Python\Python38\lib\site-packages\psycopg2\__init__.py", line 122, in connect
+    conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 failed: server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+

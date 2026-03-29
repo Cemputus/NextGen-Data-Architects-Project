@@ -12,14 +12,15 @@ if str(backend_dir) not in sys.path:
 
 from sqlalchemy import create_engine, text
 from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME
+from config.connection import RBAC_DB_NAME
 
 def main():
-    print("Creating database ucu_rbac and table audit_logs...")
+    print(f"Ensuring audit_logs table exists (RBAC DB: {RBAC_DB_NAME})...")
     try:
         from pg_helpers import ensure_ucu_rbac_database
         ensure_ucu_rbac_database()
 
-        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, "ucu_rbac")
+        rbac_conn = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
         engine = create_engine(rbac_conn)
         with engine.connect() as conn:
             conn.execute(text("""
@@ -47,7 +48,7 @@ def main():
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_role ON audit_logs(role_name)"))
             conn.commit()
         engine.dispose()
-        print("Done. ucu_rbac.audit_logs is ready. Audit Logs in the admin UI will work now.")
+        print("Done. audit_logs is ready. Audit Logs in the admin UI will work now.")
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)

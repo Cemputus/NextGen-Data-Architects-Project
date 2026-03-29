@@ -1,0 +1,2 @@
+# ETL pipeline writes etl_pipeline_YYYYMMDD_HHMMSS.log and etl_runs_ledger.jsonl here.
+# This directory is tracked in git (see root .gitignore); set ETL_LOG_DIR in deploy to use another path.

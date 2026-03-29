@@ -1,0 +1,67 @@
+2026-03-07 11:02:09,393 - INFO - ETL Pipeline initialized. Log file: D:\NextGen-Data-Architects-Project\backend\logs\etl_pipeline_20260307_110209.log
+2026-03-07 11:02:09,397 - INFO - ============================================================
+2026-03-07 11:02:09,398 - INFO - ETL PIPELINE STARTED
+2026-03-07 11:02:09,399 - INFO - Start time: 2026-03-07 11:02:09
+2026-03-07 11:02:09,399 - INFO - ============================================================
+2026-03-07 11:02:09,652 - INFO - [RBAC seed] Seeding table app_users with 14 rows from snapshot
+2026-03-07 11:02:09,763 - INFO - [RBAC seed] Seeding table user_profiles with 3 rows from snapshot
+2026-03-07 11:02:09,793 - INFO - [RBAC seed] Seeding table user_state with 2 rows from snapshot
+2026-03-07 11:02:12,198 - INFO - [RBAC seed] Seeded audit_logs with 1454 rows
+2026-03-07 11:02:12,199 - INFO - [RBAC seed] User system seeded successfully from snapshot.
+2026-03-07 11:02:12,289 - INFO - [RBAC seed] Restored profile photos from D:\NextGen-Data-Architects-Project\backend\etl_seeds\profile_photos to D:\NextGen-Data-Architects-Project\backend\data\profile_photos
+2026-03-07 11:02:12,296 - INFO - [RBAC seed] Restored admin_settings.json to D:\NextGen-Data-Architects-Project\backend\data\admin_settings.json
+2026-03-07 11:02:13,088 - INFO - [RBAC seed] Restored ETL run logs from D:\NextGen-Data-Architects-Project\backend\etl_seeds\etl_runs to D:\NextGen-Data-Architects-Project\backend\logs
+2026-03-07 11:02:13,089 - INFO - ============================================================
+2026-03-07 11:02:13,089 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-07 11:02:13,091 - INFO - ============================================================
+2026-03-07 11:02:13,091 - INFO - Using SYNTHETIC data source: D:\NextGen-Data-Architects-Project\backend\data\Synthetic_Data
+2026-03-07 11:02:13,143 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-07 11:02:27,901 - INFO -   -> Students: 10000
+2026-03-07 11:02:27,941 - INFO -   -> Courses: 5145
+2026-03-07 11:02:30,831 - INFO -   -> Grades: 348350
+2026-03-07 11:02:33,290 - INFO -   -> Payments: 187402
+2026-03-07 11:02:44,295 - INFO -   -> Attendance: 3204919
+2026-03-07 11:02:44,402 - INFO -   -> Employees (synthetic): 253
+2026-03-07 11:02:44,413 - INFO -   -> High schools: 74
+2026-03-07 11:02:44,655 - INFO -   -> Student–high school: 20000
+2026-03-07 11:02:45,180 - INFO -   -> Transcript: 53457
+2026-03-07 11:02:45,531 - INFO -   -> Academic performance: 53457
+2026-03-07 11:02:45,668 - INFO -   -> Sponsorships: 10944
+2026-03-07 11:04:37,509 - INFO -   -> Progression: 351587
+2026-03-07 11:04:53,784 - INFO -   -> Grades summary sheets: 63457
+2026-03-07 11:04:54,889 - INFO -   -> Dim date: 1826
+2026-03-07 11:04:59,380 - INFO - Bronze (synthetic) extraction complete.
+2026-03-07 11:04:59,706 - INFO - ============================================================
+2026-03-07 11:04:59,707 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-07 11:04:59,707 - INFO - ============================================================
+2026-03-07 11:05:19,802 - INFO - Silver layer files saved to: D:\NextGen-Data-Architects-Project\backend\data\silver
+2026-03-07 11:05:19,802 - INFO -   → Students: 10000
+2026-03-07 11:05:19,804 - INFO -   → Courses: 5145
+2026-03-07 11:05:19,804 - INFO -   → Enrollments: 345865
+2026-03-07 11:05:19,804 - INFO -   → Attendance: 3204919
+2026-03-07 11:05:19,805 - INFO -   → Payments: 187402
+2026-03-07 11:05:19,805 - INFO -   → Grades: 348350
+2026-03-07 11:05:19,805 - INFO -   → Transcript: 53457
+2026-03-07 11:05:19,805 - INFO -   → Academic performance: 53457
+2026-03-07 11:05:19,805 - INFO -   → Sponsorships: 10944
+2026-03-07 11:05:19,805 - INFO -   → Progression: 351587
+2026-03-07 11:05:19,805 - INFO -   → Student–high school: 20000
+2026-03-07 11:05:19,806 - INFO -   → High schools: 74
+2026-03-07 11:05:19,806 - INFO - Silver layer transformation complete!
+2026-03-07 11:05:19,813 - INFO - ============================================================
+2026-03-07 11:05:19,813 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-07 11:05:19,814 - INFO - ============================================================
+2026-03-07 11:05:19,814 - INFO - Creating data warehouse database: UCU_DataWarehouse
+2026-03-07 11:05:19,838 - INFO - Data warehouse database UCU_DataWarehouse already exists
+2026-03-07 11:05:19,841 - INFO - Creating dimension tables...
+2026-03-07 11:05:32,872 - INFO -   → Loaded 7551 students into dim_student
+2026-03-07 11:05:33,216 - INFO -   → Loaded 2408 courses into dim_course
+2026-03-07 11:05:33,234 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-07 11:05:33,357 - INFO -   → Loaded 14 app users into dim_app_user
+2026-03-07 11:05:33,396 - INFO -   -> Loaded 11 faculties into dim_faculty
+2026-03-07 11:05:33,425 - INFO -   -> Loaded 18 departments into dim_department
+2026-03-07 11:05:33,457 - INFO -   -> Loaded 91 programs into dim_program
+2026-03-07 11:05:33,527 - INFO -   -> Loaded 253 employees (staff/lecturers) into dim_employee
+2026-03-07 11:05:33,551 - INFO -   -> Loaded 73 high schools into dim_high_school
+2026-03-07 11:05:33,553 - INFO - Populating time dimension...
+2026-03-07 11:05:35,163 - INFO -   → Loaded 1826 time dimension records

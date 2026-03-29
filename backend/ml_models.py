@@ -41,8 +41,16 @@ class MultiModelPredictor:
             ds.nationality,
             ds.high_school,
             ds.high_school_district,
-            EXTRACT(YEAR FROM ds.admission_date) as admission_year,
-            EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM ds.admission_date) as years_at_university,
+            CASE
+                WHEN (ds.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                THEN EXTRACT(YEAR FROM (ds.admission_date::text)::date)
+                ELSE NULL
+            END as admission_year,
+            CASE
+                WHEN (ds.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                THEN EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM (ds.admission_date::text)::date)
+                ELSE 0
+            END as years_at_university,
             ds.program_id,
             ds.year_of_study
         FROM dim_student ds
@@ -278,9 +286,18 @@ class MultiModelPredictor:
         }
         print(f"Gradient Boosting - R²: {results['gradient_boosting']['r2']:.4f}, RMSE: {results['gradient_boosting']['rmse']:.2f}")
         
-        # Train Neural Network
+        # Train Neural Network (regularized to limit optimistic saturation toward 100)
         print("\nTraining Neural Network...")
-        nn = MLPRegressor(hidden_layer_sizes=(100, 50), max_iter=500, random_state=42, early_stopping=True)
+        nn = MLPRegressor(
+            hidden_layer_sizes=(64, 32),
+            activation='relu',
+            alpha=0.02,
+            max_iter=800,
+            random_state=42,
+            early_stopping=True,
+            validation_fraction=0.15,
+            n_iter_no_change=20,
+        )
         nn.fit(X_train_scaled, y_train)
         self.models['neural_network'] = nn
         nn_pred = nn.predict(X_test_scaled)
@@ -296,8 +313,71 @@ class MultiModelPredictor:
         
         return results
     
-    def predict(self, student_id, model_type='ensemble'):
-        """Predict student performance using specified model or ensemble"""
+    def _apply_scenario_override_to_student_data(self, student_data: pd.DataFrame, o: dict) -> None:
+        """
+        Mutate the warehouse feature row so what-if attendance, payment, course load,
+        and balance match the scenario. Used by /predictions/scenario so Random Forest,
+        Gradient Boosting, and Neural Network all read the same hypothetical inputs as
+        the tuition+attendance model (instead of only adding a delta on top of baseline).
+        """
+        if student_data.empty or not o:
+            return
+        idx = student_data.index[0]
+        base_ar = max(float(o.get('base_attendance_rate') or 0.0), 1.0)
+        mod_ar = float(o['modified_attendance_rate'])
+        mod_pr = float(o['modified_payment_rate'])
+        mod_c = int(o['modified_courses'])
+        bal = bool(o.get('has_significant_balance', False))
+        base_pr = float(o.get('base_payment_rate') or 0.0)
+
+        tr = float(student_data.loc[idx].get('total_required', 0) or 0.0)
+        th = float(student_data.loc[idx].get('total_attendance_hours', 0) or 0.0)
+        tdp = float(student_data.loc[idx].get('total_days_present', 0) or 0.0)
+
+        ar_scale = mod_ar / base_ar
+        ar_scale = max(0.28, min(3.2, ar_scale))
+
+        if 'attendance_rate' in student_data.columns:
+            student_data.loc[idx, 'attendance_rate'] = mod_ar
+        if 'payment_completion_rate' in student_data.columns:
+            student_data.loc[idx, 'payment_completion_rate'] = mod_pr
+        if 'courses_attended' in student_data.columns:
+            student_data.loc[idx, 'courses_attended'] = mod_c
+        if 'has_significant_balance' in student_data.columns:
+            student_data.loc[idx, 'has_significant_balance'] = 1 if bal else 0
+
+        if 'total_required' in student_data.columns and tr > 1e-6:
+            new_paid = tr * (mod_pr / 100.0)
+            student_data.loc[idx, 'total_paid'] = new_paid
+            student_data.loc[idx, 'total_pending'] = max(0.0, tr - new_paid)
+
+        if 'total_attendance_hours' in student_data.columns:
+            student_data.loc[idx, 'total_attendance_hours'] = th * ar_scale
+        if 'total_days_present' in student_data.columns:
+            student_data.loc[idx, 'total_days_present'] = tdp * ar_scale
+
+        mc = max(mod_c, 1)
+        if 'avg_hours_per_course' in student_data.columns:
+            student_data.loc[idx, 'avg_hours_per_course'] = (th * ar_scale) / float(mc)
+
+        if 'payment_count' in student_data.columns:
+            bpc = float(student_data.loc[idx].get('payment_count', 0) or 0.0)
+            if base_pr > 1e-6:
+                student_data.loc[idx, 'payment_count'] = max(0.0, bpc * (mod_pr / base_pr))
+            else:
+                student_data.loc[idx, 'payment_count'] = max(0.0, bpc + mod_pr / 25.0)
+
+    def predict(self, student_id, model_type='ensemble', scenario_override=None, scenario_mode=False):
+        """
+        Predict student performance using specified model or ensemble.
+
+        scenario_override: optional dict with base/modified attendance, payment, courses, balance
+            (see /api/predictions/scenario). When set, the warehouse row is rewritten before
+            scaling so NN and tree models reflect the hypothetical case.
+
+        scenario_mode: when True with scenario_override, skip observable-signal blending so
+            scenario differences are visible (used for what-if analysis only).
+        """
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
         # Get student features
@@ -308,8 +388,16 @@ class MultiModelPredictor:
             ds.nationality,
             ds.high_school,
             ds.high_school_district,
-            EXTRACT(YEAR FROM ds.admission_date) as admission_year,
-            EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM ds.admission_date) as years_at_university,
+            CASE
+                WHEN (ds.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                THEN EXTRACT(YEAR FROM (ds.admission_date::text)::date)
+                ELSE NULL
+            END as admission_year,
+            CASE
+                WHEN (ds.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                THEN EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM (ds.admission_date::text)::date)
+                ELSE 0
+            END as years_at_university,
             ds.program_id,
             ds.year_of_study,
             COALESCE(SUM(fa.total_hours), 0) as total_attendance_hours,
@@ -360,6 +448,9 @@ class MultiModelPredictor:
         
         if student_data.empty:
             raise ValueError(f"Student {student_id} not found")
+
+        if scenario_override:
+            self._apply_scenario_override_to_student_data(student_data, scenario_override)
         
         # Encode categorical variables - MUST match training encoding
         # Use the same label encoders from training, or encode in place like training does
@@ -464,14 +555,10 @@ class MultiModelPredictor:
                 raise ValueError(f"Unable to transform features. Error: {error_msg}. Retry error: {e2}")
         
         # Make predictions
+        row = student_data.iloc[0]
         if model_type == 'ensemble':
-            # Average predictions from all models
-            predictions = []
-            for model_name, model in self.models.items():
-                if model is not None:
-                    pred = model.predict(X_scaled)[0]
-                    predictions.append(pred)
-            prediction = np.mean(predictions) if predictions else 0
+            # Weight tree models higher than the neural net (NN often saturates near 100).
+            prediction = self._weighted_ensemble_predict(X_scaled)
         elif model_type in self.models and self.models[model_type] is not None:
             prediction = self.models[model_type].predict(X_scaled)[0]
         elif model_type in self.models and self.models[model_type] is None:
@@ -480,12 +567,79 @@ class MultiModelPredictor:
             predictions = []
             for _, model in self.models.items():
                 if model is not None:
-                    predictions.append(model.predict(X_scaled)[0])
-            prediction = np.mean(predictions) if predictions else 0
+                    predictions.append(float(model.predict(X_scaled)[0]))
+            if not predictions:
+                prediction = 0.0
+            else:
+                arr = np.asarray(predictions, dtype=float)
+                prediction = float(np.median(arr))
         else:
             raise ValueError(f"Model {model_type} not available")
         
-        return max(0, min(100, prediction))  # Clamp between 0 and 100
+        prediction = float(prediction)
+        if not scenario_mode and model_type in ('ensemble', 'neural_network'):
+            prediction = self._blend_with_observable_signals(row, prediction)
+        return max(0.0, min(100.0, prediction))  # Clamp between 0 and 100
+    
+    @staticmethod
+    def _safe_float_series(row: pd.Series, key: str, default: float = 0.0) -> float:
+        try:
+            if key not in row.index:
+                return default
+            v = row[key]
+            if pd.isna(v):
+                return default
+            return float(v)
+        except (TypeError, ValueError):
+            return default
+    
+    def _weighted_ensemble_predict(self, X_scaled: np.ndarray) -> float:
+        """Combine base models with weights that favor tree ensembles over the MLP."""
+        weights = {
+            'random_forest': 0.38,
+            'gradient_boosting': 0.38,
+            'neural_network': 0.24,
+        }
+        parts = []
+        wsum = 0.0
+        for name, weight in weights.items():
+            model = self.models.get(name)
+            if model is None:
+                continue
+            p = float(model.predict(X_scaled)[0])
+            parts.append((p, weight))
+            wsum += weight
+        if not parts:
+            return 0.0
+        if wsum <= 0:
+            return 0.0
+        return sum(p * w for p, w in parts) / wsum
+    
+    def _blend_with_observable_signals(self, row: pd.Series, raw_pred: float) -> float:
+        """
+        Blend optimistic model output with observable academic and attendance signals
+        so scores are not clustered at ~95–100 for every student.
+        """
+        cw = self._safe_float_series(row, 'avg_coursework_score')
+        ex = self._safe_float_series(row, 'avg_exam_score')
+        att = self._safe_float_series(row, 'attendance_rate')
+        pay = self._safe_float_series(row, 'payment_completion_rate')
+        if cw > 0 or ex > 0:
+            academic = (cw + ex) / 2.0
+        else:
+            academic = None
+        if academic is not None:
+            prior = 0.68 * academic + 0.16 * att + 0.16 * pay
+        else:
+            prior = 0.55 * att + 0.45 * pay
+            if prior < 1e-6:
+                prior = 62.0
+        prior = max(0.0, min(100.0, prior))
+        # When the model is very optimistic, trust observables more.
+        w = 0.45 if raw_pred >= 88.0 else 0.30
+        blended = (1.0 - w) * raw_pred + w * prior
+        blended = 50.0 + (blended - 50.0) * 0.92
+        return float(max(0.0, min(100.0, blended)))
     
     def predict_scenario(self, scenario_params):
         """Predict performance for a hypothetical scenario"""

@@ -1,0 +1,133 @@
+2026-03-17 23:04:43 - INFO - ETL Pipeline initialized. Log file: /app/logs/etl_pipeline_20260317_230443.log
+2026-03-17 23:04:43 - INFO - ============================================================
+2026-03-17 23:04:43 - INFO - ETL PIPELINE STARTED
+2026-03-17 23:04:43 - INFO - Start time: 2026-03-17 23:04:43
+2026-03-17 23:04:43 - INFO - ============================================================
+2026-03-17 23:04:44 - INFO - [RBAC seed] Seeding table app_users with 18 rows from snapshot
+2026-03-17 23:04:44 - ERROR - Failed to seed user system from snapshot: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: DELETE FROM app_users]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/etl_pipeline.py", line 154, in seed_user_system_from_snapshot
+    upsert_table("app_users", app_users_rows)
+  File "/app/etl_pipeline.py", line 136, in upsert_table
+    conn.execute(text(f"DELETE FROM {table_name}"))
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: DELETE FROM app_users]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+2026-03-17 23:04:44 - INFO - ============================================================
+2026-03-17 23:04:44 - INFO - EXTRACT PHASE - Bronze Layer
+2026-03-17 23:04:44 - INFO - ============================================================
+2026-03-17 23:04:44 - INFO - Using SYNTHETIC data source: /app/data/Synthetic_Data
+2026-03-17 23:04:45 - INFO - Synthetic data root: /app/data/Synthetic_Data
+2026-03-17 23:04:45 - INFO -   -> Found 35 CSV/XLSX files in Synthetic_Data
+2026-03-17 23:04:45 - INFO -   -> Loaded dimension hierarchy from faculties_departments.csv
+2026-03-17 23:04:45 - INFO -   -> Faculties: 11, Departments: 18, Programs: 91
+2026-03-17 23:05:02 - INFO -   -> Combined student lists: 10000 unique (by RegNo)
+2026-03-17 23:05:02 - INFO -   -> Students: 10000 (columns: 39)
+2026-03-17 23:05:02 - INFO -   -> Courses: 3035 (columns: 13)
+2026-03-17 23:05:08 - INFO -   -> Grades: 234978 (columns: 27)
+2026-03-17 23:05:08 - INFO -   -> Enrollments (from enrollment_list15/16): 10000
+2026-03-17 23:05:11 - INFO -   -> Payments: 130871 (columns: 27)
+2026-03-17 23:05:29 - INFO -   -> Attendance: 3117871 (columns: 9)
+2026-03-17 23:05:29 - INFO -   -> Employees (synthetic): 253
+2026-03-17 23:05:29 - INFO -   -> High schools: 73 (columns: 4)
+2026-03-17 23:05:29 - INFO -   -> Student–high school: 20000
+2026-03-17 23:05:30 - INFO -   -> Transcript: 36233
+2026-03-17 23:05:31 - INFO -   -> Academic performance: 36233
+2026-03-17 23:05:31 - INFO -   -> Sponsorships: 41866
+2026-03-17 23:05:57 - INFO -   -> Progression: 469956
+2026-03-17 23:06:50 - INFO -   -> Grades summary sheets: 72068
+2026-03-17 23:06:50 - INFO -   -> Dim date: 1826
+2026-03-17 23:07:01 - INFO - Bronze (synthetic) extraction complete.
+2026-03-17 23:07:01 - INFO - ============================================================
+2026-03-17 23:07:01 - INFO - TRANSFORM PHASE - Silver Layer
+2026-03-17 23:07:01 - INFO - ============================================================
+2026-03-17 23:07:37 - INFO - Silver layer files saved to: /app/data/silver
+2026-03-17 23:07:37 - INFO -   → Students: 10000
+2026-03-17 23:07:37 - INFO -   → Courses: 3035
+2026-03-17 23:07:37 - INFO -   → Enrollments: 10000
+2026-03-17 23:07:37 - INFO -   → Attendance: 3117871
+2026-03-17 23:07:37 - INFO -   → Payments: 130871
+2026-03-17 23:07:37 - INFO -   → Grades: 234978
+2026-03-17 23:07:37 - INFO -   → Transcript: 36233
+2026-03-17 23:07:37 - INFO -   → Academic performance: 36233
+2026-03-17 23:07:37 - INFO -   → Sponsorships: 41866
+2026-03-17 23:07:37 - INFO -   → Progression: 469956
+2026-03-17 23:07:37 - INFO -   → Student–high school: 20000
+2026-03-17 23:07:37 - INFO -   → High schools: 73
+2026-03-17 23:07:37 - INFO - Silver layer transformation complete!
+2026-03-17 23:07:37 - INFO - ============================================================
+2026-03-17 23:07:37 - INFO - LOAD PHASE - Gold Layer (Data Warehouse)
+2026-03-17 23:07:37 - INFO - ============================================================
+2026-03-17 23:07:37 - INFO - Creating data warehouse database: ucu_datawarehouse
+2026-03-17 23:07:37 - INFO - Data warehouse database ucu_datawarehouse ready
+2026-03-17 23:07:37 - INFO - Creating dimension tables...
+2026-03-17 23:07:38 - INFO -   → Loaded 1823 courses into dim_course (from catalog)
+2026-03-17 23:07:38 - INFO -   → Loaded 1823 courses into dim_course (from silver)
+2026-03-17 23:08:13 - INFO -   → Loaded 10000 students into dim_student (50 columns)
+2026-03-17 23:08:13 - INFO -   → Loaded 3 semesters into dim_semester
+2026-03-17 23:08:13 - INFO -   → No rows in app_users; dim_app_user left empty
+2026-03-17 23:08:13 - INFO -   -> Loaded 11 faculties into dim_faculty
+2026-03-17 23:08:13 - INFO -   -> Loaded 18 departments into dim_department
+2026-03-17 23:08:13 - INFO -   -> Loaded 91 programs into dim_program
+2026-03-17 23:08:13 - INFO -   -> Loaded 253 employees (staff/lecturers) into dim_employee
+2026-03-17 23:08:13 - INFO -   -> Loaded 73 high schools into dim_high_school (all columns)
+2026-03-17 23:08:13 - INFO - Populating time dimension...
+2026-03-17 23:08:14 - INFO -   → Loaded 1826 time dimension records
+2026-03-17 23:08:15 - INFO -   → fact_enrollment incremental: 10000 new rows (skipped 0 existing)
+2026-03-17 23:08:19 - INFO -   → Loaded 10000 enrollments into fact_enrollment
+2026-03-17 23:09:05 - INFO -   -> Attendance: 3117871 rows pre-filter, 3117871 new rows after incremental watermark (max_id=0)
+2026-03-17 23:29:43 - INFO -   -> Loaded 3117871 attendance records into fact_attendance (in batches)
+2026-03-17 23:29:51 - INFO -   -> fact_payment ready (incremental, no in-batch dedupe): 130871 rows (pre-filter: 130871)
+2026-03-17 23:32:15 - INFO -   -> Loaded 130871 payments into fact_payment (in batches)
+2026-03-17 23:32:21 - INFO -   -> fact_grade ready (incremental): 234978 rows (pre-filter: 234978)
+2026-03-17 23:35:15 - INFO -   -> Loaded 234978 grades into fact_grade (in batches)
+2026-03-17 23:35:55 - INFO -   → Loaded 36233 rows into fact_transcript (22 columns, in batches)
+2026-03-17 23:36:25 - INFO -   → Loaded 36233 rows into fact_academic_performance (16 columns, in batches)
+2026-03-17 23:36:55 - INFO -   → Loaded 41866 rows into fact_sponsorship (14 columns, in batches)
+2026-03-17 23:41:04 - INFO -   → Loaded 469956 rows into fact_progression (9 columns, in batches)
+2026-03-17 23:41:17 - INFO -   → Loaded 20000 rows into fact_student_high_school (9 columns, in batches)
+2026-03-17 23:43:56 - INFO -   → Loaded 72068 rows into fact_grades_summary (34 columns, in batches)
+2026-03-17 23:43:58 - INFO -   → Loaded 1826 rows into dim_date (16 columns, in batches)
+2026-03-17 23:43:58 - WARNING -   → Analyst views SQL failed (non-fatal): (psycopg2.errors.UndefinedTable) relation "view_analyst_grade" does not exist
+
+[SQL: COMMENT ON VIEW view_analyst_grade IS 'Analyst-safe: grades joined to student, program, department, faculty, semester. Use WHERE faculty_id/department_id/program_id/student_id for scope.']
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-17 23:43:58 - INFO - ============================================================
+2026-03-17 23:43:58 - INFO - ETL PIPELINE COMPLETED SUCCESSFULLY
+2026-03-17 23:43:58 - INFO - Log file saved to: /app/logs/etl_pipeline_20260317_230443.log
+2026-03-17 23:43:58 - INFO - ============================================================
+2026-03-17 23:43:58 - INFO - ETL Pipeline completed successfully in 0:39:14.813848
