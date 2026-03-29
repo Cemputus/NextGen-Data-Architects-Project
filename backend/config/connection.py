@@ -86,3 +86,10 @@ for path in [BRONZE_PATH, SILVER_PATH, GOLD_PATH]:
 SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
 JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-change-in-production')
 
+# Tuition payment trends: illustrative series when warehouse has no rows (see tuition_trends_synthetic.py).
+TUITION_TRENDS_SYNTHETIC_FALLBACK = os.environ.get('TUITION_TRENDS_SYNTHETIC_FALLBACK', '1').lower() in (
+    '1',
+    'true',
+    'yes',
+)
+

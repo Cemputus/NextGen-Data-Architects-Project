@@ -27,6 +27,7 @@ from config.connection import (
     PG_PORT,
     PG_USER,
     PG_PASSWORD,
+    TUITION_TRENDS_SYNTHETIC_FALLBACK,
 )
 from werkzeug.security import generate_password_hash
 from werkzeug.exceptions import NotFound
@@ -4822,6 +4823,15 @@ def get_tuition_payment_trends_dimensions():
                 program_amounts.append(
                     round(total_amt / pu, 2) if pu > 0 else (round(total_amt, 2) if total_amt > 0 else 0.0)
                 )
+
+        if not periods:
+            from tuition_trends_synthetic import (
+                build_synthetic_tuition_trends,
+                should_use_synthetic_tuition_trends,
+            )
+
+            if should_use_synthetic_tuition_trends(filters, role, TUITION_TRENDS_SYNTHETIC_FALLBACK):
+                return jsonify(build_synthetic_tuition_trends(period)), 200
 
         return jsonify({
             'periods': periods,
