@@ -19,7 +19,6 @@ import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import {
   SciBarChart,
   SciLineChart,
-  SciDonutChart,
   Sci3DPieChart,
   SciStackedColumnChart,
 } from '../components/charts/EChartsComponents';
@@ -318,6 +317,24 @@ const AnalystDashboard = ({
     });
   }, [gradePerformanceSegments, gradePerformanceAxis]);
 
+  /** Always non-empty so bar charts render axes (placeholder row when API returns no rows). */
+  const letterGradeBarData = useMemo(() => {
+    const rows = (gradeDistribution || []).filter((d) => (d?.value ?? 0) > 0);
+    if (rows.length === 0) {
+      return [{ name: '—', fullName: 'No outcomes in scope', count: 0 }];
+    }
+    return rows.map((d) => ({
+      name: String(d.name ?? '—'),
+      fullName: `Grade ${d.name}`,
+      count: Number(d.value) || 0,
+    }));
+  }, [gradeDistribution]);
+
+  const passFailBarDisplay = useMemo(() => {
+    if (passFailBarData.length > 0) return passFailBarData;
+    return [{ name: '—', fullName: 'No outcomes in scope', pass: 0, fail: 0 }];
+  }, [passFailBarData]);
+
   const distributionCardTitle = useMemo(() => {
     if (isHodWorkspace) {
       if (!deptScopeShape.loaded) return 'Student distribution (your department)';
@@ -559,19 +576,6 @@ const AnalystDashboard = ({
         setLoadingCharts(false);
       }
     }
-  };
-
-  const gradeColor = (grade) => {
-    const g = (grade ?? '').toString().trim().toUpperCase();
-    // Requested: F = red, A = green, others distributed distinctly.
-    if (g === 'F') return UCU_COLORS.red;
-    if (g === 'A') return UCU_COLORS.green;
-    if (g === 'B') return UCU_COLORS.gold;
-    if (g === 'C') return UCU_COLORS.blue;
-    if (g === 'D') return UCU_COLORS.purple;
-    // Fallback: cycle through palette so unknown grades still look consistent.
-    const idx = Math.abs(Array.from(g).reduce((s, ch) => s + ch.charCodeAt(0), 0)) % 5;
-    return [UCU_COLORS.gold, UCU_COLORS.blue, UCU_COLORS.purple, UCU_COLORS.cyan, UCU_COLORS.maroon][idx];
   };
 
   const loadStudentDistributionChart = async () => {
@@ -892,49 +896,46 @@ const AnalystDashboard = ({
             ) : (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-                  <div className="min-h-[260px]">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Letter grade mix (completed exams)</p>
-                    {(gradeDistribution || []).some((d) => (d?.value ?? 0) > 0) ? (
-                      <SciDonutChart
-                        data={(gradeDistribution || []).map((d) => ({
-                          ...d,
-                          color: gradeColor(d?.name),
-                        }))}
-                        nameKey="name"
-                        valueKey="value"
-                        title="Grade distribution"
-                      />
-                    ) : (
-                      <div className={cn(chartEmptyStateClass, 'min-h-[200px]')}>No letter-grade data for these filters.</div>
-                    )}
+                  <div className="min-h-[300px]">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Letter grade counts (outcomes in scope)</p>
+                    <SciBarChart
+                      data={letterGradeBarData}
+                      xDataKey="name"
+                      yDataKey="count"
+                      xAxisLabel="Letter grade"
+                      yAxisLabel="Exam outcomes"
+                      tooltipNameKey="fullName"
+                      fillColor={UCU_COLORS.blue}
+                      showLegend={false}
+                      showGrid
+                      minHeight={300}
+                      maxHeight={400}
+                      gridPadding={{ bottom: 72 }}
+                      xAxisLabelRotate={letterGradeBarData.length > 10 ? 32 : 0}
+                    />
                   </div>
-                  <div className="min-h-[280px]">
+                  <div className="min-h-[300px]">
                     <p className="text-xs font-medium text-muted-foreground mb-2">
-                      Pass vs fail by {passFailBarAxisLabel.toLowerCase()} (same scope as filters)
+                      Pass vs fail by {passFailBarAxisLabel.toLowerCase()}
                     </p>
-                    {passFailBarData.length > 0 ? (
-                      <SciBarChart
-                        data={passFailBarData}
-                        xDataKey="name"
-                        yDataKeys={[
-                          { key: 'pass', label: 'Pass', color: UCU_COLORS.green },
-                          { key: 'fail', label: 'Fail', color: UCU_COLORS.red },
-                        ]}
-                        xAxisLabel={passFailBarAxisLabel}
-                        yAxisLabel="Completed exam outcomes"
-                        tooltipNameKey="fullName"
-                        showLegend
-                        showGrid
-                        minHeight={300}
-                        maxHeight={380}
-                        gridPadding={{ bottom: 100 }}
-                        xAxisLabelRotate={passFailBarData.length > 8 ? 40 : 28}
-                      />
-                    ) : (
-                      <div className={cn(chartEmptyStateClass, 'min-h-[200px]')}>
-                        No pass/fail breakdown for the current filters.
-                      </div>
-                    )}
+                    <SciBarChart
+                      data={passFailBarDisplay}
+                      xDataKey="name"
+                      yDataKeys={[
+                        { key: 'pass', label: 'Pass', color: UCU_COLORS.green },
+                        { key: 'fail', label: 'Fail', color: UCU_COLORS.red },
+                      ]}
+                      xAxisLabel={passFailBarAxisLabel}
+                      yAxisLabel="Outcomes (count)"
+                      tooltipNameKey="fullName"
+                      showLegend
+                      showGrid
+                      tooltipMode="breakdown"
+                      minHeight={300}
+                      maxHeight={400}
+                      gridPadding={{ bottom: 100 }}
+                      xAxisLabelRotate={passFailBarDisplay.length > 8 ? 40 : 28}
+                    />
                   </div>
                 </div>
               </div>

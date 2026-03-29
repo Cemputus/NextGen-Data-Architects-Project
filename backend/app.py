@@ -1954,6 +1954,19 @@ def _sql_exam_completed_predicate(alias='fg'):
     )
 
 
+def _sql_grade_has_outcome_for_analytics(alias='fg'):
+    """
+    Broader than strict "completed" only: any row usable for grade / pass-fail analytics
+    (completed exam OR numeric grade OR letter grade present). Used by grade-performance-breakdown.
+    """
+    a = alias
+    return (
+        f"({_sql_exam_completed_predicate(a)} OR "
+        f"{a}.grade IS NOT NULL OR "
+        f"NULLIF(TRIM({a}.letter_grade::text), '') IS NOT NULL)"
+    )
+
+
 def _filter_query_int(filters, key):
     """Parse a query param as int, or None if missing / 'all' / invalid."""
     if not filters:
@@ -3779,7 +3792,8 @@ def get_grade_performance_breakdown():
                 cc = str(filters.get('course_code')).replace("'", "''")
                 where_clauses.append(f"fg.course_code = '{cc}'")
 
-        where_clauses.append(_sql_exam_completed_predicate('fg'))
+        # Include any scoreable row so Performance charts populate when exam_status is missing or inconsistent.
+        where_clauses.append(_sql_grade_has_outcome_for_analytics('fg'))
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
         join_tail = str(role_join).strip() or (
@@ -3788,7 +3802,7 @@ def get_grade_performance_breakdown():
             "LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id"
         )
 
-        # --- Letter distribution (same as grade-distribution) ---
+        # --- Letter distribution ---
         dist_q = f"""
         SELECT
             COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—') AS letter_grade,
@@ -3868,8 +3882,8 @@ def get_grade_performance_breakdown():
             {join_tail}
             {where_sql}
             GROUP BY {group_sql}
-            HAVING SUM({fail_case}) + SUM({pass_case}) > 0
-            ORDER BY SUM({fail_case}) + SUM({pass_case}) DESC
+            HAVING COUNT(*) > 0
+            ORDER BY SUM({pass_case}) + SUM({fail_case}) DESC
             LIMIT 16
             """
             seg_df = pd.read_sql_query(text(seg_q), engine)
