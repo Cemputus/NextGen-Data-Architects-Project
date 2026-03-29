@@ -1968,6 +1968,28 @@ def _sql_grade_has_outcome_for_analytics(alias='fg'):
     )
 
 
+def _sql_effective_grade_numeric(alias='fg'):
+    """
+    SQL expression for ranking averages: use numeric grade when present, else map letter_grade to
+    midpoint percentages (A–F). Matches how top-students must behave when ETL fills letter_grade
+    but leaves grade NULL — same rows faculty/department charts already show.
+    """
+    a = alias
+    letter_map = (
+        f"CASE UPPER(TRIM(COALESCE({a}.letter_grade::text, ''))) "
+        "WHEN 'A' THEN 95.0 "
+        "WHEN 'B+' THEN 87.5 "
+        "WHEN 'B' THEN 82.5 "
+        "WHEN 'C+' THEN 77.5 "
+        "WHEN 'C' THEN 72.5 "
+        "WHEN 'D+' THEN 67.5 "
+        "WHEN 'D' THEN 62.5 "
+        "WHEN 'F' THEN 45.0 "
+        "ELSE NULL END"
+    )
+    return f"COALESCE({a}.grade::numeric, {letter_map})"
+
+
 def _filter_query_int(filters, key):
     """Parse a query param as int, or None if missing / 'all' / invalid."""
     if not filters:
@@ -3954,12 +3976,10 @@ def get_grade_performance_breakdown():
 @jwt_required()
 def get_top_students_filtered():
     """
-    Top students by average numeric fact_grade.grade (rows with grade > 0), RBAC-scoped:
-      - Dean: JWT faculty; optional department/program/semester/course/intake/high_school filters.
-      - HOD: JWT department; optional program/semester/course/etc.
-      - Staff: department and/or program scope.
-      - Senate / Analyst / Sysadmin: institution-wide when no faculty/department/program filter; same optional filters as other dashboards.
-    Uses LEFT JOIN dim_student so orphan fact_grade rows still rank; optional fact-only fallback for scoped institution roles when dim joins return no rows.
+    Top students by average score: numeric fg.grade when present, else letter_grade mapped to a percentage.
+    Row scope matches grade-performance (completed / letter / numeric outcome), not fg.grade IS NOT NULL alone.
+    RBAC-scoped: Dean/HOD/Staff/Senate/Analyst/Sysadmin as for other dashboard endpoints.
+    Uses LEFT JOIN dim_student; optional fact-only fallback for institution roles when dim joins return no rows.
     """
     try:
         from flask_jwt_extended import get_jwt
@@ -4001,8 +4021,13 @@ def get_top_students_filtered():
         pi = _int_param('program_id')
         semester_id = _int_param('semester_id')
 
-        # Meaningful numeric grades only (ETL often fills missing with 0).
-        where_clauses = ["COALESCE(fg.grade::numeric, 0) > 0"]
+        # Same row scope as grade-performance / distribution: completed or letter/numeric outcome.
+        # Require a computable score (numeric grade or mapped letter); raw fg.grade IS NOT NULL alone
+        # misses letter-only ETL rows while faculty filters still "work" on other charts.
+        where_clauses = [
+            _sql_grade_has_outcome_for_analytics('fg'),
+            f"({_sql_effective_grade_numeric('fg')}) IS NOT NULL",
+        ]
 
         if role == Role.DEAN:
             fid = claims.get('faculty_id')
@@ -4077,18 +4102,19 @@ def get_top_students_filtered():
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
 
+        eff = _sql_effective_grade_numeric('fg')
         query = f"""
         SELECT 
             COALESCE(
                 NULLIF(TRIM(CONCAT(COALESCE(MAX(ds.first_name::text), ''), ' ', COALESCE(MAX(ds.last_name::text), ''))), ''),
                 fg.student_id::text
             ) AS student_name,
-            AVG(fg.grade::numeric) AS avg_grade
+            AVG({eff}) AS avg_grade
         FROM fact_grade fg
         {join_clause}
         {where_clause}
         GROUP BY fg.student_id
-        HAVING AVG(fg.grade::numeric) IS NOT NULL
+        HAVING AVG({eff}) IS NOT NULL
         ORDER BY avg_grade DESC
         LIMIT {limit}
         """
@@ -4104,7 +4130,11 @@ def get_top_students_filtered():
                 and not dim_filters_applied
             )
             if use_fact_only_fallback:
-                fb_where = ["COALESCE(fg.grade::numeric, 0) > 0"]
+                eff_fb = _sql_effective_grade_numeric('fg')
+                fb_where = [
+                    _sql_grade_has_outcome_for_analytics('fg'),
+                    f"({eff_fb}) IS NOT NULL",
+                ]
                 if semester_id is not None:
                     fb_where.append(f"fg.semester_id = {semester_id}")
                 if cc and str(cc).strip().lower() not in ('', 'all'):
@@ -4112,11 +4142,11 @@ def get_top_students_filtered():
                     fb_where.append(f"fg.course_code = '{cc_esc}'")
                 fb_sql = f"""
                 SELECT fg.student_id::text AS student_name,
-                       AVG(fg.grade::numeric) AS avg_grade
+                       AVG({eff_fb}) AS avg_grade
                 FROM fact_grade fg
                 WHERE {' AND '.join(fb_where)}
                 GROUP BY fg.student_id
-                HAVING AVG(fg.grade::numeric) IS NOT NULL
+                HAVING AVG({eff_fb}) IS NOT NULL
                 ORDER BY avg_grade DESC
                 LIMIT {limit}
                 """

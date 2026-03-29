@@ -874,85 +874,91 @@ const AnalystDashboard = ({
           </Card>
       </div>
 
-      {/* Top students by performance (RBAC: Dean → faculty, HOD → department, Senate/Analyst → institution or filters) */}
-      {showTopStudentsChart && (
-        <Card className={chartSurfaceCard('h-full')}>
-          <CardHeader className={chartCardHeaderClass}>
-            <CardTitle className={chartCardTitleClass}>Top students by performance</CardTitle>
-            <CardDescription className={chartCardDescriptionClass}>
-              {(isSenateWorkspace || (!isDeanWorkspace && !isHodWorkspace)) &&
-                'Highest average numeric grades from recorded exam outcomes. With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
-              {isDeanWorkspace &&
-                'Highest average numeric grades from recorded exam outcomes. Ranking is limited to your faculty; add department, program, semester, or course filters to narrow.'}
-              {isHodWorkspace &&
-                'Highest average numeric grades from recorded exam outcomes. Ranking is limited to your department; add program, semester, or course filters to narrow.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {loadingTopStudents && !hasLoadedTopStudents ? (
-              <div className="min-h-[320px] flex items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : topStudentsPerformance.length === 0 ? (
-              <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex flex-col items-center justify-center gap-1 px-4 text-sm text-center')}>
-                <span>No rows in scope with a numeric grade in fact_grade.</span>
-                <span className="text-xs text-muted-foreground max-w-md">
-                  Clear semester or course filters if they are too narrow, or confirm ETL has loaded grades.
-                </span>
-              </div>
-            ) : (
-              <SciBarChart
-                data={topStudentsPerformance}
-                xDataKey="name"
-                yDataKey="grade"
-                tooltipNameKey="fullName"
-                xAxisLabel="Student"
-                yAxisLabel="Average grade (%)"
-                showLegend={false}
-                xAxisLabelRotate={28}
-                axisFontSize={11}
-                showGrid
-                gridPadding={{ bottom: 72 }}
-                fillColor={CHART_PALETTE_THEME[0]}
-                minHeight={360}
-                maxHeight={480}
-              />
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {/* Top students + Risk — same row on lg; Risk full width when top students hidden (e.g. staff) */}
+      <div
+        className={cn(
+          'mt-6 grid gap-4 items-stretch',
+          showTopStudentsChart ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1',
+        )}
+      >
+        {showTopStudentsChart && (
+          <Card className={chartSurfaceCard('h-full')}>
+            <CardHeader className={chartCardHeaderClass}>
+              <CardTitle className={chartCardTitleClass}>Top students by performance</CardTitle>
+              <CardDescription className={chartCardDescriptionClass}>
+                {(isSenateWorkspace || (!isDeanWorkspace && !isHodWorkspace)) &&
+                  'Highest average scores from exam outcomes (numeric grade, or letter grade mapped to a percentage). With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
+                {isDeanWorkspace &&
+                  'Highest average scores from exam outcomes (numeric or mapped letter grades). Ranking is limited to your faculty; add department, program, semester, or course filters to narrow.'}
+                {isHodWorkspace &&
+                  'Highest average scores from exam outcomes (numeric or mapped letter grades). Ranking is limited to your department; add program, semester, or course filters to narrow.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {loadingTopStudents && !hasLoadedTopStudents ? (
+                <div className="min-h-[320px] flex items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : topStudentsPerformance.length === 0 ? (
+                <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex flex-col items-center justify-center gap-1 px-4 text-sm text-center')}>
+                  <span>No scored exam outcomes in this scope (numeric grade or letter grade).</span>
+                  <span className="text-xs text-muted-foreground max-w-md">
+                    Clear semester or course filters if they are too narrow. Other charts may use enrollment or
+                    exam flags without a score column.
+                  </span>
+                </div>
+              ) : (
+                <SciBarChart
+                  data={topStudentsPerformance}
+                  xDataKey="name"
+                  yDataKey="grade"
+                  tooltipNameKey="fullName"
+                  xAxisLabel="Student"
+                  yAxisLabel="Average grade (%)"
+                  showLegend={false}
+                  xAxisLabelRotate={28}
+                  axisFontSize={11}
+                  showGrid
+                  gridPadding={{ bottom: 72 }}
+                  fillColor={CHART_PALETTE_THEME[0]}
+                  minHeight={360}
+                  maxHeight={480}
+                />
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Section B – Risk */}
-      <div className="grid grid-cols-1 gap-4">
+        {/* Section B – Risk */}
         <Card className={chartSurfaceCard('h-full')}>
           <CardHeader className={chartCardHeaderClass}>
             <CardTitle className={chartCardTitleClass}>Risk & FCW/MEX/FEX segments</CardTitle>
             <CardDescription className={chartCardDescriptionClass}>
               Concentration of FCW/MEX/FEX across courses and programs. Driven by FCW/MEX/FEX
               flags in `fact_grade` and risk endpoints.
-              </CardDescription>
-            </CardHeader>
+            </CardDescription>
+          </CardHeader>
           <CardContent className="pt-0">
             {loadingCharts && !hasLoadedCharts ? (
               <div className="min-h-[220px] flex items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : (
-            <SciStackedColumnChart
-              data={[
-                { name: 'FCW', value: riskSummary?.fcw_count || 0 },
-                { name: 'MEX', value: riskSummary?.mex_count || 0 },
-                { name: 'FEX', value: riskSummary?.fex_count || 0 },
-              ]}
-              xDataKey="name"
-              yDataKey="value"
-              xAxisLabel="Segment"
-              yAxisLabel="Number of course outcomes"
-              // Keep FCW/MEX/FEX colors consistent across hard refreshes/palette changes.
-              // Requested: FEX red, FCW "malon" (maroon), MEX orange.
-              colors={[UCU_COLORS.maroon, UCU_COLORS.gold, '#DC2626']}
-              showPercentages
-            />
+              <SciStackedColumnChart
+                data={[
+                  { name: 'FCW', value: riskSummary?.fcw_count || 0 },
+                  { name: 'MEX', value: riskSummary?.mex_count || 0 },
+                  { name: 'FEX', value: riskSummary?.fex_count || 0 },
+                ]}
+                xDataKey="name"
+                yDataKey="value"
+                xAxisLabel="Segment"
+                yAxisLabel="Number of course outcomes"
+                // Keep FCW/MEX/FEX colors consistent across hard refreshes/palette changes.
+                // Requested: FEX red, FCW "malon" (maroon), MEX orange.
+                colors={[UCU_COLORS.maroon, UCU_COLORS.gold, '#DC2626']}
+                showPercentages
+              />
             )}
           </CardContent>
         </Card>
