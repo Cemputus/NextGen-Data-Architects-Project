@@ -25,6 +25,7 @@ import {
   CartesianGrid,
   LabelList,
 } from 'recharts';
+import { formatCompactNumber } from '../lib/chartTheme';
 
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
@@ -365,13 +366,13 @@ const HRStaff = () => {
                         cx="50%"
                         cy="50%"
                         outerRadius={88}
-                        label={({ value }) => (value != null ? String(value) : '')}
+                        label={({ value }) => (value != null ? formatCompactNumber(value) : '')}
                       >
                         {pieChartData.map((entry) => (
                           <Cell key={entry.key} fill={entry.fill} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(v) => [v, 'People']} />
+                      <Tooltip formatter={(v) => [formatCompactNumber(v), 'People']} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                     </PieChart>
                   </ResponsiveContainer>
@@ -418,7 +419,7 @@ const HRStaff = () => {
                         interval={0}
                       />
                       <Tooltip
-                        formatter={(v) => [v, 'People']}
+                        formatter={(v) => [formatCompactNumber(v), 'People']}
                         labelFormatter={(_, payload) => payload?.[0]?.payload?.name ?? ''}
                       />
                       <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={28}>
@@ -428,7 +429,7 @@ const HRStaff = () => {
                         <LabelList
                           dataKey="value"
                           position="right"
-                          formatter={(v) => (v > 0 ? String(v) : '')}
+                          formatter={(v) => (v > 0 ? formatCompactNumber(v) : '')}
                           className="text-xs fill-foreground font-medium"
                         />
                       </Bar>

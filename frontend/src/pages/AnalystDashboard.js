@@ -26,7 +26,7 @@ import {
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { KPICard } from '../components/ui/kpi-card';
 import { cn } from '../lib/utils';
-import { UCU_COLORS } from '../lib/chartTheme';
+import { UCU_COLORS, CHART_PALETTE_THEME } from '../lib/chartTheme';
 import {
   kpiStripCardClass,
   chartSurfaceCard,
@@ -1008,6 +1008,15 @@ const AnalystDashboard = ({
                   <SciLineChart
                     data={tuitionPaymentTrendsDim}
                     xDataKey="period"
+                    yDataKeys={
+                      !apiFilters?.program_id && !apiFilters?.department_id
+                        ? [
+                            { key: 'faculty_amount', label: 'Faculty average', color: CHART_PALETTE_THEME[0] },
+                            { key: 'department_amount', label: 'Department average', color: CHART_PALETTE_THEME[1] },
+                            { key: 'program_amount', label: 'Program average', color: CHART_PALETTE_THEME[2] },
+                          ]
+                        : undefined
+                    }
                     yDataKey={
                       apiFilters?.program_id
                         ? 'program_amount'
@@ -1016,17 +1025,26 @@ const AnalystDashboard = ({
                           : 'faculty_amount'
                     }
                     xAxisLabel="Period"
-                    yAxisLabel={`Avg completed tuition payment${
-                      apiFilters?.program_id
-                        ? ' (Program)'
-                        : apiFilters?.department_id
-                          ? ' (Department)'
-                          : apiFilters?.faculty_id
-                            ? ' (Faculty)'
-                            : ' (All Faculties)'
-                    }`}
-                    showLegend={false}
+                    yAxisLabel={
+                      !apiFilters?.program_id && !apiFilters?.department_id
+                        ? 'Avg completed amount (per unit)'
+                        : `Avg completed tuition payment${
+                            apiFilters?.program_id
+                              ? ' (Program)'
+                              : apiFilters?.department_id
+                                ? ' (Department)'
+                                : apiFilters?.faculty_id
+                                  ? ' (Faculty)'
+                                  : ' (All Faculties)'
+                          }`
+                    }
+                    showLegend={!apiFilters?.program_id && !apiFilters?.department_id}
                     showGrid
+                    gridPadding={
+                      !apiFilters?.program_id && !apiFilters?.department_id
+                        ? { bottom: 88 }
+                        : undefined
+                    }
                     minHeight={360}
                     maxHeight={580}
                   />

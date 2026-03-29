@@ -19,7 +19,7 @@ import {
   chartCardTitleClass,
   chartCardDescriptionClass,
 } from '../lib/analytics-ui';
-import { MODERN_CHART_PALETTE } from '../lib/chartTheme';
+import { MODERN_CHART_PALETTE, CHART_PALETTE_THEME } from '../lib/chartTheme';
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
 
 const FinanceDashboard = () => {
@@ -543,25 +543,43 @@ const FinanceDashboard = () => {
                 <SciLineChart
                   data={tuitionPaymentTrendsDim}
                   xDataKey="period"
+                  yDataKeys={
+                    !debouncedFilters?.program_id && !debouncedFilters?.department_id
+                      ? [
+                          { key: 'faculty_amount', label: 'Faculty average', color: CHART_PALETTE_THEME[0] },
+                          { key: 'department_amount', label: 'Department average', color: CHART_PALETTE_THEME[1] },
+                          { key: 'program_amount', label: 'Program average', color: CHART_PALETTE_THEME[2] },
+                        ]
+                      : undefined
+                  }
                   yDataKey={
-                    filters?.program_id
+                    debouncedFilters?.program_id
                       ? 'program_amount'
-                      : filters?.department_id
+                      : debouncedFilters?.department_id
                         ? 'department_amount'
                         : 'faculty_amount'
                   }
                   xAxisLabel="Period"
-                  yAxisLabel={`Avg completed tuition payment${
-                    filters?.program_id
-                      ? ' (Program)'
-                      : filters?.department_id
-                        ? ' (Department)'
-                        : filters?.faculty_id
-                          ? ' (Faculty)'
-                          : ' (All Faculties)'
-                  }`}
-                  showLegend={false}
+                  yAxisLabel={
+                    !debouncedFilters?.program_id && !debouncedFilters?.department_id
+                      ? 'Avg completed amount (per unit)'
+                      : `Avg completed tuition payment${
+                          debouncedFilters?.program_id
+                            ? ' (Program)'
+                            : debouncedFilters?.department_id
+                              ? ' (Department)'
+                              : debouncedFilters?.faculty_id
+                                ? ' (Faculty)'
+                                : ' (All Faculties)'
+                        }`
+                  }
+                  showLegend={!debouncedFilters?.program_id && !debouncedFilters?.department_id}
                   showGrid
+                  gridPadding={
+                    !debouncedFilters?.program_id && !debouncedFilters?.department_id
+                      ? { bottom: 88 }
+                      : undefined
+                  }
                   minHeight={360}
                   maxHeight={580}
                 />
