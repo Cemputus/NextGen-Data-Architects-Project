@@ -248,13 +248,13 @@ const AnalystDashboard = ({
       setHasLoadedStats(true);
     } catch (err) {
       if (reqId === statsRequestSeqRef.current) {
-        console.error('Error loading analyst dashboard stats:', err);
+      console.error('Error loading analyst dashboard stats:', err);
         // Keep existing stats on failure so KPIs don't disappear.
       }
     } finally {
       if (reqId === statsRequestSeqRef.current) {
-        setLoadingStats(false);
-        setRefreshing(false);
+      setLoadingStats(false);
+      setRefreshing(false);
       }
     }
   };
@@ -898,7 +898,7 @@ const AnalystDashboard = ({
               {loadingTopStudents && !hasLoadedTopStudents ? (
                 <div className="min-h-[320px] flex items-center justify-center">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
+                  </div>
               ) : topStudentsPerformance.length === 0 ? (
                 <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex flex-col items-center justify-center gap-1 px-4 text-sm text-center')}>
                   <span className="max-w-md">

@@ -158,9 +158,16 @@ const AnalystDashboardsPage = () => {
     }
   };
 
-  const loadData = async () => {
+  /**
+   * @param {{ silent?: boolean }} [opts]
+   * When silent is true, skips global loading state so only affected cards update (no full-page spinner).
+   */
+  const loadData = async (opts = {}) => {
+    const silent = opts.silent === true;
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setApiForbidden(false);
       const token = authToken || sessionStorage.getItem('ucu_session_token');
 
@@ -218,7 +225,9 @@ const AnalystDashboardsPage = () => {
       setCurrentByRole(fallbackRoles.map((r) => ({ role: r, dashboard: null })));
       // Do not clear customDashboards on error so recently created dashboard is not lost
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -349,7 +358,7 @@ const AnalystDashboardsPage = () => {
       await axios.delete(`/api/page-config/${pageKey}`, {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
-      await loadData();
+      await loadData({ silent: true });
       setMessageModal({ open: true, message: 'Page reset to default. It will use default KPIs and charts.' });
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to reset page.';
@@ -380,7 +389,7 @@ const AnalystDashboardsPage = () => {
         { definition },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      await loadData();
+      await loadData({ silent: true });
       setMessageModal({
         open: true,
         message: `Content copied from ${PAGE_CONFIG_LABELS[fromPageKey] || fromPageKey} to ${PAGE_CONFIG_LABELS[toPageKey] || toPageKey}.`,
@@ -414,7 +423,7 @@ const AnalystDashboardsPage = () => {
         { role: targetRole, dashboard_id: dash.id },
         { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
       );
-      await loadData();
+      await loadData({ silent: true });
     } catch (err) {
       console.error('Error swapping dashboard:', err);
       const msg = err?.response?.data?.error || err?.message || 'Unknown error while swapping dashboard.';
@@ -450,7 +459,7 @@ const AnalystDashboardsPage = () => {
       await axios.delete(`/api/dashboards/${dash.id}`, {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
-      await loadData();
+      await loadData({ silent: true });
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to delete dashboard.';
       setMessageModal({ open: true, message: msg });
@@ -477,7 +486,7 @@ const AnalystDashboardsPage = () => {
           { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
         );
         setContentPageKey(null);
-        await loadData();
+        await loadData({ silent: true });
       } catch (err) {
         console.error('Error updating page config:', err);
         const msg =
@@ -517,7 +526,7 @@ const AnalystDashboardsPage = () => {
         }
       );
       setContentDashboard(null);
-      await loadData();
+      await loadData({ silent: true });
     } catch (err) {
       console.error('Error updating dashboard content:', err);
       const msg =
@@ -563,7 +572,7 @@ const AnalystDashboardsPage = () => {
         setCustomDashboards((prev) => [created, ...prev]);
       }
       try {
-      await loadData();
+      await loadData({ silent: true });
       } finally {
         // Keep created dashboard in list if GET /custom didn't return it (timing/filter)
         if (created && created.id) {
@@ -610,7 +619,8 @@ const AnalystDashboardsPage = () => {
             <Button
               size="sm"
               className="gap-2"
-              onClick={loadData}
+              type="button"
+              onClick={() => loadData()}
               disabled={loading}
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -694,9 +704,7 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            <strong>Role home dashboards</strong> — Dean, HoD, Senate, Staff, Student, Finance, HR: Default, View, Edit,
-            Reset, Copy from… (same <code className="text-[10px]">/api/page-config/</code> as before; not listed under
-            Pages with visuals). Use <strong>Custom Dashboards</strong> below to swap or edit a shared dashboard definition.
+            Per-role home layouts via page-config. Custom dashboard swaps are managed in the section below.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -713,9 +721,7 @@ const AnalystDashboardsPage = () => {
                   Role home dashboards
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Dean Dashboard, HoD Dashboard, Senate Dashboard, Staff Dashboard, Student Dashboard, Finance Dashboard,
-                  HR Dashboard — configure KPIs and charts for each role&apos;s home page. Copy from… is limited to other
-                  role dashboards in this list.
+                  Dean, HoD, Senate, Staff, Student, Finance, HR. Copy applies only within this set.
                 </p>
             <div
               className={
