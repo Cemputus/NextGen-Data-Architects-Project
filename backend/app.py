@@ -3953,48 +3953,91 @@ def get_grade_performance_breakdown():
 @app.route('/api/dashboard/top-students', methods=['GET'])
 @jwt_required()
 def get_top_students_filtered():
-    """Get top performing students with role-based filtering"""
+    """
+    Top students by average grade (completed exams), RBAC-scoped:
+      - Dean: JWT faculty only; optional department/program filters narrow within that faculty.
+      - HOD: JWT department only; optional program filter.
+      - Staff: department and/or program scope (existing behaviour).
+      - Senate / Analyst / Sysadmin: institution-wide, or narrowed by faculty/department/program query params.
+    """
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
-        
-        claims = get_jwt()
-        role_str = claims.get('role', 'student')
-        try:
-            role = Role(role_str.lower())
-        except:
-            role = Role.STUDENT
-        
-        engine = get_dw_engine()
-        filters = request.args.to_dict()
-        limit = int(filters.get('limit', 10))
-        
-        # Build WHERE clause based on role
-        where_clauses = []
-        
-        # Role-based scoping
-        if role == Role.DEAN and claims.get('faculty_id'):
-            where_clauses.append(f"df.faculty_id = {claims['faculty_id']}")
-        elif role == Role.HOD and claims.get('department_id'):
-            where_clauses.append(f"ddept.department_id = {claims['department_id']}")
-        elif role == Role.STAFF and claims.get('department_id'):
-            where_clauses.append(f"ddept.department_id = {claims['department_id']}")
-        elif role == Role.STAFF and filters.get('program_id'):
-            where_clauses.append(f"ds.program_id = {filters['program_id']}")
 
-        # Apply user filters
-        if filters.get('faculty_id'):
-            where_clauses.append(f"df.faculty_id = {filters['faculty_id']}")
-        if filters.get('department_id'):
-            where_clauses.append(f"ddept.department_id = {filters['department_id']}")
-        if filters.get('program_id'):
-            where_clauses.append(f"ds.program_id = {filters['program_id']}")
-        
+        claims = get_jwt()
+        role_str = (claims.get('role') or 'student').strip().lower()
+        try:
+            role = Role(role_str)
+        except Exception:
+            role = Role.STUDENT
+
+        allowed = {
+            Role.SENATE, Role.ANALYST, Role.SYSADMIN, Role.DEAN, Role.HOD, Role.STAFF,
+        }
+        if role not in allowed:
+            return jsonify({'students': [], 'grades': [], 'error': 'Forbidden'}), 403
+
+        engine = get_dw_engine()
+        qf = request.args.to_dict()
+
+        try:
+            limit = int(qf.get('limit', 10))
+        except Exception:
+            limit = 10
+        limit = max(5, min(limit, 50))
+
+        def _int_param(key):
+            v = qf.get(key)
+            if v is None or str(v).strip().lower() in ('', 'all'):
+                return None
+            try:
+                return int(v)
+            except Exception:
+                return None
+
+        fi = _int_param('faculty_id')
+        di = _int_param('department_id')
+        pi = _int_param('program_id')
+
+        where_clauses = []
+
+        if role == Role.DEAN:
+            fid = claims.get('faculty_id')
+            if fid is None:
+                return jsonify({'students': [], 'grades': []}), 200
+            where_clauses.append(f"df.faculty_id = {int(fid)}")
+            if di is not None:
+                where_clauses.append(f"ddept.department_id = {di}")
+            if pi is not None:
+                where_clauses.append(f"ds.program_id = {pi}")
+        elif role == Role.HOD:
+            did = claims.get('department_id')
+            if did is None:
+                return jsonify({'students': [], 'grades': []}), 200
+            where_clauses.append(f"ddept.department_id = {int(did)}")
+            if pi is not None:
+                where_clauses.append(f"ds.program_id = {pi}")
+        elif role == Role.STAFF:
+            if claims.get('department_id') is not None:
+                where_clauses.append(f"ddept.department_id = {int(claims['department_id'])}")
+                if pi is not None:
+                    where_clauses.append(f"ds.program_id = {pi}")
+            elif pi is not None:
+                where_clauses.append(f"ds.program_id = {pi}")
+        else:
+            # Senate, Analyst, Sysadmin — optional drill-down (JWT does not lock scope)
+            if fi is not None:
+                where_clauses.append(f"df.faculty_id = {fi}")
+            if di is not None:
+                where_clauses.append(f"ddept.department_id = {di}")
+            if pi is not None:
+                where_clauses.append(f"ds.program_id = {pi}")
+
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-        
-        # Join with program, department, faculty for role-based filtering
+
+        need_dim_join = any(('df.' in c or 'ddept.' in c) for c in where_clauses)
         join_clause = ""
-        if role in [Role.DEAN, Role.HOD, Role.STAFF] or filters.get('faculty_id') or filters.get('department_id'):
+        if need_dim_join:
             join_clause = """
             LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
             LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id

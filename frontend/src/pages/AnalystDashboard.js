@@ -66,6 +66,12 @@ const AnalystDashboard = ({
       ? 'Use Program and other filters to narrow charts; you cannot view other departments.'
       : 'Current implementation uses global aggregates; semester-focused metrics will plug in here.';
 
+  /** Top students by avg grade — same API/RBAC as /api/dashboard/top-students (workspace + role). */
+  const showTopStudentsChart = useMemo(() => {
+    const r = (user?.role || '').toLowerCase();
+    return ['analyst', 'senate', 'dean', 'hod', 'sysadmin'].includes(r);
+  }, [user?.role]);
+
   const [loadingStats, setLoadingStats] = useState(true);
   const [stats, setStats] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,11 +91,15 @@ const AnalystDashboard = ({
   const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
   const [loadingPipeline, setLoadingPipeline] = useState(true);
   const [hasLoadedPipeline, setHasLoadedPipeline] = useState(false);
+  const [topStudentsPerformance, setTopStudentsPerformance] = useState([]);
+  const [loadingTopStudents, setLoadingTopStudents] = useState(true);
+  const [hasLoadedTopStudents, setHasLoadedTopStudents] = useState(false);
   const [globalFilters, setGlobalFilters] = useState({});
   const statsRequestSeqRef = useRef(0);
   const chartsRequestSeqRef = useRef(0);
   const studentDistRequestSeqRef = useRef(0);
   const pipelineRequestSeqRef = useRef(0);
+  const topStudentsRequestSeqRef = useRef(0);
   /** For deans: department/program counts in their faculty → drives default distribution dimension. */
   const [facultyShape, setFacultyShape] = useState({
     loaded: false,
@@ -243,6 +253,13 @@ const AnalystDashboard = ({
         setRefreshing(false);
       }
     }
+  };
+
+  const shortTopStudentAxisLabel = (fullName) => {
+    const s = String(fullName ?? '').trim();
+    if (!s) return '—';
+    if (s.length <= 22) return s;
+    return `${s.slice(0, 20)}…`;
   };
 
   const abbreviateName = (name) => {
@@ -580,11 +597,52 @@ const AnalystDashboard = ({
     }
   };
 
+  const loadTopStudents = async () => {
+    const reqId = ++topStudentsRequestSeqRef.current;
+    if (!showTopStudentsChart) {
+      setTopStudentsPerformance([]);
+      setLoadingTopStudents(false);
+      return;
+    }
+    try {
+      if (!hasLoadedTopStudents) setLoadingTopStudents(true);
+      const token = sessionStorage.getItem('ucu_session_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios
+        .get('/api/dashboard/top-students', {
+          headers,
+          params: { ...apiFilters, limit: 10 },
+        })
+        .catch(() => ({ data: { students: [], grades: [] } }));
+      if (reqId !== topStudentsRequestSeqRef.current) return;
+      const names = res.data?.students || [];
+      const grades = res.data?.grades || [];
+      setTopStudentsPerformance(
+        names.map((studentName, idx) => ({
+          name: shortTopStudentAxisLabel(studentName),
+          fullName: String(studentName ?? '').trim() || '—',
+          grade: Number(grades[idx]) || 0,
+        })),
+      );
+      setHasLoadedTopStudents(true);
+    } catch (err) {
+      if (reqId === topStudentsRequestSeqRef.current) {
+        console.error('Error loading top students:', err);
+        setTopStudentsPerformance([]);
+      }
+    } finally {
+      if (reqId === topStudentsRequestSeqRef.current) {
+        setLoadingTopStudents(false);
+      }
+    }
+  };
+
   useEffect(() => {
     loadStats();
     loadCharts();
     loadPipelineChart();
     loadStudentDistributionChart();
+    loadTopStudents();
     const interval = setInterval(loadStats, ANALYST_KPI_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -597,10 +655,20 @@ const AnalystDashboard = ({
       loadCharts();
       loadStudentDistributionChart();
       loadPipelineChart();
+      loadTopStudents();
     }, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalFilters, distributionGroupBy, lockedFacultyId, lockedDepartmentId, facultyShape.loaded, deptScopeShape.loaded]);
+  }, [
+    globalFilters,
+    distributionGroupBy,
+    lockedFacultyId,
+    lockedDepartmentId,
+    facultyShape.loaded,
+    deptScopeShape.loaded,
+    showTopStudentsChart,
+    user?.role,
+  ]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -801,6 +869,53 @@ const AnalystDashboard = ({
             </CardContent>
           </Card>
       </div>
+
+      {/* Top students by performance (RBAC: Dean → faculty, HOD → department, Senate/Analyst → institution or filters) */}
+      {showTopStudentsChart && (
+        <Card className={chartSurfaceCard('h-full')}>
+          <CardHeader className={chartCardHeaderClass}>
+            <CardTitle className={chartCardTitleClass}>Top students by performance</CardTitle>
+            <CardDescription className={chartCardDescriptionClass}>
+              {isSenateWorkspace &&
+                'Highest average grades (completed exam attempts) in scope — institution-wide unless you narrow filters above.'}
+              {isDeanWorkspace &&
+                'Highest average grades among students in your faculty; department/program filters apply within your faculty.'}
+              {isHodWorkspace &&
+                'Highest average grades among students in your department; program filter narrows further.'}
+              {!isSenateWorkspace && !isDeanWorkspace && !isHodWorkspace &&
+                'Highest average grades (completed exam attempts) in scope — use filters to narrow by faculty, department, or program.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {loadingTopStudents && !hasLoadedTopStudents ? (
+              <div className="min-h-[320px] flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : topStudentsPerformance.length === 0 ? (
+              <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex items-center justify-center text-sm')}>
+                No graded students in the current scope, or not enough data to rank averages.
+              </div>
+            ) : (
+              <SciBarChart
+                data={topStudentsPerformance}
+                xDataKey="name"
+                yDataKey="grade"
+                tooltipNameKey="fullName"
+                xAxisLabel="Student"
+                yAxisLabel="Average grade (%)"
+                showLegend={false}
+                xAxisLabelRotate={28}
+                axisFontSize={11}
+                showGrid
+                gridPadding={{ bottom: 72 }}
+                fillColor={CHART_PALETTE_THEME[0]}
+                minHeight={360}
+                maxHeight={480}
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Section B – Risk */}
       <div className="grid grid-cols-1 gap-4">
