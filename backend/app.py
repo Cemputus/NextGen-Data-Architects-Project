@@ -1942,6 +1942,18 @@ def _dashboard_role_scope():
     return '', ''
 
 
+def _sql_exam_completed_predicate(alias='fg'):
+    """
+    SQL boolean for fact_grade rows that count as completed exams.
+    ETL may store exam_status as 'Completed', 'COMPLETED', or leave it blank when grade is present.
+    """
+    a = alias
+    return (
+        f"(UPPER(TRIM(COALESCE({a}.exam_status, ''))) IN ('COMPLETED', 'COMPLETE') "
+        f"OR (COALESCE(TRIM({a}.exam_status::text), '') = '' AND {a}.grade IS NOT NULL))"
+    )
+
+
 def _filter_query_int(filters, key):
     """Parse a query param as int, or None if missing / 'all' / invalid."""
     if not filters:
@@ -2147,7 +2159,7 @@ def get_dashboard_stats():
             except Exception as e:
                 print(f"Error getting total_enrollments (lite): {e}")
             try:
-                grade_clauses = ["UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED'"]
+                grade_clauses = [_sql_exam_completed_predicate('fg')]
                 if semester_id_filter is not None:
                     grade_clauses.append(f"fg.semester_id = {semester_id_filter}")
                 if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
@@ -2422,7 +2434,7 @@ def get_dashboard_stats():
                 if staff_fg_parts is None:
                     avg_grade = 0.0
                 else:
-                    grade_clauses = ["fg.exam_status = 'Completed'"] + staff_fg_parts
+                    grade_clauses = [_sql_exam_completed_predicate('fg')] + staff_fg_parts
                     if enroll_student_filter_parts:
                         grade_clauses.append("(" + " AND ".join(enroll_student_filter_parts) + ")")
                     fj = f" {filter_join} " if (filter_join and str(filter_join).strip()) else ""
@@ -2434,8 +2446,7 @@ def get_dashboard_stats():
                     avg_grade_result = pd.read_sql_query(text(avg_q), engine)
                     avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
             else:
-                # Case-insensitive: warehouse may store 'Completed' or 'COMPLETED'
-                grade_clauses = ["UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'COMPLETED'"]
+                grade_clauses = [_sql_exam_completed_predicate('fg')]
                 if semester_id_filter is not None:
                     grade_clauses.append(f"fg.semester_id = {semester_id_filter}")
                 if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
@@ -2455,14 +2466,14 @@ def get_dashboard_stats():
                         f"JOIN dim_student ds ON fg.student_id = ds.student_id{scope_join}{wsql}"
                     )
                 else:
-                    sem_grade_clause = f" AND semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
+                    sem_grade_clause = f" AND fg.semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
                     cc_clause = ""
                     if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
                         cc = str(filters.get('course_code')).replace("'", "''")
-                        cc_clause = f" AND course_code = '{cc}'"
+                        cc_clause = f" AND fg.course_code = '{cc}'"
                     avg_q = (
-                        f"SELECT AVG(grade) as avg FROM fact_grade "
-                        f"WHERE UPPER(TRIM(COALESCE(exam_status, ''))) = 'COMPLETED'{sem_grade_clause}{cc_clause}"
+                        f"SELECT AVG(fg.grade) as avg FROM fact_grade fg "
+                        f"WHERE {_sql_exam_completed_predicate('fg')}{sem_grade_clause}{cc_clause}"
                     )
                 avg_grade_result = pd.read_sql_query(text(avg_q), engine)
                 avg_grade = float(avg_grade_result['avg'][0]) if not avg_grade_result.empty and pd.notna(avg_grade_result['avg'][0]) else 0.0
@@ -3153,13 +3164,14 @@ def get_grades_over_time():
             group_by = "dt.year, dt.quarter"
             order_by = "dt.year ASC, dt.quarter ASC"
 
+        _cmp = _sql_exam_completed_predicate('fg')
         query = f"""
         SELECT
             {period_select} as period,
-            AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) as avg_grade,
-            COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) as completed_exams,
-            COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) as missed_exams,
-            COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END) as failed_exams,
+            AVG(CASE WHEN {_cmp} THEN fg.grade ELSE NULL END) as avg_grade,
+            COUNT(CASE WHEN {_cmp} THEN 1 END) as completed_exams,
+            COUNT(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'MEX' THEN 1 END) as missed_exams,
+            COUNT(CASE WHEN UPPER(TRIM(COALESCE(fg.exam_status, ''))) = 'FEX' THEN 1 END) as failed_exams,
             COUNT(DISTINCT fg.student_id) as total_students,
             COUNT(DISTINCT fg.course_code) as total_courses
         FROM fact_grade fg
@@ -3168,7 +3180,7 @@ def get_grades_over_time():
         {join_clause}
         {where_clause}
         GROUP BY {group_by}
-        HAVING COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) > 0
+        HAVING COUNT(CASE WHEN {_cmp} THEN 1 END) > 0
         ORDER BY {order_by}
         """
         
@@ -3660,19 +3672,20 @@ def get_grade_distribution():
                 cc = str(filters.get('course_code')).replace("'", "''")
                 where_clauses.append(f"fg.course_code = '{cc}'")
 
+        where_clauses.append(_sql_exam_completed_predicate('fg'))
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
         query = f"""
         SELECT 
-            fg.letter_grade,
+            COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—') AS letter_grade,
             COUNT(*) as count
         FROM fact_grade fg
         JOIN dim_student ds ON fg.student_id = ds.student_id
         {role_join}
         {where_clause}
-        GROUP BY fg.letter_grade
+        GROUP BY COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—')
         ORDER BY 
-            CASE fg.letter_grade
+            MIN(CASE COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—')
                 WHEN 'A' THEN 1
                 WHEN 'B+' THEN 2
                 WHEN 'B' THEN 3
@@ -3681,8 +3694,9 @@ def get_grade_distribution():
                 WHEN 'D+' THEN 6
                 WHEN 'D' THEN 7
                 WHEN 'F' THEN 8
-                ELSE 9
-            END
+                WHEN '—' THEN 9
+                ELSE 10
+            END)
         """
         
         df = pd.read_sql_query(text(query), engine)
@@ -3746,16 +3760,17 @@ def get_top_students_filtered():
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
             """
 
+        _cmp = _sql_exam_completed_predicate('fg')
         query = f"""
         SELECT 
             CONCAT(ds.first_name, ' ', ds.last_name) as student_name,
-            AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) as avg_grade
+            AVG(CASE WHEN {_cmp} THEN fg.grade ELSE NULL END) as avg_grade
         FROM fact_grade fg
         JOIN dim_student ds ON fg.student_id = ds.student_id
         {join_clause}
         {where_clause}
         GROUP BY ds.student_id, ds.first_name, ds.last_name
-        HAVING AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) IS NOT NULL
+        HAVING AVG(CASE WHEN {_cmp} THEN fg.grade ELSE NULL END) IS NOT NULL
         ORDER BY avg_grade DESC
         LIMIT {limit}
         """
@@ -3965,7 +3980,8 @@ def get_payment_trends():
         period = (filters.get('period') or 'quarterly').strip().lower()
         if period not in ('monthly', 'quarterly', 'yearly'):
             period = 'quarterly'
-        min_year = 2020 if period == 'yearly' else 2023
+        # Include historical payments (pre-2023); a high floor was hiding all series when warehouse years were older.
+        min_year = 2000 if period == 'yearly' else 2010
         where_clauses.append(f"dt.year >= {min_year}")
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
@@ -4430,7 +4446,7 @@ def get_tuition_payment_trends_dimensions():
         if period not in ('monthly', 'quarterly', 'yearly'):
             period = 'quarterly'
 
-        min_year = 2020 if period == 'yearly' else 2023
+        min_year = 2000 if period == 'yearly' else 2010
 
         where_clauses = [f"dt.year >= {min_year}"]
 
