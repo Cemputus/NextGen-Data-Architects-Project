@@ -53,7 +53,10 @@ const AnalystDashboard = ({
   const isSenateWorkspace = filterPageName === 'senate_dashboard';
   const isDeanWorkspace = filterPageName === 'dean_analytics';
   const isHodWorkspace = filterPageName === 'hod_analytics';
-  /** Dean / HOD: no payment KPIs or payment charts (finance stays in Finance role). */
+  /**
+   * Dean / HOD: hide payment KPIs, payment status/trends, and tuition defaulters (finance stays in Finance role).
+   * Tuition payment trends (avg completed amounts over time) is still loaded and shown — scoped to their faculty/department.
+   */
   const hidePaymentsAnalysis =
     filterPageName === 'dean_analytics' || filterPageName === 'hod_analytics';
   const scopeNoun = isDeanWorkspace ? 'faculty' : isHodWorkspace ? 'department' : 'institution';
@@ -385,7 +388,7 @@ const AnalystDashboard = ({
         return Object.keys(effective).length > 0 ? 'quarterly' : 'yearly';
       })();
 
-      const tuitionRequests = hidePaymentsAnalysis
+      const tuitionDefaultersRequest = hidePaymentsAnalysis
         ? []
         : [
             axios
@@ -394,42 +397,47 @@ const AnalystDashboard = ({
                 params: apiFilters,
               })
               .catch(() => ({ data: { tuition_defaulters: [], semester_id: null } })),
-            axios
-              .get('/api/dashboard/tuition-payment-trends-dimensions', {
-                headers,
-                params: { period: tuitionTrendPeriod, ...apiFilters },
-              })
-              .catch(() => ({
-                data: {
-                  periods: [],
-                  faculty_amounts: [],
-                  department_amounts: [],
-                  program_amounts: [],
-                },
-              })),
           ];
 
-      const results = await Promise.all([...baseRequests, ...paymentRequests, ...tuitionRequests]);
+      const tuitionTrendsDimRequest = [
+        axios
+          .get('/api/dashboard/tuition-payment-trends-dimensions', {
+            headers,
+            params: { period: tuitionTrendPeriod, ...apiFilters },
+          })
+          .catch(() => ({
+            data: {
+              periods: [],
+              faculty_amounts: [],
+              department_amounts: [],
+              program_amounts: [],
+            },
+          })),
+      ];
+
+      const results = await Promise.all([
+        ...baseRequests,
+        ...paymentRequests,
+        ...tuitionDefaultersRequest,
+        ...tuitionTrendsDimRequest,
+      ]);
 
       if (reqId !== chartsRequestSeqRef.current) return;
 
-      const [riskRes, paymentStatusRes, paymentTrendsRes, tuitionDefaultersRes, tuitionTrendsRes] =
-        hidePaymentsAnalysis
-          ? [
-              ...results,
-              { data: { statuses: [], counts: [] } },
-              { data: { periods: [], amounts: [] } },
-              { data: { tuition_defaulters: [], semester_id: null } },
-              {
-                data: {
-                  periods: [],
-                  faculty_amounts: [],
-                  department_amounts: [],
-                  program_amounts: [],
-                },
-              },
-            ]
-          : results;
+      let riskRes;
+      let paymentStatusRes;
+      let paymentTrendsRes;
+      let tuitionDefaultersRes;
+      let tuitionTrendsRes;
+
+      if (hidePaymentsAnalysis) {
+        [riskRes, tuitionTrendsRes] = results;
+        paymentStatusRes = { data: { statuses: [], counts: [] } };
+        paymentTrendsRes = { data: { periods: [], amounts: [] } };
+        tuitionDefaultersRes = { data: { tuition_defaulters: [], semester_id: null } };
+      } else {
+        [riskRes, paymentStatusRes, paymentTrendsRes, tuitionDefaultersRes, tuitionTrendsRes] = results;
+      }
 
       setRiskSummary(riskRes.data.summary || null);
 
@@ -438,7 +446,6 @@ const AnalystDashboard = ({
         setPaymentTrends([]);
         setTuitionDefaultersBar([]);
         setTuitionDefaultersBreakdown('faculty');
-        setTuitionPaymentTrendsDim([]);
       } else {
         setPaymentStatus(
           (paymentStatusRes.data.statuses || []).map((status, idx) => ({
@@ -467,20 +474,20 @@ const AnalystDashboard = ({
             };
           }),
         );
-
-        const periods = tuitionTrendsRes.data?.periods || [];
-        const fa = tuitionTrendsRes.data?.faculty_amounts || [];
-        const da = tuitionTrendsRes.data?.department_amounts || [];
-        const pa = tuitionTrendsRes.data?.program_amounts || [];
-        setTuitionPaymentTrendsDim(
-          periods.map((p, idx) => ({
-            period: abbreviatePeriod(p),
-            faculty_amount: Number(fa[idx] ?? 0) || 0,
-            department_amount: Number(da[idx] ?? 0) || 0,
-            program_amount: Number(pa[idx] ?? 0) || 0,
-          })),
-        );
       }
+
+      const periods = tuitionTrendsRes.data?.periods || [];
+      const fa = tuitionTrendsRes.data?.faculty_amounts || [];
+      const da = tuitionTrendsRes.data?.department_amounts || [];
+      const pa = tuitionTrendsRes.data?.program_amounts || [];
+      setTuitionPaymentTrendsDim(
+        periods.map((p, idx) => ({
+          period: abbreviatePeriod(p),
+          faculty_amount: Number(fa[idx] ?? 0) || 0,
+          department_amount: Number(da[idx] ?? 0) || 0,
+          program_amount: Number(pa[idx] ?? 0) || 0,
+        })),
+      );
 
       setHasLoadedCharts(true);
     } catch (err) {
@@ -831,7 +838,83 @@ const AnalystDashboard = ({
         </Card>
       </div>
 
-      {/* Section C – Payments & finance (not shown for Dean / HOD workspaces) */}
+      {/* Dean / HOD: tuition payment trends only (avg completed amounts over time; scoped to faculty/department) */}
+      {hidePaymentsAnalysis && (
+        <div className="grid grid-cols-1 gap-4 mt-4">
+          <Card className={chartSurfaceCard('h-full')}>
+            <CardHeader className={chartCardHeaderClass}>
+              <CardTitle className={chartCardTitleClass}>Tuition payment trends</CardTitle>
+              <CardDescription className={chartCardDescriptionClass}>
+                Time series showing avg completed tuition payments over time for{' '}
+                {apiFilters?.program_id
+                  ? 'the selected program'
+                  : apiFilters?.department_id
+                    ? 'the selected department'
+                    : apiFilters?.faculty_id
+                      ? 'the selected faculty'
+                      : 'all faculties'}
+                .
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {loadingCharts && !hasLoadedCharts ? (
+                <div className="min-h-[380px] flex flex-col items-center justify-center gap-2 py-10">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading tuition trends…</p>
+                </div>
+              ) : tuitionPaymentTrendsDim.length > 0 ? (
+                <SciLineChart
+                  data={tuitionPaymentTrendsDim}
+                  xDataKey="period"
+                  yDataKeys={
+                    !apiFilters?.program_id && !apiFilters?.department_id
+                      ? [
+                          { key: 'faculty_amount', label: 'Faculty average', color: CHART_PALETTE_THEME[0] },
+                          { key: 'department_amount', label: 'Department average', color: CHART_PALETTE_THEME[1] },
+                          { key: 'program_amount', label: 'Program average', color: CHART_PALETTE_THEME[2] },
+                        ]
+                      : undefined
+                  }
+                  yDataKey={
+                    apiFilters?.program_id
+                      ? 'program_amount'
+                      : apiFilters?.department_id
+                        ? 'department_amount'
+                        : 'faculty_amount'
+                  }
+                  xAxisLabel="Period"
+                  yAxisLabel={
+                    !apiFilters?.program_id && !apiFilters?.department_id
+                      ? 'Avg completed amount (per unit)'
+                      : `Avg completed tuition payment${
+                          apiFilters?.program_id
+                            ? ' (Program)'
+                            : apiFilters?.department_id
+                              ? ' (Department)'
+                              : apiFilters?.faculty_id
+                                ? ' (Faculty)'
+                                : ' (All Faculties)'
+                        }`
+                  }
+                  showLegend={!apiFilters?.program_id && !apiFilters?.department_id}
+                  showGrid
+                  gridPadding={
+                    !apiFilters?.program_id && !apiFilters?.department_id ? { bottom: 88 } : undefined
+                  }
+                  minHeight={360}
+                  maxHeight={580}
+                />
+              ) : (
+                <p className="text-xs text-muted-foreground px-2 py-12 text-center min-h-[360px] flex items-center justify-center">
+                  No tuition payment trend data for the selected filters.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Section C – Payments & finance (Analyst / Senate only; Dean/HOD use tuition block above) */}
       {!hidePaymentsAnalysis && (
       <Card className={chartSurfaceCard()}>
         <CardHeader className={chartCardHeaderClass}>
