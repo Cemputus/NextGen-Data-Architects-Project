@@ -1946,12 +1946,11 @@ def _sql_exam_completed_predicate(alias='fg'):
     """
     SQL boolean for fact_grade rows that count as completed exams.
     ETL may store exam_status as 'Completed', 'COMPLETED', or leave it blank when grade is present.
-    Uses CAST(... AS TEXT) for PostgreSQL compatibility (::text is PG-only).
     """
     a = alias
     return (
-        f"(UPPER(TRIM(COALESCE(CAST({a}.exam_status AS TEXT), ''))) IN ('COMPLETED', 'COMPLETE') "
-        f"OR (COALESCE(TRIM(CAST({a}.exam_status AS TEXT)), '') = '' AND {a}.grade IS NOT NULL))"
+        f"(UPPER(TRIM(COALESCE({a}.exam_status, ''))) IN ('COMPLETED', 'COMPLETE') "
+        f"OR (COALESCE(TRIM({a}.exam_status::text), '') = '' AND {a}.grade IS NOT NULL))"
     )
 
 
@@ -3152,17 +3151,16 @@ def get_grades_over_time():
             LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
             """
-        # PostgreSQL: CAST(x AS CHAR) without length is invalid; use TEXT (MySQL tolerated CHAR).
         if period == 'monthly':
-            period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS TEXT))"
+            period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS CHAR))"
             group_by = "dt.year, dt.month, dt.month_name"
             order_by = "dt.year ASC, dt.month ASC"
         elif period == 'yearly':
-            period_select = "CAST(dt.year AS TEXT)"
+            period_select = "CAST(dt.year AS CHAR)"
             group_by = "dt.year"
             order_by = "dt.year ASC"
         else:
-            period_select = "CONCAT('Q', CAST(dt.quarter AS TEXT), ' ', CAST(dt.year AS TEXT))"
+            period_select = "CONCAT('Q', CAST(dt.quarter AS CHAR), ' ', CAST(dt.year AS CHAR))"
             group_by = "dt.year, dt.quarter"
             order_by = "dt.year ASC, dt.quarter ASC"
 
@@ -3677,18 +3675,17 @@ def get_grade_distribution():
         where_clauses.append(_sql_exam_completed_predicate('fg'))
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-        _lg = "COALESCE(NULLIF(TRIM(CAST(fg.letter_grade AS TEXT)), ''), 'Unknown')"
         query = f"""
         SELECT 
-            {_lg} AS letter_grade,
+            COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—') AS letter_grade,
             COUNT(*) as count
         FROM fact_grade fg
         JOIN dim_student ds ON fg.student_id = ds.student_id
         {role_join}
         {where_clause}
-        GROUP BY {_lg}
+        GROUP BY COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—')
         ORDER BY 
-            MIN(CASE {_lg}
+            MIN(CASE COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—')
                 WHEN 'A' THEN 1
                 WHEN 'B+' THEN 2
                 WHEN 'B' THEN 3
@@ -3697,7 +3694,7 @@ def get_grade_distribution():
                 WHEN 'D+' THEN 6
                 WHEN 'D' THEN 7
                 WHEN 'F' THEN 8
-                WHEN 'Unknown' THEN 9
+                WHEN '—' THEN 9
                 ELSE 10
             END)
         """
