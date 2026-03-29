@@ -21,6 +21,7 @@ import {
 } from '../lib/analytics-ui';
 import { MODERN_CHART_PALETTE, CHART_PALETTE_THEME } from '../lib/chartTheme';
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
+import { buildDemoTuitionPaymentTrendsDim } from '../lib/tuitionPaymentTrendsDemo';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
@@ -38,6 +39,7 @@ const FinanceDashboard = () => {
   const [highRiskDebtSegments, setHighRiskDebtSegments] = useState([]);
   const [tuitionDefaultersBar, setTuitionDefaultersBar] = useState([]);
   const [tuitionPaymentTrendsDim, setTuitionPaymentTrendsDim] = useState([]);
+  const [tuitionTrendsIsDemo, setTuitionTrendsIsDemo] = useState(false);
   /** faculty | department | program — aligned with global filters (API + fallback). */
   const [financeBreakdown, setFinanceBreakdown] = useState('faculty');
 
@@ -173,14 +175,20 @@ const FinanceDashboard = () => {
       const fa = trendsRes.data?.faculty_amounts || [];
       const da = trendsRes.data?.department_amounts || [];
       const pa = trendsRes.data?.program_amounts || [];
-      setTuitionPaymentTrendsDim(
-        periods.map((p, idx) => ({
-          period: abbreviatePeriod(p),
-          faculty_amount: Number(fa[idx] ?? 0) || 0,
-          department_amount: Number(da[idx] ?? 0) || 0,
-          program_amount: Number(pa[idx] ?? 0) || 0,
-        })),
-      );
+      let dimRows = periods.map((p, idx) => ({
+        period: abbreviatePeriod(p),
+        faculty_amount: Number(fa[idx] ?? 0) || 0,
+        department_amount: Number(da[idx] ?? 0) || 0,
+        program_amount: Number(pa[idx] ?? 0) || 0,
+      }));
+      const apiSynthetic = !!trendsRes.data?.synthetic;
+      if (dimRows.length === 0) {
+        dimRows = buildDemoTuitionPaymentTrendsDim(tuitionTrendPeriod);
+        setTuitionTrendsIsDemo(true);
+      } else {
+        setTuitionTrendsIsDemo(apiSynthetic);
+      }
+      setTuitionPaymentTrendsDim(dimRows);
 
       setPaymentTrends(
         (paymentTrendsRes.data?.periods || []).map((p, idx) => ({
@@ -537,6 +545,11 @@ const FinanceDashboard = () => {
                       : filters?.faculty_id
                         ? 'the selected faculty'
                         : 'all faculties'}.
+                  {tuitionTrendsIsDemo ? (
+                    <span className="block mt-1.5 text-amber-800 dark:text-amber-200/90">
+                      Sample trend — no matching payment rows for this scope; illustrative averages are shown.
+                    </span>
+                  ) : null}
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">

@@ -35,6 +35,7 @@ import {
   chartEmptyStateClass,
 } from '../lib/analytics-ui';
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
+import { buildDemoTuitionPaymentTrendsDim } from '../lib/tuitionPaymentTrendsDemo';
 
 const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
 
@@ -88,6 +89,8 @@ const AnalystDashboard = ({
   const [tuitionDefaultersBar, setTuitionDefaultersBar] = useState([]);
   const [tuitionDefaultersBreakdown, setTuitionDefaultersBreakdown] = useState('faculty');
   const [tuitionPaymentTrendsDim, setTuitionPaymentTrendsDim] = useState([]);
+  /** True when chart uses API synthetic flag or client demo (no warehouse rows). */
+  const [tuitionTrendsIsDemo, setTuitionTrendsIsDemo] = useState(false);
   const [enrollmentPipeline, setEnrollmentPipeline] = useState([]);
   const [loadingPipeline, setLoadingPipeline] = useState(true);
   const [hasLoadedPipeline, setHasLoadedPipeline] = useState(false);
@@ -497,14 +500,20 @@ const AnalystDashboard = ({
       const fa = tuitionTrendsRes.data?.faculty_amounts || [];
       const da = tuitionTrendsRes.data?.department_amounts || [];
       const pa = tuitionTrendsRes.data?.program_amounts || [];
-      setTuitionPaymentTrendsDim(
-        periods.map((p, idx) => ({
-          period: abbreviatePeriod(p),
-          faculty_amount: Number(fa[idx] ?? 0) || 0,
-          department_amount: Number(da[idx] ?? 0) || 0,
-          program_amount: Number(pa[idx] ?? 0) || 0,
-        })),
-      );
+      let dimRows = periods.map((p, idx) => ({
+        period: abbreviatePeriod(p),
+        faculty_amount: Number(fa[idx] ?? 0) || 0,
+        department_amount: Number(da[idx] ?? 0) || 0,
+        program_amount: Number(pa[idx] ?? 0) || 0,
+      }));
+      const apiSynthetic = !!tuitionTrendsRes.data?.synthetic;
+      if (dimRows.length === 0) {
+        dimRows = buildDemoTuitionPaymentTrendsDim(tuitionTrendPeriod);
+        setTuitionTrendsIsDemo(true);
+      } else {
+        setTuitionTrendsIsDemo(apiSynthetic);
+      }
+      setTuitionPaymentTrendsDim(dimRows);
 
       setHasLoadedCharts(true);
     } catch (err) {
@@ -969,6 +978,11 @@ const AnalystDashboard = ({
                       ? 'the selected faculty'
                       : 'all faculties'}
                 .
+                {tuitionTrendsIsDemo ? (
+                  <span className="block mt-1.5 text-amber-800 dark:text-amber-200/90">
+                    Sample trend — no matching payment rows for this scope; illustrative averages are shown.
+                  </span>
+                ) : null}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
@@ -1125,6 +1139,11 @@ const AnalystDashboard = ({
                           : apiFilters?.faculty_id
                             ? 'the selected faculty'
                             : 'all faculties'}.
+                      {tuitionTrendsIsDemo ? (
+                        <span className="block mt-1.5 text-amber-800 dark:text-amber-200/90">
+                          Sample trend — no matching payment rows for this scope; illustrative averages are shown.
+                        </span>
+                      ) : null}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0">
