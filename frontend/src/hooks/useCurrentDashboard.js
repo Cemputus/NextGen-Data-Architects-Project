@@ -11,6 +11,7 @@ export function useCurrentDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userMessage, setUserMessage] = useState(null);
+  const [hiddenFromUsers, setHiddenFromUsers] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -20,6 +21,7 @@ export function useCurrentDashboard() {
         setDashboard(null);
         setDefinition(null);
         setUserMessage(null);
+        setHiddenFromUsers(false);
         setError(null);
         return;
       }
@@ -28,6 +30,7 @@ export function useCurrentDashboard() {
       });
       const dash = resp.data?.dashboard;
       setUserMessage(resp.data?.message || null);
+      setHiddenFromUsers(resp.data?.hidden_from_users === true);
       setDashboard(dash || null);
       if (!dash?.definition) {
         setDefinition(null);
@@ -48,6 +51,7 @@ export function useCurrentDashboard() {
       setDashboard(null);
       setDefinition(null);
       setUserMessage(null);
+      setHiddenFromUsers(false);
     } finally {
       setLoading(false);
     }
@@ -76,6 +80,7 @@ export function useCurrentDashboard() {
     loading,
     error,
     userMessage,
+    hiddenFromUsers,
     refresh: load,
     hasCurrentAssignment,
   };

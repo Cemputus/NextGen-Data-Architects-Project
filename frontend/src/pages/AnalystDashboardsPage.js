@@ -7,7 +7,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Modal, ModalHeader, ModalBody, ModalFooter } from '../components/ui/modal';
-import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2, XCircle, RotateCcw } from 'lucide-react';
+import {
+  RefreshCw,
+  Filter as FilterIcon,
+  LayoutGrid,
+  List,
+  Loader2,
+  Trash2,
+  XCircle,
+  RotateCcw,
+  Eye,
+} from 'lucide-react';
 import {
   KPI_OPTIONS,
   CHART_OPTIONS,
@@ -38,7 +48,7 @@ const AnalystDashboardsPage = () => {
   const [swapConfirm, setSwapConfirm] = useState({ open: false, dash: null, targetRole: '' });
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, dash: null });
   const [messageModal, setMessageModal] = useState({ open: false, message: '' });
-  const [removingRole, setRemovingRole] = useState(null);
+  const [visibilityTogglingRole, setVisibilityTogglingRole] = useState(null);
   const [resettingRole, setResettingRole] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [contentDashboard, setContentDashboard] = useState(null);
@@ -192,20 +202,22 @@ const AnalystDashboardsPage = () => {
 
       setManagerBackendError(currentResp.data?.error ? String(currentResp.data.error) : null);
 
-      // Match each UI role to the API row by role name (source of truth: role_current_dashboard).
-      const currentList = Array.isArray(currentResp.data?.roles) ? currentResp.data.roles : [];
+      // Backend returns only assignable roles for analyst (no sysadmin); sysadmin gets all roles
+      const current = currentResp.data?.roles || [];
+      const byRole = {};
+      current.forEach((item) => {
+        byRole[normalizeRole(item.role)] = item;
+      });
       const rolesToShow = getAssignableRoles(user?.role);
       const merged = rolesToShow.map((r) => {
-        const item = currentList.find((x) => normalizeRole(x.role) === r);
+        const item = byRole[r];
         if (item) {
-          return { ...item, role: r };
+          return {
+            hidden_from_users: false,
+            ...item,
+          };
         }
-        return {
-          role: r,
-          dashboard: null,
-          pointer_updated_at: null,
-          pointer_updated_by_username: null,
-        };
+        return { role: r, dashboard: null, hidden_from_users: false };
       });
 
       setCurrentByRole(merged);
@@ -231,12 +243,7 @@ const AnalystDashboardsPage = () => {
       setApiForbidden(err.response?.status === 403);
       const fallbackRoles = getAssignableRoles(user?.role);
       setCurrentByRole(
-        fallbackRoles.map((r) => ({
-          role: r,
-          dashboard: null,
-          pointer_updated_at: null,
-          pointer_updated_by_username: null,
-        }))
+        fallbackRoles.map((r) => ({ role: r, dashboard: null, hidden_from_users: false }))
       );
       // Do not clear customDashboards on error so recently created dashboard is not lost
     } finally {
@@ -462,8 +469,8 @@ const AnalystDashboardsPage = () => {
       .map((e) => e.role);
   };
 
-  const handleRemoveCurrent = async (role) => {
-    setRemovingRole(role);
+  const handleHideCurrent = async (role) => {
+    setVisibilityTogglingRole(role);
     try {
       await axios.post(
         '/api/dashboard-manager/remove-current',
@@ -472,10 +479,27 @@ const AnalystDashboardsPage = () => {
       );
       await loadData();
     } catch (err) {
-      const msg = err?.response?.data?.error || err?.message || 'Failed to remove current assignment.';
+      const msg = err?.response?.data?.error || err?.message || 'Failed to hide dashboard.';
       setMessageModal({ open: true, message: msg });
     } finally {
-      setRemovingRole(null);
+      setVisibilityTogglingRole(null);
+    }
+  };
+
+  const handleUnhideCurrent = async (role) => {
+    setVisibilityTogglingRole(role);
+    try {
+      await axios.post(
+        '/api/dashboard-manager/unhide-current',
+        { role },
+        { headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } }
+      );
+      await loadData();
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to show dashboard.';
+      setMessageModal({ open: true, message: msg });
+    } finally {
+      setVisibilityTogglingRole(null);
     }
   };
 
@@ -503,7 +527,7 @@ const AnalystDashboardsPage = () => {
     if (rolesUsing.length > 0) {
       setMessageModal({
         open: true,
-        message: `In use for: ${rolesUsing.join(', ')}. Remove current assignment or swap first.`,
+        message: `In use for: ${rolesUsing.join(', ')}. Hide or swap first.`,
       });
       return;
     }
@@ -769,7 +793,7 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            Each card shows the live dashboard for that role (what users with that role see on their home page). <strong>Remove</strong> clears the assignment. Custom: <strong>Make current</strong>.
+            Per role: <strong>Preview</strong>, <strong>Edit</strong>, <strong>Reset</strong> (template), <strong>Hide</strong> (users see a contact message; assignment stays — use <strong>Show</strong> to restore). Custom: <strong>Make current</strong>.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -789,6 +813,7 @@ const AnalystDashboardsPage = () => {
               {currentDashboardRows.map((entry) => {
                 const rname = entry.role;
                 const dash = entry.dashboard;
+                const hiddenFromUsers = entry.hidden_from_users === true;
                 const dashInactive = dash && dash.is_inactive === true;
                 return (
                   <div
@@ -804,6 +829,11 @@ const AnalystDashboardsPage = () => {
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Current
                           </span>
+                          {dash && hiddenFromUsers && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                              Hidden from users
+                            </span>
+                          )}
                           {dash && dashInactive && (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                               Inactive
@@ -876,21 +906,39 @@ const AnalystDashboardsPage = () => {
                                 )}
                                 <span className="ml-0.5">Reset</span>
                               </Button>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                onClick={() => handleRemoveCurrent(rname)}
-                                disabled={!!removingRole}
-                                title="Remove this role’s current assignment (users get no assigned dashboard until you set one again)."
-                              >
-                                {removingRole === rname ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <XCircle className="h-3 w-3" />
-                                )}
-                                <span className="ml-0.5">Remove</span>
-                              </Button>
+                              {!hiddenFromUsers ? (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                  onClick={() => handleHideCurrent(rname)}
+                                  disabled={!!visibilityTogglingRole}
+                                  title="Hide from users — they see a contact message; use Show to restore."
+                                >
+                                  {visibilityTogglingRole === rname ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <XCircle className="h-3 w-3" />
+                                  )}
+                                  <span className="ml-0.5">Hide</span>
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                  onClick={() => handleUnhideCurrent(rname)}
+                                  disabled={!!visibilityTogglingRole}
+                                  title="Show this dashboard to users again."
+                                >
+                                  {visibilityTogglingRole === rname ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Eye className="h-3 w-3" />
+                                  )}
+                                  <span className="ml-0.5">Show</span>
+                                </Button>
+                              )}
                             </>
                           )}
                         </>
