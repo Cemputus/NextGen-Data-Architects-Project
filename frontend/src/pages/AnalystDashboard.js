@@ -1087,119 +1087,126 @@ const AnalystDashboard = ({
             />
           </div>
           {loadingCharts && !hasLoadedCharts ? (
-            <div className="min-h-[220px] flex items-center justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="min-h-[420px] flex flex-col items-center justify-center gap-2 py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading payment charts…</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-              <Sci3DPieChart
-                data={paymentStatus}
-                nameKey="name"
-                valueKey="value"
-                title="Payment status mix"
-              />
-              <SciLineChart
-                data={paymentTrends}
-                xDataKey="period"
-                yDataKey="amount"
-                xAxisLabel="Period"
-                yAxisLabel="Amount paid"
-              />
-            </div>
-          )}
-          {!hidePaymentsAnalysis ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-              <Card className={chartSurfaceCard()}>
-                <CardHeader className={chartCardHeaderClass}>
-                  <CardTitle className={chartCardTitleClass}>Tuition/fees defaulters</CardTitle>
-                  <CardDescription className={chartCardDescriptionClass}>
-                    Distinct defaulters in the latest semester by{' '}
-                    {FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown]?.toLowerCase() || 'unit'} only, matching
-                    your filters.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <SciBarChart
-                    data={tuitionDefaultersBar}
-                    xDataKey="name"
-                    yDataKey="value"
-                    tooltipNameKey="fullName"
-                    xAxisLabel={FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown] || 'Unit'}
-                    yAxisLabel="Defaulters"
-                    showLegend={false}
-                    xAxisLabelRotate={35}
-                    axisFontSize={12}
-                    showGrid
-                    gridPadding={{ bottom: 125 }}
-                    fillColor={UCU_COLORS.cyan}
-                    minHeight={480}
-                    maxHeight={660}
-                  />
-                </CardContent>
-              </Card>
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                <Sci3DPieChart
+                  data={paymentStatus}
+                  nameKey="name"
+                  valueKey="value"
+                  title="Payment status mix"
+                />
+                <SciLineChart
+                  data={paymentTrends}
+                  xDataKey="period"
+                  yDataKey="amount"
+                  xAxisLabel="Period"
+                  yAxisLabel="Amount paid"
+                />
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                <Card className={chartSurfaceCard()}>
+                  <CardHeader className={chartCardHeaderClass}>
+                    <CardTitle className={chartCardTitleClass}>Tuition/fees defaulters</CardTitle>
+                    <CardDescription className={chartCardDescriptionClass}>
+                      Distinct defaulters in the latest semester by{' '}
+                      {FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown]?.toLowerCase() || 'unit'} only, matching
+                      your filters.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <SciBarChart
+                      data={tuitionDefaultersBar}
+                      xDataKey="name"
+                      yDataKey="value"
+                      tooltipNameKey="fullName"
+                      xAxisLabel={FINANCE_BREAKDOWN_AXIS[tuitionDefaultersBreakdown] || 'Unit'}
+                      yAxisLabel="Defaulters"
+                      showLegend={false}
+                      xAxisLabelRotate={35}
+                      axisFontSize={12}
+                      showGrid
+                      gridPadding={{ bottom: 125 }}
+                      fillColor={UCU_COLORS.cyan}
+                      minHeight={480}
+                      maxHeight={660}
+                    />
+                  </CardContent>
+                </Card>
 
-              <Card className={chartSurfaceCard()}>
-                <CardHeader className={chartCardHeaderClass}>
-                  <CardTitle className={chartCardTitleClass}>Tuition payment trends</CardTitle>
-                  <CardDescription className={chartCardDescriptionClass}>
-                    Time series showing avg completed tuition payments over time for{" "}
-                    {apiFilters?.program_id
-                      ? 'the selected program'
-                      : apiFilters?.department_id
-                        ? 'the selected department'
-                        : apiFilters?.faculty_id
-                          ? 'the selected faculty'
-                          : 'all faculties'}.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <SciLineChart
-                    data={tuitionPaymentTrendsDim}
-                    xDataKey="period"
-                    yDataKeys={
-                      !apiFilters?.program_id && !apiFilters?.department_id
-                        ? [
-                            { key: 'faculty_amount', label: 'Faculty average', color: CHART_PALETTE_THEME[0] },
-                            { key: 'department_amount', label: 'Department average', color: CHART_PALETTE_THEME[1] },
-                            { key: 'program_amount', label: 'Program average', color: CHART_PALETTE_THEME[2] },
-                          ]
-                        : undefined
-                    }
-                    yDataKey={
-                      apiFilters?.program_id
-                        ? 'program_amount'
+                <Card className={chartSurfaceCard()}>
+                  <CardHeader className={chartCardHeaderClass}>
+                    <CardTitle className={chartCardTitleClass}>Tuition payment trends</CardTitle>
+                    <CardDescription className={chartCardDescriptionClass}>
+                      Time series showing avg completed tuition payments over time for{" "}
+                      {apiFilters?.program_id
+                        ? 'the selected program'
                         : apiFilters?.department_id
-                          ? 'department_amount'
-                          : 'faculty_amount'
-                    }
-                    xAxisLabel="Period"
-                    yAxisLabel={
-                      !apiFilters?.program_id && !apiFilters?.department_id
-                        ? 'Avg completed amount (per unit)'
-                        : `Avg completed tuition payment${
-                            apiFilters?.program_id
-                              ? ' (Program)'
-                              : apiFilters?.department_id
-                                ? ' (Department)'
-                                : apiFilters?.faculty_id
-                                  ? ' (Faculty)'
-                                  : ' (All Faculties)'
-                          }`
-                    }
-                    showLegend={!apiFilters?.program_id && !apiFilters?.department_id}
-                    showGrid
-                    gridPadding={
-                      !apiFilters?.program_id && !apiFilters?.department_id
-                        ? { bottom: 88 }
-                        : undefined
-                    }
-                    minHeight={360}
-                    maxHeight={580}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-          ) : null}
+                          ? 'the selected department'
+                          : apiFilters?.faculty_id
+                            ? 'the selected faculty'
+                            : 'all faculties'}.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {tuitionPaymentTrendsDim.length > 0 ? (
+                      <SciLineChart
+                        data={tuitionPaymentTrendsDim}
+                        xDataKey="period"
+                        yDataKeys={
+                          !apiFilters?.program_id && !apiFilters?.department_id
+                            ? [
+                                { key: 'faculty_amount', label: 'Faculty average', color: CHART_PALETTE_THEME[0] },
+                                { key: 'department_amount', label: 'Department average', color: CHART_PALETTE_THEME[1] },
+                                { key: 'program_amount', label: 'Program average', color: CHART_PALETTE_THEME[2] },
+                              ]
+                            : undefined
+                        }
+                        yDataKey={
+                          apiFilters?.program_id
+                            ? 'program_amount'
+                            : apiFilters?.department_id
+                              ? 'department_amount'
+                              : 'faculty_amount'
+                        }
+                        xAxisLabel="Period"
+                        yAxisLabel={
+                          !apiFilters?.program_id && !apiFilters?.department_id
+                            ? 'Avg completed amount (per unit)'
+                            : `Avg completed tuition payment${
+                                apiFilters?.program_id
+                                  ? ' (Program)'
+                                  : apiFilters?.department_id
+                                    ? ' (Department)'
+                                    : apiFilters?.faculty_id
+                                      ? ' (Faculty)'
+                                      : ' (All Faculties)'
+                              }`
+                        }
+                        showLegend={!apiFilters?.program_id && !apiFilters?.department_id}
+                        showGrid
+                        gridPadding={
+                          !apiFilters?.program_id && !apiFilters?.department_id
+                            ? { bottom: 88 }
+                            : undefined
+                        }
+                        minHeight={360}
+                        maxHeight={580}
+                      />
+                    ) : (
+                      <p className="text-xs text-muted-foreground px-2 py-12 text-center min-h-[360px] flex items-center justify-center">
+                        No tuition payment trend data for the selected filters.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
       )}

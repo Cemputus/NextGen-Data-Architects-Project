@@ -81,12 +81,19 @@ export function SciLineChart({
           const pArr = Array.isArray(params) ? params : [params];
           const first = pArr[0] || {};
           const axisLabel = first?.axisValueLabel ?? first?.name ?? '';
+          const seriesY = (v) => {
+            if (v == null) return v;
+            if (Array.isArray(v) && v.length >= 2) return v[1];
+            return v;
+          };
           if (hasMultiple && pArr.length > 1) {
-            const lines = pArr.map((p) => `${p?.seriesName || ''}: ${formatTooltipValue(p?.value)}`).join('<br/>');
+            const lines = pArr
+              .map((p) => `${p?.seriesName || ''}: ${formatTooltipValue(seriesY(p?.value))}`)
+              .join('<br/>');
             return `${axisLabel}<br/>${lines}`;
           }
           const rawVal = first?.value;
-          const yVal = Array.isArray(rawVal) ? rawVal[1] : rawVal;
+          const yVal = seriesY(rawVal);
           return `${axisLabel}<br/>${yAxisLabel}: ${formatTooltipValue(yVal)}`;
         },
       },

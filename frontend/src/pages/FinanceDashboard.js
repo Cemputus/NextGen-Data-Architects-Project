@@ -540,49 +540,55 @@ const FinanceDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <SciLineChart
-                  data={tuitionPaymentTrendsDim}
-                  xDataKey="period"
-                  yDataKeys={
-                    !debouncedFilters?.program_id && !debouncedFilters?.department_id
-                      ? [
-                          { key: 'faculty_amount', label: 'Faculty average', color: CHART_PALETTE_THEME[0] },
-                          { key: 'department_amount', label: 'Department average', color: CHART_PALETTE_THEME[1] },
-                          { key: 'program_amount', label: 'Program average', color: CHART_PALETTE_THEME[2] },
-                        ]
-                      : undefined
-                  }
-                  yDataKey={
-                    debouncedFilters?.program_id
-                      ? 'program_amount'
-                      : debouncedFilters?.department_id
-                        ? 'department_amount'
-                        : 'faculty_amount'
-                  }
-                  xAxisLabel="Period"
-                  yAxisLabel={
-                    !debouncedFilters?.program_id && !debouncedFilters?.department_id
-                      ? 'Avg completed amount (per unit)'
-                      : `Avg completed tuition payment${
-                          debouncedFilters?.program_id
-                            ? ' (Program)'
-                            : debouncedFilters?.department_id
-                              ? ' (Department)'
-                              : debouncedFilters?.faculty_id
-                                ? ' (Faculty)'
-                                : ' (All Faculties)'
-                        }`
-                  }
-                  showLegend={!debouncedFilters?.program_id && !debouncedFilters?.department_id}
-                  showGrid
-                  gridPadding={
-                    !debouncedFilters?.program_id && !debouncedFilters?.department_id
-                      ? { bottom: 88 }
-                      : undefined
-                  }
-                  minHeight={360}
-                  maxHeight={580}
-                />
+                {tuitionPaymentTrendsDim.length > 0 ? (
+                  <SciLineChart
+                    data={tuitionPaymentTrendsDim}
+                    xDataKey="period"
+                    yDataKeys={
+                      !debouncedFilters?.program_id && !debouncedFilters?.department_id
+                        ? [
+                            { key: 'faculty_amount', label: 'Faculty average', color: CHART_PALETTE_THEME[0] },
+                            { key: 'department_amount', label: 'Department average', color: CHART_PALETTE_THEME[1] },
+                            { key: 'program_amount', label: 'Program average', color: CHART_PALETTE_THEME[2] },
+                          ]
+                        : undefined
+                    }
+                    yDataKey={
+                      debouncedFilters?.program_id
+                        ? 'program_amount'
+                        : debouncedFilters?.department_id
+                          ? 'department_amount'
+                          : 'faculty_amount'
+                    }
+                    xAxisLabel="Period"
+                    yAxisLabel={
+                      !debouncedFilters?.program_id && !debouncedFilters?.department_id
+                        ? 'Avg completed amount (per unit)'
+                        : `Avg completed tuition payment${
+                            debouncedFilters?.program_id
+                              ? ' (Program)'
+                              : debouncedFilters?.department_id
+                                ? ' (Department)'
+                                : debouncedFilters?.faculty_id
+                                  ? ' (Faculty)'
+                                  : ' (All Faculties)'
+                          }`
+                    }
+                    showLegend={!debouncedFilters?.program_id && !debouncedFilters?.department_id}
+                    showGrid
+                    gridPadding={
+                      !debouncedFilters?.program_id && !debouncedFilters?.department_id
+                        ? { bottom: 88 }
+                        : undefined
+                    }
+                    minHeight={360}
+                    maxHeight={580}
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground px-2 py-12 text-center min-h-[360px] flex items-center justify-center">
+                    No tuition payment trend data for the selected filters.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>
