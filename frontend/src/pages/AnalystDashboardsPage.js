@@ -21,8 +21,6 @@ import {
   KPI_OPTIONS,
   CHART_OPTIONS,
   PAGE_CONFIG_KEYS,
-  ROLE_DASHBOARD_PAGE_KEYS,
-  PAGES_WITH_VISUALS_KEYS,
   PAGE_CONFIG_LABELS,
   ROLE_LIST,
   getDefaultRoute,
@@ -727,15 +725,9 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            <span className="block">
-              <strong>Role home dashboards</strong> — Dean, HoD, Senate, Staff, Student, Finance, HR: Default, View, Edit,
-              Reset, Copy from… (same <code className="text-[10px]">/api/page-config/</code> as before; not listed under
-              Pages with visuals).
-            </span>
-            <span className="block mt-2">
-              <strong>Assigned dashboard</strong> — one card per role when a custom dashboard is swapped in; live route
-              on each card.
-            </span>
+            One card per role. Each role’s live app page is the route shown on the card (e.g.{' '}
+            <span className="font-mono">/student/dashboard</span> → Dashboard). Use &quot;Edit content&quot; to change KPIs
+            and charts; &quot;Make current&quot; from Custom to swap; &quot;Remove current&quot; to unassign.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -745,110 +737,6 @@ const AnalystDashboardsPage = () => {
               Loading current dashboards…
             </div>
           ) : (
-            <>
-            {canManage && (
-              <div className="mb-6 space-y-3">
-                <p className="text-xs font-semibold text-foreground">
-                  Role home dashboards
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Dean Dashboard, HoD Dashboard, Senate Dashboard, Staff Dashboard, Student Dashboard, Finance Dashboard,
-                  HR Dashboard — configure KPIs and charts for each role&apos;s home page. Copy from… is limited to other
-                  role dashboards in this list.
-                </p>
-                <div
-                  className={
-                    viewMode === 'grid'
-                      ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'
-                      : 'space-y-2'
-                  }
-                >
-                  {ROLE_DASHBOARD_PAGE_KEYS.map((key) => {
-                    const page = pageConfigs.find((p) => p.page_key === key) || { page_key: key };
-                    const label = PAGE_CONFIG_LABELS[key] || key.replace(/_/g, ' ');
-                    const hasCustom =
-                      page.definition &&
-                      typeof page.definition === 'object' &&
-                      (Array.isArray(page.definition.kpis) || Array.isArray(page.definition.charts));
-                    const isResetting = resettingPageKey === key;
-                    const isCopying = copyingPageKey === key;
-                    const otherRolePages = ROLE_DASHBOARD_PAGE_KEYS.filter((k2) => k2 !== key);
-                    return (
-                      <div
-                        key={key}
-                        className="border rounded-md px-3 py-2 flex flex-col justify-between text-[11px] min-h-[120px]"
-                      >
-                        <div>
-                          <div className="font-semibold text-xs">{label}</div>
-                          <div className="text-[10px] text-muted-foreground mt-0.5">
-                            {hasCustom ? (
-                              <>Custom{page.updated_by_username ? ` · by ${page.updated_by_username}` : ''}</>
-                            ) : (
-                              'Default'
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1 mt-2">
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            className="h-6 px-2 text-[10px]"
-                            onClick={() => openPageContentEditor(key, true)}
-                          >
-                            View
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            className="h-6 px-2 text-[10px]"
-                            onClick={() => openPageContentEditor(key, false)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            className="h-6 px-2 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => handleResetPageConfig(key)}
-                            disabled={!!resettingPageKey || !!copyingPageKey}
-                          >
-                            {isResetting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Reset'}
-                          </Button>
-                          {otherRolePages.length > 0 && (
-                            <select
-                              className="h-6 px-2 text-[10px] border rounded-md bg-background max-w-[140px]"
-                              value=""
-                              disabled={!!copyingPageKey}
-                              onChange={(e) => {
-                                const from = e.target.value;
-                                if (from) {
-                                  handleCopyPageConfigFrom(from, key);
-                                  e.target.value = '';
-                                }
-                              }}
-                            >
-                              <option value="">Copy from…</option>
-                              {otherRolePages.map((other) => (
-                                <option key={other} value={other}>
-                                  {PAGE_CONFIG_LABELS[other] || other}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-                        {(isResetting || isCopying) && (
-                          <div className="mt-1 text-[10px] text-muted-foreground flex items-center gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            {isResetting ? 'Resetting…' : 'Copying…'}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            <p className="text-xs font-semibold text-foreground mb-3">Assigned dashboard (per role)</p>
             <div
               className={
                 viewMode === 'grid'
@@ -959,7 +847,6 @@ const AnalystDashboardsPage = () => {
                 );
               })}
             </div>
-            </>
           )}
         </CardContent>
       </Card>
@@ -1076,25 +963,24 @@ const AnalystDashboardsPage = () => {
         </CardContent>
       </Card>
 
-      {/* Pages with visuals — FEX / Risk / Analyst only (role home dashboards live under Current Dashboards) */}
+      {/* Pages with visuals – view, edit, reset, copy for analytics and role pages */}
       {canManage && (
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold">Pages with visuals</CardTitle>
             <CardDescription className="text-xs">
-              FEX Analytics, Risk Analytics, and Analyst Dashboard only — not role home dashboards (those are under Current
-              Dashboards). Same <code className="text-[10px]">/api/page-config/</code> endpoints.
+              View, edit, reset, or copy content for analytics pages (FEX, High School, Risk) and every role dashboard. Changes apply to what users see on that page.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {PAGES_WITH_VISUALS_KEYS.map((key) => {
-                const page = pageConfigs.find((p) => p.page_key === key) || { page_key: key };
+              {(pageConfigs.length > 0 ? pageConfigs : PAGE_CONFIG_KEYS.map((k) => ({ page_key: k }))).map((page) => {
+                const key = page.page_key || page;
                 const label = PAGE_CONFIG_LABELS[key] || key.replace(/_/g, ' ');
                 const hasCustom = page.definition && typeof page.definition === 'object' && (Array.isArray(page.definition.kpis) || Array.isArray(page.definition.charts));
                 const isResetting = resettingPageKey === key;
                 const isCopying = copyingPageKey === key;
-                const otherPages = PAGES_WITH_VISUALS_KEYS.filter((k2) => k2 !== key);
+                const otherPages = PAGE_CONFIG_KEYS.filter((k2) => k2 !== key);
                 return (
                   <div
                     key={key}
