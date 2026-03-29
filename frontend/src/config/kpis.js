@@ -22,7 +22,10 @@ export const CHART_OPTIONS = [
   'attendance_trends',
 ];
 
-/** Page visuals: FEX, High School, Risk. Role homes: Current + Custom in Dashboard Manager. */
+/**
+ * Standalone analytics pages (FEX, High School, Risk) editable under Dashboard Manager → Pages with visuals.
+ * Role home dashboards (student, staff, dean, …) are managed only under Current Dashboards + Custom.
+ */
 export const PAGE_VISUAL_KEYS = [
   'fex_analytics',
   'high_school_analytics',

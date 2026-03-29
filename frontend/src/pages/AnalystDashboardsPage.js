@@ -1,4 +1,12 @@
-/** Analyst Dashboard Manager: current per role, custom definitions, page visuals. */
+/**
+ * Dashboard Manager (Analyst)
+ *
+ * - Current Dashboards: one small card per role (student, staff, dean, etc.), showing
+ *   which dashboard is currently deployed for that role.
+ * - Custom Dashboards: all other dashboards that can be edited / previewed / swapped in.
+ *
+ * Swaps are handled by /api/dashboard-manager/swap and immediately reflected in both sections.
+ */
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -262,7 +270,7 @@ const AnalystDashboardsPage = () => {
         setVisualizationsError(
           err?.response?.data?.error ||
             err?.message ||
-            'Could not load visualizations.'
+            'Failed to load your NextGen Query visualizations.'
         );
       } finally {
         if (!cancelled) {
@@ -375,7 +383,7 @@ const AnalystDashboardsPage = () => {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
       });
       await loadData();
-      setMessageModal({ open: true, message: 'Page reset to defaults.' });
+      setMessageModal({ open: true, message: 'Page reset to default. It will use default KPIs and charts.' });
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to reset page.';
       setMessageModal({ open: true, message: msg });
@@ -423,7 +431,7 @@ const AnalystDashboardsPage = () => {
     const allowed = roles.filter((r) => assignableRoles.includes(r));
     const targetRole = filterRole || allowed[0] || assignableRoles[0] || 'analyst';
     if (!targetRole || !assignableRoles.includes(targetRole)) {
-      setMessageModal({ open: true, message: 'Set the role filter or assign this dashboard to a role (not Admin).' });
+      setMessageModal({ open: true, message: 'Select a role filter or assign at least one role (other than Admin) to this dashboard first.' });
       return;
     }
     setSwapConfirm({ open: true, dash, targetRole });
@@ -495,7 +503,7 @@ const AnalystDashboardsPage = () => {
     if (rolesUsing.length > 0) {
       setMessageModal({
         open: true,
-        message: `In use for: ${rolesUsing.join(', ')}. Hide or swap first.`,
+        message: `Cannot delete: this dashboard is the current dashboard for role(s): ${rolesUsing.join(', ')}. Remove it from current dashboard for those roles first.`,
       });
       return;
     }
@@ -649,7 +657,7 @@ const AnalystDashboardsPage = () => {
     <div className="space-y-4">
       <PageHeader
         title="Dashboard Manager"
-        subtitle="Live dashboard per role, saved definitions, and FEX / High School / Risk page layouts."
+        subtitle="Assign live dashboards per role (Current Dashboards), manage saved definitions (Custom), and optionally tune FEX / High School / Risk page layouts below."
         actions={
           <div className="flex items-center gap-2">
             {canManage && (
@@ -683,13 +691,14 @@ const AnalystDashboardsPage = () => {
 
       {managerBackendError && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
-          <strong className="font-semibold">Partial load.</strong> {managerBackendError} Check RBAC connectivity and Refresh.
+          <strong className="font-semibold">Could not load current dashboards fully.</strong>{' '}
+          {managerBackendError} Check that the API can reach the RBAC database and try Refresh.
         </div>
       )}
 
       {apiForbidden && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-sm text-amber-800 dark:text-amber-200">
-          Analyst or Admin required. Refresh or sign in again.
+          You don&apos;t have permission to load dashboard manager data (requires Analyst or Admin role). If you just logged in as Analyst or Admin, try refreshing the page or re-logging in.
         </div>
       )}
 
@@ -698,7 +707,9 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-sm font-semibold">Filters</CardTitle>
-            <CardDescription className="text-xs">Role, creator, or name.</CardDescription>
+            <CardDescription className="text-xs">
+              Filter by role, creator, or name to quickly find dashboards.
+            </CardDescription>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="flex items-center gap-2">
@@ -759,7 +770,10 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            Per role: <strong>Preview</strong>, <strong>Edit</strong>, <strong>Reset</strong> (system template), <strong>Hide</strong> (unassign — users see the default layout). Under Custom, <strong>Make current</strong> sets the live dashboard.
+            One card per role. <strong>Preview</strong> / <strong>Edit content</strong> — inspect or change KPIs and charts.
+            <strong> Reset to default</strong> — restore the system template for that role. <strong>Hide from users</strong> — unassign
+            the live dashboard (users fall back to the built-in page until you assign again). <strong>Make current</strong> (under Custom)
+            swaps in a saved dashboard.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -794,7 +808,7 @@ const AnalystDashboardsPage = () => {
                         </span>
                       </div>
                       <div className="font-semibold text-xs">
-                        {dash ? dash.name : 'None assigned'}
+                        {dash ? dash.name : 'No current dashboard assigned'}
                       </div>
                       {dash && dash.description && (
                         <div className="text-muted-foreground line-clamp-2">
@@ -839,24 +853,24 @@ const AnalystDashboardsPage = () => {
                                 size="xs"
                                 variant="outline"
                                 className="h-6 px-2 text-[10px]"
-                            onClick={() => openContentEditor(dash, false, rname)}
-                          >
-                                Edit
-                          </Button>
+                                onClick={() => openContentEditor(dash, false, rname)}
+                              >
+                                Edit content
+                              </Button>
                               <Button
                                 size="xs"
                                 variant="outline"
                                 className="h-6 px-2 text-[10px]"
                                 onClick={() => handleResetToDefault(rname)}
                                 disabled={!!resettingRole}
-                                title="Restore system template for this role."
+                                title="Replace this role’s live dashboard with the system default KPI/chart set."
                               >
                                 {resettingRole === rname ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                 ) : (
                                   <RotateCcw className="h-3 w-3" />
                                 )}
-                                <span className="ml-0.5">Reset</span>
+                                <span className="ml-0.5">Reset to default</span>
                               </Button>
                               <Button
                                 size="xs"
@@ -864,10 +878,10 @@ const AnalystDashboardsPage = () => {
                                 className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                                 onClick={() => handleRemoveCurrent(rname)}
                                 disabled={!!removingRole}
-                                title="Unassign live dashboard; users see the default layout."
+                                title="Unassign the live dashboard for this role. Users see the built-in layout until you assign a dashboard again."
                               >
                                 {removingRole === rname ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                                <span className="ml-0.5">Hide</span>
+                                <span className="ml-0.5">Hide from users</span>
                               </Button>
                             </>
                           )}
@@ -875,7 +889,7 @@ const AnalystDashboardsPage = () => {
                       ) : (
                         canManage && (
                           <span className="text-[10px] text-muted-foreground">
-                            Use <strong>Make current</strong> on a Custom dashboard.
+                            Use a Custom dashboard and &quot;Make current&quot; to assign one.
                           </span>
                         )
                       )}
@@ -893,7 +907,7 @@ const AnalystDashboardsPage = () => {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Custom Dashboards</CardTitle>
           <CardDescription className="text-xs">
-            Saved definitions. <strong>Edit</strong> updates KPIs and charts. <strong>Make current</strong> assigns to a role.
+            Create or edit dashboards, then use &quot;Edit content&quot; to change KPIs and charts. Use &quot;Make current&quot; to assign a dashboard to a role (edits apply to that role&apos;s dashboard page).
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -969,7 +983,7 @@ const AnalystDashboardsPage = () => {
                             className="h-6 px-2 text-[10px]"
                             onClick={() => openContentEditor(dash, false)}
                           >
-                            Edit
+                            Edit content
                           </Button>
                           <Button
                             size="xs"
@@ -1006,7 +1020,9 @@ const AnalystDashboardsPage = () => {
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold">Pages with visuals</CardTitle>
             <CardDescription className="text-xs">
-              <strong>FEX</strong>, <strong>High School</strong>, <strong>Risk</strong> only. Role home dashboards: Current / Custom above.
+              Optional layouts for <strong>FEX</strong>, <strong>High School</strong>, and <strong>Risk</strong> analytics
+              routes. Student/Staff/Dean/… home dashboards are configured only under <strong>Current Dashboards</strong> and{' '}
+              <strong>Custom Dashboards</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
@@ -1100,10 +1116,10 @@ const AnalystDashboardsPage = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-background rounded-lg shadow-xl w-full max-w-sm border p-4">
             <p className="text-sm font-medium mb-2">
-              Reset {resetPageConfirm.label}?
+              Reset &quot;{resetPageConfirm.label}&quot; to default?
             </p>
             <p className="text-xs text-muted-foreground mb-4">
-              Clears custom KPIs and charts for this page.
+              This removes your custom KPIs and charts for this page. The page will use default content.
             </p>
             <div className="flex justify-end gap-2">
               <Button
@@ -1118,14 +1134,14 @@ const AnalystDashboardsPage = () => {
                 variant="destructive"
                 onClick={handleResetPageConfirm}
               >
-                Reset
+                Reset to default
               </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Full preview below Custom */}
+      {/* Full preview below Custom Dashboards – behaves like Open/Hide */}
       {previewDashboard && (
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
@@ -1189,17 +1205,17 @@ const AnalystDashboardsPage = () => {
         </Card>
       )}
 
-      {/* Content editor modal */}
+      {/* Content editor / preview modal – three-panel: left = assets, center = canvas, right = properties */}
       {(contentDashboard || contentPageKey) && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-background rounded-lg shadow-xl w-full max-w-5xl border max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
               <h2 className="text-sm font-semibold">
                 {contentPageKey
-                  ? (contentPageViewOnly ? 'View page' : 'Edit page')
+                  ? (contentPageViewOnly ? 'View Page Content' : 'Edit Page Content')
                   : contentDashboard.previewOnly
-                    ? 'Preview dashboard'
-                    : 'Edit dashboard'}
+                    ? 'Preview Dashboard Content'
+                    : 'Edit Dashboard Content'}
               </h2>
               <button
                 type="button"
@@ -1215,7 +1231,7 @@ const AnalystDashboardsPage = () => {
             </div>
             {(contentDashboard?.previewOnly || (contentPageKey && contentPageViewOnly)) && (
               <div className="px-4 py-2 bg-muted/50 border-b text-xs text-muted-foreground shrink-0">
-                Preview only — not saved.
+                This is a preview. No changes will be saved.
                   </div>
                 )}
             <div className="flex-1 min-h-0 overflow-auto">
@@ -1244,7 +1260,7 @@ const AnalystDashboardsPage = () => {
                   <div className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr_1fr] gap-4 p-4 text-xs">
                     {/* Left: Content to show (asset lists) */}
                     <div className="space-y-3 min-w-0">
-                      <p className="text-[11px] uppercase text-muted-foreground font-semibold">Include</p>
+                      <p className="text-[11px] uppercase text-muted-foreground font-semibold">Content to show</p>
                       <div className="space-y-2">
                         <p className="text-[11px] font-medium">
                           KPIs
@@ -1310,7 +1326,7 @@ const AnalystDashboardsPage = () => {
                           {loadingVisualizations ? (
                             <p className="text-[11px] text-muted-foreground">Loading…</p>
                           ) : availableVisualizations.length === 0 ? (
-                            <p className="text-[11px] text-muted-foreground">None — add in NextGen Query.</p>
+                            <p className="text-[11px] text-muted-foreground">None. Create one in NextGen Query and assign it.</p>
                           ) : (
                             <div className="space-y-1 max-h-28 overflow-auto border border-border rounded-md px-2 py-1.5">
                               {availableVisualizations.map((viz) => (
@@ -1342,7 +1358,7 @@ const AnalystDashboardsPage = () => {
 
                     {/* Center: Canvas preview */}
                     <div className="space-y-2 min-w-0">
-                      <p className="text-[11px] uppercase text-muted-foreground font-semibold">Layout</p>
+                      <p className="text-[11px] uppercase text-muted-foreground font-semibold">Preview layout</p>
                       <div className="border border-border rounded-lg bg-muted/20 p-3 min-h-[200px] space-y-3">
                         <div>
                           <p className="text-[10px] uppercase text-muted-foreground mb-1">KPIs</p>
@@ -1396,11 +1412,11 @@ const AnalystDashboardsPage = () => {
                         )}
                         {contentDashboard && !contentPageKey && !previewOnly && getRolesWhereCurrent(contentDashboard.id).length > 0 && (
                           <p className="text-[11px] text-muted-foreground">
-                            Live for: <strong className="text-foreground">{getRolesWhereCurrent(contentDashboard.id).join(', ')}</strong>
+                            Current for: <strong className="text-foreground">{getRolesWhereCurrent(contentDashboard.id).join(', ')}</strong>
                           </p>
                         )}
                         {contentPageKey && (
-                          <p className="text-[11px] text-muted-foreground">KPIs and charts for this route.</p>
+                          <p className="text-[11px] text-muted-foreground">Choose KPIs and charts for this page.</p>
                         )}
                       </div>
                       {!isPageConfig && (
@@ -1422,7 +1438,7 @@ const AnalystDashboardsPage = () => {
                         <>
                           {!hasContent && (
                             <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                              Select a KPI, chart, or NextGen visualization.
+                              Select at least one KPI, chart, or NextGen Query visualization.
                             </p>
                           )}
                           <div className="pt-2 flex flex-col gap-2">
@@ -1448,7 +1464,7 @@ const AnalystDashboardsPage = () => {
                   onClick={handleSaveContent}
                 >
                   {savingContent && <Loader2 className="h-3 w-3 animate-spin" />}
-                  Save
+                  Save content
                 </Button>
               </div>
                         </>
@@ -1502,7 +1518,7 @@ const AnalystDashboardsPage = () => {
                   onChange={(e) =>
                     setCreateForm((prev) => ({ ...prev, description: e.target.value }))
                   }
-                  placeholder="Optional description."
+                  placeholder="Short description for this dashboard."
                 />
               </div>
               <div className="space-y-1">
@@ -1563,12 +1579,12 @@ const AnalystDashboardsPage = () => {
       {/* Swap confirmation modal */}
       <Modal open={swapConfirm.open} onClose={() => setSwapConfirm((p) => ({ ...p, open: false }))} maxWidth="max-w-md">
         <ModalHeader
-          title="Confirm swap"
+          title="Confirm dashboard swap"
           onClose={() => setSwapConfirm((p) => ({ ...p, open: false }))}
         />
         <ModalBody>
           <p className="text-sm text-muted-foreground">
-            Set <strong className="text-foreground">{swapConfirm.targetRole}</strong> live dashboard to{' '}
+            Swap current dashboard for role <strong className="text-foreground">{swapConfirm.targetRole}</strong> with
             &quot;<strong className="text-foreground">{swapConfirm.dash?.name}</strong>&quot;?
           </p>
         </ModalBody>
@@ -1606,7 +1622,7 @@ const AnalystDashboardsPage = () => {
       {/* Message / error modal */}
       <Modal open={messageModal.open} onClose={() => setMessageModal((p) => ({ ...p, open: false }))} maxWidth="max-w-md">
         <ModalHeader
-          title="Message"
+          title="Notice"
           onClose={() => setMessageModal((p) => ({ ...p, open: false }))}
         />
         <ModalBody>

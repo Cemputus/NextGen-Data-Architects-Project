@@ -8,7 +8,17 @@ import { Loader2 } from 'lucide-react';
 import { VizCard } from './AssignedViewsSection';
 import { KPI_DEFINITIONS } from '../config';
 
-/** Renders `GET /api/dashboards/current` definition (KPIs, charts, pinned viz). */
+/**
+ * RoleDashboardRenderer
+ *
+ * Shared renderer used by role dashboards (Dean, HOD, Staff, Student, etc.)
+ * to render the "current" dashboard defined by role_current_dashboard + definition JSON.
+ *
+ * Props:
+ * - stats: object with global KPI stats suitable for KPICard (e.g., /api/dashboard/stats or role analytics)
+ * - type: string passed to RoleBasedCharts (e.g., 'general', 'finance')
+ * - filters: global filter object for RoleBasedCharts (faculty, department, semester, etc.)
+ */
 const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
   const [definition, setDefinition] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -89,9 +99,9 @@ const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
       <div className="space-y-4">
         <Card className="border-dashed border-2 border-muted">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-semibold">No dashboard assigned</CardTitle>
+            <CardTitle className="text-sm font-semibold">No dynamic dashboard configured</CardTitle>
             <CardDescription className="text-xs">
-              An analyst can assign one under Analyst → Dashboards.
+              Ask an analyst to assign a current dashboard for this role in the Dashboard Manager.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -134,7 +144,9 @@ const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold">Analytics</CardTitle>
-            <CardDescription className="text-xs">Charts from the assigned dashboard.</CardDescription>
+            <CardDescription className="text-xs">
+              Charts and visuals configured for this role&apos;s current dashboard.
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             {/* RoleBasedCharts already understands the role and uses filters & type to scope */}
@@ -147,8 +159,10 @@ const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
       {hasPinnedVisualizations && (
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-base font-semibold">NextGen Query</CardTitle>
-            <CardDescription className="text-xs">Pinned visualizations.</CardDescription>
+            <CardTitle className="text-base font-semibold">NextGen Query visualizations</CardTitle>
+            <CardDescription className="text-xs">
+              Visualizations created in NextGen Query and pinned into this dashboard.
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             {loadingVisualizations ? (
@@ -157,7 +171,7 @@ const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
               </div>
             ) : pinnedVisualizations.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                No pinned visualizations for you on this dashboard.
+                No pinned visualizations are currently assigned to you for this dashboard.
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
