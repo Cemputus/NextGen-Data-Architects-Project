@@ -126,6 +126,29 @@ const AnalystDashboard = ({
     return f;
   }, [globalFilters, lockedFacultyId, lockedDepartmentId]);
 
+  /** Clean query params for top-students: omit empty / "all" so analyst/senate get institution-wide results when no faculty is chosen. */
+  const topStudentsRequestParams = useMemo(() => {
+    const f = apiFilters || {};
+    const out = { limit: 10 };
+    const keys = [
+      'faculty_id',
+      'department_id',
+      'program_id',
+      'semester_id',
+      'course_code',
+      'intake_year',
+      'high_school',
+    ];
+    for (const k of keys) {
+      const v = f[k];
+      if (v == null || v === '') continue;
+      const s = String(v).trim();
+      if (s === '' || s.toLowerCase() === 'all') continue;
+      out[k] = s;
+    }
+    return out;
+  }, [apiFilters]);
+
   const distributionGroupBy = useMemo(() => {
     // User chose a program → always show year-of-study breakdown
     if (apiFilters?.program_id) return 'year_of_study';
@@ -620,9 +643,14 @@ const AnalystDashboard = ({
       const res = await axios
         .get('/api/dashboard/top-students', {
           headers,
-          params: { ...apiFilters, limit: 10 },
+          params: topStudentsRequestParams,
         })
-        .catch(() => ({ data: { students: [], grades: [] } }));
+        .catch((err) => {
+          if (err?.response?.status !== 403) {
+            console.warn('top-students request failed', err?.response?.data || err?.message);
+          }
+          return { data: { students: [], grades: [] } };
+        });
       if (reqId !== topStudentsRequestSeqRef.current) return;
       const names = res.data?.students || [];
       const grades = res.data?.grades || [];
@@ -886,13 +914,13 @@ const AnalystDashboard = ({
             <CardTitle className={chartCardTitleClass}>Top students by performance</CardTitle>
             <CardDescription className={chartCardDescriptionClass}>
               {isSenateWorkspace &&
-                'Highest average grades (completed exam attempts) in scope — institution-wide unless you narrow filters above.'}
+                'Highest average numeric grades from recorded exam outcomes (institution-wide when no faculty/department/program filters are set). Narrow with filters above as needed.'}
               {isDeanWorkspace &&
                 'Highest average grades among students in your faculty; department/program filters apply within your faculty.'}
               {isHodWorkspace &&
                 'Highest average grades among students in your department; program filter narrows further.'}
               {!isSenateWorkspace && !isDeanWorkspace && !isHodWorkspace &&
-                'Highest average grades (completed exam attempts) in scope — use filters to narrow by faculty, department, or program.'}
+                'Highest average numeric grades from recorded exam outcomes. With no faculty selected, ranking is institution-wide; add faculty, department, semester, or course filters to narrow.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
@@ -901,8 +929,13 @@ const AnalystDashboard = ({
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : topStudentsPerformance.length === 0 ? (
-              <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex items-center justify-center text-sm')}>
-                No graded students in the current scope, or not enough data to rank averages.
+              <div className={cn(chartEmptyStateClass, 'min-h-[220px] flex flex-col items-center justify-center gap-2 px-4 text-sm text-center')}>
+                <span>
+                  No students with usable grade rows in this scope.{' '}
+                  {Object.keys(topStudentsRequestParams || {}).filter((k) => k !== 'limit').length > 0
+                    ? 'Try clearing semester, course, or other filters for a wider pool, or confirm fact_grade data is loaded.'
+                    : 'If you expect results, confirm ETL has loaded fact_grade with numeric grades for students.'}
+                </span>
               </div>
             ) : (
               <SciBarChart

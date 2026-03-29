@@ -4033,6 +4033,20 @@ def get_top_students_filtered():
             if pi is not None:
                 where_clauses.append(f"ds.program_id = {pi}")
 
+        # Optional global filters (same spirit as dashboard stats) — when unset, ranking is institution-wide / full scope.
+        semester_id_q = _filter_query_int(qf, 'semester_id')
+        if semester_id_q is not None:
+            where_clauses.append(f"fg.semester_id = {semester_id_q}")
+        if qf.get('course_code') and str(qf.get('course_code', '')).strip().lower() not in ('', 'all'):
+            cc = str(qf['course_code']).replace("'", "''")
+            where_clauses.append(f"fg.course_code = '{cc}'")
+        intake_y = _filter_query_int(qf, 'intake_year')
+        if intake_y is not None:
+            where_clauses.append(f"EXTRACT(YEAR FROM ds.admission_date) = {intake_y}")
+        if qf.get('high_school') and str(qf.get('high_school', '')).strip().lower() not in ('', 'all'):
+            hs = str(qf.get('high_school')).replace("'", "''")
+            where_clauses.append(f"ds.high_school ILIKE '%{hs}%'")
+
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
         need_dim_join = any(('df.' in c or 'ddept.' in c) for c in where_clauses)
@@ -4044,7 +4058,8 @@ def get_top_students_filtered():
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
             """
 
-        _cmp = _sql_exam_completed_predicate('fg')
+        # Use the same “usable grade” rule as grade-performance analytics — strict “completed only” often drops rows when ETL uses mixed exam_status values.
+        _cmp = _sql_grade_has_outcome_for_analytics('fg')
         query = f"""
         SELECT 
             CONCAT(ds.first_name, ' ', ds.last_name) as student_name,
@@ -4060,7 +4075,9 @@ def get_top_students_filtered():
         """
         
         df = pd.read_sql_query(text(query), engine)
-        
+        if df is None or df.empty:
+            return jsonify({'students': [], 'grades': []})
+
         return jsonify({
             'students': df['student_name'].tolist(),
             'grades': df['avg_grade'].round(2).tolist()
