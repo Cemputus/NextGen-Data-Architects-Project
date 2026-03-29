@@ -45,16 +45,8 @@ const AnalystDashboard = ({
   lockedDepartmentId = undefined,
 } = {}) => {
   const { user } = useAuth();
-  const {
-    loading: currentDashLoading,
-    dashboard: currentDash,
-    error: currentDashError,
-    userMessage: currentDashMessage,
-  } = useCurrentDashboard();
-  const useDynamicLayout =
-    !currentDashLoading &&
-    !currentDashError &&
-    (Boolean(currentDash?.id) || Boolean(currentDashMessage));
+  const { loading: currentDashLoading, dashboard: currentDash } = useCurrentDashboard();
+  const useDynamicLayout = !currentDashLoading && Boolean(currentDash?.id);
   // Senate reuses this page with its own filter persistence key (`senate_dashboard`).
   const isSenateWorkspace = filterPageName === 'senate_dashboard';
   const isDeanWorkspace = filterPageName === 'dean_analytics';

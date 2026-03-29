@@ -19,16 +19,8 @@ import { getRoleBasedChartsType } from '../utils/roleDashboardChartType';
 
 const StaffDashboard = () => {
   const { user } = useAuth();
-  const {
-    loading: currentDashLoading,
-    dashboard: currentDash,
-    error: currentDashError,
-    userMessage: currentDashMessage,
-  } = useCurrentDashboard();
-  const useDynamicLayout =
-    !currentDashLoading &&
-    !currentDashError &&
-    (Boolean(currentDash?.id) || Boolean(currentDashMessage));
+  const { loading: currentDashLoading, dashboard: currentDash } = useCurrentDashboard();
+  const useDynamicLayout = !currentDashLoading && Boolean(currentDash?.id);
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);

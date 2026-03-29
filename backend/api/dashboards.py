@@ -19,14 +19,6 @@ from api.auth import _ensure_ucu_rbac_database, RBAC_DB_NAME
 
 dashboards_bp = Blueprint("dashboards", __name__, url_prefix="/api/dashboards")
 
-# End-user messages when GET /api/dashboards/current returns no dashboard
-MSG_NO_DASHBOARD_ASSIGNED = (
-  "No dashboard is assigned for your role. Contact an analyst to assign one."
-)
-MSG_DASHBOARD_HIDDEN_FROM_ROLE = (
-  "This dashboard is hidden from your role. Contact an analyst to make it visible again."
-)
-
 
 def _get_rbac_conn_string() -> str:
   return DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
@@ -120,12 +112,11 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
         conn.execute(
           text(
             """
-            INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username, hidden_from_users)
-            VALUES (:role_name, :dashboard_id, :updated_by_username, FALSE)
+            INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username)
+            VALUES (:role_name, :dashboard_id, :updated_by_username)
             ON CONFLICT (role_name) DO UPDATE SET
               dashboard_id = EXCLUDED.dashboard_id,
-              updated_by_username = EXCLUDED.updated_by_username,
-              hidden_from_users = FALSE
+              updated_by_username = EXCLUDED.updated_by_username
             """
           ),
           {
@@ -143,7 +134,7 @@ def _ensure_role_dashboards_if_needed(conn, all_roles, updated_by_username: str)
   dashboards exist but role_current_dashboard is empty → point all roles at oldest active.
   """
   total_active_dashboards = conn.execute(
-    text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active IS TRUE")
+    text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active = TRUE")
   ).scalar() or 0
   role_pointer_count = conn.execute(
     text("SELECT COUNT(*) AS c FROM role_current_dashboard")
@@ -214,7 +205,6 @@ def _ensure_dashboard_tables(engine):
             id SERIAL PRIMARY KEY,
             role_name VARCHAR(50) NOT NULL UNIQUE,
             dashboard_id VARCHAR(64) NOT NULL,
-            hidden_from_users BOOLEAN NOT NULL DEFAULT FALSE,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_by_username VARCHAR(100),
             FOREIGN KEY (dashboard_id) REFERENCES dashboards(id) ON DELETE CASCADE
@@ -223,17 +213,6 @@ def _ensure_dashboard_tables(engine):
         )
       )
       conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rcd_role_name ON role_current_dashboard(role_name)"))
-      try:
-        conn.execute(
-          text(
-            """
-            ALTER TABLE role_current_dashboard
-            ADD COLUMN IF NOT EXISTS hidden_from_users BOOLEAN NOT NULL DEFAULT FALSE
-            """
-          )
-        )
-      except Exception:
-        pass
       # Page config: per-page (analytics, role dashboards) content editable by analyst
       conn.execute(
         text(
@@ -389,16 +368,7 @@ def get_current_dashboards():
   all_roles = ["student", "staff", "hod", "dean", "senate", "finance", "hr", "analyst", "sysadmin"]
 
   def _safe_payload(roles_list):
-    out = [
-      {
-        "role": rname,
-        "dashboard": None,
-        "hidden_from_users": False,
-        "pointer_updated_at": None,
-        "pointer_updated_by_username": None,
-      }
-      for rname in roles_list
-    ]
+    out = [{"role": rname, "dashboard": None, "pointer_updated_at": None, "pointer_updated_by_username": None} for rname in roles_list]
     if role == "analyst":
       out = [x for x in out if x.get("role") != "sysadmin"]
     return out
@@ -415,7 +385,6 @@ def get_current_dashboards():
         text(
           """
           SELECT r.role_name, r.dashboard_id, r.updated_at, r.updated_by_username,
-                 COALESCE(r.hidden_from_users, FALSE) AS hidden_from_users,
                  d.id AS d_id, d.name, d.description, d.created_by_username, d.created_by_role, d.definition, d.updated_at AS d_updated_at
           FROM role_current_dashboard r
           LEFT JOIN dashboards d ON d.id = r.dashboard_id
@@ -452,7 +421,6 @@ def get_current_dashboards():
                 "roles": [rr for rr in role_rows],
                 "users": [uu for uu in user_rows],
               },
-              "hidden_from_users": bool(row.get("hidden_from_users")),
               "pointer_updated_at": row["updated_at"],
               "pointer_updated_by_username": row["updated_by_username"],
             }
@@ -462,7 +430,6 @@ def get_current_dashboards():
             {
               "role": rname,
               "dashboard": None,
-              "hidden_from_users": False,
               "pointer_updated_at": None,
               "pointer_updated_by_username": None,
             }
@@ -608,22 +575,21 @@ def swap_dashboard():
 
       # Ensure dashboard exists and is active
       row = conn.execute(
-        text("SELECT id FROM dashboards WHERE id = :id AND is_active IS TRUE"),
+        text("SELECT id FROM dashboards WHERE id = :id AND is_active = TRUE"),
         {"id": dashboard_id},
       ).scalar()
       if not row:
         return jsonify({"error": "Dashboard not found or inactive."}), 404
 
-      # Upsert role_current_dashboard pointer (visible to users)
+      # Upsert role_current_dashboard pointer
       conn.execute(
         text(
           """
-          INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username, hidden_from_users)
-          VALUES (:role_name, :dashboard_id, :updated_by, FALSE)
+          INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username)
+          VALUES (:role_name, :dashboard_id, :updated_by)
           ON CONFLICT (role_name) DO UPDATE SET
             dashboard_id = EXCLUDED.dashboard_id,
-            updated_by_username = EXCLUDED.updated_by_username,
-            hidden_from_users = FALSE
+            updated_by_username = EXCLUDED.updated_by_username
           """
         ),
         {
@@ -645,19 +611,19 @@ def swap_dashboard():
 @jwt_required()
 def remove_current_dashboard():
   """
-  Hide the current dashboard from end users for a role (pointer row kept; analysts can unhide).
+  Remove the current dashboard for a role (no dashboard assigned).
   Body: { "role": "<role_name>" }. Only analyst/sysadmin.
   """
   username, role = _current_user()
   if not _is_analyst_or_admin(role):
-    return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can hide current dashboard."}), 403
+    return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can remove current dashboard."}), 403
 
   data = request.get_json(silent=True) or {}
   target_role = (data.get("role") or "").strip().lower()
   if not target_role:
     return jsonify({"error": "role is required."}), 400
 
-  # Analysts cannot change the admin (sysadmin) role
+  # Analysts cannot remove current dashboard for the admin (sysadmin) role
   if role == "analyst" and target_role == "sysadmin":
     return jsonify({"error": "Analysts cannot change the Admin role's dashboard. Admin dashboard is managed separately."}), 403
 
@@ -666,55 +632,8 @@ def remove_current_dashboard():
     engine = _get_engine()
     with engine.connect() as conn:
       conn.execute(
-        text(
-          """
-          UPDATE role_current_dashboard
-          SET hidden_from_users = TRUE, updated_by_username = :u, updated_at = CURRENT_TIMESTAMP
-          WHERE role_name = :role_name
-          """
-        ),
-        {"role_name": target_role, "u": username},
-      )
-      conn.commit()
-    return jsonify({"ok": True}), 200
-  except Exception as e:
-    if engine is not None:
-      engine.dispose()
-    return jsonify({"error": str(e)}), 500
-
-
-@dashboard_manager_bp.route("/unhide-current", methods=["POST"])
-@jwt_required()
-def unhide_current_dashboard():
-  """
-  Show the current dashboard to end users again for a role.
-  Body: { "role": "<role_name>" }. Only analyst/sysadmin.
-  """
-  username, role = _current_user()
-  if not _is_analyst_or_admin(role):
-    return jsonify({"error": "Permission denied."}), 403
-
-  data = request.get_json(silent=True) or {}
-  target_role = (data.get("role") or "").strip().lower()
-  if not target_role:
-    return jsonify({"error": "role is required."}), 400
-
-  if role == "analyst" and target_role == "sysadmin":
-    return jsonify({"error": "Analysts cannot change the Admin role's dashboard."}), 403
-
-  engine = None
-  try:
-    engine = _get_engine()
-    with engine.connect() as conn:
-      conn.execute(
-        text(
-          """
-          UPDATE role_current_dashboard
-          SET hidden_from_users = FALSE, updated_by_username = :u, updated_at = CURRENT_TIMESTAMP
-          WHERE role_name = :role_name
-          """
-        ),
-        {"role_name": target_role, "u": username},
+        text("DELETE FROM role_current_dashboard WHERE role_name = :role_name"),
+        {"role_name": target_role},
       )
       conn.commit()
     return jsonify({"ok": True}), 200
@@ -818,12 +737,11 @@ def reset_role_to_default_dashboard():
       conn.execute(
         text(
           """
-          INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username, hidden_from_users)
-          VALUES (:role_name, :dashboard_id, :updated_by, FALSE)
+          INSERT INTO role_current_dashboard (role_name, dashboard_id, updated_by_username)
+          VALUES (:role_name, :dashboard_id, :updated_by)
           ON CONFLICT (role_name) DO UPDATE SET
             dashboard_id = EXCLUDED.dashboard_id,
-            updated_by_username = EXCLUDED.updated_by_username,
-            hidden_from_users = FALSE
+            updated_by_username = EXCLUDED.updated_by_username
           """
         ),
         {
@@ -1045,7 +963,6 @@ def get_current_dashboard_for_role():
 
   This is used by role-specific dashboards (student, staff, dean, etc.) to know
   which dashboard layout/definition to render as their 'live' dashboard.
-  When hidden_from_users is TRUE, dashboard is null and message explains next steps.
   """
   username, role = _current_user()
   engine = None
@@ -1056,45 +973,18 @@ def get_current_dashboard_for_role():
         text(
           """
           SELECT r.role_name, r.dashboard_id, r.updated_at, r.updated_by_username,
-                 COALESCE(r.hidden_from_users, FALSE) AS hidden_from_users,
-                 d.id AS dash_id, d.name AS d_name, d.description AS d_description,
-                 d.created_by_username AS d_created_by_username, d.created_by_role AS d_created_by_role,
-                 d.definition AS d_definition, d.updated_at AS d_updated_at, d.is_active AS d_is_active
+                 d.*
           FROM role_current_dashboard r
           LEFT JOIN dashboards d ON d.id = r.dashboard_id
-          WHERE LOWER(r.role_name) = :rname
+          WHERE LOWER(r.role_name) = :rname AND d.is_active = TRUE
           """
         ),
         {"rname": role},
       ).mappings().first()
-      if not row:
-        return jsonify(
-          {
-            "dashboard": None,
-            "hidden_from_users": False,
-            "message": MSG_NO_DASHBOARD_ASSIGNED,
-          }
-        ), 200
+      if not row or not row["id"]:
+        return jsonify({"dashboard": None}), 200
 
-      if row.get("hidden_from_users"):
-        return jsonify(
-          {
-            "dashboard": None,
-            "hidden_from_users": True,
-            "message": MSG_DASHBOARD_HIDDEN_FROM_ROLE,
-          }
-        ), 200
-
-      if not row.get("dash_id") or row.get("d_is_active") is not True:
-        return jsonify(
-          {
-            "dashboard": None,
-            "hidden_from_users": False,
-            "message": MSG_NO_DASHBOARD_ASSIGNED,
-          }
-        ), 200
-
-      dash_id = row["dash_id"]
+      dash_id = row["id"]
       # Attach roles/users
       role_rows = conn.execute(
         text("SELECT role_name FROM dashboard_role_access WHERE dashboard_id = :id"),
@@ -1107,18 +997,16 @@ def get_current_dashboard_for_role():
 
       dash = {
         "id": dash_id,
-        "name": row["d_name"],
-        "description": row["d_description"],
-        "created_by_username": row["d_created_by_username"],
-        "created_by_role": row["d_created_by_role"],
-        "definition": row["d_definition"],
-        "updated_at": row["d_updated_at"],
+        "name": row["name"],
+        "description": row["description"],
+        "created_by_username": row["created_by_username"],
+        "created_by_role": row["created_by_role"],
+        "definition": row["definition"],
+        "updated_at": row["updated_at"],
         "roles": [rr for rr in role_rows],
         "users": [uu for uu in user_rows],
       }
-    return jsonify(
-      {"dashboard": dash, "hidden_from_users": False, "message": None}
-    ), 200
+    return jsonify({"dashboard": dash}), 200
   except Exception as e:
     if engine is not None:
       engine.dispose()

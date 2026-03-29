@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { DashboardGrid } from './ui/dashboard-grid';
@@ -12,52 +12,40 @@ import { KPI_DEFINITIONS } from '../config';
 const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
   const [definition, setDefinition] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [userMessage, setUserMessage] = useState(null);
-  const [hiddenFromUsers, setHiddenFromUsers] = useState(false);
   const [pinnedVisualizations, setPinnedVisualizations] = useState([]);
   const [loadingVisualizations, setLoadingVisualizations] = useState(false);
 
-  const loadCurrentDefinition = useCallback(async () => {
-    try {
-      setLoading(true);
-      const resp = await axios.get('/api/dashboards/current', {
-        headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
-      });
-      const dash = resp.data?.dashboard;
-      setUserMessage(resp.data?.message || null);
-      setHiddenFromUsers(resp.data?.hidden_from_users === true);
-      if (!dash || !dash.definition) {
-        setDefinition(null);
-      } else {
-        let def = dash.definition;
-        if (typeof def === 'string') {
-          try {
-            def = JSON.parse(def);
-          } catch {
-            def = null;
+  useEffect(() => {
+    const loadCurrentDefinition = async () => {
+      try {
+        setLoading(true);
+        const resp = await axios.get('/api/dashboards/current', {
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
+        });
+        const dash = resp.data?.dashboard;
+        if (!dash || !dash.definition) {
+          setDefinition(null);
+        } else {
+          let def = dash.definition;
+          if (typeof def === 'string') {
+            try {
+              def = JSON.parse(def);
+            } catch {
+              def = null;
+            }
           }
+          setDefinition(def && typeof def === 'object' ? def : null);
         }
-        setDefinition(def && typeof def === 'object' ? def : null);
+      } catch (err) {
+        console.error('Error loading current dashboard definition:', err);
+        setDefinition(null);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error('Error loading current dashboard definition:', err);
-      setDefinition(null);
-      setUserMessage(null);
-      setHiddenFromUsers(false);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    };
 
-  useEffect(() => {
     loadCurrentDefinition();
-  }, [loadCurrentDefinition]);
-
-  useEffect(() => {
-    const onDashboardEvent = () => loadCurrentDefinition();
-    window.addEventListener('ucu-dashboard-current-changed', onDashboardEvent);
-    return () => window.removeEventListener('ucu-dashboard-current-changed', onDashboardEvent);
-  }, [loadCurrentDefinition]);
+  }, []);
 
   // Load pinned NextGen Query visualizations for this dashboard (if any are configured)
   useEffect(() => {
@@ -97,19 +85,14 @@ const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
   }
 
   if (!definition) {
-    const body =
-      userMessage ||
-      (hiddenFromUsers
-        ? 'This dashboard is hidden from your role. Contact an analyst to make it visible again.'
-        : 'No dashboard is assigned for your role. Contact an analyst to assign one.');
     return (
       <div className="space-y-4">
-        <Card className="border-dashed border-2 border-amber-200/80 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20">
+        <Card className="border-dashed border-2 border-muted">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-semibold">
-              {hiddenFromUsers ? 'Dashboard hidden' : 'No dashboard assigned'}
-            </CardTitle>
-            <CardDescription className="text-xs text-foreground/90">{body}</CardDescription>
+            <CardTitle className="text-sm font-semibold">No dashboard assigned</CardTitle>
+            <CardDescription className="text-xs">
+              An analyst can assign one under Analyst → Dashboards.
+            </CardDescription>
           </CardHeader>
         </Card>
       </div>
