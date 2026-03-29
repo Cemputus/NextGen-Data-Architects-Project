@@ -11,7 +11,6 @@ import { useAuth } from '../context/AuthContext';
 import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import { SciLineChart, SciBarChart, SciDonutChart } from '../components/charts/EChartsComponents';
 import { KPICard } from '../components/ui/kpi-card';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import {
   kpiStripCardClass,
   chartSurfaceCard,
@@ -45,7 +44,7 @@ const FinanceDashboard = () => {
 
   useEffect(() => {
     loadFinanceData();
-  }, [debouncedFilters]);
+  }, [filters]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), WELCOME_BACK_DURATION_MS);
@@ -94,7 +93,7 @@ const FinanceDashboard = () => {
       });
 
       const tuitionTrendPeriod = (() => {
-        const effective = { ...debouncedFilters };
+        const effective = { ...filters };
         if (lockedFacultyId != null && lockedFacultyId !== '') {
           if (effective.faculty_id != null && String(effective.faculty_id) === String(lockedFacultyId)) {
             delete effective.faculty_id;
@@ -195,7 +194,7 @@ const FinanceDashboard = () => {
         outstandingRes.data?.breakdown ||
         defRes.data?.breakdown ||
         highRiskRes.data?.breakdown ||
-        deriveFinanceBreakdown(debouncedFilters);
+        deriveFinanceBreakdown(filters);
       setFinanceBreakdown(breakdown);
 
       setOutstandingFacultyProgram(
@@ -531,14 +530,15 @@ const FinanceDashboard = () => {
               <CardHeader className={chartCardHeaderClass}>
                 <CardTitle className={chartCardTitleClass}>Tuition payment trends</CardTitle>
                 <CardDescription className={chartCardDescriptionClass}>
-                  Time series of avg completed tuition payments over time for{" "}
+                  Time series showing avg completed tuition payments over time for{' '}
                   {filters?.program_id
                     ? 'the selected program'
                     : filters?.department_id
                       ? 'the selected department'
                       : filters?.faculty_id
                         ? 'the selected faculty'
-                        : 'all faculties'}.
+                        : 'all faculties'}
+                  .
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
@@ -547,19 +547,19 @@ const FinanceDashboard = () => {
                     data={tuitionPaymentTrendsDim}
                     xDataKey="period"
                     yDataKey={
-                      debouncedFilters?.program_id
+                      filters?.program_id
                         ? 'program_amount'
-                        : debouncedFilters?.department_id
+                        : filters?.department_id
                           ? 'department_amount'
                           : 'faculty_amount'
                     }
                     xAxisLabel="Period"
                     yAxisLabel={`Avg completed tuition payment${
-                      debouncedFilters?.program_id
+                      filters?.program_id
                         ? ' (Program)'
-                        : debouncedFilters?.department_id
+                        : filters?.department_id
                           ? ' (Department)'
-                          : debouncedFilters?.faculty_id
+                          : filters?.faculty_id
                             ? ' (Faculty)'
                             : ' (All Faculties)'
                     }`}

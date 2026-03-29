@@ -3954,11 +3954,12 @@ def get_grade_performance_breakdown():
 @jwt_required()
 def get_top_students_filtered():
     """
-    Top students by average numeric fact_grade.grade (any non-null grade row), RBAC-scoped:
+    Top students by average numeric fact_grade.grade (rows with grade > 0), RBAC-scoped:
       - Dean: JWT faculty; optional department/program/semester/course/intake/high_school filters.
       - HOD: JWT department; optional program/semester/course/etc.
       - Staff: department and/or program scope.
-      - Senate / Analyst / Sysadmin: institution-wide when no faculty filter; same optional filters as other dashboards.
+      - Senate / Analyst / Sysadmin: institution-wide when no faculty/department/program filter; same optional filters as other dashboards.
+    Uses LEFT JOIN dim_student so orphan fact_grade rows still rank; optional fact-only fallback for scoped institution roles when dim joins return no rows.
     """
     try:
         from flask_jwt_extended import get_jwt
@@ -4000,9 +4001,8 @@ def get_top_students_filtered():
         pi = _int_param('program_id')
         semester_id = _int_param('semester_id')
 
-        # Rank by numeric fact_grade.grade only (recorded outcomes). Do not rely solely on exam_status,
-        # which varies by ETL and was excluding valid rows in some warehouses.
-        where_clauses = ["fg.grade IS NOT NULL"]
+        # Meaningful numeric grades only (ETL often fills missing with 0).
+        where_clauses = ["COALESCE(fg.grade::numeric, 0) > 0"]
 
         if role == Role.DEAN:
             fid = claims.get('faculty_id')
@@ -4060,32 +4060,67 @@ def get_top_students_filtered():
             except Exception:
                 pass
 
+        dim_filters_applied = bool(
+            (iy and str(iy).strip().lower() not in ('', 'all'))
+            or (hs and str(hs).strip().lower() not in ('', 'all'))
+            or (yos is not None and str(yos).strip().lower() not in ('', 'all'))
+        )
+
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-        need_dim_join = any(('df.' in c or 'ddept.' in c) for c in where_clauses)
-        join_clause = ""
-        if need_dim_join:
-            join_clause = """
+        # Always join the student → program → department → faculty chain so role filters and
+        # program_id / faculty_id clauses resolve (previously INNER JOIN + missing joins dropped all rows).
+        join_clause = """
+            LEFT JOIN dim_student ds ON fg.student_id = ds.student_id
             LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
             LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
             LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
-            """
+        """
 
         query = f"""
         SELECT 
-            TRIM(CONCAT(COALESCE(ds.first_name, ''), ' ', COALESCE(ds.last_name, ''))) as student_name,
-            AVG(fg.grade) as avg_grade
+            COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(MAX(ds.first_name::text), ''), ' ', COALESCE(MAX(ds.last_name::text), ''))), ''),
+                fg.student_id::text
+            ) AS student_name,
+            AVG(fg.grade::numeric) AS avg_grade
         FROM fact_grade fg
-        JOIN dim_student ds ON fg.student_id = ds.student_id
         {join_clause}
         {where_clause}
-        GROUP BY ds.student_id, ds.first_name, ds.last_name
-        HAVING AVG(fg.grade) IS NOT NULL
+        GROUP BY fg.student_id
+        HAVING AVG(fg.grade::numeric) IS NOT NULL
         ORDER BY avg_grade DESC
         LIMIT {limit}
         """
         
         df = pd.read_sql_query(text(query), engine)
+        if df.empty:
+            # Fact-only path: institution-wide Senate/Analyst/Sysadmin with no org/dim slices that need dim_student.
+            use_fact_only_fallback = (
+                role in (Role.SENATE, Role.ANALYST, Role.SYSADMIN)
+                and fi is None
+                and di is None
+                and pi is None
+                and not dim_filters_applied
+            )
+            if use_fact_only_fallback:
+                fb_where = ["COALESCE(fg.grade::numeric, 0) > 0"]
+                if semester_id is not None:
+                    fb_where.append(f"fg.semester_id = {semester_id}")
+                if cc and str(cc).strip().lower() not in ('', 'all'):
+                    cc_esc = str(cc).replace("'", "''")
+                    fb_where.append(f"fg.course_code = '{cc_esc}'")
+                fb_sql = f"""
+                SELECT fg.student_id::text AS student_name,
+                       AVG(fg.grade::numeric) AS avg_grade
+                FROM fact_grade fg
+                WHERE {' AND '.join(fb_where)}
+                GROUP BY fg.student_id
+                HAVING AVG(fg.grade::numeric) IS NOT NULL
+                ORDER BY avg_grade DESC
+                LIMIT {limit}
+                """
+                df = pd.read_sql_query(text(fb_sql), engine)
         if df.empty:
             return jsonify({'students': [], 'grades': []}), 200
 
