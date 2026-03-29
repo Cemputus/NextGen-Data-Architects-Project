@@ -395,19 +395,17 @@ def predict_scenario():
                 adjusted_pred = max(0, min(100, adjusted_pred))
                 
                 pred_float = safe_float(adjusted_pred, 0.0)
+                raw_by_model[model_type] = pred_float
                 predictions[model_type] = {
-                    'predicted_grade': round(pred_float, 2),
-                    'predicted_letter_grade': get_letter_grade(pred_float)
+                    **enrich_model_prediction_block(pred_float),
                 }
             except Exception as e:
                 print(f"Error in {model_type} scenario prediction: {e}")
         
-        # Create ensemble prediction
-        if predictions:
-            avg_grade = sum([p['predicted_grade'] for p in predictions.values()]) / len(predictions)
+        if raw_by_model:
+            avg_raw = sum(raw_by_model.values()) / len(raw_by_model)
             predictions['ensemble'] = {
-                'predicted_grade': round(avg_grade, 2),
-                'predicted_letter_grade': get_letter_grade(avg_grade)
+                **enrich_model_prediction_block(avg_raw),
             }
         
         # Build scenario description

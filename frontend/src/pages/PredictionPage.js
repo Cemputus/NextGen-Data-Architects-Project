@@ -18,9 +18,9 @@ import { usePersistedState } from '../hooks/usePersistedState';
 const PredictionPage = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [predictions, setPredictions] = useState(null);
+  const [predictions, setPredictions] = usePersistedState('prediction_workspace_results', null);
   const [scenarios, setScenarios] = useState([]);
-  const [selectedScenario, setSelectedScenario] = useState(null);
+  const [selectedScenario, setSelectedScenario] = usePersistedState('prediction_workspace_lastScenario', null);
   const [studentIdentifier, setStudentIdentifier] = usePersistedState('prediction_studentIdentifier', '');
   const [modelType, setModelType] = useState('ensemble');
   const [errorMessage, setErrorMessage] = useState('');
@@ -345,11 +345,6 @@ const PredictionPage = () => {
                 <Badge className={`mt-2 ${getGradeBadgeTone(predictions.single.predicted_grade)}`}>
                   {predictions.single.predicted_letter_grade}
                 </Badge>
-                {predictions.single.predicted_grade_raw != null && predictions.single.predicted_grade_raw !== predictions.single.predicted_grade && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Model raw: {predictions.single.predicted_grade_raw}%
-                  </p>
-                )}
               </div>
               <div className="rounded-md border px-4 py-4 bg-muted/30">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">GPA (scale max {predictions.single.gpa_scale_max ?? 5})</p>
@@ -362,12 +357,6 @@ const PredictionPage = () => {
                 <p className="mt-2 text-lg font-semibold capitalize">{predictions.single.model_type?.replace('_', ' ') || 'Standard'}</p>
               </div>
             </div>
-
-            {predictions.single.calibration_note && (
-              <p className="mt-3 text-xs text-muted-foreground border-l-2 border-primary/40 pl-3">
-                {predictions.single.calibration_note}
-              </p>
-            )}
 
             <div className="mt-4">{renderStudentMeta(predictions.single)}</div>
 
@@ -431,9 +420,6 @@ const PredictionPage = () => {
                           <Badge className={`mt-2 ${getGradeBadgeTone(pred.predicted_grade)}`}>
                             {pred.predicted_letter_grade}
                           </Badge>
-                          {pred.calibration_note && (
-                            <p className="mt-2 text-[11px] text-muted-foreground leading-snug">{pred.calibration_note}</p>
-                          )}
                         </div>
                       ))}
                     </div>

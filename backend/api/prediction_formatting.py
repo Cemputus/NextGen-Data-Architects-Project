@@ -81,23 +81,41 @@ def resolve_student_identifier(identifier: Optional[str]) -> Optional[str]:
     return None
 
 
-def calibrate_percent(raw: float) -> float:
+# Trained regressors often sit optimistically high; shrink the upper tail toward realistic marks.
+_DEBIAS_PIVOT = 62.0
+_DEBIAS_ABOVE_PIVOT_SLOPE = 0.58
+
+
+def de_bias_percent(raw: float) -> float:
     """
-    Map raw model output (0–100) to a display percentage.
-    Raw scores in [96, 100] are compressed linearly into [94.1, 95.4] to avoid over-confident tops.
+    Reduce systematic optimism: piecewise linear with gentler slope above a pivot so
+    raw scores do not cluster near 90–100 for every student.
     """
     try:
         x = float(raw)
     except (TypeError, ValueError):
         return 0.0
-    if x != x or math.isnan(x):  # NaN
+    if x != x or math.isnan(x):
         return 0.0
     x = max(0.0, min(100.0, x))
-    if x < 96.0:
+    if x <= _DEBIAS_PIVOT:
         return round(x, 2)
-    lo_out, hi_out = 94.1, 95.4
-    t = (x - 96.0) / (100.0 - 96.0)
-    return round(lo_out + t * (hi_out - lo_out), 2)
+    y = _DEBIAS_PIVOT + (x - _DEBIAS_PIVOT) * _DEBIAS_ABOVE_PIVOT_SLOPE
+    return round(max(0.0, min(100.0, y)), 2)
+
+
+def calibrate_percent(raw: float) -> float:
+    """
+    Map raw model output (0–100) to a display percentage (single de-bias pass; no extra top band).
+    """
+    try:
+        x = float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+    if x != x or math.isnan(x):
+        return 0.0
+    x = max(0.0, min(100.0, x))
+    return de_bias_percent(x)
 
 
 def percent_to_gpa(percent: float, scale_max: float = 5.0) -> float:
@@ -212,7 +230,7 @@ def build_prediction_payload(
     extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Standard API shape: calibrated %, GPA (max 5), letter, raw for transparency, student profile.
+    Standard API shape: calibrated %, GPA (max 5), letter grade, student profile.
     """
     try:
         raw = float(raw_percent)
@@ -227,16 +245,9 @@ def build_prediction_payload(
         'student_id': student_id_resolved,
         'model_type': model_type,
         'predicted_grade': round(calibrated, 2),
-        'predicted_grade_raw': round(raw, 2),
         'predicted_letter_grade': letter,
         'gpa': gpa,
         'gpa_scale_max': 5.0,
-        'calibration_applied': raw >= 96.0,
-        'calibration_note': (
-            'Raw scores between 96% and 100% are reported as 94.1%–95.4% for consistency.'
-            if raw >= 96.0
-            else None
-        ),
     }
     payload['student'] = profile
     # Flatten common fields for clients that do not read nested `student`
@@ -263,15 +274,8 @@ def enrich_model_prediction_block(raw_percent: float) -> Dict[str, Any]:
     return json_safe(
         {
             'predicted_grade': round(calibrated, 2),
-            'predicted_grade_raw': round(raw, 2),
             'predicted_letter_grade': letter_grade_from_percent(calibrated),
             'gpa': percent_to_gpa(calibrated),
             'gpa_scale_max': 5.0,
-            'calibration_applied': raw >= 96.0,
-            'calibration_note': (
-                'Raw scores between 96% and 100% are reported as 94.1%–95.4% for consistency.'
-                if raw >= 96.0
-                else None
-            ),
         }
     )

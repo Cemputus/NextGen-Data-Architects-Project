@@ -286,9 +286,18 @@ class MultiModelPredictor:
         }
         print(f"Gradient Boosting - R²: {results['gradient_boosting']['r2']:.4f}, RMSE: {results['gradient_boosting']['rmse']:.2f}")
         
-        # Train Neural Network
+        # Train Neural Network (regularized to limit optimistic saturation toward 100)
         print("\nTraining Neural Network...")
-        nn = MLPRegressor(hidden_layer_sizes=(100, 50), max_iter=500, random_state=42, early_stopping=True)
+        nn = MLPRegressor(
+            hidden_layer_sizes=(64, 32),
+            activation='relu',
+            alpha=0.02,
+            max_iter=800,
+            random_state=42,
+            early_stopping=True,
+            validation_fraction=0.15,
+            n_iter_no_change=20,
+        )
         nn.fit(X_train_scaled, y_train)
         self.models['neural_network'] = nn
         nn_pred = nn.predict(X_test_scaled)
@@ -480,14 +489,10 @@ class MultiModelPredictor:
                 raise ValueError(f"Unable to transform features. Error: {error_msg}. Retry error: {e2}")
         
         # Make predictions
+        row = student_data.iloc[0]
         if model_type == 'ensemble':
-            # Average predictions from all models
-            predictions = []
-            for model_name, model in self.models.items():
-                if model is not None:
-                    pred = model.predict(X_scaled)[0]
-                    predictions.append(pred)
-            prediction = np.mean(predictions) if predictions else 0
+            # Weight tree models higher than the neural net (NN often saturates near 100).
+            prediction = self._weighted_ensemble_predict(X_scaled)
         elif model_type in self.models and self.models[model_type] is not None:
             prediction = self.models[model_type].predict(X_scaled)[0]
         elif model_type in self.models and self.models[model_type] is None:
@@ -496,12 +501,79 @@ class MultiModelPredictor:
             predictions = []
             for _, model in self.models.items():
                 if model is not None:
-                    predictions.append(model.predict(X_scaled)[0])
-            prediction = np.mean(predictions) if predictions else 0
+                    predictions.append(float(model.predict(X_scaled)[0]))
+            if not predictions:
+                prediction = 0.0
+            else:
+                arr = np.asarray(predictions, dtype=float)
+                prediction = float(np.median(arr))
         else:
             raise ValueError(f"Model {model_type} not available")
         
-        return max(0, min(100, prediction))  # Clamp between 0 and 100
+        prediction = float(prediction)
+        if model_type in ('ensemble', 'neural_network'):
+            prediction = self._blend_with_observable_signals(row, prediction)
+        return max(0.0, min(100.0, prediction))  # Clamp between 0 and 100
+    
+    @staticmethod
+    def _safe_float_series(row: pd.Series, key: str, default: float = 0.0) -> float:
+        try:
+            if key not in row.index:
+                return default
+            v = row[key]
+            if pd.isna(v):
+                return default
+            return float(v)
+        except (TypeError, ValueError):
+            return default
+    
+    def _weighted_ensemble_predict(self, X_scaled: np.ndarray) -> float:
+        """Combine base models with weights that favor tree ensembles over the MLP."""
+        weights = {
+            'random_forest': 0.38,
+            'gradient_boosting': 0.38,
+            'neural_network': 0.24,
+        }
+        parts = []
+        wsum = 0.0
+        for name, weight in weights.items():
+            model = self.models.get(name)
+            if model is None:
+                continue
+            p = float(model.predict(X_scaled)[0])
+            parts.append((p, weight))
+            wsum += weight
+        if not parts:
+            return 0.0
+        if wsum <= 0:
+            return 0.0
+        return sum(p * w for p, w in parts) / wsum
+    
+    def _blend_with_observable_signals(self, row: pd.Series, raw_pred: float) -> float:
+        """
+        Blend optimistic model output with observable academic and attendance signals
+        so scores are not clustered at ~95–100 for every student.
+        """
+        cw = self._safe_float_series(row, 'avg_coursework_score')
+        ex = self._safe_float_series(row, 'avg_exam_score')
+        att = self._safe_float_series(row, 'attendance_rate')
+        pay = self._safe_float_series(row, 'payment_completion_rate')
+        if cw > 0 or ex > 0:
+            academic = (cw + ex) / 2.0
+        else:
+            academic = None
+        if academic is not None:
+            prior = 0.68 * academic + 0.16 * att + 0.16 * pay
+        else:
+            prior = 0.55 * att + 0.45 * pay
+            if prior < 1e-6:
+                prior = 62.0
+        prior = max(0.0, min(100.0, prior))
+        # When the model is very optimistic, trust observables more.
+        w = 0.45 if raw_pred >= 88.0 else 0.30
+        blended = (1.0 - w) * raw_pred + w * prior
+        blended = 50.0 + (blended - 50.0) * 0.92
+        return float(max(0.0, min(100.0, blended)))
     
     def predict_scenario(self, scenario_params):
         """Predict performance for a hypothetical scenario"""
