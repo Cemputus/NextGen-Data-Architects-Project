@@ -4686,9 +4686,23 @@ def get_tuition_payment_trends_dimensions():
         if period not in ('monthly', 'quarterly', 'yearly'):
             period = 'quarterly'
 
-        min_year = 2000 if period == 'yearly' else 2010
+        # Align with /api/dashboard/payment-trends: a high floor (e.g. 2010) can hide all points when dim_time years are older.
+        min_year = 2000
 
         where_clauses = [f"dt.year >= {min_year}"]
+
+        def _sql_str(s):
+            if s is None:
+                return ''
+            return str(s).replace("'", "''")
+
+        # Same completed definition spirit as payment-trends; source systems vary (Completed, SUCCESS, PAID, etc.).
+        _paid_cond = (
+            "((UPPER(TRIM(COALESCE(fp.status::text, ''))) IN ("
+            "'COMPLETED', 'SUCCESS', 'PAID', 'COMPLETE', 'SETTLED', 'CLEARED', 'OK'"
+            ")) OR (UPPER(TRIM(COALESCE(fp.status::text, ''))) LIKE 'COMPLETE%')"
+            " OR (UPPER(TRIM(COALESCE(fp.status::text, ''))) LIKE 'PAID%'))"
+        )
 
         # Role-based scoping
         if role == Role.DEAN and claims.get('faculty_id') is not None:
@@ -4697,9 +4711,10 @@ def get_tuition_payment_trends_dimensions():
             where_clauses.append(f"ddept.department_id = {int(claims['department_id'])}")
         elif role == Role.STUDENT:
             if claims.get('student_id') is not None:
-                where_clauses.append(f"fp.student_id = '{claims['student_id']}'")
+                sid = _sql_str(claims['student_id'])
+                where_clauses.append(f"ds.student_id = '{sid}'")
             elif claims.get('access_number'):
-                where_clauses.append(f"ds.access_number = '{claims['access_number']}'")
+                where_clauses.append(f"ds.access_number = '{_sql_str(claims['access_number'])}'")
 
         if faculty_id is not None:
             where_clauses.append(f"df.faculty_id = {faculty_id}")
@@ -4728,6 +4743,11 @@ def get_tuition_payment_trends_dimensions():
 
         where_sql = " AND ".join(where_clauses)
 
+        # Narrow LATERAL student match when a program filter is applied (same idea as payment-trends fast paths).
+        program_pushdown = ""
+        if program_id is not None:
+            program_pushdown = f" AND ds.program_id = {int(program_id)}"
+
         if period == 'monthly':
             period_select = "CONCAT(dt.month_name, ' ', CAST(dt.year AS TEXT))"
             group_by = "dt.year, dt.month, dt.month_name"
@@ -4741,20 +4761,38 @@ def get_tuition_payment_trends_dimensions():
             group_by = "dt.year, dt.quarter"
             order_by = "dt.year, dt.quarter"
 
+        # Resolve payments to dim_student the same way as /api/dashboard/payment-trends: fp.student_id may be REG_NO or access_number.
         query = f"""
         SELECT
             {period_select} AS period,
-            SUM(CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN fp.amount ELSE 0 END) AS total_completed_amount,
-            COUNT(DISTINCT CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN df.faculty_id END) AS faculty_units,
-            COUNT(DISTINCT CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN ddept.department_id END) AS department_units,
-            COUNT(DISTINCT CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN dp.program_id END) AS program_units
+            SUM(CASE WHEN {_paid_cond} THEN fp.amount ELSE 0 END) AS total_completed_amount,
+            COUNT(DISTINCT CASE WHEN {_paid_cond} THEN df.faculty_id END) AS faculty_units,
+            COUNT(DISTINCT CASE WHEN {_paid_cond} THEN ddept.department_id END) AS department_units,
+            COUNT(DISTINCT CASE WHEN {_paid_cond} THEN dp.program_id END) AS program_units
         FROM fact_payment fp
         JOIN dim_time dt ON fp.date_key = dt.date_key
-        JOIN dim_student ds ON fp.student_id = ds.student_id
+        LEFT JOIN LATERAL (
+            SELECT ds.*
+            FROM dim_student ds
+            WHERE (
+                ds.student_id = fp.student_id
+                OR ds.reg_no = fp.student_id
+                OR ds.access_number = fp.student_id
+            ){program_pushdown}
+            ORDER BY
+                CASE
+                    WHEN ds.student_id = fp.student_id THEN 1
+                    WHEN ds.reg_no = fp.student_id THEN 2
+                    WHEN ds.access_number = fp.student_id THEN 3
+                    ELSE 4
+                END
+            LIMIT 1
+        ) ds ON TRUE
         LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
         LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         WHERE {where_sql}
+          AND ds.student_id IS NOT NULL
         GROUP BY {group_by}
         ORDER BY {order_by}
         """
@@ -4770,13 +4808,20 @@ def get_tuition_payment_trends_dimensions():
                 periods.append(r.get('period'))
                 total_amt = float(r.get('total_completed_amount') or 0.0)
 
-                fu = r.get('faculty_units') or 0
-                du = r.get('department_units') or 0
-                pu = r.get('program_units') or 0
+                fu = int(r.get('faculty_units') or 0)
+                du = int(r.get('department_units') or 0)
+                pu = int(r.get('program_units') or 0)
 
-                faculty_amounts.append(round(total_amt / fu, 2) if fu else 0.0)
-                department_amounts.append(round(total_amt / du, 2) if du else 0.0)
-                program_amounts.append(round(total_amt / pu, 2) if pu else 0.0)
+                # If amounts exist but dimension joins are missing, still surface total (avoids all-zero lines).
+                faculty_amounts.append(
+                    round(total_amt / fu, 2) if fu > 0 else (round(total_amt, 2) if total_amt > 0 else 0.0)
+                )
+                department_amounts.append(
+                    round(total_amt / du, 2) if du > 0 else (round(total_amt, 2) if total_amt > 0 else 0.0)
+                )
+                program_amounts.append(
+                    round(total_amt / pu, 2) if pu > 0 else (round(total_amt, 2) if total_amt > 0 else 0.0)
+                )
 
         return jsonify({
             'periods': periods,
