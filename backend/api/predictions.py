@@ -30,6 +30,12 @@ except ImportError:
     enhanced_predictor = None
     print("Enhanced predictions module not available")
 from config import DATA_WAREHOUSE_CONN_STRING
+from api.prediction_formatting import (
+    build_prediction_payload,
+    enrich_model_prediction_block,
+    fetch_student_profile,
+    resolve_student_identifier,
+)
 
 try:
     from audit_log import log as audit_log
@@ -166,38 +172,35 @@ def predict_student_performance():
         student_id = data.get('student_id') or data.get('access_number') or data.get('reg_number')
         model_type = data.get('model_type', 'ensemble')  # 'random_forest', 'gradient_boosting', 'neural_network', 'ensemble'
         
-        # Check scope permissions
-        if user_scope['role'] == Role.STUDENT:
-            # Students can only predict their own performance
-            if user_scope['access_number'] and student_id != user_scope['access_number']:
-                return jsonify({'error': 'Permission denied: Can only predict own performance'}), 403
-            if user_scope['student_id'] and student_id != user_scope['student_id']:
-                return jsonify({'error': 'Permission denied: Can only predict own performance'}), 403
-        
         if not student_id:
             return jsonify({'error': 'Student ID, Access Number, or Reg Number required'}), 400
         
-        # Resolve student_id if access_number or reg_number provided
-        if student_id.startswith('A') or student_id.startswith('B'):
-            engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-            result = pd.read_sql_query(
-                text("SELECT student_id FROM dim_student WHERE access_number = :access_number"),
-                engine,
-                params={'access_number': student_id}
-            )
-            if not result.empty:
-                student_id = result['student_id'].iloc[0]
-            engine.dispose()
+        resolved = resolve_student_identifier(student_id)
+        if not resolved:
+            return jsonify({'error': 'Student not found'}), 404
         
-        prediction = predictor.predict(student_id, model_type)
+        # Students can only predict their own performance (match by warehouse id or access number)
+        if user_scope['role'] == Role.STUDENT:
+            uid = user_scope.get('student_id')
+            uacc = user_scope.get('access_number')
+            prof = fetch_student_profile(resolved)
+            match_sid = bool(uid and str(resolved).strip() == str(uid).strip())
+            acc = prof.get('access_number')
+            match_acc = bool(
+                uacc and acc is not None and str(acc).strip() == str(uacc).strip()
+            )
+            if not (match_sid or match_acc):
+                return jsonify({'error': 'Permission denied: Can only predict own performance'}), 403
+        
+        prediction = predictor.predict(resolved, model_type)
         if audit_log:
-            audit_log('prediction', 'predictions', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id=str(student_id), status='success')
-        return jsonify({
-            'student_id': student_id,
-            'model_type': model_type,
-            'predicted_grade': round(float(prediction), 2),
-            'predicted_letter_grade': get_letter_grade(prediction)
-        }), 200
+            audit_log('prediction', 'predictions', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id=str(resolved), status='success')
+        payload = build_prediction_payload(
+            student_id_resolved=resolved,
+            raw_percent=float(prediction),
+            model_type=model_type,
+        )
+        return jsonify(payload), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -222,20 +225,12 @@ def predict_scenario():
         if not student_id:
             return jsonify({'error': 'Student ID or Access Number required'}), 400
         
-        # Resolve student_id if access_number provided
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        if student_id.startswith('A') or student_id.startswith('B'):
-            result = pd.read_sql_query(
-                text("SELECT student_id FROM dim_student WHERE access_number = :access_number"),
-                engine,
-                params={'access_number': student_id}
-            )
-            if not result.empty:
-                student_id = result['student_id'].iloc[0]
-            else:
-                engine.dispose()
-                return jsonify({'error': 'Student not found'}), 404
+        resolved = resolve_student_identifier(student_id)
+        if not resolved:
+            return jsonify({'error': 'Student not found'}), 404
+        student_id = resolved
         
+        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         # Get base student features (tuition and attendance data)
         query = text("""
         SELECT 
@@ -337,6 +332,7 @@ def predict_scenario():
         # Prepare modified feature vector for prediction
         # Use tuition-attendance model if available, otherwise use standard models
         predictions = {}
+        raw_by_model = {}
         
         # Try tuition-attendance model first (most accurate for scenario analysis)
         if enhanced_predictor and 'tuition_attendance_performance' in enhanced_predictor.models:
@@ -370,9 +366,9 @@ def predict_scenario():
                         pred = model.predict(X_scaled)[0]
                         
                         pred_float = safe_float(pred, 0.0)
+                        raw_by_model['tuition_attendance_performance'] = pred_float
                         predictions['tuition_attendance_performance'] = {
-                            'predicted_grade': round(pred_float, 2),
-                            'predicted_letter_grade': get_letter_grade(pred_float)
+                            **enrich_model_prediction_block(pred_float),
                         }
             except Exception as e:
                 print(f"Error in tuition-attendance scenario prediction: {e}")
@@ -422,7 +418,8 @@ def predict_scenario():
         
         if audit_log:
             audit_log('scenario_analysis', 'predictions', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id=str(student_id), status='success')
-        return jsonify({
+        prof = fetch_student_profile(student_id)
+        scenario_body = {
             'scenario': {
                 **scenario_description,
                 'parameters': {
@@ -432,9 +429,18 @@ def predict_scenario():
                     'has_significant_balance': has_significant_balance
                 }
             },
+            'student_id': student_id,
             'predictions': predictions,
-            'analysis': analyze_scenario(scenario_params, predictions)
-        }), 200
+            'analysis': analyze_scenario(scenario_params, predictions),
+            'student': prof,
+            'student_name': prof.get('student_name'),
+            'access_number': prof.get('access_number'),
+            'reg_number': prof.get('reg_number'),
+            'faculty_name': prof.get('faculty_name'),
+            'department_name': prof.get('department_name'),
+            'program_name': prof.get('program_name'),
+        }
+        return jsonify(scenario_body), 200
         
     except Exception as e:
         import traceback
@@ -501,12 +507,20 @@ def batch_predict():
         results = []
         for student_id in student_ids:
             try:
-                prediction = predictor.predict(student_id, model_type)
-                results.append({
-                    'student_id': student_id,
-                    'predicted_grade': round(float(prediction), 2),
-                    'predicted_letter_grade': get_letter_grade(prediction)
-                })
+                resolved = resolve_student_identifier(str(student_id))
+                if not resolved:
+                    results.append({
+                        'student_id': student_id,
+                        'error': 'Student not found',
+                    })
+                    continue
+                prediction = predictor.predict(resolved, model_type)
+                row = build_prediction_payload(
+                    student_id_resolved=resolved,
+                    raw_percent=float(prediction),
+                    model_type=model_type,
+                )
+                results.append(row)
             except Exception as e:
                 results.append({
                     'student_id': student_id,
@@ -594,21 +608,6 @@ def get_scenario_templates():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-def get_letter_grade(score):
-    """Convert numeric score to letter grade"""
-    if score >= 80:
-        return 'A'
-    elif score >= 75:
-        return 'B+'
-    elif score >= 70:
-        return 'B'
-    elif score >= 60:
-        return 'C'
-    elif score >= 50:
-        return 'D'
-    else:
-        return 'F'
 
 def analyze_scenario(scenario, predictions):
     """Analyze scenario predictions and provide insights"""
@@ -705,10 +704,26 @@ def predict_tuition_attendance_performance():
             return jsonify({'error': 'Model not trained. Please train the tuition-attendance-performance model first.'}), 503
         
         data = request.get_json()
-        student_id = data.get('student_id') or data.get('access_number')
+        student_id = data.get('student_id') or data.get('access_number') or data.get('reg_number')
         
         if not student_id:
             return jsonify({'error': 'Student ID or Access Number required'}), 400
+        
+        resolved = resolve_student_identifier(str(student_id))
+        if not resolved:
+            return jsonify({'error': 'Student not found'}), 404
+        
+        if user_scope['role'] == Role.STUDENT:
+            uid = user_scope.get('student_id')
+            uacc = user_scope.get('access_number')
+            prof = fetch_student_profile(resolved)
+            match_sid = bool(uid and str(resolved).strip() == str(uid).strip())
+            acc = prof.get('access_number')
+            match_acc = bool(
+                uacc and acc is not None and str(acc).strip() == str(uacc).strip()
+            )
+            if not (match_sid or match_acc):
+                return jsonify({'error': 'Permission denied: Can only predict own performance'}), 403
         
         # Get student features
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
@@ -752,11 +767,11 @@ def predict_tuition_attendance_performance():
         FROM dim_student ds
         LEFT JOIN fact_payment fp ON ds.student_id = fp.student_id
         LEFT JOIN fact_attendance fa ON ds.student_id = fa.student_id
-        WHERE ds.student_id = :student_id OR ds.access_number = :student_id
+        WHERE ds.student_id = :student_id
         GROUP BY ds.student_id
         """)
         
-        student_data = pd.read_sql_query(query, engine, params={'student_id': student_id})
+        student_data = pd.read_sql_query(query, engine, params={'student_id': resolved})
         engine.dispose()
         
         if student_data.empty:
@@ -816,18 +831,22 @@ def predict_tuition_attendance_performance():
         if total_required == 0 and total_paid == 0:
             payment_completion = 0.0
         
-        return jsonify({
-            'student_id': student_id,
-            'model_type': 'tuition_attendance_performance',
-            'predicted_grade': round(pred_float, 2),
-            'predicted_letter_grade': get_letter_grade(pred_float),
+        resolved_id = str(student_data['student_id'].iloc[0])
+        extra = {
             'payment_completion_rate': round(payment_completion, 2),
             'attendance_rate': round(attendance_rate, 2),
             'attendance_payment_score': safe_float(student_data['attendance_payment_score'].iloc[0], 0.0),
             'total_paid': round(total_paid, 2),
             'total_required': round(total_required, 2),
-            'total_attendance_records': int(total_attendance_records)
-        }), 200
+            'total_attendance_records': int(total_attendance_records),
+        }
+        payload = build_prediction_payload(
+            student_id_resolved=resolved_id,
+            raw_percent=pred_float,
+            model_type='tuition_attendance_performance',
+            extra=extra,
+        )
+        return jsonify(payload), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

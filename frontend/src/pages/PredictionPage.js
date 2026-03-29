@@ -149,6 +149,67 @@ const PredictionPage = () => {
     return 'border-yellow-500 bg-yellow-50';
   };
 
+  const renderStudentMeta = (row, title = 'Student record') => {
+    if (!row) return null;
+    const name = row.student_name || row.student?.student_name;
+    const access = row.access_number ?? row.student?.access_number;
+    const reg = row.reg_number ?? row.student?.reg_number;
+    const faculty = row.faculty_name ?? row.student?.faculty_name;
+    const dept = row.department_name ?? row.student?.department_name;
+    const program = row.program_name ?? row.student?.program_name;
+    const sid = row.student_id;
+    if (!name && !access && !reg && !faculty && !dept && !program && !sid) return null;
+    return (
+      <div className="rounded-md border bg-card p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+        <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+          {name && (
+            <div>
+              <dt className="text-muted-foreground">Name</dt>
+              <dd className="font-medium">{name}</dd>
+            </div>
+          )}
+          {access && (
+            <div>
+              <dt className="text-muted-foreground">Access number</dt>
+              <dd className="font-medium">{access}</dd>
+            </div>
+          )}
+          {reg && (
+            <div>
+              <dt className="text-muted-foreground">Registration number</dt>
+              <dd className="font-medium">{reg}</dd>
+            </div>
+          )}
+          {faculty && (
+            <div>
+              <dt className="text-muted-foreground">Faculty</dt>
+              <dd className="font-medium">{faculty}</dd>
+            </div>
+          )}
+          {dept && (
+            <div>
+              <dt className="text-muted-foreground">Department</dt>
+              <dd className="font-medium">{dept}</dd>
+            </div>
+          )}
+          {program && (
+            <div>
+              <dt className="text-muted-foreground">Program</dt>
+              <dd className="font-medium">{program}</dd>
+            </div>
+          )}
+          {sid && (
+            <div>
+              <dt className="text-muted-foreground">Student ID</dt>
+              <dd className="font-medium font-mono text-xs">{sid}</dd>
+            </div>
+          )}
+        </dl>
+      </div>
+    );
+  };
+
   const canUseScenarios = ['analyst', 'sysadmin', 'senate'].includes(user?.role);
   const isStudent = user?.role === 'student';
 
@@ -277,23 +338,38 @@ const PredictionPage = () => {
             <CardDescription>Model output for the selected student and model configuration.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
               <div className={`rounded-md border px-4 py-4 md:col-span-2 ${getGradeTone(predictions.single.predicted_grade)}`}>
-                <p className="text-xs font-semibold uppercase tracking-wide">Predicted Grade</p>
+                <p className="text-xs font-semibold uppercase tracking-wide">Predicted score (%)</p>
                 <p className="mt-2 text-4xl font-semibold">{predictions.single.predicted_grade}</p>
                 <Badge className={`mt-2 ${getGradeBadgeTone(predictions.single.predicted_grade)}`}>
                   {predictions.single.predicted_letter_grade}
                 </Badge>
+                {predictions.single.predicted_grade_raw != null && predictions.single.predicted_grade_raw !== predictions.single.predicted_grade && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Model raw: {predictions.single.predicted_grade_raw}%
+                  </p>
+                )}
+              </div>
+              <div className="rounded-md border px-4 py-4 bg-muted/30">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">GPA (scale max {predictions.single.gpa_scale_max ?? 5})</p>
+                <p className="mt-2 text-3xl font-semibold">
+                  {predictions.single.gpa != null ? Number(predictions.single.gpa).toFixed(2) : '—'}
+                </p>
               </div>
               <div className="rounded-md border px-4 py-4 bg-muted/30">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Model</p>
                 <p className="mt-2 text-lg font-semibold capitalize">{predictions.single.model_type?.replace('_', ' ') || 'Standard'}</p>
               </div>
-              <div className="rounded-md border px-4 py-4 bg-muted/30">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Student</p>
-                <p className="mt-2 text-lg font-semibold">{predictions.single.student_id}</p>
-              </div>
             </div>
+
+            {predictions.single.calibration_note && (
+              <p className="mt-3 text-xs text-muted-foreground border-l-2 border-primary/40 pl-3">
+                {predictions.single.calibration_note}
+              </p>
+            )}
+
+            <div className="mt-4">{renderStudentMeta(predictions.single)}</div>
 
             {(predictions.single.payment_completion_rate !== undefined || predictions.single.attendance_rate !== undefined) && (
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -337,19 +413,27 @@ const PredictionPage = () => {
               <TabsContent value="scenarios" className="space-y-4">
                 {predictions?.scenarios ? (
                   <div className="space-y-4">
+                    {renderStudentMeta(predictions.scenarios, 'Student')}
+
                     <div className="rounded-md border p-4 bg-muted/30">
                       <h3 className="text-base font-semibold">{predictions.scenarios.scenario.name}</h3>
                       <p className="text-sm text-muted-foreground mt-1">{predictions.scenarios.scenario.description}</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                       {Object.entries(predictions.scenarios.predictions).map(([model, pred]) => (
                         <div key={model} className={`rounded-md border p-4 ${getGradeTone(pred.predicted_grade)}`}>
                           <p className="text-xs font-semibold uppercase tracking-wide">{model.replace(/_/g, ' ')}</p>
-                          <p className="mt-2 text-2xl font-semibold">{pred.predicted_grade}</p>
+                          <p className="mt-2 text-2xl font-semibold">{pred.predicted_grade}%</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            GPA {pred.gpa != null ? Number(pred.gpa).toFixed(2) : '—'} / {pred.gpa_scale_max ?? 5}
+                          </p>
                           <Badge className={`mt-2 ${getGradeBadgeTone(pred.predicted_grade)}`}>
                             {pred.predicted_letter_grade}
                           </Badge>
+                          {pred.calibration_note && (
+                            <p className="mt-2 text-[11px] text-muted-foreground leading-snug">{pred.calibration_note}</p>
+                          )}
                         </div>
                       ))}
                     </div>
