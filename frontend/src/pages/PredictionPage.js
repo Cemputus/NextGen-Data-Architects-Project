@@ -13,16 +13,22 @@ import { PageHeader, PageContent } from '../components/ui/page-header';
 import { LoadingState } from '../components/ui/state-messages';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { usePersistedState } from '../hooks/usePersistedState';
+import { usePredictionWorkspace } from '../context/PredictionWorkspaceContext';
 
 const PredictionPage = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [predictions, setPredictions] = usePersistedState('prediction_workspace_results', null);
+  const {
+    predictions,
+    setPredictions,
+    selectedScenario,
+    setSelectedScenario,
+    studentIdentifier,
+    setStudentIdentifier,
+    modelType,
+    setModelType,
+  } = usePredictionWorkspace();
   const [scenarios, setScenarios] = useState([]);
-  const [selectedScenario, setSelectedScenario] = usePersistedState('prediction_workspace_lastScenario', null);
-  const [studentIdentifier, setStudentIdentifier] = usePersistedState('prediction_studentIdentifier', '');
-  const [modelType, setModelType] = useState('ensemble');
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
