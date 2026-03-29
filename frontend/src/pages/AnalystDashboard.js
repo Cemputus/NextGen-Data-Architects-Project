@@ -19,9 +19,11 @@ import { WELCOME_BACK_DURATION_MS } from '../constants/welcome';
 import {
   SciBarChart,
   SciLineChart,
+  SciDonutChart,
   Sci3DPieChart,
   SciStackedColumnChart,
 } from '../components/charts/EChartsComponents';
+import { BaseChart } from '../components/charts/BaseChart';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
 import { KPICard } from '../components/ui/kpi-card';
 import { cn } from '../lib/utils';
@@ -78,6 +80,12 @@ const AnalystDashboard = ({
   /** Pass/fail bars for Performance & grade distribution (faculty / dept / program / year). */
   const [gradePerformanceSegments, setGradePerformanceSegments] = useState([]);
   const [gradePerformanceAxis, setGradePerformanceAxis] = useState('faculty');
+  const [gradePerformanceSummary, setGradePerformanceSummary] = useState({
+    total_exams: 0,
+    pass_count: 0,
+    fail_count: 0,
+    pass_rate_pct: 0,
+  });
   const [riskSummary, setRiskSummary] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState([]);
   const [paymentTrends, setPaymentTrends] = useState([]);
@@ -301,39 +309,75 @@ const AnalystDashboard = ({
     return 'Faculty';
   }, [gradePerformanceAxis]);
 
-  const passFailBarData = useMemo(() => {
-    return (gradePerformanceSegments || []).map((s) => {
-      const full = s.full_name || s.name || '—';
-      const short =
-        gradePerformanceAxis === 'year_of_study'
-          ? formatDistributionShortLabel(full, 'year_of_study')
-          : abbreviateName(full);
-      return {
-        name: short,
-        fullName: full,
-        pass: Number(s.pass) || 0,
-        fail: Number(s.fail) || 0,
-      };
+  /** Horizontal pass-rate bars: one row per unit, sorted best → worst (read top to bottom). */
+  const passRateBySegmentChart = useMemo(() => {
+    const raw = (gradePerformanceSegments || []).filter((s) => {
+      const t = s.total ?? (Number(s.pass) || 0) + (Number(s.fail) || 0);
+      return t > 0;
     });
+    const sorted = [...raw].sort((a, b) => (Number(b.pass_rate) || 0) - (Number(a.pass_rate) || 0));
+    const labels = sorted.map((r) => {
+      const full = String(r.full_name || r.name || '—').trim();
+      if (gradePerformanceAxis === 'year_of_study') {
+        return formatDistributionShortLabel(full, 'year_of_study');
+      }
+      const short = abbreviateName(full);
+      return short || full.slice(0, 14);
+    });
+    const fullNames = sorted.map((r) => String(r.full_name || r.name || '—'));
+    const rates = sorted.map((r) => Number(r.pass_rate) || 0);
+    const totals = sorted.map((r) => r.total ?? (Number(r.pass) || 0) + (Number(r.fail) || 0));
+    if (sorted.length === 0) {
+      return { option: null, height: 280 };
+    }
+    const rowH = 30;
+    const h = Math.min(520, Math.max(260, 56 + sorted.length * rowH));
+    return {
+      option: {
+        grid: { left: 6, right: 52, top: 8, bottom: 8, containLabel: true },
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          formatter: (params) => {
+            const p = Array.isArray(params) ? params[0] : params;
+            const i = p?.dataIndex ?? 0;
+            return `${fullNames[i]}<br/>Pass rate: ${rates[i]}%<br/>Exam outcomes: ${totals[i]}`;
+          },
+        },
+        xAxis: {
+          type: 'value',
+          max: 100,
+          splitLine: { show: true, lineStyle: { type: 'dashed', opacity: 0.35 } },
+          axisLabel: { formatter: '{value}%' },
+        },
+        yAxis: {
+          type: 'category',
+          data: labels,
+          axisLabel: { fontSize: 11, width: 96, overflow: 'truncate' },
+        },
+        series: [
+          {
+            type: 'bar',
+            data: rates,
+            barMaxWidth: 24,
+            itemStyle: { color: '#166534', borderRadius: [0, 4, 4, 0] },
+            label: { show: true, position: 'right', formatter: (c) => `${c.value}%`, fontSize: 10 },
+          },
+        ],
+      },
+      height: h,
+    };
   }, [gradePerformanceSegments, gradePerformanceAxis]);
 
-  /** Always non-empty so bar charts render axes (placeholder row when API returns no rows). */
-  const letterGradeBarData = useMemo(() => {
-    const rows = (gradeDistribution || []).filter((d) => (d?.value ?? 0) > 0);
-    if (rows.length === 0) {
-      return [{ name: '—', fullName: 'No outcomes in scope', count: 0 }];
-    }
-    return rows.map((d) => ({
-      name: String(d.name ?? '—'),
-      fullName: `Grade ${d.name}`,
-      count: Number(d.value) || 0,
-    }));
-  }, [gradeDistribution]);
-
-  const passFailBarDisplay = useMemo(() => {
-    if (passFailBarData.length > 0) return passFailBarData;
-    return [{ name: '—', fullName: 'No outcomes in scope', pass: 0, fail: 0 }];
-  }, [passFailBarData]);
+  const gradeSliceColor = (name) => {
+    const g = (name ?? '').toString().trim().toUpperCase();
+    if (g === 'F' || g.startsWith('F')) return UCU_COLORS.red;
+    if (g === 'A' || g.startsWith('A')) return UCU_COLORS.green;
+    if (g.startsWith('B')) return UCU_COLORS.gold;
+    if (g.startsWith('C')) return UCU_COLORS.blue;
+    if (g.startsWith('D')) return UCU_COLORS.purple;
+    return CHART_PALETTE_THEME[Math.abs(g.length) % CHART_PALETTE_THEME.length];
+  };
 
   const distributionCardTitle = useMemo(() => {
     if (isHodWorkspace) {
@@ -409,7 +453,13 @@ const AnalystDashboard = ({
             params: { ...apiFilters, group_by: distributionGroupBy },
           })
           .catch(() => ({
-            data: { grades: [], counts: [], segments: [], segment_axis: 'faculty' },
+            data: {
+              grades: [],
+              counts: [],
+              segments: [],
+              segment_axis: 'faculty',
+              summary: { total_exams: 0, pass_count: 0, fail_count: 0, pass_rate_pct: 0 },
+            },
           })),
         axios
           .get('/api/analytics/academic-risk-summary', {
@@ -514,6 +564,14 @@ const AnalystDashboard = ({
       );
       setGradePerformanceSegments(gradePerfRes.data.segments || []);
       setGradePerformanceAxis(gradePerfRes.data.segment_axis || distributionGroupBy);
+      setGradePerformanceSummary(
+        gradePerfRes.data.summary || {
+          total_exams: 0,
+          pass_count: 0,
+          fail_count: 0,
+          pass_rate_pct: 0,
+        },
+      );
 
       setRiskSummary(riskRes.data.summary || null);
 
@@ -885,63 +943,82 @@ const AnalystDashboard = ({
           <CardHeader className={chartCardHeaderClass}>
             <CardTitle className={chartCardTitleClass}>Performance & grade distribution</CardTitle>
             <CardDescription className={chartCardDescriptionClass}>
-              GPA/grade distribution and pass/fail ratios across faculties, departments and programs.
-              </CardDescription>
-            </CardHeader>
+              Exam outcomes in your current scope (filters above). Pass = not F on the letter grade, or numeric mark ≥ 50
+              when the letter is missing. Fail = F or mark &lt; 50. The comparison chart follows your student-distribution
+              setting (faculty, department, program, or year).
+            </CardDescription>
+          </CardHeader>
           <CardContent className="pt-0">
             {loadingCharts && !hasLoadedCharts ? (
               <div className="min-h-[220px] flex items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-                  <div className="min-h-[300px]">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Letter grade counts (outcomes in scope)</p>
-                    <SciBarChart
-                      data={letterGradeBarData}
-                      xDataKey="name"
-                      yDataKey="count"
-                      xAxisLabel="Letter grade"
-                      yAxisLabel="Exam outcomes"
-                      tooltipNameKey="fullName"
-                      fillColor={UCU_COLORS.blue}
-                      showLegend={false}
-                      showGrid
-                      minHeight={300}
-                      maxHeight={400}
-                      gridPadding={{ bottom: 72 }}
-                      xAxisLabelRotate={letterGradeBarData.length > 10 ? 32 : 0}
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                  <div className="rounded-lg border border-border/80 bg-muted/25 px-3 py-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Total outcomes</p>
+                    <p className="text-lg font-semibold tabular-nums text-foreground">
+                      {(gradePerformanceSummary?.total_exams ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border/80 bg-muted/25 px-3 py-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Pass rate</p>
+                    <p className="text-lg font-semibold tabular-nums text-foreground">
+                      {Number(gradePerformanceSummary?.pass_rate_pct ?? 0).toFixed(1)}%
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border/80 bg-muted/25 px-3 py-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Passed</p>
+                    <p className="text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                      {(gradePerformanceSummary?.pass_count ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border/80 bg-muted/25 px-3 py-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Failed</p>
+                    <p className="text-lg font-semibold tabular-nums text-red-700 dark:text-red-400">
+                      {(gradePerformanceSummary?.fail_count ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                  <div className="min-h-[280px]">
+                    <p className="text-sm font-medium text-foreground mb-1">How grades split</p>
+                    <p className="text-xs text-muted-foreground mb-3">Share of exam outcomes by letter (same scope as the totals).</p>
+                    <SciDonutChart
+                      data={(gradeDistribution || []).map((d) => ({
+                        ...d,
+                        color: gradeSliceColor(d?.name),
+                      }))}
+                      nameKey="name"
+                      valueKey="value"
+                      title=""
                     />
                   </div>
-                  <div className="min-h-[300px]">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">
-                      Pass vs fail by {passFailBarAxisLabel.toLowerCase()}
+                  <div className="min-h-[280px]">
+                    <p className="text-sm font-medium text-foreground mb-1">Pass rate by {passFailBarAxisLabel.toLowerCase()}</p>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Each bar is the pass rate (% of exam outcomes passed) in that {passFailBarAxisLabel.toLowerCase()}. Hover
+                      for the full name and exam count.
                     </p>
-                    <SciBarChart
-                      data={passFailBarDisplay}
-                      xDataKey="name"
-                      yDataKeys={[
-                        { key: 'pass', label: 'Pass', color: UCU_COLORS.green },
-                        { key: 'fail', label: 'Fail', color: UCU_COLORS.red },
-                      ]}
-                      xAxisLabel={passFailBarAxisLabel}
-                      yAxisLabel="Outcomes (count)"
-                      tooltipNameKey="fullName"
-                      showLegend
-                      showGrid
-                      tooltipMode="breakdown"
-                      minHeight={300}
-                      maxHeight={400}
-                      gridPadding={{ bottom: 100 }}
-                      xAxisLabelRotate={passFailBarDisplay.length > 8 ? 40 : 28}
-                    />
+                    {passRateBySegmentChart.option ? (
+                      <BaseChart
+                        option={passRateBySegmentChart.option}
+                        minHeight={passRateBySegmentChart.height}
+                        maxHeight={passRateBySegmentChart.height}
+                      />
+                    ) : (
+                      <div className={cn(chartEmptyStateClass, 'min-h-[200px] flex items-center justify-center text-sm')}>
+                        Not enough data to compare {passFailBarAxisLabel.toLowerCase()}s in this scope.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             )}
-            </CardContent>
-          </Card>
+          </CardContent>
+        </Card>
 
         <Card className={chartSurfaceCard('h-full')}>
           <CardHeader className={chartCardHeaderClass}>

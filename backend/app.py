@@ -3763,6 +3763,7 @@ def get_grade_performance_breakdown():
                 return jsonify({
                     'grades': [], 'counts': [], 'segment_axis': gb,
                     'segments': [],
+                    'summary': {'total_exams': 0, 'pass_count': 0, 'fail_count': 0, 'pass_rate_pct': 0.0},
                 })
         else:
             if role_where:
@@ -3802,6 +3803,17 @@ def get_grade_performance_breakdown():
             "LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id"
         )
 
+        fail_case = (
+            "CASE WHEN UPPER(TRIM(COALESCE(fg.letter_grade, ''))) = 'F' THEN 1 "
+            "WHEN NULLIF(TRIM(fg.letter_grade::text), '') IS NULL AND fg.grade IS NOT NULL AND fg.grade < 50 THEN 1 "
+            "ELSE 0 END"
+        )
+        pass_case = (
+            "CASE WHEN UPPER(TRIM(COALESCE(fg.letter_grade, ''))) = 'F' THEN 0 "
+            "WHEN NULLIF(TRIM(fg.letter_grade::text), '') IS NOT NULL THEN 1 "
+            "WHEN fg.grade IS NOT NULL AND fg.grade >= 50 THEN 1 ELSE 0 END"
+        )
+
         # --- Letter distribution ---
         dist_q = f"""
         SELECT
@@ -3820,17 +3832,31 @@ def get_grade_performance_breakdown():
         """
         dist_df = pd.read_sql_query(text(dist_q), engine)
 
-        # Pass = not F (letter) or numeric >= 50 when letter missing; Fail = F or numeric < 50 when letter missing
-        fail_case = (
-            "CASE WHEN UPPER(TRIM(COALESCE(fg.letter_grade, ''))) = 'F' THEN 1 "
-            "WHEN NULLIF(TRIM(fg.letter_grade::text), '') IS NULL AND fg.grade IS NOT NULL AND fg.grade < 50 THEN 1 "
-            "ELSE 0 END"
-        )
-        pass_case = (
-            "CASE WHEN UPPER(TRIM(COALESCE(fg.letter_grade, ''))) = 'F' THEN 0 "
-            "WHEN NULLIF(TRIM(fg.letter_grade::text), '') IS NOT NULL THEN 1 "
-            "WHEN fg.grade IS NOT NULL AND fg.grade >= 50 THEN 1 ELSE 0 END"
-        )
+        summary = {'total_exams': 0, 'pass_count': 0, 'fail_count': 0, 'pass_rate_pct': 0.0}
+        try:
+            sum_q = f"""
+            SELECT
+                COUNT(*)::bigint AS total_exams,
+                COALESCE(SUM({pass_case}), 0)::bigint AS pass_n,
+                COALESCE(SUM({fail_case}), 0)::bigint AS fail_n
+            FROM fact_grade fg
+            JOIN dim_student ds ON fg.student_id = ds.student_id
+            {role_join}
+            {where_sql}
+            """
+            sdf = pd.read_sql_query(text(sum_q), engine)
+            if not sdf.empty:
+                te = int(sdf['total_exams'].iloc[0] or 0)
+                pn = int(sdf['pass_n'].iloc[0] or 0)
+                fn = int(sdf['fail_n'].iloc[0] or 0)
+                summary = {
+                    'total_exams': te,
+                    'pass_count': pn,
+                    'fail_count': fn,
+                    'pass_rate_pct': round(100.0 * pn / te, 1) if te > 0 else 0.0,
+                }
+        except Exception as ex:
+            print(f"grade_performance_breakdown summary: {ex}")
 
         segments = []
         if role == Role.STUDENT:
@@ -3907,13 +3933,19 @@ def get_grade_performance_breakdown():
             'counts': dist_df['count'].astype(int).tolist() if not dist_df.empty else [],
             'segment_axis': gb,
             'segments': segments,
+            'summary': summary,
         })
     except Exception as e:
         print(f"Error in get_grade_performance_breakdown: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
-            'grades': [], 'counts': [], 'segment_axis': 'faculty', 'segments': [], 'error': str(e),
+            'grades': [],
+            'counts': [],
+            'segment_axis': 'faculty',
+            'segments': [],
+            'summary': {'total_exams': 0, 'pass_count': 0, 'fail_count': 0, 'pass_rate_pct': 0.0},
+            'error': str(e),
         }), 500
 
 
