@@ -128,23 +128,6 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
     conn.commit()
 
 
-def _ensure_role_dashboards_if_needed(conn, all_roles, updated_by_username: str):
-  """
-  Wire default dashboards: no active dashboards → create default + pointers;
-  dashboards exist but role_current_dashboard is empty → point all roles at oldest active.
-  """
-  total_active_dashboards = conn.execute(
-    text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active = TRUE")
-  ).scalar() or 0
-  role_pointer_count = conn.execute(
-    text("SELECT COUNT(*) AS c FROM role_current_dashboard")
-  ).scalar() or 0
-  if total_active_dashboards == 0:
-    _ensure_default_role_dashboards(conn, all_roles, updated_by_username)
-  elif role_pointer_count == 0:
-    _ensure_default_role_dashboards(conn, all_roles, updated_by_username)
-
-
 def _ensure_dashboard_tables(engine):
   """Create dashboards + access tables in ucu_rbac if they don't exist."""
   try:
@@ -378,7 +361,20 @@ def get_current_dashboards():
     engine = _get_engine()
     result_payload = []
     with engine.connect() as conn:
-      _ensure_role_dashboards_if_needed(conn, all_roles, username)
+      # 1) No active dashboards → create Default Analytics Dashboard + pointers for all roles.
+      # 2) At least one active dashboard but role_current_dashboard has zero rows → wire every
+      #    role to the oldest active dashboard (first-time / import). If some pointers already
+      #    exist, we do nothing here so per-role "Hide from users" is preserved.
+      total_active_dashboards = conn.execute(
+        text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active = TRUE")
+      ).scalar() or 0
+      role_pointer_count = conn.execute(
+        text("SELECT COUNT(*) AS c FROM role_current_dashboard")
+      ).scalar() or 0
+      if total_active_dashboards == 0:
+        _ensure_default_role_dashboards(conn, all_roles, username)
+      elif role_pointer_count == 0:
+        _ensure_default_role_dashboards(conn, all_roles, username)
 
       # Fetch role->dashboard mapping
       rows = conn.execute(
@@ -445,30 +441,6 @@ def get_current_dashboards():
       engine.dispose()
     # Return 200 with one card per role (no dashboard) so Current Dashboards section is never empty
     return jsonify({"roles": _safe_payload(all_roles), "error": str(e)}), 200
-
-
-@dashboard_manager_bp.route("/ensure-wired", methods=["POST"])
-@jwt_required()
-def ensure_wired_dashboards():
-  """
-  Run the same wiring as GET /current (create default + pointers, or backfill when RCD is empty).
-  Call from Dashboard Manager on load so Current Dashboards populates even if GET failed earlier.
-  """
-  username, role = _current_user()
-  if not _is_analyst_or_admin(role):
-    return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can run this."}), 403
-
-  all_roles = ["student", "staff", "hod", "dean", "senate", "finance", "hr", "analyst", "sysadmin"]
-  engine = None
-  try:
-    engine = _get_engine()
-    with engine.connect() as conn:
-      _ensure_role_dashboards_if_needed(conn, all_roles, username)
-    return jsonify({"ok": True}), 200
-  except Exception as e:
-    if engine is not None:
-      engine.dispose()
-    return jsonify({"error": str(e)}), 500
 
 
 @dashboard_manager_bp.route("/custom", methods=["GET"])
@@ -1052,16 +1024,23 @@ def delete_dashboard(dash_id):
     return jsonify({"error": str(e)}), 500
 
 
-# ─── Page config (standalone analytics pages: FEX, High School, Risk) ─────────
-# Role home dashboards use dashboards + role_current_dashboard (Dashboard Manager).
+# ─── Page config (analytics pages + any page with visuals) ───────────────────
+# Analysts can edit KPIs/charts for FEX, High School, Risk, and every role dashboard.
 
 page_config_bp = Blueprint("page_config", __name__, url_prefix="/api/page-config")
 
-# Standalone analytics pages only. Role home dashboards are edited via Dashboard Manager (Current Dashboards).
 PAGE_KEYS = [
   "fex_analytics",
   "high_school_analytics",
   "risk_analytics",
+  "analyst_dashboard",
+  "dean_dashboard",
+  "hod_dashboard",
+  "senate_dashboard",
+  "staff_dashboard",
+  "student_dashboard",
+  "finance_dashboard",
+  "hr_dashboard",
 ]
 
 
@@ -1084,10 +1063,7 @@ def list_page_configs():
       pages = []
       seen = set()
       for row in rows:
-        pk = row["page_key"]
-        if pk not in PAGE_KEYS:
-          continue
-        seen.add(pk)
+        seen.add(row["page_key"])
         defn = row["definition"]
         if isinstance(defn, str):
           try:

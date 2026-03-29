@@ -22,26 +22,31 @@ export const CHART_OPTIONS = [
   'attendance_trends',
 ];
 
-/**
- * Standalone analytics pages (FEX, High School, Risk) editable under Dashboard Manager → Pages with visuals.
- * Role home dashboards (student, staff, dean, …) are managed only under Current Dashboards + Custom.
- */
-export const PAGE_VISUAL_KEYS = [
+export const PAGE_CONFIG_KEYS = [
   'fex_analytics',
-  'high_school_analytics',
   'risk_analytics',
+  'analyst_dashboard',
+  'dean_dashboard',
+  'hod_dashboard',
+  'senate_dashboard',
+  'staff_dashboard',
+  'student_dashboard',
+  'finance_dashboard',
+  'hr_dashboard',
 ];
 
-export const PAGE_VISUAL_LABELS = {
+export const PAGE_CONFIG_LABELS = {
   fex_analytics: 'FEX Analytics',
-  high_school_analytics: 'High School Analytics',
   risk_analytics: 'Risk Analytics',
+  analyst_dashboard: 'Analyst Dashboard',
+  dean_dashboard: 'Dean Dashboard',
+  hod_dashboard: 'HoD Dashboard',
+  senate_dashboard: 'Senate Dashboard',
+  staff_dashboard: 'Staff Dashboard',
+  student_dashboard: 'Student Dashboard',
+  finance_dashboard: 'Finance Dashboard',
+  hr_dashboard: 'HR Dashboard',
 };
-
-/** @deprecated Use PAGE_VISUAL_KEYS — role dashboard keys removed. */
-export const PAGE_CONFIG_KEYS = PAGE_VISUAL_KEYS;
-/** @deprecated Use PAGE_VISUAL_LABELS */
-export const PAGE_CONFIG_LABELS = PAGE_VISUAL_LABELS;
 
 /** KPI definitions for RoleDashboardRenderer (key, label, subtitle, valuePath, isPercent). */
 export const KPI_DEFINITIONS = [

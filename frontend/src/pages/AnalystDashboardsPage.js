@@ -19,8 +19,8 @@ import { RefreshCw, Filter as FilterIcon, LayoutGrid, List, Loader2, Trash2, XCi
 import {
   KPI_OPTIONS,
   CHART_OPTIONS,
-  PAGE_VISUAL_KEYS,
-  PAGE_VISUAL_LABELS,
+  PAGE_CONFIG_KEYS,
+  PAGE_CONFIG_LABELS,
   ROLE_LIST,
 } from '../config';
 
@@ -37,7 +37,6 @@ const AnalystDashboardsPage = () => {
   const [customDashboards, setCustomDashboards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [apiForbidden, setApiForbidden] = useState(false);
-  const [managerBackendError, setManagerBackendError] = useState(null);
   const [filterRole, setFilterRole] = useState('');
   const [search, setSearch] = useState('');
   const [createdByFilter, setCreatedByFilter] = useState('all'); // all | me
@@ -165,16 +164,6 @@ const AnalystDashboardsPage = () => {
       setApiForbidden(false);
       const token = authToken || sessionStorage.getItem('ucu_session_token');
 
-      try {
-        await axios.post(
-          '/api/dashboard-manager/ensure-wired',
-          {},
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      } catch (ew) {
-        console.warn('ensure-wired:', ew?.response?.data || ew?.message);
-      }
-
       const params = {};
       if (filterRole) params.role = filterRole;
       if (createdByFilter === 'me') params.created_by = 'me';
@@ -198,8 +187,6 @@ const AnalystDashboardsPage = () => {
       const customResp = results[1];
       const pageConfigResp = canManage && results[2] ? results[2] : null;
 
-      setManagerBackendError(currentResp.data?.error ? String(currentResp.data.error) : null);
-
       // Backend returns only assignable roles for analyst (no sysadmin); sysadmin gets all roles
       const current = currentResp.data?.roles || [];
       const byRole = {};
@@ -213,12 +200,10 @@ const AnalystDashboardsPage = () => {
       setCustomDashboards(customResp.data?.dashboards || []);
 
       if (pageConfigResp?.data?.pages) {
-        setPageConfigs(
-          pageConfigResp.data.pages.filter((p) => PAGE_VISUAL_KEYS.includes(p.page_key))
-        );
+        setPageConfigs(pageConfigResp.data.pages);
       } else if (canManage) {
         setPageConfigs(
-          PAGE_VISUAL_KEYS.map((key) => ({
+          PAGE_CONFIG_KEYS.map((key) => ({
             page_key: key,
             definition: null,
             updated_at: null,
@@ -228,7 +213,6 @@ const AnalystDashboardsPage = () => {
       }
     } catch (err) {
       console.error('Error loading dashboard manager data:', err);
-      setManagerBackendError(err?.response?.data?.error || err?.message || null);
       setApiForbidden(err.response?.status === 403);
       const fallbackRoles = getAssignableRoles(user?.role);
       setCurrentByRole(fallbackRoles.map((r) => ({ role: r, dashboard: null })));
@@ -369,7 +353,7 @@ const AnalystDashboardsPage = () => {
     setResetPageConfirm({
       open: true,
       pageKey,
-      label: PAGE_VISUAL_LABELS[pageKey] || pageKey.replace(/_/g, ' '),
+      label: PAGE_CONFIG_LABELS[pageKey] || pageKey.replace(/_/g, ' '),
     });
   };
 
@@ -416,7 +400,7 @@ const AnalystDashboardsPage = () => {
       await loadData();
       setMessageModal({
         open: true,
-        message: `Content copied from ${PAGE_VISUAL_LABELS[fromPageKey] || fromPageKey} to ${PAGE_VISUAL_LABELS[toPageKey] || toPageKey}.`,
+        message: `Content copied from ${PAGE_CONFIG_LABELS[fromPageKey] || fromPageKey} to ${PAGE_CONFIG_LABELS[toPageKey] || toPageKey}.`,
       });
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to copy page content.';
@@ -657,7 +641,7 @@ const AnalystDashboardsPage = () => {
     <div className="space-y-4">
       <PageHeader
         title="Dashboard Manager"
-        subtitle="Assign live dashboards per role (Current Dashboards), manage saved definitions (Custom), and optionally tune FEX / High School / Risk page layouts below."
+        subtitle="Edit the current dashboard and KPIs/charts for every role. You can edit any page with visuals (all role dashboards), swap with custom dashboards, and change which KPIs and charts each role sees."
         actions={
           <div className="flex items-center gap-2">
             {canManage && (
@@ -688,13 +672,6 @@ const AnalystDashboardsPage = () => {
           </div>
         }
       />
-
-      {managerBackendError && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
-          <strong className="font-semibold">Could not load current dashboards fully.</strong>{' '}
-          {managerBackendError} Check that the API can reach the RBAC database and try Refresh.
-        </div>
-      )}
 
       {apiForbidden && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-sm text-amber-800 dark:text-amber-200">
@@ -1014,26 +991,24 @@ const AnalystDashboardsPage = () => {
         </CardContent>
       </Card>
 
-      {/* Pages with visuals – FEX / High School / Risk only (role home dashboards use Current Dashboards above) */}
+      {/* Pages with visuals – view, edit, reset, copy for analytics and role pages */}
       {canManage && (
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold">Pages with visuals</CardTitle>
             <CardDescription className="text-xs">
-              Optional layouts for <strong>FEX</strong>, <strong>High School</strong>, and <strong>Risk</strong> analytics
-              routes. Student/Staff/Dean/… home dashboards are configured only under <strong>Current Dashboards</strong> and{' '}
-              <strong>Custom Dashboards</strong>.
+              View, edit, reset, or copy content for analytics pages (FEX, High School, Risk) and every role dashboard. Changes apply to what users see on that page.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {(pageConfigs.length > 0 ? pageConfigs : PAGE_VISUAL_KEYS.map((k) => ({ page_key: k }))).map((page) => {
+              {(pageConfigs.length > 0 ? pageConfigs : PAGE_CONFIG_KEYS.map((k) => ({ page_key: k }))).map((page) => {
                 const key = page.page_key || page;
-                const label = PAGE_VISUAL_LABELS[key] || key.replace(/_/g, ' ');
+                const label = PAGE_CONFIG_LABELS[key] || key.replace(/_/g, ' ');
                 const hasCustom = page.definition && typeof page.definition === 'object' && (Array.isArray(page.definition.kpis) || Array.isArray(page.definition.charts));
                 const isResetting = resettingPageKey === key;
                 const isCopying = copyingPageKey === key;
-                const otherPages = PAGE_VISUAL_KEYS.filter((k2) => k2 !== key);
+                const otherPages = PAGE_CONFIG_KEYS.filter((k2) => k2 !== key);
                 return (
                   <div
                     key={key}
@@ -1091,7 +1066,7 @@ const AnalystDashboardsPage = () => {
                           <option value="">Copy from…</option>
                           {otherPages.map((other) => (
                             <option key={other} value={other}>
-                              {PAGE_VISUAL_LABELS[other] || other}
+                              {PAGE_CONFIG_LABELS[other] || other}
                             </option>
                           ))}
                         </select>
@@ -1404,7 +1379,7 @@ const AnalystDashboardsPage = () => {
                       <div className="space-y-2">
                         <div className="font-semibold text-[11px]">
                           {contentPageKey
-                            ? PAGE_VISUAL_LABELS[contentPageKey] || contentPageKey.replace(/_/g, ' ')
+                            ? PAGE_CONFIG_LABELS[contentPageKey] || contentPageKey.replace(/_/g, ' ')
                             : contentDashboard?.name || 'Untitled dashboard'}
                         </div>
                         {contentDashboard && !contentPageKey && contentDashboard.description && (
