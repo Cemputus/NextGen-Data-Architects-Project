@@ -32,7 +32,7 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
   current assignment, assign the first active dashboard to those roles.
   """
   total_dashboards = conn.execute(
-    text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active = 1")
+    text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active = TRUE")
   ).scalar() or 0
 
   default_dashboard_id = None
@@ -91,7 +91,7 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
   dashboard_to_assign = default_dashboard_id
   if dashboard_to_assign is None and total_dashboards > 0:
     row = conn.execute(
-      text("SELECT id FROM dashboards WHERE is_active = 1 ORDER BY created_at ASC LIMIT 1")
+      text("SELECT id FROM dashboards WHERE is_active = TRUE ORDER BY created_at ASC LIMIT 1")
     ).fetchone()
     if row:
       dashboard_to_assign = row[0]
@@ -377,7 +377,7 @@ def get_current_dashboards():
                  d.id AS d_id, d.name, d.description, d.created_by_username, d.created_by_role, d.definition, d.updated_at AS d_updated_at
           FROM role_current_dashboard r
           LEFT JOIN dashboards d ON d.id = r.dashboard_id
-          WHERE d.is_active = 1 OR d.id IS NULL
+          WHERE d.is_active = TRUE OR d.id IS NULL
           """
         )
       ).mappings()
@@ -462,7 +462,7 @@ def get_custom_dashboards():
       base_sql = """
         SELECT d.*
         FROM dashboards d
-        WHERE d.is_active = 1
+        WHERE d.is_active = TRUE
       """
       params: Dict[str, Any] = {}
 
@@ -866,7 +866,7 @@ def get_current_dashboard_for_role():
 @dashboards_bp.route("/<dash_id>", methods=["DELETE"])
 @jwt_required()
 def delete_dashboard(dash_id):
-  """Soft delete a dashboard (is_active = 0). Analyst or Sysadmin only. Cannot delete if current for any role."""
+  """Soft delete a dashboard (is_active = FALSE). Analyst or Sysadmin only. Cannot delete if current for any role."""
   username, role = _current_user()
   err = _require_analyst_or_sysadmin(role)
   if err:
@@ -891,7 +891,7 @@ def delete_dashboard(dash_id):
           400,
         )
       conn.execute(
-        text("UPDATE dashboards SET is_active = 0 WHERE id = :id"),
+        text("UPDATE dashboards SET is_active = FALSE WHERE id = :id"),
         {"id": dash_id},
       )
       conn.commit()
