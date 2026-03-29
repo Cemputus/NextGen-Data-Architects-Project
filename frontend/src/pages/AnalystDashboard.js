@@ -76,6 +76,9 @@ const AnalystDashboard = ({
   const [enrollmentByFaculty, setEnrollmentByFaculty] = useState([]);
   const [gradesOverTime, setGradesOverTime] = useState([]);
   const [gradeDistribution, setGradeDistribution] = useState([]);
+  /** Pass/fail bars for Performance & grade distribution (faculty / dept / program / year). */
+  const [gradePerformanceSegments, setGradePerformanceSegments] = useState([]);
+  const [gradePerformanceAxis, setGradePerformanceAxis] = useState('faculty');
   const [riskSummary, setRiskSummary] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState([]);
   const [paymentTrends, setPaymentTrends] = useState([]);
@@ -291,6 +294,30 @@ const AnalystDashboard = ({
     return s;
   };
 
+  const passFailBarAxisLabel = useMemo(() => {
+    const k = gradePerformanceAxis || 'faculty';
+    if (k === 'department') return 'Department';
+    if (k === 'program') return 'Program';
+    if (k === 'year_of_study') return 'Year of study';
+    return 'Faculty';
+  }, [gradePerformanceAxis]);
+
+  const passFailBarData = useMemo(() => {
+    return (gradePerformanceSegments || []).map((s) => {
+      const full = s.full_name || s.name || '—';
+      const short =
+        gradePerformanceAxis === 'year_of_study'
+          ? formatDistributionShortLabel(full, 'year_of_study')
+          : abbreviateName(full);
+      return {
+        name: short,
+        fullName: full,
+        pass: Number(s.pass) || 0,
+        fail: Number(s.fail) || 0,
+      };
+    });
+  }, [gradePerformanceSegments, gradePerformanceAxis]);
+
   const distributionCardTitle = useMemo(() => {
     if (isHodWorkspace) {
       if (!deptScopeShape.loaded) return 'Student distribution (your department)';
@@ -360,11 +387,13 @@ const AnalystDashboard = ({
           })
           .catch(() => ({ data: { periods: [], grades: [] } })),
         axios
-          .get('/api/dashboard/grade-distribution', {
+          .get('/api/dashboard/grade-performance-breakdown', {
             headers,
-            params: apiFilters,
+            params: { ...apiFilters, group_by: distributionGroupBy },
           })
-          .catch(() => ({ data: { grades: [], counts: [] } })),
+          .catch(() => ({
+            data: { grades: [], counts: [], segments: [], segment_axis: 'faculty' },
+          })),
         axios
           .get('/api/analytics/academic-risk-summary', {
             headers,
@@ -430,7 +459,7 @@ const AnalystDashboard = ({
 
       const [
         gradesRes,
-        gradeDistRes,
+        gradePerfRes,
         riskRes,
         paymentStatusRes,
         paymentTrendsRes,
@@ -461,11 +490,13 @@ const AnalystDashboard = ({
       );
 
       setGradeDistribution(
-        (gradeDistRes.data.grades || []).map((grade, idx) => ({
+        (gradePerfRes.data.grades || []).map((grade, idx) => ({
           name: grade,
-          value: gradeDistRes.data.counts?.[idx] || 0,
+          value: gradePerfRes.data.counts?.[idx] || 0,
         })),
       );
+      setGradePerformanceSegments(gradePerfRes.data.segments || []);
+      setGradePerformanceAxis(gradePerfRes.data.segment_axis || distributionGroupBy);
 
       setRiskSummary(riskRes.data.summary || null);
 
@@ -859,15 +890,54 @@ const AnalystDashboard = ({
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <SciDonutChart
-                data={(gradeDistribution || []).map((d) => ({
-                  ...d,
-                  color: gradeColor(d?.name),
-                }))}
-                nameKey="name"
-                valueKey="value"
-                title="Grade distribution"
-              />
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                  <div className="min-h-[260px]">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Letter grade mix (completed exams)</p>
+                    {(gradeDistribution || []).some((d) => (d?.value ?? 0) > 0) ? (
+                      <SciDonutChart
+                        data={(gradeDistribution || []).map((d) => ({
+                          ...d,
+                          color: gradeColor(d?.name),
+                        }))}
+                        nameKey="name"
+                        valueKey="value"
+                        title="Grade distribution"
+                      />
+                    ) : (
+                      <div className={cn(chartEmptyStateClass, 'min-h-[200px]')}>No letter-grade data for these filters.</div>
+                    )}
+                  </div>
+                  <div className="min-h-[280px]">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Pass vs fail by {passFailBarAxisLabel.toLowerCase()} (same scope as filters)
+                    </p>
+                    {passFailBarData.length > 0 ? (
+                      <SciBarChart
+                        data={passFailBarData}
+                        xDataKey="name"
+                        yDataKeys={[
+                          { key: 'pass', label: 'Pass', color: UCU_COLORS.green },
+                          { key: 'fail', label: 'Fail', color: UCU_COLORS.red },
+                        ]}
+                        xAxisLabel={passFailBarAxisLabel}
+                        yAxisLabel="Completed exam outcomes"
+                        tooltipNameKey="fullName"
+                        showLegend
+                        showGrid
+                        minHeight={300}
+                        maxHeight={380}
+                        gridPadding={{ bottom: 100 }}
+                        xAxisLabelRotate={passFailBarData.length > 8 ? 40 : 28}
+                      />
+                    ) : (
+                      <div className={cn(chartEmptyStateClass, 'min-h-[200px]')}>
+                        No pass/fail breakdown for the current filters.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
             </CardContent>
           </Card>

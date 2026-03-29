@@ -3709,6 +3709,200 @@ def get_grade_distribution():
         print(f"Error in get_grade_distribution: {e}")
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/dashboard/grade-performance-breakdown', methods=['GET'])
+@jwt_required()
+def get_grade_performance_breakdown():
+    """
+    Letter-grade distribution (same semantics as /grade-distribution) plus pass/fail counts
+    grouped by faculty, department, program, or year of study for the Performance card.
+    """
+    try:
+        from flask_jwt_extended import get_jwt
+        from rbac import Role
+
+        claims = get_jwt()
+        role_str = claims.get('role', 'student')
+        try:
+            role = Role(role_str.lower())
+        except Exception:
+            role = Role.STUDENT
+
+        engine = get_dw_engine()
+        filters = request.args.to_dict()
+        role_join, role_where = _dashboard_role_scope()
+
+        gb = (filters.get('group_by') or 'faculty').strip().lower()
+        if gb not in ('faculty', 'department', 'program', 'year_of_study'):
+            gb = 'faculty'
+
+        where_clauses = []
+        if role == Role.STUDENT:
+            student_id = claims.get('student_id')
+            access_number = claims.get('access_number')
+            if student_id:
+                safe_id = str(student_id).replace("'", "''")
+                where_clauses.append(f"ds.student_id = '{safe_id}'")
+            elif access_number:
+                safe_acc = str(access_number).replace("'", "''")
+                where_clauses.append(f"ds.access_number = '{safe_acc}'")
+            else:
+                return jsonify({
+                    'grades': [], 'counts': [], 'segment_axis': gb,
+                    'segments': [],
+                })
+        else:
+            if role_where:
+                where_clauses.append(role_where)
+            if filters.get('faculty_id'):
+                where_clauses.append(
+                    "ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id IN "
+                    f"(SELECT department_id FROM dim_department WHERE faculty_id = {filters['faculty_id']}))"
+                )
+            if filters.get('department_id'):
+                where_clauses.append(
+                    f"ds.program_id IN (SELECT program_id FROM dim_program WHERE department_id = {filters['department_id']})"
+                )
+            if filters.get('program_id'):
+                where_clauses.append(f"ds.program_id = {filters['program_id']}")
+            if filters.get('semester_id'):
+                where_clauses.append(f"fg.semester_id = {filters['semester_id']}")
+            if filters.get('high_school') and str(filters.get('high_school')).strip().lower() not in ('', 'all'):
+                hs = str(filters.get('high_school')).replace("'", "''")
+                where_clauses.append(f"ds.high_school ILIKE '%{hs}%'")
+            if filters.get('intake_year') and str(filters.get('intake_year')).strip().lower() not in ('', 'all'):
+                try:
+                    where_clauses.append(f"EXTRACT(YEAR FROM ds.admission_date) = {int(filters['intake_year'])}")
+                except Exception:
+                    pass
+            if filters.get('course_code') and str(filters.get('course_code')).strip().lower() not in ('', 'all'):
+                cc = str(filters.get('course_code')).replace("'", "''")
+                where_clauses.append(f"fg.course_code = '{cc}'")
+
+        where_clauses.append(_sql_exam_completed_predicate('fg'))
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        join_tail = str(role_join).strip() or (
+            "LEFT JOIN dim_program dp ON ds.program_id = dp.program_id "
+            "LEFT JOIN dim_department ddept ON dp.department_id = ddept.department_id "
+            "LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id"
+        )
+
+        # --- Letter distribution (same as grade-distribution) ---
+        dist_q = f"""
+        SELECT
+            COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—') AS letter_grade,
+            COUNT(*) as count
+        FROM fact_grade fg
+        JOIN dim_student ds ON fg.student_id = ds.student_id
+        {role_join}
+        {where_sql}
+        GROUP BY COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—')
+        ORDER BY
+            MIN(CASE COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—')
+                WHEN 'A' THEN 1 WHEN 'B+' THEN 2 WHEN 'B' THEN 3 WHEN 'C+' THEN 4
+                WHEN 'C' THEN 5 WHEN 'D+' THEN 6 WHEN 'D' THEN 7 WHEN 'F' THEN 8
+                WHEN '—' THEN 9 ELSE 10 END)
+        """
+        dist_df = pd.read_sql_query(text(dist_q), engine)
+
+        # Pass = not F (letter) or numeric >= 50 when letter missing; Fail = F or numeric < 50 when letter missing
+        fail_case = (
+            "CASE WHEN UPPER(TRIM(COALESCE(fg.letter_grade, ''))) = 'F' THEN 1 "
+            "WHEN NULLIF(TRIM(fg.letter_grade::text), '') IS NULL AND fg.grade IS NOT NULL AND fg.grade < 50 THEN 1 "
+            "ELSE 0 END"
+        )
+        pass_case = (
+            "CASE WHEN UPPER(TRIM(COALESCE(fg.letter_grade, ''))) = 'F' THEN 0 "
+            "WHEN NULLIF(TRIM(fg.letter_grade::text), '') IS NOT NULL THEN 1 "
+            "WHEN fg.grade IS NOT NULL AND fg.grade >= 50 THEN 1 ELSE 0 END"
+        )
+
+        segments = []
+        if role == Role.STUDENT:
+            seg_q = f"""
+            SELECT
+                'Your record' AS segment_name,
+                SUM({fail_case})::bigint AS fail_count,
+                SUM({pass_case})::bigint AS pass_count
+            FROM fact_grade fg
+            JOIN dim_student ds ON fg.student_id = ds.student_id
+            {where_sql}
+            """
+            seg_df = pd.read_sql_query(text(seg_q), engine)
+            if not seg_df.empty:
+                r = seg_df.iloc[0]
+                fc = int(r['fail_count'] or 0)
+                pc = int(r['pass_count'] or 0)
+                tot = fc + pc
+                pr = round(100.0 * pc / tot, 1) if tot > 0 else 0.0
+                segments.append({
+                    'name': 'Your record',
+                    'full_name': 'Your record',
+                    'pass': pc,
+                    'fail': fc,
+                    'total': tot,
+                    'pass_rate': pr,
+                })
+        else:
+            if gb == 'department':
+                seg_expr = "COALESCE(ddept.department_name, 'Unknown')"
+                group_sql = "ddept.department_id, ddept.department_name"
+            elif gb == 'program':
+                seg_expr = "COALESCE(dp.program_name, 'Unknown')"
+                group_sql = "dp.program_id, dp.program_name"
+            elif gb == 'year_of_study':
+                seg_expr = "COALESCE('Year ' || NULLIF(ds.year_of_study::text, ''), 'Unknown')"
+                group_sql = "ds.year_of_study"
+            else:
+                seg_expr = "COALESCE(df.faculty_name, 'Unknown')"
+                group_sql = "df.faculty_id, df.faculty_name"
+
+            seg_q = f"""
+            SELECT
+                {seg_expr} AS segment_name,
+                SUM({fail_case})::bigint AS fail_count,
+                SUM({pass_case})::bigint AS pass_count
+            FROM fact_grade fg
+            JOIN dim_student ds ON fg.student_id = ds.student_id
+            {join_tail}
+            {where_sql}
+            GROUP BY {group_sql}
+            HAVING SUM({fail_case}) + SUM({pass_case}) > 0
+            ORDER BY SUM({fail_case}) + SUM({pass_case}) DESC
+            LIMIT 16
+            """
+            seg_df = pd.read_sql_query(text(seg_q), engine)
+            for _, r in seg_df.iterrows():
+                fc = int(r['fail_count'] or 0)
+                pc = int(r['pass_count'] or 0)
+                tot = fc + pc
+                nm = str(r['segment_name'] or 'Unknown').strip() or 'Unknown'
+                pr = round(100.0 * pc / tot, 1) if tot > 0 else 0.0
+                segments.append({
+                    'name': nm,
+                    'full_name': nm,
+                    'pass': pc,
+                    'fail': fc,
+                    'total': tot,
+                    'pass_rate': pr,
+                })
+
+        return jsonify({
+            'grades': dist_df['letter_grade'].tolist() if not dist_df.empty else [],
+            'counts': dist_df['count'].astype(int).tolist() if not dist_df.empty else [],
+            'segment_axis': gb,
+            'segments': segments,
+        })
+    except Exception as e:
+        print(f"Error in get_grade_performance_breakdown: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'grades': [], 'counts': [], 'segment_axis': 'faculty', 'segments': [], 'error': str(e),
+        }), 500
+
+
 @app.route('/api/dashboard/top-students', methods=['GET'])
 @jwt_required()
 def get_top_students_filtered():
