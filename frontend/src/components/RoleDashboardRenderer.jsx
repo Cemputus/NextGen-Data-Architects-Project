@@ -16,10 +16,9 @@ import { KPI_DEFINITIONS } from '../config';
  *
  * Props:
  * - stats: object with global KPI stats suitable for KPICard (e.g., /api/dashboard/stats or role analytics)
- * - type: string passed to RoleBasedCharts (e.g., 'general', 'finance')
- * - filters: global filter object for RoleBasedCharts (faculty, department, semester, etc.)
+ * - type: string passed to RoleBasedCharts (e.g., 'faculty', 'staff', 'student', 'finance', 'senate', etc.)
  */
-const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
+const RoleDashboardRenderer = ({ stats, type }) => {
   const [definition, setDefinition] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pinnedVisualizations, setPinnedVisualizations] = useState([]);
@@ -150,7 +149,7 @@ const RoleDashboardRenderer = ({ stats, type = 'general', filters = {} }) => {
           </CardHeader>
           <CardContent className="p-4 pt-0">
             {/* RoleBasedCharts already understands the role and uses filters & type to scope */}
-            <RoleBasedCharts filters={filters} type={type} />
+            <RoleBasedCharts filters={{}} type={type} />
           </CardContent>
         </Card>
       )}
