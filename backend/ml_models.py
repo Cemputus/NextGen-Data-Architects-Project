@@ -313,8 +313,71 @@ class MultiModelPredictor:
         
         return results
     
-    def predict(self, student_id, model_type='ensemble'):
-        """Predict student performance using specified model or ensemble"""
+    def _apply_scenario_override_to_student_data(self, student_data: pd.DataFrame, o: dict) -> None:
+        """
+        Mutate the warehouse feature row so what-if attendance, payment, course load,
+        and balance match the scenario. Used by /predictions/scenario so Random Forest,
+        Gradient Boosting, and Neural Network all read the same hypothetical inputs as
+        the tuition+attendance model (instead of only adding a delta on top of baseline).
+        """
+        if student_data.empty or not o:
+            return
+        idx = student_data.index[0]
+        base_ar = max(float(o.get('base_attendance_rate') or 0.0), 1.0)
+        mod_ar = float(o['modified_attendance_rate'])
+        mod_pr = float(o['modified_payment_rate'])
+        mod_c = int(o['modified_courses'])
+        bal = bool(o.get('has_significant_balance', False))
+        base_pr = float(o.get('base_payment_rate') or 0.0)
+
+        tr = float(student_data.loc[idx].get('total_required', 0) or 0.0)
+        th = float(student_data.loc[idx].get('total_attendance_hours', 0) or 0.0)
+        tdp = float(student_data.loc[idx].get('total_days_present', 0) or 0.0)
+
+        ar_scale = mod_ar / base_ar
+        ar_scale = max(0.28, min(3.2, ar_scale))
+
+        if 'attendance_rate' in student_data.columns:
+            student_data.loc[idx, 'attendance_rate'] = mod_ar
+        if 'payment_completion_rate' in student_data.columns:
+            student_data.loc[idx, 'payment_completion_rate'] = mod_pr
+        if 'courses_attended' in student_data.columns:
+            student_data.loc[idx, 'courses_attended'] = mod_c
+        if 'has_significant_balance' in student_data.columns:
+            student_data.loc[idx, 'has_significant_balance'] = 1 if bal else 0
+
+        if 'total_required' in student_data.columns and tr > 1e-6:
+            new_paid = tr * (mod_pr / 100.0)
+            student_data.loc[idx, 'total_paid'] = new_paid
+            student_data.loc[idx, 'total_pending'] = max(0.0, tr - new_paid)
+
+        if 'total_attendance_hours' in student_data.columns:
+            student_data.loc[idx, 'total_attendance_hours'] = th * ar_scale
+        if 'total_days_present' in student_data.columns:
+            student_data.loc[idx, 'total_days_present'] = tdp * ar_scale
+
+        mc = max(mod_c, 1)
+        if 'avg_hours_per_course' in student_data.columns:
+            student_data.loc[idx, 'avg_hours_per_course'] = (th * ar_scale) / float(mc)
+
+        if 'payment_count' in student_data.columns:
+            bpc = float(student_data.loc[idx].get('payment_count', 0) or 0.0)
+            if base_pr > 1e-6:
+                student_data.loc[idx, 'payment_count'] = max(0.0, bpc * (mod_pr / base_pr))
+            else:
+                student_data.loc[idx, 'payment_count'] = max(0.0, bpc + mod_pr / 25.0)
+
+    def predict(self, student_id, model_type='ensemble', scenario_override=None, scenario_mode=False):
+        """
+        Predict student performance using specified model or ensemble.
+
+        scenario_override: optional dict with base/modified attendance, payment, courses, balance
+            (see /api/predictions/scenario). When set, the warehouse row is rewritten before
+            scaling so NN and tree models reflect the hypothetical case.
+
+        scenario_mode: when True with scenario_override, skip observable-signal blending so
+            scenario differences are visible (used for what-if analysis only).
+        """
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
         # Get student features
@@ -385,6 +448,9 @@ class MultiModelPredictor:
         
         if student_data.empty:
             raise ValueError(f"Student {student_id} not found")
+
+        if scenario_override:
+            self._apply_scenario_override_to_student_data(student_data, scenario_override)
         
         # Encode categorical variables - MUST match training encoding
         # Use the same label encoders from training, or encode in place like training does
@@ -511,7 +577,7 @@ class MultiModelPredictor:
             raise ValueError(f"Model {model_type} not available")
         
         prediction = float(prediction)
-        if model_type in ('ensemble', 'neural_network'):
+        if not scenario_mode and model_type in ('ensemble', 'neural_network'):
             prediction = self._blend_with_observable_signals(row, prediction)
         return max(0.0, min(100.0, prediction))  # Clamp between 0 and 100
     
