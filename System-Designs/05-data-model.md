@@ -121,6 +121,17 @@ erDiagram
     }
 ```
 
+### Star Schema Relationships (Dimensions + Facts)
+| Relationship | Join verb | Join keys (source → target) | Connection type |
+|---|---|---|---|
+| `dim_faculty` → `dim_department` | has | `dim_department.faculty_id` → `dim_faculty.faculty_id` | FK (declared) |
+| `dim_department` → `dim_program` | offers | `dim_program.department_id` → `dim_department.department_id` | FK (declared) |
+| `dim_student` → `dim_program` | studies in | `dim_student.program_id` → `dim_program.program_id` | Logical (no FK declared) |
+| `fact_enrollment` → dimensions | enrolls | `fact_enrollment.student_id` → `dim_student.student_id`<br/>`fact_enrollment.course_code` → `dim_course.course_code`<br/>`fact_enrollment.date_key` → `dim_time.date_key`<br/>`fact_enrollment.semester_id` → `dim_semester.semester_id` | Fact foreign keys (star joins) |
+| `fact_attendance` → dimensions | attends | `fact_attendance.student_id` → `dim_student.student_id`<br/>`fact_attendance.course_code` → `dim_course.course_code`<br/>`fact_attendance.date_key` → `dim_time.date_key` | Fact foreign keys (star joins) |
+| `fact_payment` → dimensions | pays | `fact_payment.student_id` → `dim_student.student_id`<br/>`fact_payment.date_key` → `dim_time.date_key`<br/>`fact_payment.semester_id` → `dim_semester.semester_id` | Fact foreign keys (star joins) |
+| `fact_grade` → dimensions | receives | `fact_grade.student_id` → `dim_student.student_id`<br/>`fact_grade.course_code` → `dim_course.course_code`<br/>`fact_grade.date_key` → `dim_time.date_key`<br/>`fact_grade.semester_id` → `dim_semester.semester_id` | Fact foreign keys (star joins) |
+
 **Warehouse bridge:** **`dim_app_user`** mirrors application users for analytics that join operational identity to facts (created in [`backend/app.py`](../backend/app.py)).
 
 ---
