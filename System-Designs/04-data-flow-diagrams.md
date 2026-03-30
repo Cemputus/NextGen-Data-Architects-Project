@@ -1,4 +1,4 @@
-# 04 — Data Flow Diagrams (DFD-style)
+# **04 — Data Flow Diagrams (DFD-style)**
 
 ## Level 0 — Context (process vs external stores)
 
@@ -11,6 +11,8 @@ flowchart LR
     ETL[ETL / Airflow / admin jobs] --> DW
     ETL --> FS
 ```
+
+
 
 ## Level 1 — Main processes
 
@@ -72,12 +74,15 @@ flowchart TB
     L1 --> RBDB
 ```
 
+
+
 ## Notation
 
 - **Flows** are HTTPS JSON unless noted (exports may be files).
-- **Scope** (own / class / department / faculty) is enforced in API handlers using JWT claims + query filters — see [`backend/rbac.py`](../backend/rbac.py).
+- **Scope** (own / class / department / faculty) is enforced in API handlers using JWT claims + query filters — see `[backend/rbac.py](../backend/rbac.py)`.
 
 ## Related documents
 
 - [Data model](./05-data-model.md)
 - [API map](./07-api-and-integrations.md)
+
