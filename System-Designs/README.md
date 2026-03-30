@@ -16,3 +16,8 @@ Professional design views for the **UCU NextGen Analytics & Prediction Platform*
 | — | [10-users-and-employees-domain-erd](./10-users-and-employees-domain-erd.md) | Nine roles + employees: entities, org scope, cross-role relationships |
 
 **Source of truth:** behaviour and names are derived from the codebase (`backend/`, `frontend/`, `render.yaml`, `backend/rbac.py`), not from this folder alone.
+
+
+hey boss help me create  one table in each of the 2 .md @System-Designs/05-data-model.md @System-Designs/09-etl-data-warehouse-erd.md  showing all the relationships and connection for Full star schema (dimensions + facts)  erd in @System-Designs/09-etl-data-warehouse-erd.md ,,,,,,,,,,,  and the 2. Data warehouse (star schema) in the @System-Designs/05-data-model.md   respectively
+
+,,
