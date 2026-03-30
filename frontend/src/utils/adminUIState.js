@@ -1,8 +1,4 @@
-/**
- * Persistent admin UI state (filters, limits, tabs, pagination).
- * Survives hard refresh. Scoped per logged-in admin user so different admins
- * (or users with the same role) do not share filters or preferences.
- */
+
 const STORAGE_PREFIX = 'admin_ui_state_';
 
 const getCurrentUserKey = () => {
@@ -29,9 +25,9 @@ const DEFAULTS = {
     runsLimit: 300,
     perPage: 20,
     page: 1,
-    dataViewMode: 'raw', // 'raw' | 'visual'
+    dataViewMode: 'raw', 
     warehouseFilter: '',
-    etlStatusFilter: 'all', // 'all' | 'success' | 'failed'
+    etlStatusFilter: 'all', 
   },
   notifications: {
     limit: 5,
@@ -41,8 +37,8 @@ const DEFAULTS = {
   audit: {
     limit: 10,
     searchTerm: '',
-    dataViewMode: 'raw', // 'raw' | 'visual'
-    chartGroupBy: 'action', // 'action' | 'resource' | 'user' | 'role' | 'status'
+    dataViewMode: 'raw', 
+    chartGroupBy: 'action', 
   },
   users: {
     limit: 50,
@@ -53,9 +49,9 @@ const DEFAULTS = {
     activeTab: 'general',
   },
   dashboard: {},
-  /** HR Staff Management page — same visual/raw pattern as ETL & Audit */
+  
   hrStaff: {
-    dataViewMode: 'raw', // 'raw' | 'visual'
+    dataViewMode: 'raw', 
   },
 };
 

@@ -1,4 +1,4 @@
-/* eslint-disable jsx-a11y/label-has-associated-control */
+
 import * as React from "react"
 import { cn } from "../../lib/utils"
 
@@ -15,5 +15,3 @@ const Label = React.forwardRef(({ className, ...props }, ref) => (
 Label.displayName = "Label"
 
 export { Label }
-
-

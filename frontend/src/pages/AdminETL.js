@@ -1,6 +1,4 @@
-/**
- * Admin ETL Jobs Page - ETL and Data Warehouse tracking for system admin
- */
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Play, RefreshCw, Database, CheckCircle, XCircle, Clock, FileText, Download, Eye, BarChart3, Table2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -20,12 +18,11 @@ import { SciBarChart, SciDonutChart } from '../components/charts/EChartsComponen
 import CountdownTimer from '../components/admin/CountdownTimer';
 
 const REFRESH_INTERVAL_MS = 5000;
-const REFRESH_AFTER_RUN_COUNT = 12; // 12 * 5s = 60s of polling after Run ETL
+const REFRESH_AFTER_RUN_COUNT = 12; 
 const ALWAYS_POLL_STATUS_MS = 10000;
-/** Always request up to this many runs from the API; "Show last" only slices for the table (no full-page reload). */
+
 const ETL_RUNS_FETCH_CAP = 5000;
 
-// ETL auto-run interval options (in minutes)
 const ETL_AUTO_INTERVAL_OPTIONS = [
   { value: 300, label: '5 hours' },
   { value: 600, label: '10 hours' },
@@ -39,7 +36,7 @@ const AdminETL = () => {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState(null);
-  const [serverTime, setServerTime] = useState(null); // live ticking server time
+  const [serverTime, setServerTime] = useState(null); 
   const [error, setError] = useState(null);
   const [etlMessage, setEtlMessage] = useState(null);
   const etlState = adminUIState.getSection('etl');
@@ -90,7 +87,7 @@ const AdminETL = () => {
   const [logLoading, setLogLoading] = useState(false);
   const [logError, setLogError] = useState(null);
   const [pdfDownloading, setPdfDownloading] = useState(null);
-  const [etlChartType, setEtlChartType] = useState('duration'); // 'duration' | 'status'
+  const [etlChartType, setEtlChartType] = useState('duration'); 
 
   const ETL_RUNS_LIMIT_OPTIONS = [
     { value: 5, label: '5 runs' },
@@ -114,16 +111,15 @@ const AdminETL = () => {
     };
   }, []);
 
-  // Countdown to next automatic ETL run
   useEffect(() => {
     if (!adminSettings.etl_auto_enabled) {
       setCountdownSec(null);
       return;
     }
     const intervalMinutes = Number(adminSettings.etl_auto_interval_minutes) || 300;
-    const minAutoSec = 5 * 60 * 60; // align with server: automatic ETL minimum interval is 5 hours
+    const minAutoSec = 5 * 60 * 60; 
     const intervalSec = Math.max(minAutoSec, Math.round(intervalMinutes * 60));
-    const lastRun = adminSettings.last_etl_auto_run; // Unix seconds
+    const lastRun = adminSettings.last_etl_auto_run; 
     const nowSec = Date.now() / 1000;
     const nextRunSec = lastRun != null ? lastRun + intervalSec : nowSec + intervalSec;
 
@@ -178,7 +174,7 @@ const AdminETL = () => {
       if (!silent) setLoading(true);
       setError(null);
       const params = { etl_runs_limit: ETL_RUNS_FETCH_CAP };
-      if (!silent) params._ = Date.now(); // cache bust so Refresh always gets fresh data
+      if (!silent) params._ = Date.now(); 
       const response = await axios.get('/api/admin/system-status', {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         params,
@@ -213,14 +209,11 @@ const AdminETL = () => {
     loadSettings();
   }, [loadStatus]);
 
-  // Always keep ETL status/history fresh, even when auto-ETL is off.
-  // This prevents users from needing a hard refresh to see new run states/counts.
   useEffect(() => {
     const id = setInterval(() => loadStatus(true), ALWAYS_POLL_STATUS_MS);
     return () => clearInterval(id);
   }, [loadStatus]);
 
-  // Local ticking server time (updates every second based on last snapshot)
   useEffect(() => {
     if (!serverTime) return;
     const id = setInterval(() => {
@@ -231,7 +224,7 @@ const AdminETL = () => {
 
   const warehouse = status?.warehouse || {};
   const etlRunsAll = status?.etl_runs || [];
-  /** "Show last N" applies only here (client-side), like Audit log — does not refetch or reload the page */
+  
   const etlRunsForHistory = useMemo(() => {
     const cap = etlRunsLimit >= 9999 ? etlRunsAll.length : Math.min(etlRunsLimit, etlRunsAll.length);
     return etlRunsAll.slice(0, cap);
@@ -240,14 +233,12 @@ const AdminETL = () => {
   const etlRunsPaginated = etlRunsForHistory.slice((etlPage - 1) * etlPerPage, etlPage * etlPerPage);
   const etlTotalPages = Math.max(1, Math.ceil(etlRunsForHistory.length / etlPerPage));
 
-  // When auto ETL is on: poll settings every 15s so countdown resets as soon as a run finishes
   useEffect(() => {
     if (!adminSettings.etl_auto_enabled) return;
     const id = setInterval(loadSettings, 15000);
     return () => clearInterval(id);
   }, [adminSettings.etl_auto_enabled]);
 
-  // When auto ETL is on: poll status every 10s so run history and warehouse table auto-refresh
   useEffect(() => {
     if (!adminSettings.etl_auto_enabled) return;
     const id = setInterval(() => loadStatus(true), 10000);
@@ -275,7 +266,7 @@ const AdminETL = () => {
       }, REFRESH_INTERVAL_MS);
     } catch (err) {
       if (err.response?.status === 409) {
-        // ETL already running — show a friendly message instead of generic error
+        
         setEtlMessage(
           err.response?.data?.error ||
           'An ETL job is already in progress. Please wait for it to finish before starting a new one.'
@@ -381,7 +372,7 @@ const AdminETL = () => {
         </div>
       )}
 
-      {/* Automatic ETL */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -434,7 +425,7 @@ const AdminETL = () => {
         </CardContent>
       </Card>
 
-      {/* Source databases / ETL data source */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -459,7 +450,7 @@ const AdminETL = () => {
         </CardContent>
       </Card>
 
-      {/* Data view mode: Visual (charts + filters) or Raw (tables) */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">Data view</CardTitle>
@@ -487,7 +478,7 @@ const AdminETL = () => {
         </CardContent>
       </Card>
 
-      {/* Data warehouse summary — split into Dimensions and Facts (2-column layout) */}
+      {}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
@@ -624,7 +615,7 @@ const AdminETL = () => {
         </Card>
       </div>
 
-      {/* ETL run history — Visual or Raw */}
+      {}
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -864,7 +855,7 @@ const AdminETL = () => {
         </CardContent>
       </Card>
 
-      {/* View ETL log modal — fits viewport; header/footer fixed; only log area scrolls; responsive */}
+      {}
       <Modal open={!!viewLogRun} onClose={closeViewLog} className="flex flex-col overflow-hidden max-w-4xl min-w-0">
         <ModalHeader onClose={closeViewLog} className="shrink-0">
           ETL log: {viewLogRun?.log_file || '—'}
@@ -896,9 +887,3 @@ const AdminETL = () => {
   );
 };
 export default AdminETL;
-
-
-
-
-
-

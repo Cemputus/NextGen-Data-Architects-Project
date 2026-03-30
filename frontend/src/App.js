@@ -1,7 +1,4 @@
-/**
- * Main App Component with Role-Based Routing
- * Multi-page application with role-specific dashboards
- */
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -11,13 +8,10 @@ import { PredictionWorkspaceProvider } from './context/PredictionWorkspaceContex
 import { rbac } from './utils/rbac';
 import { Loader2 } from 'lucide-react';
 
-// Layout
 import LayoutModern from './components/LayoutModern';
 
-// Auth
 import Login from './components/Login';
 
-// Role-specific Dashboards
 import StudentDashboard from './pages/StudentDashboard';
 import StaffDashboard from './pages/StaffDashboard';
 import HODDashboard from './pages/HODDashboard';
@@ -30,7 +24,6 @@ import HRDashboard from './pages/HRDashboard';
 import FinanceDashboard from './pages/FinanceDashboard';
 import AcademicRiskDashboard from './pages/AcademicRiskDashboard';
 
-// Shared Pages
 import FEXAnalytics from './pages/FEXAnalytics';
 import RecruitmentAnalytics from './pages/RecruitmentAnalytics';
 import ProfilePage from './pages/ProfilePage';
@@ -40,24 +33,20 @@ import NextGenQueryPage from './pages/NextGenQueryPage';
 import AnalystDashboardsPage from './pages/AnalystDashboardsPage';
 import ManagedSharedChartsPage from './pages/ManagedSharedChartsPage';
 
-// Student Pages
 import StudentGrades from './pages/StudentGrades';
 import StudentAttendance from './pages/StudentAttendance';
 import StudentPayments from './pages/StudentPayments';
 
-// Staff Pages
 import StaffClasses from './pages/StaffClasses';
-// Admin Pages
+
 import AdminUsers from './pages/AdminUsers';
 import AdminSettings from './pages/AdminSettings';
 import AdminETL from './pages/AdminETL';
 import AdminETLNotifications from './pages/AdminETLNotifications';
 import AdminAudit from './pages/AdminAudit';
 
-// HR Pages
 import HRStaff from './pages/HRStaff';
 
-// Finance Pages
 import FinancePayments from './pages/FinancePayments';
 import SenateFinance from './pages/SenateFinance';
 import SharedViewsPage from './pages/SharedViewsPage';
@@ -118,10 +107,10 @@ function App() {
           <Router>
             <PredictionWorkspaceProvider>
             <Routes>
-              {/* Public Routes */}
+              {}
               <Route path="/login" element={<Login />} />
 
-              {/* Student Routes */}
+              {}
               <Route
                 path="/student/*"
                 element={
@@ -143,7 +132,7 @@ function App() {
                 }
               />
 
-              {/* Staff Routes */}
+              {}
               <Route
                 path="/staff/*"
                 element={
@@ -165,7 +154,7 @@ function App() {
                 }
               />
 
-              {/* HOD Routes */}
+              {}
               <Route
                 path="/hod/*"
                 element={
@@ -190,7 +179,7 @@ function App() {
                 }
               />
 
-              {/* Dean Routes */}
+              {}
               <Route
                 path="/dean/*"
                 element={
@@ -213,7 +202,7 @@ function App() {
                 }
               />
 
-              {/* Senate Routes */}
+              {}
               <Route
                 path="/senate/*"
                 element={
@@ -239,7 +228,7 @@ function App() {
                 }
               />
 
-              {/* Analyst Routes — analyst and sysadmin can access dashboard manager */}
+              {}
               <Route
                 path="/analyst/*"
                 element={
@@ -266,7 +255,7 @@ function App() {
                 }
               />
 
-              {/* Admin Routes – sysadmin or admin role */}
+              {}
               <Route
                 path="/admin/*"
                 element={
@@ -291,7 +280,7 @@ function App() {
                 }
               />
 
-              {/* HR Routes */}
+              {}
               <Route
                 path="/hr/*"
                 element={
@@ -316,7 +305,7 @@ function App() {
                 }
               />
 
-              {/* Finance Routes */}
+              {}
               <Route
                 path="/finance/*"
                 element={
@@ -337,7 +326,7 @@ function App() {
                 }
               />
 
-              {/* Default Route - Redirect based on role */}
+              {}
               <Route
                 path="/"
                 element={
@@ -347,7 +336,7 @@ function App() {
                 }
               />
 
-              {/* Legacy dashboard route - redirect to role-specific */}
+              {}
               <Route
                 path="/dashboard"
                 element={

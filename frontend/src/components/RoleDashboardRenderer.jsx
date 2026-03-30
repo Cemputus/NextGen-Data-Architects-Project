@@ -8,16 +8,6 @@ import { Loader2 } from 'lucide-react';
 import { VizCard } from './AssignedViewsSection';
 import { KPI_DEFINITIONS } from '../config';
 
-/**
- * RoleDashboardRenderer
- *
- * Shared renderer used by role dashboards (Dean, HOD, Staff, Student, etc.)
- * to render the "current" dashboard defined by role_current_dashboard + definition JSON.
- *
- * Props:
- * - stats: object with global KPI stats suitable for KPICard (e.g., /api/dashboard/stats or role analytics)
- * - type: string passed to RoleBasedCharts (e.g., 'faculty', 'staff', 'student', 'finance', 'senate', etc.)
- */
 const RoleDashboardRenderer = ({ stats, type }) => {
   const [definition, setDefinition] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +46,6 @@ const RoleDashboardRenderer = ({ stats, type }) => {
     loadCurrentDefinition();
   }, []);
 
-  // Load pinned NextGen Query visualizations for this dashboard (if any are configured)
   useEffect(() => {
     const loadPinned = async () => {
       if (
@@ -118,7 +107,7 @@ const RoleDashboardRenderer = ({ stats, type }) => {
 
   return (
     <div className="space-y-4">
-      {/* KPI grid driven by definition */}
+      {}
       {stats && (
         <DashboardGrid cols={{ default: 1, sm: 2, md: 3, lg: 4 }}>
           {KPI_DEFINITIONS.filter((k) => selectedKpis.includes(k.key)).map((kpi) => {
@@ -138,7 +127,7 @@ const RoleDashboardRenderer = ({ stats, type }) => {
         </DashboardGrid>
       )}
 
-      {/* RBAC-aware charts, using existing RoleBasedCharts component */}
+      {}
       {showCharts && (
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
@@ -148,13 +137,13 @@ const RoleDashboardRenderer = ({ stats, type }) => {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            {/* RoleBasedCharts already understands the role and uses filters & type to scope */}
+            {}
             <RoleBasedCharts filters={{}} type={type} />
           </CardContent>
         </Card>
       )}
 
-      {/* NextGen Query visualizations pinned into this dashboard definition */}
+      {}
       {hasPinnedVisualizations && (
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
@@ -187,4 +176,3 @@ const RoleDashboardRenderer = ({ stats, type }) => {
 };
 
 export default RoleDashboardRenderer;
-

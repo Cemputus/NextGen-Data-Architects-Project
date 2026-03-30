@@ -1,8 +1,4 @@
-/**
- * Academic Risk Dashboard
- * Comprehensive analysis of students at risk (FCW, MEX, FEX)
- * Includes High School background correlation analysis
- */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { ShieldAlert, TrendingDown, AlertTriangle, GraduationCap, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -63,9 +59,9 @@ const AcademicRiskDashboard = () => {
 
     const savedState = loadPageState('academic_risk_dashboard', { filters: {}, tab: 'summary' });
     const safeInitialTab = RISK_TAB_SET.has(savedState?.tab) ? savedState.tab : 'summary';
-    // Filters should come exclusively from GlobalFilterPanel persistence (not loadPageState).
+    
     const [filters, setFilters] = useState({});
-    /** Remount GlobalFilterPanel after chip-based clears so UI matches parent filter state (avoids blank / inconsistent views). */
+    
     const [filterPanelKey, setFilterPanelKey] = useState(0);
     const [activeTab, setActiveTab] = useState(safeInitialTab);
 
@@ -75,12 +71,10 @@ const AcademicRiskDashboard = () => {
         loadData();
     }, [filters]);
 
-    // Persist tab only; keep filter persistence handled by GlobalFilterPanel.
     useEffect(() => {
         savePageState('academic_risk_dashboard', { filters: {}, tab: activeTab });
     }, [activeTab]);
 
-    // Radix Tabs shows no panel content if `value` does not match any TabsTrigger (stale localStorage etc.).
     useEffect(() => {
         if (!RISK_TAB_SET.has(activeTab)) {
             setActiveTab('summary');
@@ -113,7 +107,6 @@ const AcademicRiskDashboard = () => {
     const avgGradeSafe = Number.isFinite(avgGradeNum) ? avgGradeNum : 0;
     const correlations = correlationData?.by_school || [];
 
-    /** API returns fcw_rate as 0–1 proportion; avg_gpa is ~0–100. Single axis made FCW bars invisible — scale FCW to % and use dual y-axis. */
     const hsCorrelationChartData = useMemo(() => {
         const list = correlationData?.by_school;
         if (!Array.isArray(list)) return [];
@@ -153,7 +146,7 @@ const AcademicRiskDashboard = () => {
     }, [correlationData?.by_district]);
     const rawTrend = riskData?.trends || riskData?.trend || riskData?.risk_over_time || [];
     const trendSource = Array.isArray(rawTrend) ? rawTrend : [];
-    // Normalize legacy monthly rows → line chart shape (prefer semester API fields).
+    
     const trend = trendSource.map((row) => {
         if (row.period != null) return row;
         const period =
@@ -193,7 +186,7 @@ const AcademicRiskDashboard = () => {
 
     return (
         <div className="space-y-4">
-            {/* Header */}
+            {}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                     <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
@@ -215,7 +208,7 @@ const AcademicRiskDashboard = () => {
                 </div>
             </div>
 
-            {/* Filters - role-based: Dean starts at Department, HOD at Program */}
+            {}
             <GlobalFilterPanel
                 key={filterPanelKey}
                 onFilterChange={(next) => setFilters(filtersWithRoleLocks(next || {}))}
@@ -258,7 +251,7 @@ const AcademicRiskDashboard = () => {
                 </div>
             ) : (
                 <>
-                    {/* Risk KPIs */}
+                    {}
                     <DashboardGrid cols={{ default: 2, sm: 2, md: 4 }}>
                         <KPICard
                             title="FEX (Failed Exams)"
@@ -290,7 +283,7 @@ const AcademicRiskDashboard = () => {
                         />
                     </DashboardGrid>
 
-                    {/* Main Content Tabs */}
+                    {}
                     <Tabs
                         value={RISK_TAB_SET.has(activeTab) ? activeTab : 'summary'}
                         onValueChange={setActiveTab}

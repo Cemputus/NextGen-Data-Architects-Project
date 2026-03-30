@@ -1,10 +1,3 @@
-"""
-Dashboards API
-
-Allows analysts (and optionally sysadmins) to create dashboards and assign
-them to roles and/or specific users. Other roles can query dashboards that
-are visible to them based on their role and username.
-"""
 import uuid
 import json
 from typing import List, Dict, Any
@@ -16,21 +9,12 @@ from sqlalchemy import create_engine, text
 from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME
 from api.auth import _ensure_ucu_rbac_database, RBAC_DB_NAME
 
-
 dashboards_bp = Blueprint("dashboards", __name__, url_prefix="/api/dashboards")
-
 
 def _get_rbac_conn_string() -> str:
   return DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
 
-
 def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
-  """
-  Ensure that each role in all_roles has a current dashboard assigned.
-  If no dashboards exist at all, create a single default analytics dashboard
-  and assign it to all roles. If dashboards exist but some roles have no
-  current assignment, assign the first active dashboard to those roles.
-  """
   total_dashboards = conn.execute(
     text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active = TRUE")
   ).scalar() or 0
@@ -87,7 +71,6 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
         {"dashboard_id": default_dashboard_id, "role_name": rname},
       )
 
-  # Resolve dashboard to assign: use newly created default, or first active dashboard
   dashboard_to_assign = default_dashboard_id
   if dashboard_to_assign is None and total_dashboards > 0:
     row = conn.execute(
@@ -126,9 +109,7 @@ def _ensure_default_role_dashboards(conn, all_roles, updated_by_username: str):
         )
     conn.commit()
 
-
 def _ensure_dashboard_tables(engine):
-  """Create dashboards + access tables in ucu_rbac if they don't exist."""
   try:
     with engine.connect() as conn:
       conn.execute(
@@ -195,7 +176,6 @@ def _ensure_dashboard_tables(engine):
         )
       )
       conn.execute(text("CREATE INDEX IF NOT EXISTS idx_rcd_role_name ON role_current_dashboard(role_name)"))
-      # Page config: per-page (analytics, role dashboards) content editable by analyst
       conn.execute(
         text(
           """
@@ -210,9 +190,7 @@ def _ensure_dashboard_tables(engine):
       )
       conn.commit()
   except Exception:
-    # Any failure will be surfaced by the calling handler
     pass
-
 
 def _get_engine():
   _ensure_ucu_rbac_database()
@@ -220,27 +198,21 @@ def _get_engine():
   _ensure_dashboard_tables(engine)
   return engine
 
-
 def _current_user():
   claims = get_jwt()
   username = (claims.get("username") or claims.get("access_number") or "").strip()
   role = (claims.get("role") or "").strip().lower()
   return username, role
 
-
 def _is_analyst_or_admin(role: str):
-  """Allow analyst, sysadmin, or admin (some clients send 'admin')."""
   return (role or "").strip().lower() in ("analyst", "sysadmin", "admin")
-
 
 def _require_analyst_or_sysadmin(role: str):
   if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can manage dashboards."}), 403
   return None
 
-
 def _load_dashboards_for_user(engine, username: str, role: str) -> List[Dict[str, Any]]:
-  """Return dashboards visible to given user/role."""
   with engine.connect() as conn:
     dashboards = []
     result = conn.execute(
@@ -264,7 +236,6 @@ def _load_dashboards_for_user(engine, username: str, role: str) -> List[Dict[str
     for row in result.mappings():
       dashboards.append(dict(row))
 
-    # Attach roles and users for each dashboard (simple per-dashboard queries to avoid complex IN binding)
     for d in dashboards:
       dash_id = d["id"]
       role_rows = conn.execute(
@@ -279,16 +250,9 @@ def _load_dashboards_for_user(engine, username: str, role: str) -> List[Dict[str
       d["users"] = [u for u in user_rows]
     return dashboards
 
-
 @dashboards_bp.route("", methods=["GET"])
 @jwt_required()
 def list_dashboards():
-  """
-  Return dashboards visible to the current user based on role and username.
-
-  Query params:
-  - scope=all  (analyst/sysadmin only): return all dashboards in the system
-  """
   username, role = _current_user()
   scope = (request.args.get("scope") or "").strip().lower()
   engine = None
@@ -308,7 +272,6 @@ def list_dashboards():
         )
         dashboards = [dict(row) for row in result.mappings()]
 
-        # Attach roles/users
         for d in dashboards:
           dash_id = d["id"]
           role_rows = conn.execute(
@@ -329,20 +292,11 @@ def list_dashboards():
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
-# --- Dashboard Manager (current vs custom, swap) ---
 dashboard_manager_bp = Blueprint("dashboard_manager", __name__, url_prefix="/api/dashboard-manager")
-
 
 @dashboard_manager_bp.route("/current", methods=["GET"])
 @jwt_required()
 def get_current_dashboards():
-  """
-  Return the current dashboard per role (pointer in role_current_dashboard).
-
-  Roles covered: student, staff, hod, dean, senate, finance, hr, analyst, sysadmin.
-  Only analyst/sysadmin can read this view.
-  """
   username, role = _current_user()
   if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can view dashboard manager."}), 403
@@ -360,16 +314,12 @@ def get_current_dashboards():
     engine = _get_engine()
     result_payload = []
     with engine.connect() as conn:
-      # Only auto-seed defaults on first install (no active dashboards).
-      # If the analyst removes a role from "current", we must not re-assign
-      # it automatically on every reload.
       total_active_dashboards = conn.execute(
         text("SELECT COUNT(*) AS c FROM dashboards WHERE is_active = TRUE")
       ).scalar() or 0
       if total_active_dashboards == 0:
         _ensure_default_role_dashboards(conn, all_roles, username)
 
-      # Fetch role->dashboard mapping
       rows = conn.execute(
         text(
           """
@@ -387,7 +337,6 @@ def get_current_dashboards():
         row = by_role.get(rname)
         if row and row["d_id"]:
           dash_id = row["d_id"]
-          # Attach roles/users for card metadata
           role_rows = conn.execute(
             text("SELECT role_name FROM dashboard_role_access WHERE dashboard_id = :id"),
             {"id": dash_id},
@@ -424,7 +373,6 @@ def get_current_dashboards():
             }
           )
 
-    # Analysts cannot assign dashboards to admin: exclude sysadmin from the list they see
     if role == "analyst":
       result_payload = [x for x in result_payload if x.get("role") != "sysadmin"]
 
@@ -432,22 +380,11 @@ def get_current_dashboards():
   except Exception as e:
     if engine is not None:
       engine.dispose()
-    # Return 200 with one card per role (no dashboard) so Current Dashboards section is never empty
     return jsonify({"roles": _safe_payload(all_roles), "error": str(e)}), 200
-
 
 @dashboard_manager_bp.route("/custom", methods=["GET"])
 @jwt_required()
 def get_custom_dashboards():
-  """
-  Return dashboards available for assignment ("custom").
-  Includes all active dashboards; frontend can visually distinguish which ones
-  are already current for a role if needed.
-
-  Query params:
-  - role: optional role_name to bias/limit results by assigned role access
-  - created_by: 'me' to limit to dashboards created by current analyst
-  """
   username, role = _current_user()
   if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can view dashboard manager."}), 403
@@ -471,7 +408,6 @@ def get_custom_dashboards():
         params["created_by"] = username.lower()
 
       if filter_role:
-        # Only dashboards that have this role in dashboard_role_access
         base_sql += """
           AND EXISTS (
             SELECT 1 FROM dashboard_role_access dra
@@ -487,7 +423,6 @@ def get_custom_dashboards():
       for row in result:
         did = row["id"]
         dash = dict(row)
-        # Attach roles/users
         role_rows = conn.execute(
           text("SELECT role_name FROM dashboard_role_access WHERE dashboard_id = :id"),
           {"id": did},
@@ -506,17 +441,9 @@ def get_custom_dashboards():
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
 @dashboard_manager_bp.route("/swap", methods=["POST"])
 @jwt_required()
 def swap_dashboard():
-  """
-  Swap the current dashboard for a role with a selected custom dashboard.
-
-  Body: { "role": "<role_name>", "dashboard_id": "<uuid>" }
-  - Only analyst/sysadmin allowed.
-  - Operation is atomic: updates role_current_dashboard.
-  """
   username, role = _current_user()
   if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can swap dashboards."}), 403
@@ -528,7 +455,6 @@ def swap_dashboard():
   if not target_role or not dashboard_id:
     return jsonify({"error": "Both role and dashboard_id are required."}), 400
 
-  # Analysts cannot assign or swap dashboards for the admin (sysadmin) role
   if role == "analyst" and target_role == "sysadmin":
     return jsonify({"error": "Analysts cannot assign dashboards to the Admin role. Admin dashboard is managed separately."}), 403
 
@@ -538,7 +464,6 @@ def swap_dashboard():
     with engine.connect() as conn:
       conn = conn.execution_options(autocommit=False)
 
-      # Ensure dashboard exists and is active
       row = conn.execute(
         text("SELECT id FROM dashboards WHERE id = :id AND is_active = TRUE"),
         {"id": dashboard_id},
@@ -546,7 +471,6 @@ def swap_dashboard():
       if not row:
         return jsonify({"error": "Dashboard not found or inactive."}), 404
 
-      # Upsert role_current_dashboard pointer
       conn.execute(
         text(
           """
@@ -571,14 +495,9 @@ def swap_dashboard():
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
 @dashboard_manager_bp.route("/remove-current", methods=["POST"])
 @jwt_required()
 def remove_current_dashboard():
-  """
-  Remove the current dashboard for a role (no dashboard assigned).
-  Body: { "role": "<role_name>" }. Only analyst/sysadmin.
-  """
   username, role = _current_user()
   if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can remove current dashboard."}), 403
@@ -588,7 +507,6 @@ def remove_current_dashboard():
   if not target_role:
     return jsonify({"error": "role is required."}), 400
 
-  # Analysts cannot remove current dashboard for the admin (sysadmin) role
   if role == "analyst" and target_role == "sysadmin":
     return jsonify({"error": "Analysts cannot change the Admin role's dashboard. Admin dashboard is managed separately."}), 403
 
@@ -607,11 +525,9 @@ def remove_current_dashboard():
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
 @dashboards_bp.route("", methods=["POST"])
 @jwt_required()
 def create_dashboard():
-  """Create a new dashboard and assign it to roles/users. Analyst or Sysadmin only."""
   username, role = _current_user()
   err = _require_analyst_or_sysadmin(role)
   if err:
@@ -627,11 +543,9 @@ def create_dashboard():
   if not name:
     return jsonify({"error": "Dashboard name is required."}), 400
 
-  # Normalize roles/usernames
   roles = list({(r or "").strip().lower() for r in roles if (r or "").strip()})
   users = list({(u or "").strip() for u in users if (u or "").strip()})
 
-  # Analysts cannot assign dashboards to the admin (sysadmin) role
   if role == "analyst":
     roles = [r for r in roles if r != "sysadmin"]
 
@@ -682,7 +596,6 @@ def create_dashboard():
         )
       conn.commit()
 
-    # Reload full object (with roles/users) so response is consistent
     dashboards = _load_dashboards_for_user(engine, username, role)
     created = next((d for d in dashboards if d["id"] == dash_id), None)
     return jsonify({"dashboard": created}), 201
@@ -691,11 +604,9 @@ def create_dashboard():
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
 @dashboards_bp.route("/<dash_id>", methods=["PUT"])
 @jwt_required()
 def update_dashboard(dash_id):
-  """Update dashboard metadata + role/user assignments. Analyst or Sysadmin only."""
   username, role = _current_user()
   err = _require_analyst_or_sysadmin(role)
   if err:
@@ -717,7 +628,6 @@ def update_dashboard(dash_id):
     with engine.connect() as conn:
       conn = conn.execution_options(autocommit=False)
 
-      # Ensure dashboard exists and is visible to editor
       rows = conn.execute(
         text("SELECT id, created_by_username FROM dashboards WHERE id = :id AND is_active = TRUE"),
         {"id": dash_id},
@@ -746,7 +656,6 @@ def update_dashboard(dash_id):
 
       if roles is not None:
         roles_norm = list({(r or "").strip().lower() for r in roles if (r or "").strip()})
-        # Analysts cannot assign dashboards to the admin (sysadmin) role
         if role == "analyst":
           roles_norm = [r for r in roles_norm if r != "sysadmin"]
         conn.execute(text("DELETE FROM dashboard_role_access WHERE dashboard_id = :id"), {"id": dash_id})
@@ -785,11 +694,9 @@ def update_dashboard(dash_id):
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
 @dashboards_bp.route("/<dash_id>", methods=["GET"])
 @jwt_required()
 def get_dashboard(dash_id):
-  """Get a single dashboard if visible to the current user."""
   username, role = _current_user()
   engine = None
   try:
@@ -804,16 +711,9 @@ def get_dashboard(dash_id):
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
 @dashboards_bp.route("/current", methods=["GET"])
 @jwt_required()
 def get_current_dashboard_for_role():
-  """
-  Return the current dashboard for the authenticated user's primary role, if any.
-
-  This is used by role-specific dashboards (student, staff, dean, etc.) to know
-  which dashboard layout/definition to render as their 'live' dashboard.
-  """
   username, role = _current_user()
   engine = None
   try:
@@ -835,7 +735,6 @@ def get_current_dashboard_for_role():
         return jsonify({"dashboard": None}), 200
 
       dash_id = row["id"]
-      # Attach roles/users
       role_rows = conn.execute(
         text("SELECT role_name FROM dashboard_role_access WHERE dashboard_id = :id"),
         {"id": dash_id},
@@ -862,11 +761,9 @@ def get_current_dashboard_for_role():
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
 @dashboards_bp.route("/<dash_id>", methods=["DELETE"])
 @jwt_required()
 def delete_dashboard(dash_id):
-  """Soft delete a dashboard (is_active = FALSE). Analyst or Sysadmin only. Cannot delete if current for any role."""
   username, role = _current_user()
   err = _require_analyst_or_sysadmin(role)
   if err:
@@ -901,10 +798,6 @@ def delete_dashboard(dash_id):
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
-# ─── Page config (analytics pages + any page with visuals) ───────────────────
-# Analysts can edit KPIs/charts for FEX, High School, Risk, and every role dashboard.
-
 page_config_bp = Blueprint("page_config", __name__, url_prefix="/api/page-config")
 
 PAGE_KEYS = [
@@ -921,11 +814,9 @@ PAGE_KEYS = [
   "hr_dashboard",
 ]
 
-
 @page_config_bp.route("", methods=["GET"])
 @jwt_required()
 def list_page_configs():
-  """List all page configs (keys + definition). Analyst or Sysadmin only."""
   username, role = _current_user()
   if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can list page configs."}), 403
@@ -964,11 +855,9 @@ def list_page_configs():
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
 @page_config_bp.route("/<page_key>", methods=["GET"])
 @jwt_required()
 def get_page_config(page_key):
-  """Get config for one page. Any authenticated user (pages need it to render)."""
   page_key = (page_key or "").strip().lower()
   if not page_key or page_key not in PAGE_KEYS:
     return jsonify({"error": "Unknown page key."}), 400
@@ -1001,11 +890,9 @@ def get_page_config(page_key):
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
 @page_config_bp.route("/<page_key>", methods=["PUT"])
 @jwt_required()
 def update_page_config(page_key):
-  """Create or update page config. Analyst or Sysadmin only."""
   username, role = _current_user()
   if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can edit page configs."}), 403
@@ -1040,11 +927,9 @@ def update_page_config(page_key):
       engine.dispose()
     return jsonify({"error": str(e)}), 500
 
-
 @page_config_bp.route("/<page_key>", methods=["DELETE"])
 @jwt_required()
 def delete_page_config(page_key):
-  """Delete (reset) a page config so the page uses defaults. Analyst or Sysadmin only."""
   username, role = _current_user()
   if not _is_analyst_or_admin(role):
     return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can delete page configs."}), 403
@@ -1062,4 +947,3 @@ def delete_page_config(page_key):
     if engine is not None:
       engine.dispose()
     return jsonify({"error": str(e)}), 500
-

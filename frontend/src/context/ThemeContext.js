@@ -1,7 +1,4 @@
-/**
- * Theme context: light / dark / system for all users.
- * Persists preference in localStorage and applies .dark class to document root.
- */
+
 import React, { createContext, useState, useContext, useEffect, useMemo } from 'react';
 
 const STORAGE_KEY = 'theme-preference';
@@ -18,7 +15,7 @@ function getStoredTheme() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
   } catch (_) {
-    // Intentionally ignore storage errors and fall back to system preference
+    
   }
   return 'system';
 }
@@ -63,7 +60,7 @@ export function ThemeProvider({ children }) {
     try {
       localStorage.setItem(STORAGE_KEY, value);
     } catch (_) {
-      // Intentionally ignore storage write errors
+      
     }
   };
 

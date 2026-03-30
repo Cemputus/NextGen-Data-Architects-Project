@@ -1,7 +1,4 @@
-/**
- * Senate Dashboard — same analytics workspace (KPIs + charts + global filters) as the analyst view.
- * Every user with role `senate` hits this page via `/senate/dashboard`; data scope is enforced by the API/JWT.
- */
+
 import React from 'react';
 import AnalystDashboard from './AnalystDashboard';
 

@@ -1,17 +1,10 @@
-/**
- * useState that persists to localStorage so drafts survive hard refresh.
- * Key is prefixed with nextgen_draft_ to avoid clashes.
- * @param {string} key - Storage key (will be prefixed).
- * @param {any} initialValue - Initial value (used if nothing in storage or parse fails).
- * @returns {[any, function]} [value, setValue] - Same API as useState; setValue clears draft when set to initialValue or you can clear storage manually.
- */
+
 import React from 'react';
 
 const PREFIX = 'nextgen_draft_';
 
 function getCurrentUserKey() {
-  // Per-user scoping is based on the authenticated session user from AuthContext,
-  // which is stored in sessionStorage as 'ucu_session_user'.
+  
   try {
     if (typeof window === 'undefined') return 'guest';
     const raw = window.sessionStorage.getItem('ucu_session_user');
@@ -41,7 +34,7 @@ function read(key) {
   try {
     const raw = localStorage.getItem(storageKey(key));
     if (raw != null) return JSON.parse(raw);
-    // Fallback to legacy key (without user scoping) for older drafts
+    
     const legacyRaw = localStorage.getItem(legacyStorageKey(key));
     if (legacyRaw == null) return undefined;
     return JSON.parse(legacyRaw);
@@ -53,7 +46,7 @@ function read(key) {
 function write(key, value) {
   try {
     localStorage.setItem(storageKey(key), JSON.stringify(value));
-  } catch (_) { /* ignore */ }
+  } catch (_) {  }
 }
 
 export function usePersistedState(key, initialValue) {

@@ -29,9 +29,6 @@ export const defaultTooltip = {
   borderWidth: 1, textStyle: { color: '#f1f5f9', fontSize: 12 }, confine: true,
 };
 
-/**
- * Short axis/tooltip numbers: 1.2K, 3.4M, 100M, 1.5B (not raw 100000000).
- */
 export function formatCompactNumber(value) {
   if (value == null || value === '') return '—';
   const n = Number(value);

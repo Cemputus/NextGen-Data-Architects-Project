@@ -1,6 +1,4 @@
-/**
- * Finance Dashboard - Smooth, Clean UI
- */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
@@ -39,7 +37,7 @@ const FinanceDashboard = () => {
   const [highRiskDebtSegments, setHighRiskDebtSegments] = useState([]);
   const [tuitionDefaultersBar, setTuitionDefaultersBar] = useState([]);
   const [tuitionPaymentTrendsDim, setTuitionPaymentTrendsDim] = useState([]);
-  /** faculty | department | program — aligned with global filters (API + fallback). */
+  
   const [financeBreakdown, setFinanceBreakdown] = useState('faculty');
 
   useEffect(() => {
@@ -73,7 +71,7 @@ const FinanceDashboard = () => {
       });
 
       const d = response?.data || {};
-      // Primary: /api/analytics/finance (total_payments, total_pending). Fallback: /api/dashboard/stats (outstanding_payments, no payment_rate).
+      
       const totalPaymentsRaw = d.total_payments ?? d.total_revenue;
       const totalPayments = Number(totalPaymentsRaw);
       const outstandingRaw = d.total_pending ?? d.outstanding_payments;
@@ -223,11 +221,10 @@ const FinanceDashboard = () => {
         .filter((x) => x.status.toLowerCase() === 'partial')
         .reduce((acc, x) => acc + x.count, 0);
 
-      // Per-slice colors (SciDonutChart uses `color` on each item) so order stays correct when some slices are 0.
       setPaymentStatusMix(
         [
           { name: 'Completed', value: completed, color: MODERN_CHART_PALETTE[0] },
-          { name: 'Pending', value: pending, color: MODERN_CHART_PALETTE[2] }, // orange
+          { name: 'Pending', value: pending, color: MODERN_CHART_PALETTE[2] }, 
           { name: 'Partial', value: partial, color: MODERN_CHART_PALETTE[1] },
         ].filter((d) => d.value > 0),
       );
@@ -241,7 +238,7 @@ const FinanceDashboard = () => {
             segment,
             outstanding: val,
             fullName: segment,
-            // Same shape as "Outstanding" bar chart (screenshot parity: name/value + abbreviations)
+            
             name: abbreviateEntityBarLabel({ name: segment }),
             value: val,
           };
@@ -267,8 +264,6 @@ const FinanceDashboard = () => {
     return `${num.toFixed(1)}%`;
   };
 
-  // Professional UGX formatting for KPI tiles (UI only).
-  // Example: 119,445,136,148 => UGX 119,445.1M
   const formatUGX = (value) => {
     if (value === null || value === undefined) return 'UGX –';
     const num = typeof value === 'number' ? value : Number(value);
@@ -318,7 +313,7 @@ const FinanceDashboard = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header with Export */}
+      {}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Finance Dashboard</h1>
@@ -331,7 +326,7 @@ const FinanceDashboard = () => {
         <ExportButtons stats={stats} filters={filters} filename="finance_dashboard" />
       </div>
 
-      {/* Filters */}
+      {}
       <GlobalFilterPanel
         onFilterChange={setFilters}
         pageName="finance_dashboard"
@@ -348,7 +343,7 @@ const FinanceDashboard = () => {
         </div>
       ) : (
         <>
-          {/* Top finance KPI strip */}
+          {}
           <Card className={kpiStripCardClass}>
             <CardHeader className={chartCardHeaderClass}>
               <CardTitle className="text-base font-semibold tracking-tight">Finance overview</CardTitle>
@@ -382,7 +377,7 @@ const FinanceDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Row 1: Revenue & outstanding */}
+          {}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className={chartSurfaceCard('h-full')}>
               <CardHeader className={chartCardHeaderClass}>
@@ -442,7 +437,7 @@ const FinanceDashboard = () => {
             </Card>
           </div>
 
-          {/* Row 2: Payment mix & risk */}
+          {}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className={chartSurfaceCard('h-full')}>
               <CardHeader className={chartCardHeaderClass}>
@@ -496,7 +491,7 @@ const FinanceDashboard = () => {
             </Card>
           </div>
 
-          {/* Row 3: Tuition analytics */}
+          {}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className={chartSurfaceCard('h-full')}>
               <CardHeader className={chartCardHeaderClass}>

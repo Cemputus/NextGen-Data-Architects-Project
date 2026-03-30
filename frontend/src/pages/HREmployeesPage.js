@@ -1,6 +1,4 @@
-/**
- * HR Employees - List all employees (ETL) and app users.
- */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { usePersistedState } from '../hooks/usePersistedState';

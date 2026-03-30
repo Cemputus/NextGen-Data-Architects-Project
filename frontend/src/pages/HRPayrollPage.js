@@ -1,6 +1,4 @@
-/**
- * HR Payroll – paid vs pending and payroll by role (latest pay period).
- */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -166,7 +164,7 @@ export default function HRPayrollPage() {
                 </p>
               ) : null}
 
-              {/* KPI strip */}
+              {}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="rounded-lg border border-border/70 bg-card/80 px-3 py-3 shadow-sm">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Total net pay</p>

@@ -1,9 +1,4 @@
-/**
- * Full-page "Views shared with you" for all eligible users.
- * - Direct shared and "Reshared charts" sections
- * - Reshare with description; creator vs reshared by
- * - Feedback thread per viz; recipients can post, creator/resharer can reply
- */
+
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';

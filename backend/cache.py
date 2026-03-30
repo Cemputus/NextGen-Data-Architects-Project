@@ -1,14 +1,3 @@
-"""
-Very small in-memory TTL cache for API responses.
-
-Purpose: reduce repeated heavy KPI/chart queries when multiple users load the same
-dashboard or when the frontend re-requests quickly due to filter changes.
-
-Notes:
-- Per-process cache (each Gunicorn worker has its own cache).
-- Safe defaults; can be disabled via CACHE_ENABLED=0.
-"""
-
 from __future__ import annotations
 
 import json
@@ -16,7 +5,7 @@ import os
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 
 def _env_bool(name: str, default: bool = True) -> bool:
@@ -44,10 +33,6 @@ def _now() -> float:
 
 
 def make_key(prefix: str, *, claims: dict | None = None, params: dict | None = None) -> str:
-    """
-    Build a stable cache key from endpoint + user scope + params.
-    We only include a subset of claims that affect data scoping.
-    """
     claims = claims or {}
     params = params or {}
     scope = {
@@ -85,10 +70,8 @@ def set_json(key: str, payload_json: str, ttl_seconds: int) -> None:
 
 
 def clear_prefix(prefix: str) -> int:
-    """Best-effort invalidation by prefix."""
     with _lock:
         keys = [k for k in _cache.keys() if k.startswith(prefix)]
         for k in keys:
             _cache.pop(k, None)
         return len(keys)
-

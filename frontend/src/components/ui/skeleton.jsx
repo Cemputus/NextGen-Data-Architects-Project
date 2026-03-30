@@ -1,7 +1,4 @@
-/**
- * Skeleton — Design-system loading placeholder for content (cards, tables, text lines).
- * Use while data is loading to reduce layout shift and perceived wait.
- */
+
 import * as React from 'react';
 import { cn } from '../../lib/utils';
 
@@ -18,7 +15,6 @@ export function Skeleton({ className, ...props }) {
   );
 }
 
-/** Pre-built patterns for common layouts */
 export function SkeletonLine({ className }) {
   return <Skeleton className={cn('h-4 w-full', className)} />;
 }

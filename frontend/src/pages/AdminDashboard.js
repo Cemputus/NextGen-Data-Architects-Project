@@ -1,6 +1,4 @@
-/**
- * Admin Dashboard - Smooth, Clean UI
- */
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Settings, Users, Database, History, Shield, Activity, RefreshCw } from 'lucide-react';
@@ -24,7 +22,7 @@ import {
   chartCardDescriptionClass,
 } from '../lib/analytics-ui';
 
-const CONSOLE_KPI_POLL_INTERVAL_MS = 30000; // 30s - live KPIs refresh when new data or users are added
+const CONSOLE_KPI_POLL_INTERVAL_MS = 30000; 
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -40,10 +38,10 @@ const AdminDashboard = () => {
     try {
       const response = await axios.get('/api/admin/system-status', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        params: { etl_runs_limit: 50 }, // For "Last ETL run" display; KPI uses total count from backend
+        params: { etl_runs_limit: 50 }, 
       });
       setAdminStatus(response.data);
-      // Live KPIs from backend (registered users, active sessions, ETL jobs, system health)
+      
       const kpis = response.data?.console_kpis;
       if (kpis) {
         setSystemStats({
@@ -55,7 +53,7 @@ const AdminDashboard = () => {
           staff: kpis.staff ?? 0
         });
       } else {
-        // Fallback when backend does not yet return console_kpis
+        
         const wh = response.data?.warehouse || {};
         const students = wh.dim_student ?? 0;
         const etlRuns = response.data?.etl_runs?.length ?? 0;
@@ -114,7 +112,7 @@ const AdminDashboard = () => {
   };
 
   const getExportData = async () => {
-    // Keep key in sync with AuthContext's TOKEN_KEY
+    
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('ucu_session_token') : null;
     if (!token) return { kpis: systemStats, users: [], auditLogs: [], etlRuns: [], warehouse: {} };
     try {
@@ -165,7 +163,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header with Export */}
+      {}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Admin Console</h1>
@@ -200,7 +198,7 @@ const AdminDashboard = () => {
         </div>
       ) : (
         <>
-          {/* System KPI Cards */}
+          {}
           <DashboardGrid cols={{ default: 2, sm: 2, md: 3, lg: 6 }}>
             <KPICard
               title="Total Users"
@@ -241,7 +239,7 @@ const AdminDashboard = () => {
             />
           </DashboardGrid>
 
-          {/* User distribution by role */}
+          {}
           {userRoleDistribution.length > 0 && (
             <Card className={chartSurfaceCard()}>
               <CardHeader className={chartCardHeaderClass}>
@@ -288,7 +286,7 @@ const AdminDashboard = () => {
             </Card>
           )}
 
-          {/* Main Management Tabs */}
+          {}
           <Tabs defaultValue="users" className="space-y-3">
             <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1">
               <TabsTrigger value="users" className="flex items-center gap-2">
@@ -316,7 +314,7 @@ const AdminDashboard = () => {
                 showOpenFullPage={true}
           refreshTrigger={refreshTrigger}
           onUsersChanged={handleUsersChanged}
-          // Console view: industrial-grade preview — only small page sizes, up to 20.
+          
           limitOptionsOverride={[5, 10, 15, 20]}
               />
             </TabsContent>

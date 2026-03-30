@@ -1,7 +1,4 @@
-/**
- * Enhanced Export Utilities for Excel and PDF with Chart Images
- * Supports role-based exports with visualizations
- */
+
 import html2canvas from 'html2canvas';
 import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
@@ -9,14 +6,11 @@ import 'jspdf-autotable';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
 
-/**
- * Capture chart images from DOM elements
- */
 export const captureChartImages = async (chartSelectors = []) => {
   const images = [];
   
   if (!chartSelectors || chartSelectors.length === 0) {
-    // Fallback: try to find all charts on the page
+    
     const allCharts = document.querySelectorAll('.recharts-wrapper, [data-chart], [data-chart-container]');
     if (allCharts.length > 0) {
       chartSelectors = Array.from(allCharts);
@@ -25,7 +19,6 @@ export const captureChartImages = async (chartSelectors = []) => {
     }
   }
   
-  // Remove duplicates and invalid elements
   const uniqueElements = new Set();
   const validSelectors = [];
   
@@ -35,7 +28,7 @@ export const captureChartImages = async (chartSelectors = []) => {
         ? document.querySelector(selector)
         : selector;
       
-      if (element && element.nodeType === 1) { // Node.ELEMENT_NODE
+      if (element && element.nodeType === 1) { 
         if (!uniqueElements.has(element)) {
           uniqueElements.add(element);
           validSelectors.push(element);
@@ -48,8 +41,7 @@ export const captureChartImages = async (chartSelectors = []) => {
   
   for (const element of validSelectors) {
     try {
-      // Check if element is in a hidden tab - if so, make it temporarily visible
-      // Handle both Radix UI tabs (shadcn/ui) and standard tabs
+      
       const tabPanel = element.closest('[role="tabpanel"]') || 
                       element.closest('[data-state]') ||
                       element.closest('.TabsContent');
@@ -66,7 +58,7 @@ export const captureChartImages = async (chartSelectors = []) => {
       let originalDataState = '';
       
       if (isInHiddenTab && tabPanel) {
-        // Temporarily show hidden tabs to capture charts
+        
         wasHidden = tabPanel.hasAttribute('hidden');
         originalDisplay = tabPanel.style.display || '';
         originalHidden = tabPanel.getAttribute('hidden') || '';
@@ -78,17 +70,15 @@ export const captureChartImages = async (chartSelectors = []) => {
         tabPanel.style.display = 'block';
         tabPanel.setAttribute('data-state', 'active');
         
-        // Also show parent tab container if needed
         const tabContainer = tabPanel.closest('[role="tablist"]')?.parentElement;
         if (tabContainer && tabContainer.style.display === 'none') {
           tabContainer.style.display = 'block';
         }
       }
       
-      // Skip if element is not visible (but allow hidden tabs we just made visible)
       const rect = element.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) {
-        // Restore original state
+        
         if (wasHidden && isInHiddenTab) {
           const tabPanel = element.closest('[role="tabpanel"]');
           if (tabPanel) {
@@ -99,10 +89,8 @@ export const captureChartImages = async (chartSelectors = []) => {
         continue;
       }
       
-      // Wait a bit for charts to render
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      // For chart containers, try to find the actual chart inside
       let targetElement = element;
       if (element.hasAttribute('data-chart-container')) {
         const chartInside = element.querySelector('.recharts-wrapper');
@@ -113,17 +101,16 @@ export const captureChartImages = async (chartSelectors = []) => {
       
       const canvas = await html2canvas(targetElement, {
         backgroundColor: '#ffffff',
-        scale: 1.2, // Lower scale to reduce image size and avoid PDF failures
+        scale: 1.2, 
         logging: false,
         useCORS: true,
-        allowTaint: false, // Keep false - tainted canvas would block toDataURL
+        allowTaint: false, 
         width: targetElement.offsetWidth || rect.width || 800,
         height: targetElement.offsetHeight || rect.height || 600,
         windowWidth: targetElement.scrollWidth || rect.width,
         windowHeight: targetElement.scrollHeight || rect.height
       });
       
-      // Restore original state if we modified it
       if (wasHidden && isInHiddenTab && tabPanel) {
         if (originalHidden) {
           tabPanel.setAttribute('hidden', originalHidden);
@@ -147,7 +134,6 @@ export const captureChartImages = async (chartSelectors = []) => {
         continue;
       }
       
-      // Get chart title from various sources
       const title = element.getAttribute('data-chart-title') || 
                    element.getAttribute('title') || 
                    element.closest('[data-chart-title]')?.getAttribute('data-chart-title') ||
@@ -162,34 +148,28 @@ export const captureChartImages = async (chartSelectors = []) => {
       });
     } catch (error) {
       console.warn(`Failed to capture chart:`, element, error);
-      // Continue with other charts
+      
     }
   }
   
   return images;
 };
 
-/**
- * Enhanced Excel export with chart images
- */
 export const exportToExcel = async (data = null, filename = 'export', filters = {}, chartImages = []) => {
   try {
     const token = sessionStorage.getItem('ucu_session_token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const role = user.role || 'student';
     
-    // Create workbook
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Data');
     
-    // Add header with role-based title
     const titleRow = worksheet.addRow([`${getExportTitle(filename, role)} - ${new Date().toLocaleDateString()}`]);
     titleRow.font = { size: 16, bold: true, color: { argb: 'FF003366' } };
     titleRow.alignment = { horizontal: 'center', vertical: 'middle' };
     worksheet.mergeCells(1, 1, 1, 5);
-    worksheet.addRow([]); // Empty row
+    worksheet.addRow([]); 
     
-    // Add filter information
     if (Object.keys(filters).length > 0) {
       const filterRow = worksheet.addRow(['Applied Filters:']);
       filterRow.font = { bold: true };
@@ -198,10 +178,9 @@ export const exportToExcel = async (data = null, filename = 'export', filters = 
           worksheet.addRow([`${key}: ${value}`]);
         }
       });
-      worksheet.addRow([]); // Empty row
+      worksheet.addRow([]); 
     }
     
-    // Add chart images if available
     if (chartImages.length > 0) {
       let currentRow = worksheet.rowCount + 1;
       for (const chart of chartImages) {
@@ -219,12 +198,11 @@ export const exportToExcel = async (data = null, filename = 'export', filters = 
           ext: { width: Math.min(chart.width / 2, 800), height: Math.min(chart.height / 2, 500) }
         });
         
-        currentRow += Math.ceil((chart.height / 2) / 20) + 2; // Add spacing
+        currentRow += Math.ceil((chart.height / 2) / 20) + 2; 
       }
-      worksheet.addRow([]); // Empty row after charts
+      worksheet.addRow([]); 
     }
     
-    // Add data table
     if (data && Array.isArray(data) && data.length > 0) {
       const headers = Object.keys(data[0]);
       const headerRow = worksheet.addRow(headers);
@@ -240,12 +218,11 @@ export const exportToExcel = async (data = null, filename = 'export', filters = 
         worksheet.addRow(values);
       });
       
-      // Auto-size columns
       worksheet.columns.forEach(column => {
         column.width = 15;
       });
     } else {
-      // If no data, try to get from backend
+      
       try {
         const exportType = filename.includes('fex') ? 'fex' : 
                           filename.includes('high-school') ? 'high-school' : 
@@ -270,7 +247,6 @@ export const exportToExcel = async (data = null, filename = 'export', filters = 
       }
     }
     
-    // Generate and download
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -283,12 +259,6 @@ export const exportToExcel = async (data = null, filename = 'export', filters = 
   }
 };
 
-/**
- * Export table data to Excel (for DataTable onExport).
- * @param {Array<Object>} data - Rows (objects keyed by column keys)
- * @param {Array<{ key: string, header: string }>} columns - Column definitions
- * @param {string} filename - Base filename (no extension)
- */
 export const exportTableToExcel = async (data, columns, filename = 'table_export') => {
   if (!data || !Array.isArray(data) || data.length === 0) {
     alert('No data to export.');
@@ -320,9 +290,6 @@ export const exportTableToExcel = async (data, columns, filename = 'table_export
   }
 };
 
-/**
- * Enhanced PDF export with chart images
- */
 export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartImages = [], data = null, stats = null) => {
   try {
     const token = sessionStorage.getItem('ucu_session_token');
@@ -342,21 +309,18 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
     const pageHeight = doc.internal.pageSize.getHeight();
     let yPosition = 20;
     
-    // Validate chartImages
     if (!Array.isArray(chartImages)) {
       chartImages = [];
     }
     
-    // Add header
     doc.setFontSize(18);
-    doc.setTextColor(0, 51, 102); // UCU Blue
+    doc.setTextColor(0, 51, 102); 
     doc.setFont('helvetica', 'bold');
     const title = getExportTitle(reportType, role);
     const titleWidth = doc.getTextWidth(title);
     doc.text(title, (pageWidth - titleWidth) / 2, yPosition);
     yPosition += 10;
     
-    // Add date
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
     doc.setFont('helvetica', 'normal');
@@ -365,7 +329,6 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
     doc.text(dateStr, (pageWidth - dateWidth) / 2, yPosition);
     yPosition += 15;
     
-    // Applied Filters — organised table
     if (Object.keys(filters).length > 0) {
       const filterEntries = Object.entries(filters)
         .filter(([k, v]) => v && k !== 'drilldown')
@@ -402,7 +365,6 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
       }
     }
     
-    // Summary Statistics — organised table
     if (stats) {
       const statEntries = Object.entries(stats)
         .filter(([, v]) => typeof v === 'number' || typeof v === 'string')
@@ -440,7 +402,6 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
       }
     }
     
-    // Add chart images
     for (const chart of chartImages) {
       try {
         if (!chart || !chart.data) {
@@ -453,14 +414,12 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
           yPosition = 20;
         }
         
-        // Chart title
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         const chartTitle = chart.title || 'Chart';
         doc.text(chartTitle, 20, yPosition);
         yPosition += 8;
         
-        // Validate image dimensions
         const chartWidth = chart.width || 800;
         const chartHeight = chart.height || 600;
         
@@ -469,7 +428,6 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
           continue;
         }
         
-        // Calculate image dimensions to fit page
         const maxWidth = pageWidth - 40;
         const maxHeight = pageHeight - yPosition - 20;
         const aspectRatio = chartWidth / chartHeight;
@@ -482,19 +440,17 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
           imgWidth = imgHeight * aspectRatio;
         }
         
-        // Ensure minimum dimensions
         if (imgWidth < 10 || imgHeight < 10) {
           console.warn('Image too small, skipping:', chart);
           continue;
         }
         
-        // Add image - extract base64 for jsPDF compatibility (some versions fail with full data URL)
         let imageData = chart.data;
         if (typeof imageData !== 'string' || !imageData || imageData.length < 100) {
           console.warn('Invalid or empty chart image data, skipping');
           continue;
         }
-        // Extract raw base64 - jsPDF works best with base64 only
+        
         let base64Data = imageData;
         if (imageData.startsWith('data:image')) {
           const commaIdx = imageData.indexOf(',');
@@ -502,7 +458,7 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
         } else if (imageData.startsWith('data:')) {
           base64Data = imageData.split(',')[1] || imageData;
         }
-        // Skip very large images to avoid memory/PDF issues
+        
         if (base64Data.length > 3000000) {
           console.warn('Chart image too large, skipping to avoid PDF failure');
           continue;
@@ -517,12 +473,11 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
         }
       } catch (imgError) {
         console.error('Error adding chart image to PDF:', imgError, chart);
-        // Continue with next chart instead of failing completely
+        
         continue;
       }
     }
     
-    // Add data table if available
     if (data && Array.isArray(data) && data.length > 0) {
       try {
         if (yPosition > pageHeight - 50) {
@@ -575,7 +530,7 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
               });
               yPosition = doc.lastAutoTable.finalY + 10;
             } else {
-              // Fallback if autoTable not loaded
+              
               tableData.forEach((row, i) => {
                 if (yPosition > pageHeight - 15) { doc.addPage(); yPosition = 20; }
                 doc.setFontSize(8);
@@ -587,11 +542,10 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
         }
       } catch (tableError) {
         console.error('Error adding data table to PDF:', tableError);
-        // Continue without table instead of failing
+        
       }
     }
     
-    // Add footer
     try {
       const totalPages = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
@@ -608,16 +562,14 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
       }
     } catch (footerError) {
       console.warn('Error adding footer to PDF:', footerError);
-      // Continue without footer
+      
     }
     
-    // Ensure we have at least one page with content
     if (yPosition <= 20 && chartImages.length === 0 && (!data || data.length === 0) && !stats) {
       doc.setFontSize(12);
       doc.text('No data available for export.', 20, yPosition);
     }
     
-    // Save PDF
     const filename = `${reportType}_${new Date().toISOString().split('T')[0]}.pdf`;
     try {
       doc.save(filename);
@@ -642,9 +594,6 @@ export const exportToPDF = async (filters = {}, reportType = 'dashboard', chartI
   }
 };
 
-/**
- * Get export title based on filename and role
- */
 const getExportTitle = (filename, role) => {
   const roleTitles = {
     'student': 'Student',
@@ -670,17 +619,10 @@ const getExportTitle = (filename, role) => {
   }
 };
 
-/**
- * Export dashboard with charts
- */
 export const exportDashboard = async (stats, charts, filters = {}, chartImages = []) => {
   return exportToExcel(null, 'dashboard_export', filters, chartImages);
 };
 
-/**
- * Admin console full export: KPIs, Users, Audit Logs, ETL Runs, Warehouse counts.
- * adminData: { kpis, users[], auditLogs[], etlRuns[], warehouse{} }
- */
 export const exportAdminToExcel = async (adminData, filename = 'admin_console', chartImages = []) => {
   const token = sessionStorage.getItem('ucu_session_token');
   if (!token) {
@@ -690,7 +632,6 @@ export const exportAdminToExcel = async (adminData, filename = 'admin_console', 
   const workbook = new ExcelJS.Workbook();
   const dateStr = new Date().toISOString().split('T')[0];
 
-  // Sheet 1: Summary / KPIs
   const summarySheet = workbook.addWorksheet('Summary', { pageSetup: { fitToPage: true } });
   summarySheet.addRow(['Admin Console Export', dateStr]).font = { size: 14, bold: true };
   summarySheet.addRow([]);
@@ -708,7 +649,6 @@ export const exportAdminToExcel = async (adminData, filename = 'admin_console', 
     });
   }
 
-  // Sheet 2: Users
   const usersSheet = workbook.addWorksheet('Users', { pageSetup: { fitToPage: true } });
   const users = adminData.users || [];
   if (users.length > 0) {
@@ -729,7 +669,6 @@ export const exportAdminToExcel = async (adminData, filename = 'admin_console', 
     usersSheet.addRow(['No users in this export.']);
   }
 
-  // Sheet 3: Audit Logs
   const auditSheet = workbook.addWorksheet('Audit Logs', { pageSetup: { fitToPage: true } });
   const logs = adminData.auditLogs || [];
   if (logs.length > 0) {
@@ -750,7 +689,6 @@ export const exportAdminToExcel = async (adminData, filename = 'admin_console', 
     auditSheet.addRow(['No audit logs in this export.']);
   }
 
-  // Sheet 4: ETL Runs
   const etlSheet = workbook.addWorksheet('ETL Runs', { pageSetup: { fitToPage: true } });
   const etlRuns = adminData.etlRuns || [];
   if (etlRuns.length > 0) {
@@ -768,9 +706,6 @@ export const exportAdminToExcel = async (adminData, filename = 'admin_console', 
   return true;
 };
 
-/**
- * Admin console full PDF: same sections as Excel.
- */
 export const exportAdminToPDF = async (adminData, filename = 'admin_console', chartImages = []) => {
   try {
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -909,12 +844,6 @@ export const exportAdminToPDF = async (adminData, filename = 'admin_console', ch
   }
 };
 
-/**
- * Generate a professional ETL run report PDF (metadata + warehouse counts + full log).
- * run: { log_file, start_time, duration, success }
- * logContent: raw log file text
- * warehouse: { [tableName]: count }
- */
 export const exportETLRunToPDF = (run, logContent, warehouse = {}) => {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();

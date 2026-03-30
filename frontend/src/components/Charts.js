@@ -1,19 +1,15 @@
-/**
- * Charts Component - Fully Dynamic with Filters
- * Displays various analytics charts with filter-based data
- */
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, UCU_COLORS } from './charts/EChartsComponents';
 
-// Modern, visually appealing color themes
-const DEPT_COLORS = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE']; // Vibrant indigo to light purple gradient
-const PAYMENT_COLORS = ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0']; // Fresh green gradient
-const GRADE_COLORS = ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE', '#EDE9FE']; // Rich purple gradient
-const ATTENDANCE_COLORS = ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A']; // Warm amber gradient
-const STUDENT_COLORS = ['#06B6D4', '#22D3EE', '#67E8F9', '#A5F3FC']; // Cool cyan gradient
+const DEPT_COLORS = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE']; 
+const PAYMENT_COLORS = ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0']; 
+const GRADE_COLORS = ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE', '#EDE9FE']; 
+const ATTENDANCE_COLORS = ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A']; 
+const STUDENT_COLORS = ['#06B6D4', '#22D3EE', '#67E8F9', '#A5F3FC']; 
 
 const Charts = ({ data, filters = {}, type = 'general' }) => {
   const [chartData, setChartData] = useState({
@@ -36,7 +32,6 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
       setLoading(true);
       const token = sessionStorage.getItem('ucu_session_token');
       
-      // Load all chart data sources with filters
       const [deptRes, gradesRes, paymentsRes, gradeDistRes, topStudentsRes, attendanceRes] = await Promise.all([
         axios.get('/api/dashboard/students-by-department', {
           headers: { Authorization: `Bearer ${token}` },
@@ -108,7 +103,7 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
   return (
     <div className="space-y-3 sm:space-y-4 min-w-0">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        {/* Student Distribution by Department */}
+        {}
         <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-blue-700">Student Distribution by Department</CardTitle>
@@ -133,7 +128,7 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
           </CardContent>
         </Card>
 
-        {/* Trend Analysis of Grades Over Time */}
+        {}
         <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-purple-700">Trend Analysis of Grades Over Time</CardTitle>
@@ -161,7 +156,7 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        {/* Payment Status Distribution */}
+        {}
         <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-green-700">Payment Status Distribution</CardTitle>
@@ -184,7 +179,7 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
           </CardContent>
         </Card>
 
-        {/* Grade Distribution */}
+        {}
         <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-orange-700">Grade Distribution</CardTitle>
@@ -209,7 +204,7 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        {/* Top Students */}
+        {}
         <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-red-700">Top 10 Students</CardTitle>
@@ -231,7 +226,7 @@ const Charts = ({ data, filters = {}, type = 'general' }) => {
           </CardContent>
         </Card>
 
-        {/* Attendance Trends */}
+        {}
         <Card className="border shadow-sm min-w-0 overflow-hidden">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base font-semibold text-yellow-700">Attendance Trends</CardTitle>

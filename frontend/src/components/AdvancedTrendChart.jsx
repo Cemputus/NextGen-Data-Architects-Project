@@ -1,7 +1,4 @@
-/**
- * Advanced Trend Chart – Apache ECharts
- * Multi-series line/area/composed trend analysis. useSciChart prop ignored (ECharts only).
- */
+
 import React, { useMemo } from 'react';
 import { BaseChart } from './charts/BaseChart';
 import { UCU_COLORS, defaultGrid, defaultTooltip, defaultTextStyle, formatTooltipValue } from '../lib/chartTheme';

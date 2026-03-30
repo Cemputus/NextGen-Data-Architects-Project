@@ -1,13 +1,4 @@
-/**
- * Role-Based Charts Component
- * Displays charts tailored to each user role with UCU branding
- * - Students: Own performance, payments, attendance
- * - Staff: Their courses/classes over time
- * - HOD: Department-level analytics
- * - Dean: Faculty-level analytics
- * - Senate: Institution-wide analytics
- * - Finance: Payment trends only (no academic data)
- */
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import axios from 'axios';
@@ -16,11 +7,10 @@ import { useAuth } from '../context/AuthContext';
 import { SciLineChart, SciBarChart, SciAreaChart, SciStackedColumnChart, SciDonutChart } from './charts/EChartsComponents';
 import { UCU_COLORS } from '../lib/chartTheme';
 
-// Modern, visually appealing chart color palettes
-const DEPT_COLORS = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE']; // Vibrant indigo to light purple gradient
-const PAYMENT_COLORS = ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0']; // Fresh green gradient
-const GRADE_COLORS = ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE', '#EDE9FE']; // Rich purple gradient (legacy)
-// Distinct colors per letter grade for Grade Distribution donut
+const DEPT_COLORS = ['#4F46E5', '#6366F1', '#818CF8', '#A5B4FC', '#C7D2FE']; 
+const PAYMENT_COLORS = ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0']; 
+const GRADE_COLORS = ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE', '#EDE9FE']; 
+
 const GRADE_DISTRIBUTION_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#F97316', '#EF4444', '#8B5CF6', '#06B6D4', '#6366F1'];
 
 const getGradeDistributionColors = (data) => {
@@ -37,24 +27,23 @@ const getGradeDistributionColors = (data) => {
     return gradeToColor[name] || GRADE_DISTRIBUTION_COLORS[i % GRADE_DISTRIBUTION_COLORS.length];
   });
 };
-const ATTENDANCE_COLORS = ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A']; // Warm amber gradient
-const TREND_COLORS = ['#06B6D4', '#22D3EE', '#67E8F9', '#A5F3FC']; // Cool cyan gradient
+const ATTENDANCE_COLORS = ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A']; 
+const TREND_COLORS = ['#06B6D4', '#22D3EE', '#67E8F9', '#A5F3FC']; 
 
-// Dynamic payment colors - red for failed, green for completed, etc.
 const getPaymentColors = (paymentData) => {
   if (!paymentData || !Array.isArray(paymentData)) return PAYMENT_COLORS;
   return paymentData.map(item => {
     const status = (item.name || '').toLowerCase();
     if (status.includes('failed') || status.includes('overdue') || status === 'failed') {
-      return '#EF4444'; // Vibrant red for failed
+      return '#EF4444'; 
     } else if (status.includes('completed') || status === 'paid') {
-      return '#10B981'; // Fresh green for completed
+      return '#10B981'; 
     } else if (status.includes('pending')) {
-      return '#F59E0B'; // Warm amber for pending
+      return '#F59E0B'; 
     } else if (status.includes('partial')) {
-      return '#34D399'; // Light green for partial
+      return '#34D399'; 
     }
-    return '#6366F1'; // Default vibrant indigo
+    return '#6366F1'; 
   });
 };
 
@@ -79,9 +68,9 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
   const [attendanceTrendsPeriod, setAttendanceTrendsPeriod] = useState('quarterly');
   const [gradesOverTimePeriod, setGradesOverTimePeriod] = useState('quarterly');
   const [gradesOverTimeSemesterId, setGradesOverTimeSemesterId] = useState('');
-  const [studentDistChartType, setStudentDistChartType] = useState('bar'); // 'bar' | 'donut'
-  const [gradeTrendChartType, setGradeTrendChartType] = useState('line'); // 'line' | 'area'
-  const [attendanceChartType, setAttendanceChartType] = useState('line'); // 'line' | 'area'
+  const [studentDistChartType, setStudentDistChartType] = useState('bar'); 
+  const [gradeTrendChartType, setGradeTrendChartType] = useState('line'); 
+  const [attendanceChartType, setAttendanceChartType] = useState('line'); 
   const [semesterOptions, setSemesterOptions] = useState([]);
 
   useEffect(() => {
@@ -119,12 +108,10 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       setLoading(true);
       const token = sessionStorage.getItem('ucu_session_token');
       
-      // Role-specific data loading
       const requests = [];
-      // For time-series charts we ignore global semester filter and use chart-level controls instead
+      
       const { semester_id: _ignoredSemester, ...filtersWithoutSemester } = filters || {};
       
-      // Student Distribution (for Senate, Dean, HOD, Staff, Analyst) - NOT for Finance pages
       if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role)) {
         const studentFilters = { ...filters, group_by: studentDistGroupBy };
         requests.push(
@@ -135,7 +122,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         );
       }
       
-      // Grades Over Time (role-specific scope) - NOT for Finance pages and NOT for HR
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         const baseGradeFilters = filtersWithoutSemester;
         const gradeParams = role === 'senate' ? { ...baseGradeFilters } : { ...baseGradeFilters, role };
@@ -148,7 +134,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         );
       }
       
-      // Payment Status (for Dean, HOD, Student, Finance, Senate)
       if (!isAcademicPage && (isFinancePage || ['dean', 'hod', 'student', 'finance', 'senate'].includes(role))) {
         requests.push(
           axios.get('/api/dashboard/payment-status', {
@@ -158,7 +143,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         );
       }
       
-      // Grade Distribution (NOT for finance) - NOT for Finance pages and NOT for HR
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         requests.push(
           axios.get('/api/dashboard/grade-distribution', {
@@ -168,7 +152,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         );
       }
       
-      // Top Students (role-specific scope) - NOT for Finance pages
       if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst', 'sysadmin'].includes(role)) {
         requests.push(
           axios.get('/api/dashboard/top-students', {
@@ -178,7 +161,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         );
       }
       
-      // Payment Trends - For Finance pages and Finance/Senate roles
       if (!isAcademicPage && (isFinancePage || role === 'finance' || role === 'senate')) {
         requests.push(
           axios.get('/api/dashboard/payment-trends', {
@@ -188,7 +170,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         );
       }
 
-      // Attendance Trends - For all roles except Finance and HR, but Senate also gets attendance
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         const baseAttendanceFilters = filtersWithoutSemester;
         const attendanceParams = role === 'senate' ? baseAttendanceFilters : { ...baseAttendanceFilters, role };
@@ -200,7 +181,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         );
       }
       
-      // Student Payment Breakdown (for students only)
       if (role === 'student') {
         requests.push(
           axios.get('/api/dashboard/student-payment-breakdown', {
@@ -214,7 +194,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       
       const data = {};
       
-      // Process Student Distribution
       if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role)) {
         const deptRes = results[resultIndex++];
         const labels = deptRes.data.labels || deptRes.data.departments || [];
@@ -225,7 +204,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         })) || [];
       }
       
-      // Process Grades Over Time (NOT for Finance pages and NOT for HR) - Enhanced with comprehensive data
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         const gradesRes = results[resultIndex++];
         data.gradesOverTime = gradesRes.data.periods?.map((period, idx) => ({
@@ -239,7 +217,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         })) || [];
       }
       
-      // Process Payment Status
       if (!isAcademicPage && (isFinancePage || ['dean', 'hod', 'student', 'finance', 'senate'].includes(role))) {
         const paymentsRes = results[resultIndex++];
         data.paymentStatus = paymentsRes.data.statuses?.map((status, idx) => ({
@@ -248,7 +225,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         })) || [];
       }
       
-      // Process Grade Distribution (NOT for Finance pages and NOT for HR)
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         const gradeDistRes = results[resultIndex++];
         data.gradeDistribution = gradeDistRes.data.grades?.map((grade, idx) => ({
@@ -257,7 +233,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         })) || [];
       }
       
-      // Process Top Students (NOT for Finance pages)
       if (!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst', 'sysadmin'].includes(role)) {
         const topStudentsRes = results[resultIndex++];
         data.topStudents = (topStudentsRes.data.students || []).slice(0, 10).map((student, idx) => ({
@@ -266,7 +241,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         }));
       }
       
-      // Process Payment Trends - For Finance pages and Finance/Senate roles
       if (!isAcademicPage && (isFinancePage || role === 'finance' || role === 'senate')) {
         const trendsRes = results[resultIndex++];
         data.paymentTrends = trendsRes.data.periods?.map((period, idx) => ({
@@ -277,7 +251,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         })) || [];
       }
       
-      // Process Attendance Trends - For all roles except Finance and HR
       if (!isFinancePage && role !== 'finance' && role !== 'hr') {
         const attendanceRes = results[resultIndex++];
         data.attendance = attendanceRes.data.periods?.map((period, idx) => ({
@@ -289,7 +262,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
         })) || [];
       }
       
-      // Process Student Payment Breakdown
       if (role === 'student') {
         const paymentBreakdownRes = results[resultIndex++];
         data.studentPaymentBreakdown = paymentBreakdownRes.data;
@@ -311,7 +283,6 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
     );
   }
 
-  // Ensure all arrays are initialized to prevent undefined errors
   const safeChartData = {
     studentDistribution: chartData.studentDistribution || [],
     gradesOverTime: chartData.gradesOverTime || [],
@@ -326,7 +297,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
   const chartContainerClass = "min-h-[200px] max-h-[320px] w-full"
   return (
     <div className="space-y-4">
-      {/* Student Distribution by Department - Senate, Dean, HOD, Staff, Analyst (NOT for Finance) */}
+      {}
       {!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst'].includes(role) && (
         <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.blue, borderLeftWidth: '4px' }}>
           <CardHeader className="p-4 pb-2">
@@ -392,7 +363,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-        {/* Trend Analysis of Grades Over Time - Role-specific (NOT for Finance or HR) */}
+        {}
         {!isFinancePage && role !== 'finance' && role !== 'hr' && (
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
@@ -480,7 +451,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
           </Card>
         )}
 
-        {/* Grade Distribution - same row as Trend Analysis (NOT for Finance or HR) */}
+        {}
         {!isFinancePage && role !== 'finance' && role !== 'hr' && (
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
@@ -504,7 +475,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
           </Card>
         )}
 
-        {/* Payment Status Distribution - Role-specific (ALWAYS for Finance pages) */}
+        {}
         {!isAcademicPage && (isFinancePage || ['dean', 'hod', 'student', 'finance', 'senate'].includes(role)) && (
           <Card className="border shadow-sm" style={{ borderLeftColor: '#10b981', borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
@@ -523,7 +494,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
               <div className={chartContainerClass} data-chart-title={role === 'student' ? 'My Payment Status' : 'Payment Status Distribution'} data-chart-container="true">
                 {safeChartData.paymentStatus.length > 0 ? (
                   role === 'student' && safeChartData.studentPaymentBreakdown ? (
-                    // Student-specific payment breakdown with amounts
+                    
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="p-3 bg-blue-50 rounded-lg border" style={{ borderColor: UCU_COLORS.blue }}>
@@ -581,7 +552,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
           </Card>
         )}
 
-        {/* Payment Trends - Finance and Senate (same row as Payment Status when both show) */}
+        {}
         {!isAcademicPage && (isFinancePage || role === 'finance' || role === 'senate') && (
           <Card className="border shadow-sm" style={{ borderLeftColor: '#10b981', borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
@@ -631,7 +602,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-        {/* Top 10 Students - Role-specific scope (NOT for Finance) */}
+        {}
         {!isFinancePage && ['senate', 'dean', 'hod', 'staff', 'analyst', 'sysadmin'].includes(role) && (
           <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
             <CardHeader className="p-4 pb-2">
@@ -669,7 +640,7 @@ const RoleBasedCharts = ({ filters = {}, type = 'general' }) => {
 
       </div>
 
-      {/* Attendance Trends - NOT for Finance or HR, but Senate should see this */}
+      {}
       {!isFinancePage && role !== 'finance' && role !== 'hr' && (
         <Card className="border shadow-sm" style={{ borderLeftColor: UCU_COLORS.maroon, borderLeftWidth: '4px' }}>
           <CardHeader className="p-4 pb-2">

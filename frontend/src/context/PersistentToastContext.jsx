@@ -1,7 +1,4 @@
-/**
- * Persistent toasts: stored in localStorage so they survive hard refresh.
- * On mount, toasts are replayed; dismiss removes from storage.
- */
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const STORAGE_KEY = 'persistent_toasts';
@@ -33,7 +30,7 @@ export function PersistentToastProvider({ children }) {
     setToasts(next);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next.slice(-MAX_TOASTS)));
-    } catch (_) { /* persist failed */ }
+    } catch (_) {  }
   }, []);
 
   const addToast = useCallback((message, type = 'info') => {
@@ -43,7 +40,7 @@ export function PersistentToastProvider({ children }) {
       const next = [...prev, item].slice(-MAX_TOASTS);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch (_) { /* persist failed */ }
+      } catch (_) {  }
       return next;
     });
     return id;
@@ -54,7 +51,7 @@ export function PersistentToastProvider({ children }) {
       const next = prev.filter((t) => t.id !== id);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch (_) { /* persist failed */ }
+      } catch (_) {  }
       return next;
     });
   }, []);

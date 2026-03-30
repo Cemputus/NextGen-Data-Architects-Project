@@ -1,12 +1,4 @@
-/**
- * Dashboard Manager (Analyst)
- *
- * - Current Dashboards: one small card per role (student, staff, dean, etc.), showing
- *   which dashboard is currently deployed for that role.
- * - Custom Dashboards: all other dashboards that can be edited / previewed / swapped in.
- *
- * Swaps are handled by /api/dashboard-manager/swap and immediately reflected in both sections.
- */
+
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -26,7 +18,6 @@ import {
   ROLE_LIST,
 } from '../config';
 
-/** Roles that analysts can assign dashboards to (excludes Admin). Sysadmin sees all roles. */
 const getAssignableRoles = (userRole) => {
   const r = (userRole || '').toString().toLowerCase();
   if (r === 'analyst') return ROLE_LIST.filter((role) => role !== 'sysadmin');
@@ -41,8 +32,8 @@ const AnalystDashboardsPage = () => {
   const [apiForbidden, setApiForbidden] = useState(false);
   const [filterRole, setFilterRole] = useState('');
   const [search, setSearch] = useState('');
-  const [createdByFilter, setCreatedByFilter] = useState('all'); // all | me
-  const [viewMode, setViewMode] = useState('grid'); // grid | list (grid is primary)
+  const [createdByFilter, setCreatedByFilter] = useState('all'); 
+  const [viewMode, setViewMode] = useState('grid'); 
 
   const [swapConfirm, setSwapConfirm] = useState({ open: false, dash: null, targetRole: '' });
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, dash: null });
@@ -74,7 +65,6 @@ const AnalystDashboardsPage = () => {
   const canManage = userRole === 'analyst' || userRole === 'sysadmin' || userRole === 'admin';
   const assignableRoles = getAssignableRoles(user?.role);
 
-  // NextGen Query visualizations created by the current analyst (for pinning into dashboards/pages)
   const [availableVisualizations, setAvailableVisualizations] = useState([]);
   const [loadingVisualizations, setLoadingVisualizations] = useState(false);
   const [visualizationsError, setVisualizationsError] = useState(null);
@@ -158,10 +148,6 @@ const AnalystDashboardsPage = () => {
     }
   };
 
-  /**
-   * @param {{ silent?: boolean }} [opts]
-   * When silent is true, skips global loading state so only affected cards update (no full-page spinner).
-   */
   const loadData = async (opts = {}) => {
     const silent = opts.silent === true;
     try {
@@ -194,7 +180,6 @@ const AnalystDashboardsPage = () => {
       const customResp = results[1];
       const pageConfigResp = canManage && results[2] ? results[2] : null;
 
-      // Backend returns only assignable roles for analyst (no sysadmin); sysadmin gets all roles
       const current = currentResp.data?.roles || [];
       const byRole = {};
       current.forEach((item) => {
@@ -223,7 +208,7 @@ const AnalystDashboardsPage = () => {
       setApiForbidden(err.response?.status === 403);
       const fallbackRoles = getAssignableRoles(user?.role);
       setCurrentByRole(fallbackRoles.map((r) => ({ role: r, dashboard: null })));
-      // Do not clear customDashboards on error so recently created dashboard is not lost
+      
     } finally {
       if (!silent) {
         setLoading(false);
@@ -233,10 +218,9 @@ const AnalystDashboardsPage = () => {
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [filterRole, createdByFilter]);
 
-  // Load NextGen Query visualizations created by this analyst/sysadmin (for pinning into dashboards/pages)
   useEffect(() => {
     if (!canManage) return;
     let cancelled = false;
@@ -272,7 +256,6 @@ const AnalystDashboardsPage = () => {
     };
   }, [canManage]);
 
-  // Filtering helpers
   const matchesSearch = (text) => {
     if (!search.trim()) return true;
     const s = search.trim().toLowerCase();
@@ -311,9 +294,7 @@ const AnalystDashboardsPage = () => {
     const rawCharts =
       def && Array.isArray(def.charts) && def.charts.length > 0 ? def.charts : CHART_OPTIONS;
     const rolesOnDashboard = Array.isArray(dash.roles) ? dash.roles.map(normalizeRole) : [];
-    // When editing a "current dashboard" card, roleForEdit must win.
-    // Otherwise we may accidentally edit for the wrong role if the dashboard
-    // is shared across multiple roles in dashboard_role_access.
+    
     const editForRole = roleForEdit || filterRole || rolesOnDashboard[0] || 'analyst';
     const allowedKpis = KPI_OPTIONS.filter((k) => isKpiAllowedForRole(k, editForRole));
     const allowedCharts = CHART_OPTIONS.filter((c) => isChartAllowedForRole(c, editForRole));
@@ -574,7 +555,7 @@ const AnalystDashboardsPage = () => {
       try {
       await loadData({ silent: true });
       } finally {
-        // Keep created dashboard in list if GET /custom didn't return it (timing/filter)
+        
         if (created && created.id) {
           setCustomDashboards((prev) => {
             const has = prev.some((d) => d.id === created.id);
@@ -636,7 +617,7 @@ const AnalystDashboardsPage = () => {
         </div>
       )}
 
-      {/* Global filters + view toggle */}
+      {}
       <Card className="border shadow-sm">
         <CardHeader className="p-4 pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -699,7 +680,7 @@ const AnalystDashboardsPage = () => {
         </CardHeader>
       </Card>
 
-      {/* Current Dashboards */}
+      {}
       <Card className="border shadow-sm">
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Current Dashboards</CardTitle>
@@ -820,7 +801,7 @@ const AnalystDashboardsPage = () => {
         </CardContent>
       </Card>
 
-      {/* Custom Dashboards */}
+      {}
       <Card className="border shadow-sm">
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base font-semibold">Custom Dashboards</CardTitle>
@@ -932,7 +913,7 @@ const AnalystDashboardsPage = () => {
         </CardContent>
       </Card>
 
-      {/* Pages with visuals — FEX / Risk / Analyst only (role home dashboards live under Current Dashboards) */}
+      {}
       {canManage && (
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
@@ -1028,7 +1009,7 @@ const AnalystDashboardsPage = () => {
         </Card>
       )}
 
-      {/* Reset page config confirm */}
+      {}
       {resetPageConfirm.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-background rounded-lg shadow-xl w-full max-w-sm border p-4">
@@ -1058,7 +1039,7 @@ const AnalystDashboardsPage = () => {
         </div>
       )}
 
-      {/* Full preview below Custom Dashboards – behaves like Open/Hide */}
+      {}
       {previewDashboard && (
         <Card className="border shadow-sm">
           <CardHeader className="p-4 pb-2">
@@ -1122,7 +1103,7 @@ const AnalystDashboardsPage = () => {
         </Card>
       )}
 
-      {/* Content editor / preview modal – three-panel: left = assets, center = canvas, right = properties */}
+      {}
       {(contentDashboard || contentPageKey) && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-background rounded-lg shadow-xl w-full max-w-5xl border max-h-[90vh] overflow-hidden flex flex-col">
@@ -1175,7 +1156,7 @@ const AnalystDashboardsPage = () => {
                   (Array.isArray(contentForm.visualizationIds) && contentForm.visualizationIds.length > 0);
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr_1fr] gap-4 p-4 text-xs">
-                    {/* Left: Content to show (asset lists) */}
+                    {}
                     <div className="space-y-3 min-w-0">
                       <p className="text-[11px] uppercase text-muted-foreground font-semibold">Content to show</p>
                       <div className="space-y-2">
@@ -1273,7 +1254,7 @@ const AnalystDashboardsPage = () => {
                       )}
                     </div>
 
-                    {/* Center: Canvas preview */}
+                    {}
                     <div className="space-y-2 min-w-0">
                       <p className="text-[11px] uppercase text-muted-foreground font-semibold">Preview layout</p>
                       <div className="border border-border rounded-lg bg-muted/20 p-3 min-h-[200px] space-y-3">
@@ -1315,7 +1296,7 @@ const AnalystDashboardsPage = () => {
                       </div>
                     </div>
 
-                    {/* Right: Properties and actions */}
+                    {}
                     <div className="space-y-3 min-w-0">
                       <p className="text-[11px] uppercase text-muted-foreground font-semibold">Properties</p>
                       <div className="space-y-2">
@@ -1395,7 +1376,7 @@ const AnalystDashboardsPage = () => {
         </div>
       )}
 
-      {/* Add dashboard modal */}
+      {}
       {showCreate && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
           <div className="bg-background rounded-lg shadow-xl w-full max-w-md border">
@@ -1493,7 +1474,7 @@ const AnalystDashboardsPage = () => {
         </div>
       )}
 
-      {/* Swap confirmation modal */}
+      {}
       <Modal open={swapConfirm.open} onClose={() => setSwapConfirm((p) => ({ ...p, open: false }))} maxWidth="max-w-md">
         <ModalHeader
           title="Confirm dashboard swap"
@@ -1515,7 +1496,7 @@ const AnalystDashboardsPage = () => {
         </ModalFooter>
       </Modal>
 
-      {/* Delete dashboard confirmation modal */}
+      {}
       <Modal open={deleteConfirm.open} onClose={() => setDeleteConfirm((p) => ({ ...p, open: false }))} maxWidth="max-w-md">
         <ModalHeader
           title="Delete dashboard"
@@ -1536,7 +1517,7 @@ const AnalystDashboardsPage = () => {
         </ModalFooter>
       </Modal>
 
-      {/* Message / error modal */}
+      {}
       <Modal open={messageModal.open} onClose={() => setMessageModal((p) => ({ ...p, open: false }))} maxWidth="max-w-md">
         <ModalHeader
           title="Notice"
@@ -1554,4 +1535,3 @@ const AnalystDashboardsPage = () => {
 };
 
 export default AnalystDashboardsPage;
-

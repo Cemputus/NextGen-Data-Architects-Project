@@ -1,6 +1,4 @@
-/**
- * Table — Design-system table with overflow-x-auto wrapper and consistent header/cell styles.
- */
+
 import * as React from 'react';
 import { cn } from '../../lib/utils';
 

@@ -1,43 +1,26 @@
-/**
- * AuthContext — Session security (default: 60-minute active session)
- *
- * Session expiry is ON unless REACT_APP_DISABLE_SESSION_EXPIRY=1 (use that for local/demo without idle/401 rules).
- *
- * When session expiry is enabled:
- *  1. Access token (~60 min) with silent refresh before expiry (see REFRESH_INTERVAL_MS)
- *  2. Idle timeout — same 60 minutes for all roles (no short 25‑min student cut-off)
- *  3. Browser-close clears sessionStorage; localStorage only holds a cross-tab flag
- *  4. Tab focus only resets the idle timer (no profile ping — avoids spurious logouts while navigating)
- *  5. Axios — refresh + retry on 401/422; logout only on confirmed auth failures from the server
- */
+
 import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
 
-// Session expiry: off only when explicitly set to "1" (local/demo long sessions without idle rules).
 const DISABLE_SESSION_EXPIRY = process.env.REACT_APP_DISABLE_SESSION_EXPIRY === '1';
 
-/** Wall-clock session: keep idle limit aligned with backend JWT access lifetime (60 min). */
 const SESSION_MINUTES = 60;
-const SESSION_IDLE_MS = SESSION_MINUTES * 60 * 1000; // same for all roles — no surprise early logouts
-const IDLE_WARNING_BEFORE_MS = 5 * 60 * 1000; // warn 5 min before idle logout
+const SESSION_IDLE_MS = SESSION_MINUTES * 60 * 1000; 
+const IDLE_WARNING_BEFORE_MS = 5 * 60 * 1000; 
 
-// Refresh before access token expires (backend: 60 min).
 const REFRESH_INTERVAL_MS = 45 * 60 * 1000;
 
 const ACTIVITY_EVENTS = [
   'mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'pointerdown',
-  'wheel', 'focusin', // keyboard-only / navigation without mouse move
+  'wheel', 'focusin', 
 ];
 
-// We store the token in sessionStorage (cleared on tab/browser close) NOT localStorage.
-// Only a non-sensitive flag ("session_active") lives in localStorage as a cross-tab signal.
 const TOKEN_KEY   = 'ucu_session_token';
 const REFRESH_KEY = 'ucu_session_refresh';
 const USER_KEY    = 'ucu_session_user';
 
-/** Server returned 401/422 (session/auth). No response ⇒ network/CORS/timeout — not an auth verdict. */
 function isUnauthorizedHttp(err) {
   const s = err?.response?.status;
   return s === 401 || s === 422;
@@ -55,39 +38,34 @@ const sessionStore = {
   },
 };
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUserState] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [sessionWarning, setSessionWarning] = useState(false); // shows "session expiring soon" banner
+  const [sessionWarning, setSessionWarning] = useState(false); 
 
-  // Refs for timers (so they survive re-renders without triggering effects)
   const idleTimerRef    = useRef(null);
   const refreshTimerRef = useRef(null);
   const warningTimerRef = useRef(null);
-  const isLoggedInRef   = useRef(false); // avoid stale closures in event listeners
+  const isLoggedInRef   = useRef(false); 
 
-  // ── Internal: clear all timers ─────────────────────────────────────────────
   const clearAllTimers = useCallback(() => {
     clearTimeout(idleTimerRef.current);
     clearInterval(refreshTimerRef.current);
     clearTimeout(warningTimerRef.current);
   }, []);
 
-  // ── Internal: logout ───────────────────────────────────────────────────────
   const logout = useCallback((reason = 'manual') => {
     clearAllTimers();
-    // Preserve the last in-app route so, after re-login, we can resume
-    // from where the user left off (unless they closed the browser).
+    
     try {
       const currentPath = window.location.pathname + window.location.search;
       if (currentPath && currentPath !== '/login') {
         sessionStorage.setItem('ucu_last_route', currentPath);
       }
     } catch {
-      // ignore storage errors
+      
     }
     sessionStore.clear();
     setToken(null);
@@ -98,7 +76,7 @@ export const AuthProvider = ({ children }) => {
     delete axios.defaults.headers.common['Authorization'];
 
     if (reason !== 'manual' && window.location.pathname !== '/login') {
-      // Append a query param so Login page can show the correct message
+      
       const msg = reason === 'idle' ? 'idle' : reason === 'expired' ? 'expired' : 'closed';
       window.location.href = `/login?session=${msg}`;
     } else if (reason === 'manual' && window.location.pathname !== '/login') {
@@ -106,7 +84,6 @@ export const AuthProvider = ({ children }) => {
     }
   }, [clearAllTimers]);
 
-  // ── Internal: reset idle timer ─────────────────────────────────────────────
   const resetIdleTimer = useCallback(() => {
     if (!isLoggedInRef.current) return;
 
@@ -130,7 +107,6 @@ export const AuthProvider = ({ children }) => {
     }, timeoutMs);
   }, [logout]);
 
-  // ── Internal: silent token refresh ─────────────────────────────────────────
   const silentRefresh = useCallback(async () => {
     const refreshToken = sessionStore.get(REFRESH_KEY);
     if (!refreshToken || !isLoggedInRef.current) return;
@@ -149,33 +125,30 @@ export const AuthProvider = ({ children }) => {
       if (DISABLE_SESSION_EXPIRY) {
         return;
       }
-      // Refresh token itself has expired (8h) or server rejected it → logout
+      
       if (isUnauthorizedHttp(err)) {
         logout('expired');
       }
-      // No response (network) or other errors: stay logged in; next interval retries
+      
     }
   }, [logout]);
 
-  // ── Internal: start background refresh loop ────────────────────────────────
   const startRefreshLoop = useCallback(() => {
     clearInterval(refreshTimerRef.current);
     refreshTimerRef.current = setInterval(silentRefresh, REFRESH_INTERVAL_MS);
   }, [silentRefresh]);
 
-  // ── Internal: wire up activity listeners ───────────────────────────────────
   const startActivityListeners = useCallback(() => {
     const handler = () => resetIdleTimer();
     ACTIVITY_EVENTS.forEach(evt => window.addEventListener(evt, handler, { passive: true }));
     return () => ACTIVITY_EVENTS.forEach(evt => window.removeEventListener(evt, handler));
   }, [resetIdleTimer]);
 
-  // ── Internal: fully hydrate auth state after successful login/restore ──────
   const hydrateSession = useCallback((accessToken, refreshToken, userData) => {
     sessionStore.set(TOKEN_KEY, accessToken);
     if (refreshToken) sessionStore.set(REFRESH_KEY, refreshToken);
     sessionStore.set(USER_KEY, JSON.stringify(userData));
-    localStorage.setItem('ucu_session_active', '1'); // cross-tab signal (value-less)
+    localStorage.setItem('ucu_session_active', '1'); 
 
     setToken(accessToken);
     setUserState(userData);
@@ -184,14 +157,12 @@ export const AuthProvider = ({ children }) => {
     axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
   }, []);
 
-  // ── Internal: post-hydrate: start timers & listeners ──────────────────────
   const startSession = useCallback(() => {
     resetIdleTimer();
     startRefreshLoop();
     return startActivityListeners();
   }, [resetIdleTimer, startRefreshLoop, startActivityListeners]);
 
-  // ── Axios auth interceptor (401/422): refresh once, then optional logout ─────
   useEffect(() => {
     const id = axios.interceptors.response.use(
       (res) => res,
@@ -200,7 +171,6 @@ export const AuthProvider = ({ children }) => {
         const status = err.response?.status;
         const url = config.url || '';
 
-        // Recover expired access token without forcing re-login (single retry).
         if (
           (status === 401 || status === 422) &&
           !config._retryRefresh &&
@@ -228,8 +198,7 @@ export const AuthProvider = ({ children }) => {
                 return axios(config);
               }
             } catch (refreshErr) {
-              // Refresh failed: only logout if the server rejected the refresh token.
-              // Network loss has no err.response — keep session and surface the original error.
+              
               if (!DISABLE_SESSION_EXPIRY && isLoggedInRef.current && isUnauthorizedHttp(refreshErr)) {
                 logout('expired');
               }
@@ -238,7 +207,6 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
-        // Endpoints that may be long-running or noisy (ETL, admin status/logs/settings).
         const isLongRunningAdminEndpoint =
           url.startsWith('/api/admin/system-status') ||
           url.startsWith('/api/admin/run-etl') ||
@@ -261,7 +229,6 @@ export const AuthProvider = ({ children }) => {
     return () => axios.interceptors.response.eject(id);
   }, [logout, setToken]);
 
-  // ── Visibility: extend idle timer only (no profile API — avoids surprise logouts while switching tabs)
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState !== 'visible' || !isLoggedInRef.current) return;
@@ -271,11 +238,10 @@ export const AuthProvider = ({ children }) => {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [resetIdleTimer]);
 
-  // ── Cross-tab logout: if localStorage flag is removed, logout all tabs ──────
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === 'ucu_session_active' && e.newValue === null && isLoggedInRef.current) {
-        // Another tab called logout → sync logout here too
+        
         clearAllTimers();
         setToken(null);
         setUserState(null);
@@ -291,7 +257,6 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('storage', onStorage);
   }, [clearAllTimers]);
 
-  // ── Restore session on page load/refresh ───────────────────────────────────
   useEffect(() => {
     let cleanupListeners = () => {};
     const restoreAuth = async () => {
@@ -300,16 +265,14 @@ export const AuthProvider = ({ children }) => {
         const storedUser  = sessionStore.get(USER_KEY);
 
         if (!storedToken || !storedUser) {
-          // No session in sessionStorage — user opened new tab or closed browser
+          
           setLoading(false);
           return;
         }
 
-        // Optimistically restore state
         const parsedUser = JSON.parse(storedUser);
         hydrateSession(storedToken, sessionStore.get(REFRESH_KEY), parsedUser);
 
-        // Validate the token with a quick API call
         try {
           await Promise.race([
             axios.get('/api/auth/profile'),
@@ -339,7 +302,7 @@ export const AuthProvider = ({ children }) => {
                 }
               } catch (re) {
                 if (isUnauthorizedHttp(re)) {
-                  /* refresh rejected — clear session below */
+                  
                 } else {
                   cleanupListeners = startSession();
                   return;
@@ -366,10 +329,9 @@ export const AuthProvider = ({ children }) => {
 
     restoreAuth();
     return () => cleanupListeners();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, []);
 
-  // ── Login ────────────────────────────────────────────────────────────────────
   const login = async (identifier, password) => {
     try {
       const response = await axios.post('/api/auth/login', { identifier, password }, {
@@ -381,7 +343,6 @@ export const AuthProvider = ({ children }) => {
       const rawRole = (role || rawUser?.role || 'student').toString().toLowerCase();
       let userData = { ...rawUser, role: rawRole };
 
-      // Hydrate full profile immediately
       try {
         const profileRes = await axios.get('/api/auth/profile', {
           headers: { Authorization: `Bearer ${access_token}` },
@@ -389,7 +350,7 @@ export const AuthProvider = ({ children }) => {
         if (profileRes.data && typeof profileRes.data === 'object') {
           userData = { ...userData, ...profileRes.data };
         }
-      } catch (_e) { /* fall back to login payload */ }
+      } catch (_e) {  }
 
       hydrateSession(access_token, refresh_token, userData);
       startSession();
@@ -408,7 +369,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ── Expose setUser (profile updates) ─────────────────────────────────────────
   const setUser = useCallback((nextUser) => {
     setUserState(nextUser);
     if (nextUser) sessionStore.set(USER_KEY, JSON.stringify(nextUser));
@@ -423,8 +383,8 @@ export const AuthProvider = ({ children }) => {
       login,
       logout: () => logout('manual'),
       loading,
-      sessionWarning,          // expose so UI can show "You'll be logged out in 5 min" banner
-      dismissWarning: () => {  // user clicks "Stay logged in" → reset idle timer
+      sessionWarning,          
+      dismissWarning: () => {  
         setSessionWarning(false);
         resetIdleTimer();
       },

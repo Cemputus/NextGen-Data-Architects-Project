@@ -1,6 +1,4 @@
-/**
- * Modern Login Page — Split layout, strong branding, refined form
- */
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { GraduationCap, Lock, User, Loader2, ArrowRight, Shield } from 'lucide-react';
@@ -24,7 +22,6 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Read session expiry reason from query string (?session=idle|expired|closed)
   const sessionReason = new URLSearchParams(location.search).get('session');
   const sessionMessages = {
     idle: { text: 'You were logged out due to 30 minutes of inactivity.', color: 'amber' },
@@ -35,8 +32,7 @@ const Login = () => {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      // If we have a "last route" from a previous session expiry, resume from there.
-      // Otherwise, fall back to role-based default dashboard.
+      
       const lastRoute = sessionStorage.getItem('ucu_last_route');
       if (lastRoute && lastRoute !== '/login') {
         sessionStorage.removeItem('ucu_last_route');
@@ -56,7 +52,7 @@ const Login = () => {
     setLoading(true);
     try {
       try {
-        // Fast health check with retry: under load a single request can queue briefly.
+        
         const ping = async () => axios.get('/api/status', { timeout: 6000 });
         let ok = false;
         let lastErr = null;
@@ -67,26 +63,22 @@ const Login = () => {
             break;
           } catch (e) {
             lastErr = e;
-            // small backoff
+            
             await new Promise((r) => setTimeout(r, 350 * (i + 1)));
           }
         }
         if (!ok) throw lastErr;
       } catch (networkErr) {
-        // In production we avoid showing "server unreachable" messaging.
-        // Proceed to the normal login attempt; errors will be handled uniformly below.
-        // Keep details for debugging only.
-        // eslint-disable-next-line no-console
+        
         console.warn('[login] preflight /api/status failed:', networkErr);
       }
       const result = await login(username.trim(), password);
       if (result.success && result.user) {
-        // New explicit login: always start from the default route for this user,
-        // not from any previous user's last_route.
+        
         try {
           sessionStorage.removeItem('ucu_last_route');
         } catch {
-          // ignore storage errors
+          
         }
         const role = result.user?.role;
         const routes = {
@@ -100,8 +92,7 @@ const Login = () => {
         setError(result.error || 'Invalid credentials. Please check your username or Access Number and password.');
       }
     } catch (err) {
-      // Never surface infra wording to end-users in the deployed app.
-      // eslint-disable-next-line no-console
+      
       console.warn('[login] sign-in failed:', err);
       setError('Sign-in failed. Please check your details and try again.');
     } finally {
@@ -140,14 +131,14 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background overflow-hidden">
-      {/* Theme switcher */}
+      {}
       <div className="absolute top-4 right-4 z-20">
         <ThemeSwitcher />
       </div>
 
-      {/* Left: Brand panel — animated gradient + floating orbs */}
+      {}
       <div className="hidden md:flex md:w-[48%] lg:w-[52%] flex-col justify-between p-10 lg:p-14 text-white relative overflow-hidden login-gradient-bg">
-        {/* Floating orbs */}
+        {}
         <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
           <div className="absolute top-[15%] left-[10%] w-64 h-64 rounded-full bg-white/10 blur-3xl login-float" />
           <div className="absolute bottom-[25%] right-[5%] w-48 h-48 rounded-full bg-cyan-300/20 blur-3xl login-float login-float-2" />
@@ -190,11 +181,11 @@ const Login = () => {
         </div>
       </div>
 
-      {/* Right: Form panel — subtle gradient + dot pattern */}
+      {}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8 md:p-10 relative bg-gradient-to-br from-primary/5 via-muted/20 to-primary/5 dark:from-background dark:via-muted/10 dark:to-background">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.04)_1px,transparent_0)] bg-[size:24px_24px]" aria-hidden />
         <div className="w-full max-w-[400px] relative z-10">
-          {/* Mobile branding */}
+          {}
           <div className="md:hidden text-center mb-8">
             <motion.div
               className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-blue-600 text-primary-foreground shadow-lg shadow-primary/25 mb-4"
@@ -223,7 +214,7 @@ const Login = () => {
               </p>
             </motion.div>
 
-            {/* Session expiry / idle / closed notification */}
+            {}
             {sessionMsg && (
               <motion.div
                 initial={{ opacity: 0, y: -6 }}

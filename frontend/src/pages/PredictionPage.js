@@ -1,6 +1,4 @@
-/**
- * Prediction Page - role-aware prediction workspace
- */
+
 import React, { useState, useEffect } from 'react';
 import { Brain, UserCheck, Info, AlertTriangle, Activity, Cpu, LineChart, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -33,10 +31,10 @@ const PredictionPage = () => {
 
   useEffect(() => {
     loadScenarios();
-    // Pre-fill student identifier for students only when no persisted draft
+    
     if (user?.role === 'student' && user?.access_number) {
       setStudentIdentifier((current) => (current && String(current).trim() ? current : user.access_number));
-      // For students, default to tuition+attendance model
+      
       setModelType('tuition_attendance');
     }
   }, []);
@@ -219,7 +217,6 @@ const PredictionPage = () => {
   const canUseScenarios = ['analyst', 'sysadmin', 'senate'].includes(user?.role);
   const isStudent = user?.role === 'student';
 
-  // Restrict prediction models for students to high-level, student-friendly options only
   const modelOptions = isStudent
     ? [
         { value: 'tuition_attendance', label: 'Tuition & Attendance → Performance' },
@@ -232,13 +229,12 @@ const PredictionPage = () => {
         { value: 'neural_network', label: 'Neural Network' },
       ];
 
-  // Ensure current modelType is always one of the allowed options
   useEffect(() => {
     const allowedValues = modelOptions.map((m) => m.value);
     if (!allowedValues.includes(modelType)) {
       setModelType(allowedValues[0]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [user?.role]);
 
   if (loading && !predictions) {

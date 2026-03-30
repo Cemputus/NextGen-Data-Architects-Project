@@ -1,7 +1,4 @@
-/**
- * Dual-axis line + area chart for student attendance over time
- * (periods from /api/dashboard/attendance-trends).
- */
+
 import React, { useMemo } from 'react';
 import { BaseChart } from './BaseChart';
 import {
@@ -14,9 +11,6 @@ import {
 import { chartEmptyStateClass } from '../../lib/analytics-ui';
 import { cn } from '../../lib/utils';
 
-/**
- * @param {Array<{ period: string, pctPresent: number, avgHours: number }>} data
- */
 export function StudentAttendanceTrendChart({ data = [], className }) {
   const option = useMemo(() => {
     const periods = data.map((d) => String(d.period ?? ''));

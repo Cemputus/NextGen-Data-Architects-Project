@@ -1,8 +1,4 @@
-/**
- * API service layer (Phase 1 — separation of concerns).
- * Pages and containers should prefer calling these functions instead of raw axios.
- * Add new endpoints here or in domain-specific files (e.g. services/dashboards.js) as the app grows.
- */
+
 import axios from 'axios';
 
 function getAuthHeader() {
@@ -10,9 +6,6 @@ function getAuthHeader() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/**
- * Auth
- */
 export async function login(identifier, password) {
   const { data } = await axios.post('/api/auth/login', { identifier, password });
   return data;
@@ -26,9 +19,6 @@ export async function refreshSession(refreshToken) {
   return data;
 }
 
-/**
- * Dashboards (current for role, custom list, swap)
- */
 export async function getCurrentDashboard() {
   const { data } = await axios.get('/api/dashboards/current', {
     headers: getAuthHeader(),
@@ -58,9 +48,6 @@ export async function createDashboard(payload) {
   return data;
 }
 
-/**
- * User management (sysadmin)
- */
 export async function listUsers(params = {}) {
   const { data } = await axios.get('/api/user-mgmt/users', {
     headers: getAuthHeader(),

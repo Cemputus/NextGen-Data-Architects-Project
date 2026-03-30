@@ -1,13 +1,7 @@
-"""
-Central constants: RBAC roles, KPI IDs, chart IDs, and page config keys.
-Align with frontend config and master documentation.
-"""
 from rbac import Role
 
-# All system roles (single source; backend rbac.py Role enum is authoritative)
 RBAC_ROLES = [r.value for r in Role]
 
-# Dashboard KPI keys (used by RoleDashboardRenderer, AnalystDashboardsPage, API)
 KPI_IDS = [
     "total_students",
     "avg_grade",
@@ -18,7 +12,6 @@ KPI_IDS = [
     "graduation_rate",
 ]
 
-# Chart asset keys for dashboard builder and role dashboards
 CHART_IDS = [
     "student_distribution",
     "grades_over_time",
@@ -29,7 +22,6 @@ CHART_IDS = [
     "attendance_trends",
 ]
 
-# Page keys for analytics and role pages (analyst-editable KPIs/charts)
 PAGE_CONFIG_KEYS = [
     "fex_analytics",
     "high_school_analytics",

@@ -1,7 +1,4 @@
-/**
- * FEX Analytics Page - Modern UI with Data Loading
- * Comprehensive FEX analysis with drilldown capabilities
- */
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingDown, AlertTriangle, FileText, Download, BarChart3, ShieldAlert } from 'lucide-react';
@@ -43,25 +40,13 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
   const [scopeError, setScopeError] = useState(null);
 
   const savedState = loadPageState('fex_analytics', { filters: {}, drilldown: 'faculty', tab: 'distribution' });
-  // Keep filters hydrated by GlobalFilterPanel persistence (statePersistence.loadFilters).
-  // This matches the Analyst Workspace behavior and avoids mixing `loadPageState(filters)`
-  // with `loadFilters(pageName)` which use different localStorage keys.
+  
   const [internalFilters, setInternalFilters] = useState({});
   const [activeTab, setActiveTab] = useState(savedState.tab || 'distribution');
 
   const filters = externalFilters != null ? externalFilters : internalFilters;
   const isControlled = externalFilters != null;
 
-  // Match Analyst Workspace cascading behavior:
-  // - Department selected => chart groups by Program
-  // - Program selected => chart groups by Year of Study
-  // - Faculty selected (fallback) => chart groups by Department
-  // - Nothing selected => chart groups by Faculty
-  // Role-aware drilldown:
-  // - Senate: starts at Faculty
-  // - Dean: faculty is fixed (JWT) so start at Department
-  // - HoD: department is fixed (JWT) so start at Program
-  // - If a deeper cascading filter exists (e.g. course_code), group by it.
   const drilldown = (() => {
     if (filters.course_code) return 'course';
 
@@ -107,7 +92,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
 
       const sanitized = sanitizeDashboardFilters(filters);
       const fexParams = { ...sanitized, drilldown };
-      // When chart groups by year of study, don't also filter to a single YoS (would collapse bars).
+      
       if (drilldown === 'year_of_study') {
         delete fexParams.year_of_study;
       }
@@ -147,7 +132,7 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
       } else {
         setScopeError(null);
       }
-      // Always reset chart state so the page never renders with stale/undefined series after filter clears or network errors.
+      
       setFexData(empty);
     } finally {
       setLoading(false);
@@ -187,9 +172,6 @@ const FEXAnalytics = ({ filters: externalFilters, onFilterChange: externalOnFilt
     return words.map((w) => w[0]).join('').toUpperCase();
   };
 
-  // Match “Student distribution labels + tooltip” behavior:
-  // - x-axis uses abbreviated `name`
-  // - tooltip uses full `fullName`
   const chartDataForChart = (chartData || []).map((row) => {
     const key = getDataKey();
     const fullName = row?.[key] ?? '';

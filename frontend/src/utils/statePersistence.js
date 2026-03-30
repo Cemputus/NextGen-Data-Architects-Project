@@ -1,12 +1,6 @@
-/**
- * State Persistence Utility
- * Saves and restores application state (filters, tabs, drilldown, etc.) to localStorage
- */
 
 const STORAGE_PREFIX = 'ucu_analytics_';
 
-// Derive a per-user key segment from the current authenticated session user.
-// AuthContext stores this in sessionStorage as 'ucu_session_user'.
 const getCurrentUserKey = () => {
   try {
     if (typeof window === 'undefined') return 'guest';
@@ -25,23 +19,15 @@ const getCurrentUserKey = () => {
   }
 };
 
-/**
- * Get storage key for a specific page/component (per-user aware).
- * New keys are namespaced by username so each user gets isolated state.
- */
 const getStorageKey = (pageName, key) => {
   const userKey = getCurrentUserKey();
   return `${STORAGE_PREFIX}${userKey}_${pageName}_${key}`;
 };
 
-// Legacy key format (without per-user namespace) for backward compatibility when loading.
 const getLegacyStorageKey = (pageName, key) => {
   return `${STORAGE_PREFIX}${pageName}_${key}`;
 };
 
-/**
- * Save state to localStorage
- */
 export const saveState = (pageName, state) => {
   try {
     const key = getStorageKey(pageName, 'state');
@@ -53,9 +39,6 @@ export const saveState = (pageName, state) => {
   }
 };
 
-/**
- * Load state from localStorage
- */
 export const loadState = (pageName, defaultState = {}) => {
   try {
     const key = getStorageKey(pageName, 'state');
@@ -69,14 +52,11 @@ export const loadState = (pageName, defaultState = {}) => {
   return defaultState;
 };
 
-/**
- * Clear saved state for a page
- */
 export const clearState = (pageName) => {
   try {
     const key = getStorageKey(pageName, 'state');
     localStorage.removeItem(key);
-    // Also clear legacy key if present
+    
     const legacyKey = getLegacyStorageKey(pageName, 'state');
     localStorage.removeItem(legacyKey);
     return true;
@@ -86,9 +66,6 @@ export const clearState = (pageName) => {
   }
 };
 
-/**
- * Save filters specifically
- */
 export const saveFilters = (pageName, filters) => {
   try {
     const key = getStorageKey(pageName, 'filters');
@@ -100,9 +77,6 @@ export const saveFilters = (pageName, filters) => {
   }
 };
 
-/**
- * Load filters specifically
- */
 export const loadFilters = (pageName, defaultFilters = {}) => {
   try {
     const key = getStorageKey(pageName, 'filters');
@@ -116,9 +90,6 @@ export const loadFilters = (pageName, defaultFilters = {}) => {
   return defaultFilters;
 };
 
-/**
- * Save tab selection
- */
 export const saveTab = (pageName, tabValue) => {
   try {
     const key = getStorageKey(pageName, 'tab');
@@ -130,15 +101,12 @@ export const saveTab = (pageName, tabValue) => {
   }
 };
 
-/**
- * Load tab selection
- */
 export const loadTab = (pageName, defaultTab = null) => {
   try {
     const key = getStorageKey(pageName, 'tab');
     const value = localStorage.getItem(key);
     if (value != null) return value;
-    // Legacy
+    
     const legacyKey = getLegacyStorageKey(pageName, 'tab');
     return localStorage.getItem(legacyKey) || defaultTab;
   } catch (error) {
@@ -147,9 +115,6 @@ export const loadTab = (pageName, defaultTab = null) => {
   }
 };
 
-/**
- * Save drilldown selection
- */
 export const saveDrilldown = (pageName, drilldown) => {
   try {
     const key = getStorageKey(pageName, 'drilldown');
@@ -161,15 +126,12 @@ export const saveDrilldown = (pageName, drilldown) => {
   }
 };
 
-/**
- * Load drilldown selection
- */
 export const loadDrilldown = (pageName, defaultDrilldown = 'overall') => {
   try {
     const key = getStorageKey(pageName, 'drilldown');
     const value = localStorage.getItem(key);
     if (value != null) return value;
-    // Legacy
+    
     const legacyKey = getLegacyStorageKey(pageName, 'drilldown');
     return localStorage.getItem(legacyKey) || defaultDrilldown;
   } catch (error) {
@@ -178,9 +140,6 @@ export const loadDrilldown = (pageName, defaultDrilldown = 'overall') => {
   }
 };
 
-/**
- * Save search term
- */
 export const saveSearchTerm = (pageName, searchTerm) => {
   try {
     const key = getStorageKey(pageName, 'search');
@@ -192,15 +151,12 @@ export const saveSearchTerm = (pageName, searchTerm) => {
   }
 };
 
-/**
- * Load search term
- */
 export const loadSearchTerm = (pageName, defaultSearch = '') => {
   try {
     const key = getStorageKey(pageName, 'search');
     const value = localStorage.getItem(key);
     if (value != null) return value;
-    // Legacy
+    
     const legacyKey = getLegacyStorageKey(pageName, 'search');
     return localStorage.getItem(legacyKey) || defaultSearch;
   } catch (error) {
@@ -209,9 +165,6 @@ export const loadSearchTerm = (pageName, defaultSearch = '') => {
   }
 };
 
-/**
- * Save complete page state (filters, tab, drilldown, etc.)
- */
 export const savePageState = (pageName, state) => {
   const stateToSave = {
     filters: state.filters || {},
@@ -223,9 +176,6 @@ export const savePageState = (pageName, state) => {
   return saveState(pageName, stateToSave);
 };
 
-/**
- * Load complete page state
- */
 export const loadPageState = (pageName, defaultState = {}) => {
   const saved = loadState(pageName, defaultState);
   return {
@@ -236,6 +186,3 @@ export const loadPageState = (pageName, defaultState = {}) => {
     ...saved
   };
 };
-
-// Note: For React hooks, import React in the component file that uses them
-

@@ -1,7 +1,4 @@
-/**
- * Modern Power BI-style KPI Cards
- * Using shadcn/ui components
- */
+
 import React from 'react';
 import { KPICard } from './ui/kpi-card';
 import { DashboardGrid } from './ui/dashboard-grid';
@@ -13,7 +10,6 @@ import {
 const ModernStatsCards = ({ stats, type = 'general' }) => {
   if (!stats) return null;
 
-  // Main Dashboard KPIs - Requested by user
   if (type === 'general' || type === 'institution' || type === 'senate') {
     return (
       <DashboardGrid cols={{ default: 2, sm: 2, md: 4 }}>
@@ -51,7 +47,6 @@ const ModernStatsCards = ({ stats, type = 'general' }) => {
     );
   }
 
-  // Student Dashboard KPIs
   if (type === 'student') {
     return (
       <DashboardGrid cols={{ default: 2, sm: 2, md: 4 }}>
@@ -93,7 +88,6 @@ const ModernStatsCards = ({ stats, type = 'general' }) => {
     );
   }
 
-  // Faculty / Dean / HoD Dashboard KPIs (HoD uses same strip as faculty analytics)
   if (type === 'faculty' || type === 'dean' || type === 'hod') {
     const ek = stats?.enrollment_kpi_kind;
     const enrollmentSubtitle =
@@ -174,7 +168,6 @@ const ModernStatsCards = ({ stats, type = 'general' }) => {
     );
   }
 
-  // Staff: dashboard stats uses distinct students in assigned classes, not raw enrollment rows
   if (type === 'staff') {
     const isClassStudents = stats?.enrollment_kpi_kind === 'assigned_class_students';
     const assignedClassGrades = stats?.grade_kpi_kind === 'assigned_class_grade_average';
@@ -233,7 +226,6 @@ const ModernStatsCards = ({ stats, type = 'general' }) => {
     );
   }
 
-  // Finance Dashboard KPIs
   if (type === 'finance') {
     return (
       <DashboardGrid cols={{ default: 2, sm: 2, md: 4 }}>
@@ -267,7 +259,6 @@ const ModernStatsCards = ({ stats, type = 'general' }) => {
     );
   }
 
-  // HR Dashboard KPIs
   if (type === 'hr') {
     return (
       <DashboardGrid cols={{ default: 2, sm: 2, md: 4 }}>
@@ -299,7 +290,6 @@ const ModernStatsCards = ({ stats, type = 'general' }) => {
     );
   }
 
-  // Default fallback
   return (
     <DashboardGrid cols={{ default: 2, sm: 2, md: 4 }}>
       <KPICard

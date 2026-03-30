@@ -1,6 +1,4 @@
-/**
- * HR Staff Page — Staff management: users list, retirement filters, chart
- */
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { Users, Plus, Search, Filter, RefreshCw, BarChart3, Table2 } from 'lucide-react';
@@ -29,7 +27,6 @@ import { formatCompactNumber } from '../lib/chartTheme';
 
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
-/** Bucket for filtering & chart (employees from ETL + app users without profile) */
 const BUCKET = {
   ALL: 'all',
   RETIRING_SOON: 'retiring_soon',
@@ -41,7 +38,6 @@ const BUCKET = {
 
 const VALID_FILTER_VALUES = new Set(Object.values(BUCKET));
 
-/** Normalize persisted / accidental filter values (string, number from old clients). */
 function normalizeFilterKey(raw) {
   const s = String(raw ?? '')
     .trim()
@@ -67,7 +63,6 @@ const CHART_COLORS = {
   employee_no_profile: '#cbd5e1',
 };
 
-/** Fixed order: same labels for pie, bar, and filter semantics */
 const CATEGORY_ORDER = [
   'not_soon',
   'retiring_soon',
@@ -84,7 +79,6 @@ const CATEGORY_LABELS = {
   employee_no_profile: 'Employees (missing DOB)',
 };
 
-/** Normalize API retirement_proximity (case, legacy / alternate backend values). */
 function normalizeProximity(raw) {
   if (raw == null || raw === '') return '';
   const p = String(raw).trim().toLowerCase();
@@ -94,7 +88,6 @@ function normalizeProximity(raw) {
   return p;
 }
 
-/** API may send boolean, 0/1, or string. */
 function isRetirementAlertFlag(raw) {
   if (raw === true || raw === 1) return true;
   if (typeof raw === 'string') {
@@ -104,9 +97,6 @@ function isRetirementAlertFlag(raw) {
   return false;
 }
 
-/**
- * Classify one row for filters & charts. Employees: by API proximity/alert/DOB; app users: always app bucket.
- */
 function bucketForRow(row) {
   if (row.kind === 'app_user') return 'app_no_profile';
   const p = normalizeProximity(row.retirement_proximity ?? row.retirementProximity);
@@ -119,16 +109,12 @@ function bucketForRow(row) {
   return 'employee_no_profile';
 }
 
-/** Retirement dropdown: does this row's bucket match the selected filter? */
 function rowMatchesRetirementFilter(bucket, filterKey) {
   const fk = normalizeFilterKey(filterKey);
   if (fk === BUCKET.ALL) return true;
   return bucket === fk;
 }
 
-/**
- * Search: all whitespace-separated tokens must appear somewhere in the row (AND).
- */
 function rowMatchesSearch(row, termRaw) {
   const q = (termRaw ?? '').trim().toLowerCase();
   if (!q) return true;
@@ -253,7 +239,6 @@ const HRStaff = () => {
     });
   }, [combinedRows, searchTerm, retirementFilter]);
 
-  /** Charts & raw summary use the same filtered set (matches Audit / ETL pattern). */
   const categorySeries = useMemo(() => {
     const counts = Object.fromEntries(CATEGORY_ORDER.map((k) => [k, 0]));
     filteredRows.forEach((r) => {

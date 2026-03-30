@@ -185,7 +185,3 @@ const PredictionPanel = () => {
 };
 
 export default PredictionPanel;
-
-
-
-

@@ -1,7 +1,4 @@
-/**
- * Global Filter Panel - Smooth, Professional UI with Synced Filters
- * Filters sync: selecting faculty filters departments, selecting department filters programs
- */
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Search, X, Filter } from 'lucide-react';
@@ -24,15 +21,15 @@ const GlobalFilterPanel = ({
   hideAcademic = false,
   hideFaculty = false,
   hideDepartment = false,
-  /** If set, faculty is fixed (e.g. dean); all cascaded options stay within this faculty. */
+  
   lockedFacultyId = undefined,
-  /** If set, department is fixed (e.g. HOD); cascaded options stay within this department. */
+  
   lockedDepartmentId = undefined,
-  /** When the faculty has only one department, hide the department control and start at Program. */
+  
   skipDepartmentFilter = false,
-  /** Hide intake-year dropdown (e.g. FEX page uses Year of Study on axis; avoids two “year” controls). */
+  
   hideIntakeYear = false,
-  /** Optional: overrides the default role-based filter subtitle (e.g. dean hierarchy hints). */
+  
   filterHint = '',
 }) => {
   const { user } = useAuth();
@@ -40,21 +37,15 @@ const GlobalFilterPanel = ({
   const isDean = role === 'dean';
   const isHod = role === 'hod';
 
-  // For academic leaders we assume:
-  // - Dean is already scoped to a faculty, so filters should start at Department.
-  // - HOD is already scoped to a department, so filters should start at Program.
   const effectiveHideFaculty = hideFaculty || isDean || isHod;
   const effectiveHideDepartment = hideDepartment || isHod || skipDepartmentFilter;
 
-  // Dean (and similar): faculty is implicit; department is visible → require department before Program cascades.
   const requireDepartmentBeforeProgram =
     effectiveHideFaculty &&
     !effectiveHideDepartment &&
     !skipDepartmentFilter &&
     (lockedDepartmentId == null || lockedDepartmentId === '');
 
-  // Load persisted filters and search term for this page (per-user)
-  // Normalize `savedFilters` to an object because some callers previously passed `[]`.
   const normalizedSavedFilters =
     savedFilters && typeof savedFilters === 'object' && !Array.isArray(savedFilters) ? savedFilters : {};
   const savedFiltersState = loadFilters(pageName, normalizedSavedFilters);
@@ -95,8 +86,7 @@ const GlobalFilterPanel = ({
   const formatIntakeYearLabel = (rawYear) => {
     const y = Number(rawYear);
     if (!Number.isFinite(y)) return String(rawYear ?? '');
-    // Requested UI window: 2021/2 to 2026
-    // 2021 -> 2021/2, 2022 -> 2022/3, ... 2025 -> 2025/6
+    
     if (y >= 2021 && y <= 2025) {
       const next = y + 1;
       return `${y}/${String(next).slice(-1)}`;
@@ -105,7 +95,6 @@ const GlobalFilterPanel = ({
     return String(y);
   };
 
-  // Load filter options with current filter values for cascading (faculties -> departments -> programs -> courses)
   const loadFilterOptions = async (currentFilters = {}) => {
     const requestSeq = ++optionsRequestSeqRef.current;
     setLoading(true);
@@ -141,9 +130,6 @@ const GlobalFilterPanel = ({
       };
       setFilterOptions(nextOptions);
 
-      // Guard against stale persisted filters after hard refresh:
-      // if a selected value is not available in current cascaded options,
-      // clear it (and its children) so filters remain logically consistent.
       const cleanedFilters = { ...(currentFilters || {}) };
       let changed = false;
       const lockFid =
@@ -237,7 +223,6 @@ const GlobalFilterPanel = ({
     }
   };
 
-  // Keep faculty locked for dean (or other roles) and notify parent
   useEffect(() => {
     if (lockedFacultyId == null || lockedFacultyId === '') return;
     const fid = String(lockedFacultyId);
@@ -250,7 +235,6 @@ const GlobalFilterPanel = ({
     });
   }, [lockedFacultyId, pageName]);
 
-  // Keep department locked for HOD (or other roles) and notify parent
   useEffect(() => {
     if (lockedDepartmentId == null || lockedDepartmentId === '') return;
     const did = String(lockedDepartmentId);
@@ -263,7 +247,6 @@ const GlobalFilterPanel = ({
     });
   }, [lockedDepartmentId, pageName]);
 
-  // Reload filter options when parent filters change (debounced to avoid request storms).
   useEffect(() => {
     const t = setTimeout(() => {
     loadFilterOptions(filters);
@@ -279,10 +262,9 @@ const GlobalFilterPanel = ({
     lockedDepartmentId,
   ]);
   
-  // Notify parent on mount so charts refetch with the same scope as the panel (including empty = full role/institution view).
   useEffect(() => {
     onFilterChange(sanitizeDashboardFilters(filters));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount with initial persisted filters
+    
   }, []);
 
   const handleFilterChange = (key, value) => {
@@ -294,21 +276,19 @@ const GlobalFilterPanel = ({
     }
     const newFilters = { ...filters };
     
-    // Clear child filters when parent changes
     if (key === 'faculty_id') {
-      // Clear department and program when faculty changes
+      
       delete newFilters.department_id;
       delete newFilters.program_id;
-      delete newFilters.course_code; // Also clear course when faculty changes
+      delete newFilters.course_code; 
       delete newFilters.year_of_study;
     } else if (key === 'department_id') {
-      // Clear program and course when department changes
+      
       delete newFilters.program_id;
       delete newFilters.course_code;
       delete newFilters.year_of_study;
     } else if (key === 'program_id') {
-      // Clear course when program changes (optional - you may want to keep this)
-      // delete newFilters.course_code;
+      
       delete newFilters.year_of_study;
     }
     
@@ -328,24 +308,24 @@ const GlobalFilterPanel = ({
   };
 
   const handleSearch = () => {
-    // Save search term
+    
     saveSearchTerm(pageName, searchTerm);
     
     if (searchTerm.trim()) {
       const trimmed = searchTerm.trim();
-      // Check for Access Number format (e.g., A12345, B67890)
+      
       if (/^[AB]\d{5}$/i.test(trimmed)) {
         handleFilterChange('access_number', trimmed.toUpperCase());
       } 
-      // Check for Reg Number format (e.g., 22B123/456, 23M456/789)
+      
       else if (/\d{2}[BMD]\d{2,3}\/\d{2,3}/i.test(trimmed)) {
         handleFilterChange('reg_number', trimmed.toUpperCase());
       } 
-      // Otherwise treat as name search
+      
       else {
         handleFilterChange('student_name', trimmed);
       }
-      // Clear search term after applying
+      
       setSearchTerm('');
     }
   };
@@ -383,7 +363,7 @@ const GlobalFilterPanel = ({
       <Card className="mb-6 border border-border shadow-xl bg-card/95 backdrop-blur-sm hover:shadow-2xl transition-all duration-300">
         <CardContent className="p-6">
           <div className="space-y-5">
-            {/* Header */}
+            {}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gradient-to-br from-primary to-primary/80 rounded-lg">
@@ -409,7 +389,7 @@ const GlobalFilterPanel = ({
               )}
             </div>
 
-            {/* Search Bar */}
+            {}
             <div className="flex gap-3">
               <div className="relative flex-1 group">
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -431,7 +411,7 @@ const GlobalFilterPanel = ({
               </Button>
             </div>
 
-            {/* Filter Grid - Synced Filters */}
+            {}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
               {!effectiveHideFaculty && (
               <Select
@@ -571,7 +551,7 @@ const GlobalFilterPanel = ({
               )}
             </div>
 
-            {/* Active Filters & Clear */}
+            {}
             {activeFiltersCount > 0 && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}

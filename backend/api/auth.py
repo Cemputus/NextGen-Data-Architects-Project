@@ -1,7 +1,3 @@
-"""
-Authentication API with RBAC support
-Handles login, registration, profile management, and Access Number authentication
-"""
 from flask import Blueprint, request, jsonify, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 import base64
@@ -14,7 +10,6 @@ from sqlalchemy.orm import sessionmaker
 import sys
 from pathlib import Path
 
-# Add backend directory to path
 backend_dir = Path(__file__).parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
@@ -23,7 +18,6 @@ try:
     from models.user import User, AuditLog
     from rbac import Role, has_permission, Resource, Permission
 except ImportError:
-    # Fallback if models not yet set up
     User = None
     AuditLog = None
     Role = None
@@ -43,22 +37,17 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 PROFILE_PHOTOS_DIR = backend_dir / 'data' / 'profile_photos'
 PROFILE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
 
-
 def _profile_photo_path(identity):
-    """Safe filename from JWT identity."""
     if not identity:
         return None
     safe = re.sub(r'[^\w\-.]', '_', str(identity).strip())[:64]
     return PROFILE_PHOTOS_DIR / f"{safe}.jpg" if safe else None
 
-
 def _has_profile_photo(identity):
     p = _profile_photo_path(identity)
     return p and p.exists()
 
-
 def _audit_log_login(username, role_name, status='success', error_message=None):
-    """Write login event to ucu_rbac.audit_logs if available. Silently skip on failure."""
     try:
         from config.connection import get_sqlalchemy_conn_string, RBAC_DB_NAME as _RBAC_DB
         engine = create_engine(get_sqlalchemy_conn_string(_RBAC_DB))
@@ -77,25 +66,17 @@ def _audit_log_login(username, role_name, status='success', error_message=None):
     except Exception:
         pass
 
-# Database connection for RBAC
 from config.connection import get_sqlalchemy_conn_string as _get_conn_str, RBAC_DB_NAME
 RBAC_CONN_STRING = _get_conn_str(RBAC_DB_NAME)
 
-
 def _ensure_ucu_rbac_database():
-    """Create ucu_rbac database if it does not exist (PostgreSQL)."""
     try:
         from pg_helpers import ensure_ucu_rbac_database
         ensure_ucu_rbac_database()
     except Exception:
         pass
 
-
 def _ensure_user_profiles_table(engine):
-    """
-    Ensure user_profiles table exists in ucu_rbac.
-    Stores per-user profile details so they persist across logins/devices.
-    """
     try:
         with engine.connect() as conn:
             conn.execute(text("""
@@ -118,12 +99,7 @@ def _ensure_user_profiles_table(engine):
     except Exception:
         pass
 
-
 def _ensure_user_state_table(engine):
-    """
-    Ensure user_state table exists in ucu_rbac.
-    Stores arbitrary per-user page/workspace state (e.g. NextGen Query).
-    """
     try:
         with engine.connect() as conn:
             conn.execute(text("""
@@ -144,13 +120,7 @@ def _ensure_user_state_table(engine):
     except Exception:
         pass
 
-
 def _load_user_profile(username: str, role_name: str) -> dict:
-    """
-    Load persisted user profile fields (first_name, last_name, email, phone, profile_picture_url)
-    from ucu_rbac.user_profiles.
-    Returns a dict with any fields that exist, or {} on error/none.
-    """
     try:
         username = (username or "").strip()
         if not username:
@@ -178,9 +148,7 @@ def _load_user_profile(username: str, role_name: str) -> dict:
     except Exception:
         return {}
 
-
 def _ensure_app_users_table(engine):
-    """Create app_users table if not present (ucu_rbac DB should already exist)."""
     try:
         with engine.connect() as conn:
             conn.execute(text("""
@@ -196,7 +164,6 @@ def _ensure_app_users_table(engine):
                 )
             """))
             conn.commit()
-            # Add created_by_username for audit (who created this app user)
             try:
                 conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS created_by_username VARCHAR(100)"))
                 conn.commit()
@@ -206,20 +173,17 @@ def _ensure_app_users_table(engine):
         pass
 
 def validate_access_number(access_number: str) -> bool:
-    """Validate Access Number format: A##### or B#####"""
     import re
     pattern = r'^[AB]\d{5}$'
     return bool(re.match(pattern, access_number))
 
 def get_db_session():
-    """Get database session"""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     engine = create_engine(RBAC_CONN_STRING)
     Session = sessionmaker(bind=engine)
     return Session()
 
-# Demo users for non-student authentication (replace with database lookup in production)
 DEMO_USERS = {
     'admin': {'password': 'admin123', 'role': 'sysadmin', 'full_name': 'System Administrator'},
     'analyst': {'password': 'analyst123', 'role': 'analyst', 'full_name': 'Data Analyst'},
@@ -231,9 +195,7 @@ DEMO_USERS = {
     'finance': {'password': 'finance123', 'role': 'finance', 'full_name': 'Finance Manager'},
 }
 
-
 def _demo_login_response(identifier_lower: str):
-    """Build JWT response for built-in demo users."""
     demo = DEMO_USERS.get((identifier_lower or "").strip().lower())
     if not demo:
         return None
@@ -272,10 +234,8 @@ def _demo_login_response(identifier_lower: str):
         }
     }), 200
 
-
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    """User login - supports Access Number for students, username/email for others, and all app_users."""
     try:
         data = request.get_json(silent=True)
         if not data and request.get_data():
@@ -293,13 +253,10 @@ def login():
         
         identifier_lower = identifier.lower()
 
-        # Preserve legacy/demo behavior: if a built-in demo account is used with
-        # the exact demo password, always allow it immediately.
         demo_user = DEMO_USERS.get(identifier_lower)
         if demo_user and password == demo_user.get('password'):
             return _demo_login_response(identifier_lower)
         
-        # Check app_users first so app users (including sysadmin) use their DB credentials and get the same privileges as demo
         for attempt in (1, 2):
             try:
                 _ensure_ucu_rbac_database()
@@ -349,8 +306,6 @@ def login():
                 except Exception:
                     password_ok = False
                 if not password_ok:
-                    # If identifier matches a built-in demo user and demo password is provided,
-                    # allow demo login instead of hard-failing on app_users mismatch.
                     demo = DEMO_USERS.get(identifier_lower)
                     if demo and password == demo.get('password'):
                         return _demo_login_response(identifier_lower)
@@ -408,7 +363,6 @@ def login():
                     break
                 continue
 
-        # Demo admin: fallback when no app user "admin" (or DB unavailable) so Admin Console is reachable
         if identifier_lower == 'admin' and password == 'admin123':
             claims = {
                 'role': 'sysadmin',
@@ -434,7 +388,6 @@ def login():
                 }
             }), 200
 
-        # Demo users (hr, dean, hod, analyst, etc.): only allow with their fixed demo password
         if identifier_lower in DEMO_USERS:
             demo = DEMO_USERS[identifier_lower]
             if password == demo['password']:
@@ -442,7 +395,6 @@ def login():
             _audit_log_login(identifier_lower, demo['role'], 'failure', 'Invalid password')
             return jsonify({'error': 'Invalid credentials. Demo user must use the correct password (e.g. hr123 for hr, dean123 for dean).'}), 401
 
-        # Default app user: always allow login (no DB required) so app-user login works even if DB fails
         if identifier_lower == 'cemputus' and password == 'cen123':
             username_str = 'Cemputus'
             role_str = 'staff'
@@ -474,9 +426,7 @@ def login():
                 }
             }), 200
         
-        # Check if it's an Access Number (student login)
         if validate_access_number(identifier):
-            # Student login with Access Number - check against student table
             engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
             result = pd.read_sql_query(
                 text("SELECT student_id, access_number, reg_no, first_name, last_name FROM dim_student WHERE access_number = :access_number"),
@@ -486,14 +436,12 @@ def login():
             engine.dispose()
             
             if not result.empty:
-                # Password format: {access_number}@ucu
                 expected_password = f"{identifier.upper()}@ucu"
                 if password != expected_password:
                     return jsonify({'error': 'Invalid credentials'}), 401
                 
                 user_data = result.iloc[0]
 
-                # Start with claims from warehouse
                 claims = {
                     'role': 'student',
                     'username': identifier.upper(),
@@ -504,7 +452,6 @@ def login():
                     'last_name': user_data.get('last_name', '')
                 }
 
-                # Overlay any persisted profile fields so names/email/phone/picture survive across logins
                 profile_override = _load_user_profile(identifier.upper(), 'student')
                 for key in ('first_name', 'last_name', 'email', 'phone'):
                     if key in profile_override:
@@ -520,7 +467,7 @@ def login():
                 return jsonify({
                     'access_token': access_token,
                     'refresh_token': refresh_token,
-                    'role': 'student',  # Add role at top level for frontend
+                    'role': 'student',
                     'user': {
                         'id': user_data['student_id'],
                         'username': identifier.upper(),
@@ -535,7 +482,6 @@ def login():
                     }
                 }), 200
 
-        # Fallback: default app user (Cemputus / cen123) — ensure they exist and allow login even if DB failed earlier
         if identifier_lower == 'cemputus' and password == 'cen123':
             try:
                 _ensure_ucu_rbac_database()
@@ -552,7 +498,6 @@ def login():
                             VALUES ('Cemputus', :ph, 'staff', 'Emmanuel Nsubuga', 1, 1)
                         """), {'ph': ph})
                     conn.commit()
-                    # Re-fetch to get id and any existing values
                     row = pd.read_sql_query(text("SELECT id, username, role, full_name, faculty_id, department_id FROM app_users WHERE LOWER(username) = 'cemputus'"), conn).iloc[0]
                 rbac_engine.dispose()
                 username_str = 'Cemputus'
@@ -594,7 +539,6 @@ def login():
 @auth_bp.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
 def refresh():
-    """Refresh access token"""
     try:
         user_id = get_jwt_identity()
         claims = get_jwt()
@@ -612,7 +556,6 @@ def refresh():
 @auth_bp.route('/profile', methods=['GET'])
 @jwt_required()
 def get_profile():
-    """Get current user's profile"""
     try:
         claims = get_jwt()
         identity = get_jwt_identity()
@@ -621,7 +564,6 @@ def get_profile():
         username = claims.get('username') or claims.get('access_number') or ''
         role_name = claims.get('role') or ''
 
-        # Start with values from JWT claims
         profile = {
             'id': claims.get('student_id') or claims.get('username'),
             'username': claims.get('username'),
@@ -635,7 +577,6 @@ def get_profile():
             'profile_picture_url': profile_picture_url,
         }
 
-        # Overlay any persisted profile data from ucu_rbac.user_profiles
         try:
             if username:
                 _ensure_ucu_rbac_database()
@@ -660,7 +601,6 @@ def get_profile():
                     if pd.notna(row.get('profile_picture_url')):
                         profile['profile_picture_url'] = str(row['profile_picture_url'])
         except Exception:
-            # If profile DB is unavailable, fall back to claims only
             pass
 
         return jsonify(profile), 200
@@ -671,7 +611,6 @@ def get_profile():
 @auth_bp.route('/profile', methods=['PUT'])
 @jwt_required()
 def update_profile():
-    """Update current user's profile (including optional profile picture as base64 data URL)."""
     try:
         data = request.get_json() or {}
         claims = get_jwt()
@@ -679,7 +618,6 @@ def update_profile():
         username = claims.get('username') or claims.get('access_number') or ''
         role_name = claims.get('role') or ''
 
-        # Optional: remove profile picture
         profile_picture_url = None
         if _has_profile_photo(identity):
             profile_picture_url = '/api/auth/profile/photo'
@@ -695,11 +633,10 @@ def update_profile():
         if raw and not data.get('remove_profile_photo'):
             try:
                 if isinstance(raw, str) and raw.startswith('data:'):
-                    # data:image/jpeg;base64,<payload>
                     raw = raw.split(',', 1)[-1]
                 buf = base64.b64decode(raw, validate=True)
                 path = _profile_photo_path(identity)
-                if path and len(buf) < 5 * 1024 * 1024:  # max 5MB
+                if path and len(buf) < 5 * 1024 * 1024:
                     with open(path, 'wb') as f:
                         f.write(buf)
                     profile_picture_url = '/api/auth/profile/photo'
@@ -709,7 +646,6 @@ def update_profile():
         if audit_log:
             audit_log('profile_update', 'profile', username=username, role_name=role_name, status='success')
 
-        # Persist profile fields to ucu_rbac.user_profiles so they survive logout/login and across devices
         try:
             if username:
                 _ensure_ucu_rbac_database()
@@ -720,7 +656,6 @@ def update_profile():
                 email = (data.get('email', claims.get('email')) or '').strip()
                 phone = (data.get('phone', claims.get('phone')) or '').strip()
 
-                # Enforce unique email and phone across all profiles (except current user)
                 with engine.connect() as conn:
                     if email:
                         dup_email = pd.read_sql_query(
@@ -740,7 +675,6 @@ def update_profile():
                             return jsonify({'error': 'Email address is already in use by another user.'}), 400
 
                     if phone:
-                        # Normalize phone by stripping non-digits for comparison
                         norm_phone = ''.join(ch for ch in phone if ch.isdigit())
                         dup_phone = pd.read_sql_query(
                             text(
@@ -758,7 +692,6 @@ def update_profile():
                             engine.dispose()
                             return jsonify({'error': 'Phone number is already in use by another user.'}), 400
 
-                    # Upsert profile row
                     conn.execute(
                         text(
                             """
@@ -790,7 +723,6 @@ def update_profile():
                 except Exception:
                     pass
         except Exception:
-            # If profile DB is unavailable, still return success with in-memory update
             pass
 
         user_payload = {
@@ -806,17 +738,10 @@ def update_profile():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @auth_bp.route('/state/<state_key>', methods=['GET', 'PUT'])
 @jwt_required()
 def user_state(state_key):
-    """
-    Per-user persistent UI/workspace state (e.g. NextGen Query).
-    - GET:  returns {'state': {...}} or {'state': None}
-    - PUT:  body {'state': {...}} to upsert
-    """
     try:
-        # Simple validation to avoid abuse
         state_key = (state_key or '').strip()
         if not state_key or len(state_key) > 100 or not re.match(r'^[\w\-]+$', state_key):
             return jsonify({'error': 'Invalid state key'}), 400
@@ -853,7 +778,6 @@ def user_state(state_key):
                 engine.dispose()
                 return jsonify({'state': None}), 200
 
-        # PUT: save state
         body = request.get_json(silent=True) or {}
         state = body.get('state')
         if state is None:
@@ -892,11 +816,9 @@ def user_state(state_key):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @auth_bp.route('/profile/photo', methods=['GET'])
 @jwt_required()
 def get_profile_photo():
-    """Serve current user's profile photo."""
     try:
         identity = get_jwt_identity()
         path = _profile_photo_path(identity)
@@ -909,7 +831,6 @@ def get_profile_photo():
 @auth_bp.route('/audit-event', methods=['POST'])
 @jwt_required()
 def audit_event():
-    """Record a client-side audit event (page view, filter applied, etc.). Body: { action, resource, resource_id? }."""
     try:
         data = request.get_json() or {}
         action = data.get('action') or 'unknown'
@@ -924,11 +845,9 @@ def audit_event():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @auth_bp.route('/logout', methods=['POST'])
 @jwt_required()
 def logout():
-    """Logout user"""
     try:
         claims = get_jwt()
         username = claims.get('username') or claims.get('access_number') or ''
@@ -938,4 +857,3 @@ def logout():
         return jsonify({'message': 'Logged out successfully'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-

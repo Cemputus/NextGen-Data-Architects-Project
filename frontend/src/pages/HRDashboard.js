@@ -1,6 +1,4 @@
-/**
- * HR Dashboard - Smooth, Clean UI
- */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
 import GlobalFilterPanel from '../components/GlobalFilterPanel';
@@ -30,7 +28,6 @@ import { UCU_COLORS } from '../lib/chartTheme';
 import { CHART_PALETTE_THEME, MODERN_CHART_PALETTE } from '../lib/chartTheme';
 import { abbreviateOrgLabel } from '../lib/hrChartLabels';
 
-/** Taller HR charts + readable axis text */
 const HR_CHART_MIN_HEIGHT = 420;
 const HR_CHART_MAX_HEIGHT = 580;
 const HR_AXIS_FONT_SIZE = 13;
@@ -42,7 +39,6 @@ const HR_SERIES_LABELS = {
   other_staff: 'Other',
 };
 
-/** Stable colors for role-mix donut (keys = API role_group). */
 const HR_ROLE_MIX_COLORS = {
   senate: UCU_COLORS.navy,
   dean: UCU_COLORS.blue,
@@ -54,7 +50,6 @@ const HR_ROLE_MIX_COLORS = {
   other: UCU_COLORS.maroon,
 };
 
-/** Stacked areas for `employee_attendance_trend` (counts per day). */
 const HR_ATTENDANCE_STACK_SERIES = [
   { key: 'present_days', label: 'Present', color: '#10B981', areaOpacity: 0.45 },
   { key: 'absent_days', label: 'Absent', color: '#EF4444', areaOpacity: 0.4 },
@@ -106,7 +101,7 @@ const HRDashboard = () => {
         setStats(null);
         return;
       }
-      // Backend: warehouse path uses dim_employee; legacy path adds attendance & payroll from administration DB.
+      
       setStats({
         total_employees: response.data.total_employees || 0,
         total_departments: response.data.total_departments || 0,
@@ -153,7 +148,6 @@ const HRDashboard = () => {
     return `${num.toFixed(1)}%`;
   };
 
-  /** From GET /api/analytics/hr → employees_by_faculty (legacy + warehouse paths). */
   const employeesByFacultyChartData = useMemo(() => {
     const rows = stats?.employees_by_faculty;
     if (!Array.isArray(rows) || rows.length === 0) return [];
@@ -174,7 +168,6 @@ const HRDashboard = () => {
       .sort((a, b) => b.total_employees - a.total_employees);
   }, [stats?.employees_by_faculty]);
 
-  /** By department (optionally scoped to one faculty via filters). */
   const employeesByDepartmentChartData = useMemo(() => {
     const rows = stats?.employees_by_department;
     if (!Array.isArray(rows) || rows.length === 0) return [];
@@ -199,7 +192,6 @@ const HRDashboard = () => {
       .slice(0, 20);
   }, [stats?.employees_by_department]);
 
-  /** Role mix from API: counts by role_group (faculty/dept scoped; ignores employee-role filter). */
   const roleMixDonutData = useMemo(() => {
     const rows = stats?.role_mix;
     if (!Array.isArray(rows) || !rows.length) return [];
@@ -216,7 +208,6 @@ const HRDashboard = () => {
       .filter((d) => d.value > 0);
   }, [stats?.role_mix]);
 
-  /** Daily rows from `employee_attendance_trend` (legacy / linked administration DB). */
   const attendanceTrendChartData = useMemo(() => {
     const rows = stats?.employee_attendance_trend;
     if (!Array.isArray(rows) || !rows.length) return [];
@@ -237,7 +228,6 @@ const HRDashboard = () => {
       .sort((a, b) => String(a.date_label).localeCompare(String(b.date_label)));
   }, [stats?.employee_attendance_trend]);
 
-  /** 3D pie slices from `payroll_by_role` (total_net_pay per role_category). */
   const payrollByRoleChartData = useMemo(() => {
     const rows = stats?.payroll_by_role;
     if (!Array.isArray(rows) || !rows.length) return [];
@@ -262,7 +252,7 @@ const HRDashboard = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header with Export */}
+      {}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">HR Dashboard</h1>
@@ -275,10 +265,10 @@ const HRDashboard = () => {
         <ExportButtons stats={stats} filters={filters} filename="hr_dashboard" />
       </div>
 
-      {/* Filters */}
+      {}
       <GlobalFilterPanel
         onFilterChange={(next) => {
-          // When a faculty is chosen, clear senate/finance/HR role_group because they are not faculty-based
+          
           const cleaned = { ...next };
           if (
             cleaned.faculty_id &&
@@ -295,7 +285,7 @@ const HRDashboard = () => {
         hideAcademic
       />
 
-      {/* Employee role filter (Senate, Deans, HODs, Lecturers, etc.) */}
+      {}
       <div className="flex flex-wrap items-center gap-2 mb-2 text-xs sm:text-sm">
         <span className="text-muted-foreground font-medium">Employee role filter:</span>
         <select
@@ -348,7 +338,7 @@ const HRDashboard = () => {
         </div>
       ) : loadError ? null : (
         <>
-          {/* Top HR KPI strip */}
+          {}
           <Card className={kpiStripCardClass}>
             <CardHeader className={chartCardHeaderClass}>
               <CardTitle className="text-base font-semibold tracking-tight">Workforce overview</CardTitle>
@@ -405,7 +395,7 @@ const HRDashboard = () => {
                 </CardContent>
               </Card>
 
-          {/* Row 1: Headcount distribution */}
+          {}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className={chartSurfaceCard('h-full')}>
               <CardHeader className={chartCardHeaderClass}>
@@ -496,7 +486,7 @@ const HRDashboard = () => {
             </Card>
                   </div>
 
-          {/* Row 2: Role mix & attendance */}
+          {}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className={chartSurfaceCard('h-full')}>
               <CardHeader className={chartCardHeaderClass}>
@@ -565,7 +555,7 @@ const HRDashboard = () => {
               </Card>
           </div>
 
-          {/* Row 3: Payroll analysis */}
+          {}
           <Card className={chartSurfaceCard()}>
             <CardHeader className={chartCardHeaderClass}>
               <CardTitle className={chartCardTitleClass}>Payroll by role</CardTitle>

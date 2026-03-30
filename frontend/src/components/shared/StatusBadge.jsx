@@ -1,16 +1,12 @@
 import React from 'react';
 
-/**
- * Universal status badge component for consistent color-coding
- */
 export const StatusBadge = ({ status, className = '' }) => {
     if (!status) return null;
 
     const statusStr = String(status).toUpperCase();
 
-    let colorClass = "bg-secondary text-secondary-foreground"; // default
+    let colorClass = "bg-secondary text-secondary-foreground"; 
 
-    // Maps statuses to colors
     if (['COMPLETED', 'ACTIVE', 'PASSED', 'PAID', 'SUCCESS', 'ON_TRACK'].includes(statusStr)) {
         colorClass = "bg-success/15 text-success border border-success/30";
     } else if (['FCW', 'FAILED', 'RETAKE_REQUIRED', 'HIGH_RISK', 'OUTSTANDING', 'DROPOUT'].includes(statusStr)) {

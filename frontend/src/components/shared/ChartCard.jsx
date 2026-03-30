@@ -1,8 +1,5 @@
 import React from 'react';
 
-/**
- * Enterprise Chart wrapper component.
- */
 export const ChartCard = ({
     title,
     subtitle,

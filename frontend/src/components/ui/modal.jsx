@@ -1,7 +1,4 @@
-/**
- * Modal — Design-system dialog: max-w (lg/xl), max-h-[90vh] overflow-y-auto, aria-modal.
- * Use for forms and confirmations; ensure title id for aria-labelledby.
- */
+
 import * as React from 'react';
 import { cn } from '../../lib/utils';
 

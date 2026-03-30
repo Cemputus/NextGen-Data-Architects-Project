@@ -1,22 +1,3 @@
-"""
-Export RBAC / app-user data and activity data to JSON snapshots for reproducible ETL.
-
-Run manually or automatically:
-  - At the start of every `etl_pipeline` run (`export_seeds_from_live_db`), so seeds match the DB before RBAC seed/bootstrap.
-  - After admin settings save and app-user CRUD (async from Flask).
-
-    cd backend
-    python export_user_snapshot.py
-
-Produces:
-  - etl_seeds/user_snapshot.json: app_users, user_profiles, user_state, audit_logs
-  - etl_seeds/profile_photos/: copy of data/profile_photos
-  - etl_seeds/admin_settings.json: copy of data/admin_settings.json (notifications, etc.)
-  - etl_seeds/etl_runs/: copy of last N ETL log files from logs/
-
-ETL pipeline then loads these so any branch gets the same users, profiles, audit trail,
-admin settings, and ETL run history.
-"""
 from pathlib import Path
 import json
 import os
@@ -35,15 +16,11 @@ from api.auth import (
     RBAC_DB_NAME,
 )
 
-# Max audit log rows to export (oldest dropped if more)
 AUDIT_LOGS_EXPORT_LIMIT = 5000
-# Max ETL log files to copy into etl_seeds/etl_runs (mirrors recent runs for seeds)
 ETL_RUNS_COPY_LIMIT = 50
-
 
 def get_rbac_conn_string():
     return DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
-
 
 def export_user_snapshot():
     _ensure_ucu_rbac_database()
@@ -63,7 +40,6 @@ def export_user_snapshot():
         except Exception as e:
             print(f"Warning: failed to export table {table}: {e}")
 
-    # Export audit_logs (activity trail) so branches can restore the same history
     try:
         limit = int(AUDIT_LOGS_EXPORT_LIMIT)
         df = pd.read_sql_query(
@@ -82,7 +58,6 @@ def export_user_snapshot():
     seeds_dir = backend_dir / "etl_seeds"
     seeds_dir.mkdir(parents=True, exist_ok=True)
     out_path = seeds_dir / "user_snapshot.json"
-    # Normalize NaN/NaT values so JSON is always valid (null instead of NaN)
     def _normalize_json(obj):
         if isinstance(obj, dict):
             return {k: _normalize_json(v) for k, v in obj.items()}
@@ -90,7 +65,6 @@ def export_user_snapshot():
             return [_normalize_json(v) for v in obj]
         try:
             import math
-            # Replace NaN/inf with None so json.dump produces valid JSON
             if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
                 return None
         except Exception:
@@ -103,7 +77,6 @@ def export_user_snapshot():
 
     print(f"User snapshot written to {out_path}")
 
-    # Profile photos
     photos_src = backend_dir / "data" / "profile_photos"
     photos_dst = seeds_dir / "profile_photos"
     if photos_src.exists():
@@ -115,7 +88,6 @@ def export_user_snapshot():
         except Exception as e:
             print(f"Warning: failed to copy profile photos snapshot: {e}")
 
-    # Admin settings (notifications, ETL auto, etc.) so branches get same config
     settings_src = backend_dir / "data" / "admin_settings.json"
     settings_dst = seeds_dir / "admin_settings.json"
     if settings_src.exists():
@@ -125,7 +97,6 @@ def export_user_snapshot():
         except Exception as e:
             print(f"Warning: failed to copy admin_settings: {e}")
 
-    # ETL run history (last N log files) — same directory as etl_pipeline / admin ETL_LOG_DIR
     raw_log = os.environ.get("ETL_LOG_DIR")
     if raw_log and str(raw_log).strip():
         log_dir = Path(str(raw_log).strip()).resolve()
@@ -146,9 +117,7 @@ def export_user_snapshot():
         except Exception as e:
             print(f"Warning: failed to copy ETL runs: {e}")
 
-
 def run_export_user_snapshot_async():
-    """Run export_user_snapshot() in a background thread so API requests are not blocked."""
     def _run():
         try:
             export_user_snapshot()
@@ -158,7 +127,5 @@ def run_export_user_snapshot_async():
     t = threading.Thread(target=_run, daemon=True)
     t.start()
 
-
 if __name__ == "__main__":
     export_user_snapshot()
-

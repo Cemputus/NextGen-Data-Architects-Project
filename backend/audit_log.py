@@ -1,18 +1,9 @@
-"""
-Central audit logging for user actions and system events.
-Writes to ucu_rbac.audit_logs. Silently skips if DB/table missing.
-"""
 from sqlalchemy import create_engine, text
 from config import RBAC_DB_NAME
 from config.connection import get_sqlalchemy_conn_string
 
 
 def log(action, resource, username=None, role_name=None, resource_id=None, status='success', error_message=None):
-    """
-    Record an audit event.
-    action: e.g. 'login', 'logout', 'profile_update', 'export_excel', 'export_pdf', 'etl_started', 'audit_db_setup', 'prediction'
-    resource: e.g. 'auth', 'profile', 'export', 'system', 'predictions'
-    """
     try:
         engine = create_engine(get_sqlalchemy_conn_string(RBAC_DB_NAME))
         with engine.connect() as conn:

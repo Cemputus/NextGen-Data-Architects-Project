@@ -1,12 +1,4 @@
-/**
- * Analyst Dashboard - Live KPIs + Analytics Workspace
- *
- * This page now focuses only on:
- * - Minimal analyst landing area (visuals rebuilt later)
- *
- * All dashboard management (current vs custom, preview, swap, edit content)
- * lives in the dedicated Dashboard Manager page.
- */
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { RefreshCw, Loader2, Users, Activity, GraduationCap, Target, Receipt, Award } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
@@ -37,27 +29,24 @@ import {
 import { deriveFinanceBreakdown, FINANCE_BREAKDOWN_AXIS } from '../lib/financeBreakdown';
 import { buildDashboardQueryParams } from '../utils/filterUtils';
 
-const ANALYST_KPI_POLL_INTERVAL_MS = 60000; // 60s – keep KPIs fresh for analysts
+const ANALYST_KPI_POLL_INTERVAL_MS = 60000; 
 
 const AnalystDashboard = ({
   title = "Analytics Workspace",
   defaultSubtitle = "Institution-wide analytics workspace",
   exportFilename = "analyst_workspace",
   filterPageName = "analyst_analytics",
-  /** When set (e.g. deans), every chart/API call includes this faculty_id; user cannot pick another faculty. */
+  
   lockedFacultyId = undefined,
-  /** When set (e.g. HODs), every chart/API call includes this department_id; user cannot pick another department. */
+  
   lockedDepartmentId = undefined,
 } = {}) => {
   const { user } = useAuth();
-  // Senate reuses this page with its own filter persistence key (`senate_dashboard`).
+  
   const isSenateWorkspace = filterPageName === 'senate_dashboard';
   const isDeanWorkspace = filterPageName === 'dean_analytics';
   const isHodWorkspace = filterPageName === 'hod_analytics';
-  /**
-   * Dean / HOD: hide payment KPIs, payment status/trends, and tuition defaulters (finance stays in Finance role).
-   * Tuition payment trends (avg completed amounts over time) is still loaded and shown — scoped to their faculty/department.
-   */
+  
   const hidePaymentsAnalysis =
     filterPageName === 'dean_analytics' || filterPageName === 'hod_analytics';
   const scopeNoun = isDeanWorkspace ? 'faculty' : isHodWorkspace ? 'department' : 'institution';
@@ -67,7 +56,6 @@ const AnalystDashboard = ({
       ? 'Use Program and other filters to narrow charts; you cannot view other departments.'
       : 'Current implementation uses global aggregates; semester-focused metrics will plug in here.';
 
-  /** Top students by avg grade — same API/RBAC as /api/dashboard/top-students (workspace + role). */
   const showTopStudentsChart = useMemo(() => {
     const r = (user?.role || '').toLowerCase();
     return ['analyst', 'senate', 'dean', 'hod', 'sysadmin'].includes(r);
@@ -101,13 +89,13 @@ const AnalystDashboard = ({
   const studentDistRequestSeqRef = useRef(0);
   const pipelineRequestSeqRef = useRef(0);
   const topStudentsRequestSeqRef = useRef(0);
-  /** For deans: department/program counts in their faculty → drives default distribution dimension. */
+  
   const [facultyShape, setFacultyShape] = useState({
     loaded: false,
     deptCount: 0,
     programCount: 0,
   });
-  /** For HODs: program count in their department → program vs year-of-study default. */
+  
   const [deptScopeShape, setDeptScopeShape] = useState({
     loaded: false,
     programCount: 0,
@@ -124,11 +112,10 @@ const AnalystDashboard = ({
     return f;
   }, [globalFilters, lockedFacultyId, lockedDepartmentId]);
 
-  /** Stable query params for APIs (no empty keys); keeps KPIs/charts in sync when filters are cleared without refresh. */
   const dashboardQueryParams = useMemo(() => buildDashboardQueryParams(apiFilters), [apiFilters]);
 
   const distributionGroupBy = useMemo(() => {
-    // User chose a program → always show year-of-study breakdown
+    
     if (apiFilters?.program_id) return 'year_of_study';
 
     const hasDeptLock = lockedDepartmentId != null && lockedDepartmentId !== '';
@@ -142,7 +129,7 @@ const AnalystDashboard = ({
     const hasFacultyLock = lockedFacultyId != null && lockedFacultyId !== '';
 
     if (hasFacultyLock && facultyShape.loaded) {
-      // User narrowed to one department (multi-department faculty) → next level is programs
+      
       if (apiFilters?.department_id) return 'program';
 
       const nd = facultyShape.deptCount;
@@ -249,7 +236,7 @@ const AnalystDashboard = ({
     } catch (err) {
       if (reqId === statsRequestSeqRef.current) {
       console.error('Error loading analyst dashboard stats:', err);
-        // Keep existing stats on failure so KPIs don't disappear.
+        
       }
     } finally {
       if (reqId === statsRequestSeqRef.current) {
@@ -277,7 +264,6 @@ const AnalystDashboard = ({
     return words.map((w) => w[0]).join('').toUpperCase();
   };
 
-  // Abbreviate X-axis period labels (e.g. "Q1 2023" => "Q1'23")
   const abbreviatePeriod = (period) => {
     const s = String(period ?? '').trim();
     const m = /^Q(\d)\s+(\d{4})$/i.exec(s);
@@ -288,7 +274,6 @@ const AnalystDashboard = ({
     return s;
   };
 
-  // Shorten "Faculty: Very Long Faculty Name" => "Fac VLN"
   const abbreviateTuitionDefaulterLabel = (row) => {
     const dimension = String(row?.dimension ?? '').toLowerCase();
     const rawName = String(row?.name ?? '').trim();
@@ -301,7 +286,6 @@ const AnalystDashboard = ({
     return shortSuffix || rawName;
   };
 
-  /** Short axis labels for year-of-study bars: Y1, Y2, … */
   const formatDistributionShortLabel = (raw, groupBy) => {
     if (groupBy !== 'year_of_study' || raw == null) return String(raw);
     const s = String(raw).trim();
@@ -400,9 +384,7 @@ const AnalystDashboard = ({
           ];
 
       const tuitionTrendPeriod = (() => {
-        // "Overall" mode when the only filters present are role-locked scope (faculty_id/department_id).
-        // If the user applies any additional tuition filters (program_id, semester_id, intake_year, etc.),
-        // switch to the more detailed quarterly trend.
+        
         const effective = { ...apiFilters };
         if (lockedFacultyId != null && lockedFacultyId !== '') delete effective.faculty_id;
         if (lockedDepartmentId != null && lockedDepartmentId !== '') delete effective.department_id;
@@ -649,11 +631,11 @@ const AnalystDashboard = ({
     loadTopStudents();
     const interval = setInterval(loadStats, ANALYST_KPI_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, []);
 
   useEffect(() => {
-    // Debounce filter-driven reloads so we don't fire multiple heavy requests while filters initialize.
+    
     const t = setTimeout(() => {
       loadStats();
       loadCharts();
@@ -662,7 +644,7 @@ const AnalystDashboard = ({
       loadTopStudents();
     }, 100);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [
     dashboardQueryParams,
     distributionGroupBy,
@@ -700,8 +682,6 @@ const AnalystDashboard = ({
     return `${num.toFixed(1)}%`;
   };
 
-  // Professional UGX formatting for KPI tiles (UI only).
-  // Example: 119,445,136,148 => UGX 119,445.1M
   const formatUGX = (value) => {
     if (value === null || value === undefined) return 'UGX –';
     const num = typeof value === 'number' ? value : Number(value);
@@ -738,7 +718,7 @@ const AnalystDashboard = ({
         }
       />
 
-      {/* Global filter panel */}
+      {}
       <GlobalFilterPanel
         onFilterChange={(next) => {
           setGlobalFilters(next || {});
@@ -750,7 +730,7 @@ const AnalystDashboard = ({
         filterHint={leaderFilterHint}
       />
 
-      {/* Top KPI strip */}
+      {}
       <Card className={kpiStripCardClass}>
         <CardHeader className={chartCardHeaderClass}>
           <CardTitle className="text-base font-semibold tracking-tight">Executive overview</CardTitle>
@@ -794,7 +774,7 @@ const AnalystDashboard = ({
                   if (raw === null || raw === undefined) return formatPercent(raw);
                   const num = typeof raw === 'number' ? raw : Number(raw);
                   if (Number.isNaN(num)) return formatPercent(raw);
-                  // Business rule: never show a perfect 100.0% – clamp to 94.8%
+                  
                   const display = num >= 99.95 ? 94.8 : num;
                   return formatPercent(display);
                 })()}
@@ -806,7 +786,7 @@ const AnalystDashboard = ({
         </CardContent>
       </Card>
 
-      {/* Section A – Enrollment & pipeline */}
+      {}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className={chartSurfaceCard('h-full')}>
           <CardHeader className={chartCardHeaderClass}>
@@ -874,7 +854,7 @@ const AnalystDashboard = ({
           </Card>
       </div>
 
-      {/* Top students + Risk — same row on lg; Risk full width when top students hidden (e.g. staff) */}
+      {}
       <div
         className={cn(
           'mt-6 grid gap-4 items-stretch',
@@ -927,7 +907,7 @@ const AnalystDashboard = ({
           </Card>
         )}
 
-        {/* Section B – Risk */}
+        {}
         <Card className={chartSurfaceCard('h-full')}>
           <CardHeader className={chartCardHeaderClass}>
             <CardTitle className={chartCardTitleClass}>Risk & FCW/MEX/FEX segments</CardTitle>
@@ -952,8 +932,7 @@ const AnalystDashboard = ({
                 yDataKey="value"
                 xAxisLabel="Segment"
                 yAxisLabel="Number of course outcomes"
-                // Keep FCW/MEX/FEX colors consistent across hard refreshes/palette changes.
-                // Requested: FEX red, FCW "malon" (maroon), MEX orange.
+                
                 colors={[UCU_COLORS.maroon, UCU_COLORS.gold, '#DC2626']}
                 showPercentages
               />
@@ -962,7 +941,7 @@ const AnalystDashboard = ({
         </Card>
       </div>
 
-      {/* Dean / HOD: tuition payment trends only (avg completed amounts over time; scoped to faculty/department) */}
+      {}
       {hidePaymentsAnalysis && (
         <div className="grid grid-cols-1 gap-4 mt-4">
           <Card className={chartSurfaceCard('h-full')}>
@@ -1022,7 +1001,7 @@ const AnalystDashboard = ({
         </div>
       )}
 
-      {/* Section C – Payments & finance (Analyst / Senate only; Dean/HOD use tuition block above) */}
+      {}
       {!hidePaymentsAnalysis && (
       <Card className={chartSurfaceCard()}>
         <CardHeader className={chartCardHeaderClass}>
@@ -1165,4 +1144,3 @@ const AnalystDashboard = ({
 };
 
 export default AnalystDashboard;
-

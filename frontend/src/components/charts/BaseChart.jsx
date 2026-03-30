@@ -1,18 +1,11 @@
-/**
- * Reusable Apache ECharts wrapper (echarts-for-react).
- * - Auto-resizes with container (echarts-for-react handles resize on container change)
- * - Responsive height via minHeight/maxHeight (no fixed pixel height; use min/max for density)
- * - Loading state with compact spinner
- * - Use in responsive grids; parent should use min-h/max-h or % height for best behavior
- */
+
 import React, { useCallback, useRef } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const defaultOpts = {
-  // Use merge updates to avoid ECharts internal errors when series structure changes
-  // while the user is interacting with the chart (e.g., hover tooltips).
+  
   notMerge: false,
   lazyUpdate: true,
 };

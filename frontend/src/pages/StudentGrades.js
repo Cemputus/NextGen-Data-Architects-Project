@@ -1,6 +1,4 @@
-/**
- * Student Grades Page - Independent page for viewing grades
- */
+
 import React, { useState, useEffect } from 'react';
 import { GraduationCap, Award, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -274,9 +272,3 @@ const StudentGrades = () => {
 };
 
 export default StudentGrades;
-
-
-
-
-
-

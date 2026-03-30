@@ -1,6 +1,4 @@
-/**
- * Staff Dashboard - Smooth, Clean UI
- */
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -75,7 +73,7 @@ const StaffDashboard = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header with Export */}
+      {}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Staff Dashboard</h1>
@@ -88,7 +86,7 @@ const StaffDashboard = () => {
         <ExportButtons stats={stats} filters={filters} filename="staff_dashboard" />
       </div>
 
-      {/* Filters */}
+      {}
       <GlobalFilterPanel onFilterChange={setFilters} />
 
       {loading ? (
@@ -111,7 +109,7 @@ const StaffDashboard = () => {
             </div>
           ) : null}
 
-          {/* Top staff KPI strip */}
+          {}
           <Card className="border shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">My teaching overview</CardTitle>
@@ -157,7 +155,7 @@ const StaffDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Row 1: Classes & performance */}
+          {}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className="border shadow-sm h-full">
               <CardHeader className="pb-3">
@@ -216,7 +214,7 @@ const StaffDashboard = () => {
             </Card>
           </div>
 
-          {/* Row 2: Risk & students list */}
+          {}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className="border shadow-sm h-full">
               <CardHeader className="pb-3">

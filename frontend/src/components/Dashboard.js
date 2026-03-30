@@ -79,7 +79,7 @@ const Dashboard = () => {
       link.click();
       link.remove();
     } catch (error) {
-      // If API endpoint doesn't support blob, generate client-side
+      
       window.open('http://localhost:5000/api/report/generate', '_blank');
     }
   };
@@ -99,7 +99,7 @@ const Dashboard = () => {
 
   return (
     <Box minH="100vh" bg="#F5F7FA">
-      {/* Header */}
+      {}
       <Box bg="white" boxShadow="sm" borderBottom="1px" borderColor="gray.200">
         <Container maxW="container.xl" py={4}>
           <Flex justify="space-between" align="center" flexWrap="wrap" gap={4}>
@@ -145,7 +145,7 @@ const Dashboard = () => {
         </Container>
       </Box>
 
-      {/* Main Content */}
+      {}
       <Container maxW="container.xl" py={8}>
         <StatsCards stats={stats} />
         <Charts chartData={chartData} />
@@ -156,7 +156,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
-
-
-

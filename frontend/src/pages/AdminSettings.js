@@ -1,7 +1,4 @@
-/**
- * Admin Settings Page - System settings (enhanced)
- * Sections: General, Security & sessions, Notifications, Appearance, About
- */
+
 import React, { useState, useEffect } from 'react';
 import {
   Settings,
@@ -38,8 +35,7 @@ const defaultAbout = {
 
 const defaultSettings = {
   systemName: 'NextGen Data Architects',
-  // In production (Vercel/Render), set REACT_APP_API_URL at build time.
-  // Avoid defaulting to localhost so the UI stays deployment-safe.
+  
   apiUrl: process.env.REACT_APP_API_URL || '',
   supportEmail: '',
   sessionTimeout: 24,
@@ -57,10 +53,10 @@ const AdminSettings = () => {
   const { theme: liveTheme, setTheme: setLiveTheme } = useTheme();
   const [settings, setSettings] = useState(defaultSettings);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null); // { type: 'success'|'error', text }
+  const [message, setMessage] = useState(null); 
   const [dirty, setDirty] = useState(false);
   const [aboutEditMode, setAboutEditMode] = useState(false);
-  const [editAbout, setEditAbout] = useState(null); // when editing, local copy of about
+  const [editAbout, setEditAbout] = useState(null); 
   const [savingAbout, setSavingAbout] = useState(false);
   const settingsUI = adminUIState.getSection('settings');
   const [activeTab, setActiveTabState] = useState(() => settingsUI.activeTab || 'general');
@@ -70,7 +66,7 @@ const AdminSettings = () => {
   };
 
   useEffect(() => {
-    // Optional: load saved settings from API
+    
     const loadSettings = async () => {
       try {
         const token = sessionStorage.getItem('ucu_session_token');
@@ -87,7 +83,7 @@ const AdminSettings = () => {
           setSettings((prev) => ({ ...defaultSettings, ...prev, ...loaded, about }));
         }
       } catch {
-        // Use defaults if no backend
+        
       }
     };
     loadSettings();

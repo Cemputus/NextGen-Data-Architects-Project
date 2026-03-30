@@ -1,6 +1,4 @@
-/**
- * User Info – Profile picture and employment snapshot; staff see leave + payroll (students do not).
- */
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -15,7 +13,6 @@ import { Loader2, User, Calendar, DollarSign, GraduationCap } from 'lucide-react
 
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
-/** Trimmed non-empty string, or null (for conditional display). */
 function nonEmptyString(v) {
   if (v == null) return null;
   const s = String(v).trim();
@@ -28,7 +25,7 @@ export default function UserInfoPage() {
   const location = useLocation();
   const profilePhotoUrl = useProfilePhoto(user?.profile_picture_url);
   const [employment, setEmployment] = useState(null);
-  /** Warehouse student row from /api/analytics/student (students only). */
+  
   const [studentRecord, setStudentRecord] = useState(null);
   const [studentRecordLoadFailed, setStudentRecordLoadFailed] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState([]);

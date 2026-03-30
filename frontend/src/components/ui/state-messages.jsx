@@ -1,11 +1,8 @@
-/**
- * Shared loading, empty, and error states — design-system consistent across the app.
- */
+
 import * as React from 'react';
 import { Loader2, Inbox, AlertCircle } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-/** Loading: spinner + optional message */
 export function LoadingState({ message = 'Loading...', className }) {
   return (
     <div
@@ -23,7 +20,6 @@ export function LoadingState({ message = 'Loading...', className }) {
   );
 }
 
-/** Empty: icon + message + optional action */
 export function EmptyState({ message = 'No data available.', hint, action, icon: Icon = Inbox, className }) {
   return (
     <div
@@ -40,7 +36,6 @@ export function EmptyState({ message = 'No data available.', hint, action, icon:
   );
 }
 
-/** Error: message + optional retry action */
 export function ErrorState({ message, retry, className }) {
   return (
     <div

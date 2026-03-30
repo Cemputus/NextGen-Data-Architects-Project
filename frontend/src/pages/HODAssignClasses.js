@@ -1,6 +1,4 @@
-/**
- * HOD: Assign classes (courses) to staff in department. Staff only see data for assigned courses.
- */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';

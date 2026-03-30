@@ -1,13 +1,8 @@
-"""
-Role-Based Access Control (RBAC) System for UCU Analytics
-Defines roles, permissions, and access control logic
-"""
 from enum import Enum
 from typing import List, Dict, Set, Optional
 from dataclasses import dataclass
 
 class Role(str, Enum):
-    """User roles in the system"""
     SENATE = "senate"
     SYSADMIN = "sysadmin"
     ANALYST = "analyst"
@@ -19,7 +14,6 @@ class Role(str, Enum):
     FINANCE = "finance"
 
 class Resource(str, Enum):
-    """System resources that can be accessed"""
     DASHBOARD = "dashboard"
     ANALYTICS = "analytics"
     REPORTS = "reports"
@@ -45,7 +39,6 @@ class Resource(str, Enum):
     PREDICTIONS = "predictions"
 
 class Permission(str, Enum):
-    """Permissions that can be granted"""
     READ = "read"
     WRITE = "write"
     UPDATE = "update"
@@ -57,13 +50,11 @@ class Permission(str, Enum):
 
 @dataclass
 class RolePermission:
-    """Defines permissions for a role on a resource"""
     role: Role
     resource: Resource
     permissions: Set[Permission]
-    scope: Optional[str] = None  # 'own', 'department', 'faculty', 'all', etc.
+    scope: Optional[str] = None
 
-# Define role permissions matrix
 ROLE_PERMISSIONS: Dict[Role, List[RolePermission]] = {
     Role.SENATE: [
         RolePermission(Role.SENATE, Resource.DASHBOARD, {Permission.READ}),
@@ -166,46 +157,27 @@ ROLE_PERMISSIONS: Dict[Role, List[RolePermission]] = {
 
 def has_permission(role: Role, resource: Resource, permission: Permission, 
                   user_scope: Optional[Dict] = None) -> bool:
-    """
-    Check if a role has a specific permission on a resource
-    
-    Args:
-        role: User's role
-        resource: Resource being accessed
-        permission: Permission being checked
-        user_scope: User's scope data (e.g., {'student_id': 'S23B12/005', 'department_id': 5})
-    
-    Returns:
-        True if permission is granted, False otherwise
-    """
     if role not in ROLE_PERMISSIONS:
         return False
     
     for role_perm in ROLE_PERMISSIONS[role]:
         if role_perm.resource == resource and permission in role_perm.permissions:
-            # Check scope if specified
             if role_perm.scope:
                 if role_perm.scope == "own":
-                    # Student can only see their own data
                     if role == Role.STUDENT and user_scope:
-                        # Scope check will be done at query level
                         return True
                 elif role_perm.scope == "classes":
-                    # Staff can see their classes
                     return True
                 elif role_perm.scope in ["department", "faculty"]:
-                    # HOD/Dean scope check at query level
                     return True
             return True
     
     return False
 
 def get_allowed_resources(role: Role) -> List[Resource]:
-    """Get all resources a role can access"""
     if role not in ROLE_PERMISSIONS:
         return []
     return list(set([rp.resource for rp in ROLE_PERMISSIONS[role]]))
 
 def get_role_permissions(role: Role) -> List[RolePermission]:
-    """Get all permissions for a role"""
     return ROLE_PERMISSIONS.get(role, [])

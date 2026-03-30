@@ -1,7 +1,4 @@
-/**
- * FilterChips — Visible active filters as removable chips.
- * Use next to FilterBar or above DataTable. Supports clear one or clear all.
- */
+
 import React from 'react';
 
 const defaultLabel = (key, value) => {

@@ -1,81 +1,64 @@
-"""
-UCU Payment Deadlines Calculator
-Calculates payment deadlines and weeks from semester start date
-"""
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
 
-# UCU Payment Deadlines (relative to semester start)
-# Based on the image provided: Semester starts 29-08-2025
 PAYMENT_DEADLINES = {
     'prompt_payment': {
-        'weeks_from_start': 0,  # Same day as semester start
+        'weeks_from_start': 0,
         'date_offset': 0,
         'description': 'Prompt Payment Option',
-        'tuition_percentage': [50, 100],  # 50% or 100%
+        'tuition_percentage': [50, 100],
         'other_fees_percentage': 100,
-        'accommodation_percentage': 100,  # For residents
+        'accommodation_percentage': 100,
     },
     'registration': {
-        'weeks_from_start': 4,  # ~4 weeks (29-08 to 26-09)
+        'weeks_from_start': 4,
         'date_offset': 28,
         'description': 'Registration Deadline',
-        'tuition_percentage': [45, 100],  # 45% to 100%
+        'tuition_percentage': [45, 100],
         'other_fees_percentage': 100,
-        'accommodation_percentage': 100,  # For residents
+        'accommodation_percentage': 100,
     },
     'midterm': {
-        'weeks_from_start': 8,  # ~8 weeks (29-08 to 24-10)
+        'weeks_from_start': 8,
         'date_offset': 56,
         'description': 'Midterm Deadline',
-        'tuition_percentage': [75],  # At least 75%
+        'tuition_percentage': [75],
         'other_fees_percentage': 100,
-        'accommodation_percentage': 100,  # For residents
+        'accommodation_percentage': 100,
     },
     'full_fees': {
-        'weeks_from_start': 11,  # ~11 weeks (29-08 to 14-11)
+        'weeks_from_start': 11,
         'date_offset': 77,
         'description': 'Full Fees Deadline',
         'tuition_percentage': [100],
         'other_fees_percentage': 100,
-        'accommodation_percentage': 100,  # For residents
+        'accommodation_percentage': 100,
     },
     'late_penalty_week1': {
-        'weeks_from_start': 12,  # Week after full fees deadline
+        'weeks_from_start': 12,
         'date_offset': 84,
         'description': 'Late Payment - Week 1',
-        'penalty_percentage': 5,  # 5% penalty
+        'penalty_percentage': 5,
     },
     'late_penalty_week2': {
-        'weeks_from_start': 13,  # 2 weeks after full fees deadline
+        'weeks_from_start': 13,
         'date_offset': 91,
         'description': 'Late Payment - Week 2',
-        'penalty_percentage': 10,  # 10% penalty
+        'penalty_percentage': 10,
     }
 }
 
 def calculate_payment_deadlines(semester_start_date: str) -> List[Dict]:
-    """
-    Calculate payment deadlines from semester start date
-    
-    Args:
-        semester_start_date: Date string in format 'YYYY-MM-DD' or 'DD-MM-YYYY'
-    
-    Returns:
-        List of deadline dictionaries with dates, descriptions, and requirements
-    """
     try:
-        # Parse date
         if '-' in semester_start_date:
             parts = semester_start_date.split('-')
-            if len(parts[0]) == 4:  # YYYY-MM-DD
+            if len(parts[0]) == 4:
                 start_date = datetime.strptime(semester_start_date, '%Y-%m-%d')
-            else:  # DD-MM-YYYY
+            else:
                 start_date = datetime.strptime(semester_start_date, '%d-%m-%Y')
         else:
             raise ValueError("Invalid date format")
     except:
-        # Default to the date from the image
         start_date = datetime(2025, 8, 29)
     
     deadlines = []
@@ -105,32 +88,17 @@ def calculate_payment_deadlines(semester_start_date: str) -> List[Dict]:
     return deadlines
 
 def calculate_required_payment(
-    student_type: str,  # 'resident' or 'non-resident'
+    student_type: str,
     tuition_amount: float,
     functional_fees: float,
     accommodation_fees: float = 0,
     deadline_type: str = 'full_fees'
 ) -> Dict:
-    """
-    Calculate required payment amount based on deadline and student type
-    
-    Args:
-        student_type: 'resident' or 'non-resident'
-        tuition_amount: Base tuition amount
-        functional_fees: Functional fees amount
-        accommodation_fees: Accommodation fees (for residents)
-        deadline_type: Type of deadline (prompt_payment, registration, midterm, full_fees)
-    
-    Returns:
-        Dictionary with payment breakdown
-    """
     deadline_info = PAYMENT_DEADLINES.get(deadline_type, PAYMENT_DEADLINES['full_fees'])
     
-    # Get minimum tuition percentage required
     tuition_percentages = deadline_info.get('tuition_percentage', [100])
     min_tuition_percentage = min(tuition_percentages)
     
-    # Calculate required amounts
     required_tuition = tuition_amount * (min_tuition_percentage / 100)
     required_functional = functional_fees * (deadline_info.get('other_fees_percentage', 100) / 100)
     
@@ -155,18 +123,11 @@ def get_current_deadline_status(
     semester_start_date: str,
     current_date: datetime = None
 ) -> Dict:
-    """
-    Get current deadline status based on today's date
-    
-    Returns:
-        Dictionary with current deadline info and next deadline
-    """
     if current_date is None:
         current_date = datetime.now()
     
     deadlines = calculate_payment_deadlines(semester_start_date)
     
-    # Find current and next deadline
     current_deadline = None
     next_deadline = None
     
@@ -184,5 +145,3 @@ def get_current_deadline_status(
         'all_deadlines': deadlines,
         'current_date': current_date.strftime('%d-%m-%Y')
     }
-
-

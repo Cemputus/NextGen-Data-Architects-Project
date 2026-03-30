@@ -1,7 +1,4 @@
-/**
- * AlertBanner — Design-system alert for inline messages (info, success, warning, error).
- * Use for page-level or section-level notices. Supports dismiss and optional action.
- */
+
 import * as React from 'react';
 import { AlertCircle, CheckCircle, Info, AlertTriangle, X } from 'lucide-react';
 import { cn } from '../../lib/utils';

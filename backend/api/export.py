@@ -1,6 +1,3 @@
-"""
-Export API for Excel and PDF generation
-"""
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import create_engine, text
@@ -22,7 +19,6 @@ except ImportError:
     audit_log = None
 
 def get_user_scope(claims):
-    """Get user's data scope based on role"""
     role_str = claims.get('role', 'student')
     try:
         if isinstance(role_str, str):
@@ -46,13 +42,11 @@ export_bp = Blueprint('export', __name__, url_prefix='/api/export')
 @export_bp.route('/excel', methods=['GET', 'POST'])
 @jwt_required()
 def export_excel():
-    """Export data to Excel format"""
     engine = None
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         
-        # Check export permission
         if not has_permission(user_scope['role'], Resource.ANALYTICS, Permission.EXPORT, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
         
@@ -61,9 +55,7 @@ def export_excel():
         
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
-        # Build query based on export type
         if export_type == 'dashboard':
-            # Export dashboard stats
             query = """
             SELECT 
                 'Total Students' as Metric,
@@ -89,12 +81,10 @@ def export_excel():
             
             df = pd.read_sql_query(text(query), engine)
             
-            # Create Excel in memory
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df.to_excel(writer, sheet_name='Dashboard Stats', index=False)
                 
-                # Add department breakdown
                 dept_query = """
                 SELECT 
                     dc.department,
@@ -107,7 +97,6 @@ def export_excel():
                 dept_df = pd.read_sql_query(text(dept_query), engine)
                 dept_df.to_excel(writer, sheet_name='By Department', index=False)
                 
-                # Add grade distribution
                 grade_query = """
                 SELECT 
                     letter_grade,
@@ -131,7 +120,6 @@ def export_excel():
             )
         
         elif export_type == 'fex':
-            # Export FEX analytics
             query = """
             SELECT 
                 df.faculty_name,
@@ -191,20 +179,16 @@ def export_excel():
 @export_bp.route('/pdf', methods=['GET', 'POST'])
 @jwt_required()
 def export_pdf():
-    """Export data to PDF format"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         
-        # Check export permission
         if not has_permission(user_scope['role'], Resource.ANALYTICS, Permission.EXPORT, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
         if audit_log:
             audit_log('export_pdf', 'export', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id='report', status='success')
-        # Redirect to existing PDF generator
         from flask import redirect
         return redirect('/api/report/generate')
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-

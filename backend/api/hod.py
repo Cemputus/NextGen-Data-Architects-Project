@@ -1,6 +1,3 @@
-"""
-HOD API - handling staff assignments and departmental oversight
-"""
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import create_engine, text
@@ -19,7 +16,6 @@ def _get_dw_engine():
 @hod_bp.route('/staff-in-department', methods=['GET'])
 @jwt_required()
 def get_staff_in_department():
-    """List all staff members in the HOD's department"""
     try:
         claims = get_jwt()
         role = claims.get('role')
@@ -44,7 +40,6 @@ def get_staff_in_department():
 @hod_bp.route('/department-courses', methods=['GET'])
 @jwt_required()
 def get_department_courses():
-    """List all courses in the HOD's department"""
     try:
         claims = get_jwt()
         dept_id = claims.get('department_id')
@@ -65,7 +60,6 @@ def get_department_courses():
 @hod_bp.route('/staff-assignments/<int:staff_id>', methods=['GET'])
 @jwt_required()
 def get_staff_assignments(staff_id):
-    """Get course assignments for a specific staff member"""
     try:
         rbac_engine = _get_rbac_engine()
         df = pd.read_sql_query(
@@ -81,17 +75,14 @@ def get_staff_assignments(staff_id):
 @hod_bp.route('/staff-assignments/<int:staff_id>', methods=['PUT', 'POST'])
 @jwt_required()
 def update_staff_assignments(staff_id):
-    """Update course assignments for a specific staff member"""
     try:
         data = request.get_json()
         course_codes = data.get('course_codes', [])
         
         rbac_engine = _get_rbac_engine()
         with rbac_engine.connect() as conn:
-            # Clear existing
             conn.execute(text("DELETE FROM staff_course_assignments WHERE app_user_id = :sid"), {'sid': staff_id})
             
-            # Add new
             for code in course_codes:
                 if code:
                     conn.execute(

@@ -87,7 +87,7 @@ const RecruitmentAnalytics = () => {
         to narrow the story to your scope.
       </AlertBanner>
 
-      {/* KPI strip */}
+      {}
       <div className="grid gap-3 sm:grid-cols-3">
         <Card className="border shadow-sm">
           <CardHeader className="p-3 pb-1">
@@ -211,4 +211,3 @@ const RecruitmentAnalytics = () => {
 };
 
 export default RecruitmentAnalytics;
-

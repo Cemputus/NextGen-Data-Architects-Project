@@ -1,6 +1,4 @@
-/**
- * Student Dashboard - Smooth, Clean UI
- */
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { PageHeader } from '../components/ui/page-header';
@@ -43,23 +41,22 @@ const StudentDashboard = () => {
   const loadStudentData = async () => {
     try {
       setLoading(true);
-      // Try student analytics endpoint first
+      
       let response;
       try {
-        // Backend scopes students by JWT only; no need to pass access_number (ignored for student role).
+        
         response = await axios.get('/api/analytics/student', {
           headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         });
         setStats(response.data);
       } catch (err) {
-        // Fallback: institution-style stats (KPIs may not match student semantics); prefer fixing /api/analytics/student.
+        
         response = await axios.get('/api/dashboard/stats', {
           headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
         });
         setStats(response.data);
       }
 
-      // Load attendance trends for this student only
       try {
         const trendsRes = await axios.get('/api/dashboard/attendance-trends', {
           params: { period: 'monthly' },
@@ -68,7 +65,7 @@ const StudentDashboard = () => {
         if (trendsRes.data && Array.isArray(trendsRes.data.periods)) {
           const mapped = trendsRes.data.periods.map((period, idx) => {
             const avgDaysPresent = Number(trendsRes.data.days_present?.[idx] ?? 0);
-            // fact_attendance.days_present is 0/1 per row; AVG → share of sessions present (0–1)
+            
             const pctPresent = Math.min(100, Math.max(0, avgDaysPresent * 100));
             return {
             period,
@@ -84,7 +81,6 @@ const StudentDashboard = () => {
         setAttendanceTrends([]);
       }
 
-      // Load retake information for this student (FCW / MEX / FEX)
       try {
         const retakeRes = await axios.get('/api/analytics/student/retakes', {
           headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` },
@@ -131,7 +127,6 @@ const StudentDashboard = () => {
     );
   }
 
-  // Derived payment metrics for the logged-in student (from student analytics when available)
   const totalPaid = Number(stats?.total_paid) || 0;
   const totalPending = Number(stats?.total_pending) || 0;
   const totalRequired = totalPaid + totalPending;
@@ -150,11 +145,9 @@ const StudentDashboard = () => {
     return `${num.toFixed(1)}%`;
   };
 
-  /** True only for `/api/analytics/student` — NOT dashboard stats (both can have total_students === 1). */
   const isStudentAnalyticsPayload = stats?.student_analytics === true;
   const isStudentScopedDashboard = isStudentRole && stats?.student_scoped_dashboard === true;
 
-  /** 0–100: % of attendance fact rows marked present (days_present 0/1), when backend sends attendance_rate. */
   const attendanceRatePct = (() => {
     const ar = stats?.attendance_rate;
     if (ar !== undefined && ar !== null && String(ar).trim() !== '') {
@@ -164,7 +157,6 @@ const StudentDashboard = () => {
     return null;
   })();
 
-  /** Distinct course codes: prefer explicit KPI fields; never use institution dim_course total_courses first. */
   const coursesRegistered = (() => {
     if (!stats) return null;
     let n = Number(
@@ -204,7 +196,6 @@ const StudentDashboard = () => {
 
   const avgGpa = stats?.avg_gpa;
 
-  /** Attendance KPI: prefer % sessions present; if only avg hours exist (legacy), show hours. */
   const attendanceKpi = (() => {
     if (attendanceRatePct !== null) {
       return {
@@ -242,7 +233,7 @@ const StudentDashboard = () => {
         actions={<ExportButtons stats={stats} filename="student_dashboard" />}
       />
 
-      {/* Retake & risk section (read-only) */}
+      {}
       {retakeSummary.total_retakes > 0 && (
         <Card>
           <CardHeader>
@@ -307,7 +298,7 @@ const StudentDashboard = () => {
         </Card>
       )}
 
-      {/* Top student KPI strip */}
+      {}
       <Card className={kpiStripCardClass}>
         <CardHeader className={chartCardHeaderClass}>
           <CardTitle className="text-base font-semibold tracking-tight">My academic overview</CardTitle>
@@ -355,7 +346,7 @@ const StudentDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Academic performance & attendance (placeholders) */}
+      {}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className={chartSurfaceCard('h-full')}>
           <CardHeader className={chartCardHeaderClass}>

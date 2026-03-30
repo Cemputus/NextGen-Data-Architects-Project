@@ -1,6 +1,4 @@
-/**
- * Horizontal bar chart: average numeric grade per course × semester (fact_grade).
- */
+
 import React, { useMemo } from 'react';
 import { BaseChart } from './BaseChart';
 import {
@@ -21,9 +19,6 @@ function barColorForScore(score) {
   return UCU_COLORS.maroon;
 }
 
-/**
- * @param {Array<Record<string, unknown>>} rows - course_performance from /api/analytics/student
- */
 export function StudentGradesByCourseChart({ rows = [], className }) {
   const { option, count } = useMemo(() => {
     const list = (rows || [])

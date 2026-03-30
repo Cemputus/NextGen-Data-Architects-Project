@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-/**
- * Enterprise horizontal filter bar
- */
 export const FilterBar = ({
     filters,
     onFilterChange,
@@ -25,7 +22,7 @@ export const FilterBar = ({
 
     const handleChange = (key, value) => {
         const newFilters = { ...localFilters, [key]: value };
-        // Cascading resets
+        
         if (key === 'faculty_id') {
             newFilters.department_id = 'all';
             newFilters.program_id = 'all';

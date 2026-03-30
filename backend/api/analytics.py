@@ -1,7 +1,3 @@
-"""
-Analytics API with RBAC and advanced filtering
-Includes FEX analytics, high school analytics, enrollment analytics, and role-based data scoping
-"""
 import logging
 from pathlib import Path
 import sys
@@ -19,13 +15,10 @@ import random
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/api/analytics')
 _analytics_log = logging.getLogger(__name__)
 
-# Shared engines + lightweight caching for KPI-heavy endpoints
 from db_engines import get_dw_engine, get_rbac_engine
 from cache import make_key as _cache_key, get_json as _cache_get_json, set_json as _cache_set_json
 
-
 def _import_hr_mirror_bootstrap():
-    """Import hr_warehouse_mirror with backend/ on sys.path (works when api is a package)."""
     try:
         from hr_warehouse_mirror import (
             count_employee_attendance_rows,
@@ -46,9 +39,7 @@ def _import_hr_mirror_bootstrap():
 
         return ensure_hr_admin_mirror_for_attendance, seed_hr_admin_mirror, count_employee_attendance_rows
 
-
 def _hr_dim_hr_counts(engine):
-    """Return (dim_faculty_count, dim_department_count, dim_employee_count) or zeros if tables missing."""
     try:
         nf = int(pd.read_sql_query(text("SELECT COUNT(*) AS c FROM dim_faculty"), engine).iloc[0]["c"])
         nd = int(pd.read_sql_query(text("SELECT COUNT(*) AS c FROM dim_department"), engine).iloc[0]["c"])
@@ -57,12 +48,7 @@ def _hr_dim_hr_counts(engine):
     except Exception:
         return 0, 0, 0
 
-
 def _bootstrap_hr_attendance_mirror(engine) -> None:
-    """
-    Ensure ucu_sourcedb2.employee_attendance is populated when warehouse HR dims exist.
-    Runs ensure + a second seed if attendance is still empty (recovers from failed inserts / imports).
-    """
     try:
         ensure_fn, seed_fn, count_att = _import_hr_mirror_bootstrap()
     except ImportError as e:
@@ -84,24 +70,19 @@ def _bootstrap_hr_attendance_mirror(engine) -> None:
         _analytics_log.warning("HR attendance mirror bootstrap failed: %s", exc, exc_info=True)
 
 def _maybe_int(v):
-    """Coerce URL query param IDs to int for reliable PostgreSQL comparisons."""
     try:
         return int(str(v).strip())
     except (ValueError, TypeError, AttributeError):
         return v
 
-
 def get_user_scope(claims):
-    """Get user's data scope based on role"""
     role_str = claims.get('role', 'student')
-    # Convert string role to Role enum, handling both string and enum inputs
     try:
         if isinstance(role_str, str):
             role = Role(role_str.lower())
         else:
             role = role_str
     except (ValueError, AttributeError):
-        # Fallback to student if role is invalid
         role = Role.STUDENT
     
     scope = {
@@ -114,9 +95,7 @@ def get_user_scope(claims):
     }
     return scope
 
-
 def _jwt_scope_sanitize_filters(filters, user_scope):
-    """Drop faculty/department query params that would override JWT scope for dean/HOD/staff."""
     filters = dict(filters or {})
     role = user_scope.get('role')
     if role == Role.DEAN and user_scope.get('faculty_id'):
@@ -129,18 +108,13 @@ def _jwt_scope_sanitize_filters(filters, user_scope):
         filters.pop('department_id', None)
     return filters
 
-
 def build_filter_query(filters, base_query, user_scope):
-    """Build SQL query with filters and role-based scoping"""
     filters = _jwt_scope_sanitize_filters(filters, user_scope)
 
     where_clauses = []
     params = {}
 
     def _has_value(v):
-        """Return True if the frontend provided a real filter value.
-        The UI uses the string 'all' to mean 'no selection'.
-        """
         if v is None:
             return False
         if isinstance(v, str):
@@ -150,7 +124,6 @@ def build_filter_query(filters, base_query, user_scope):
                 return False
         return True
     
-    # Role-based scoping
     if user_scope['role'] == Role.STUDENT:
         if user_scope['student_id']:
             where_clauses.append("ds.student_id = :student_id")
@@ -160,7 +133,6 @@ def build_filter_query(filters, base_query, user_scope):
             params['access_number'] = user_scope['access_number']
     
     elif user_scope['role'] == Role.STAFF:
-        # Staff can see their classes - handled separately
         pass
     
     elif user_scope['role'] == Role.HOD:
@@ -173,7 +145,6 @@ def build_filter_query(filters, base_query, user_scope):
             where_clauses.append("df.faculty_id = :faculty_id")
             params['faculty_id'] = user_scope['faculty_id']
     
-    # Apply filters
     if filters:
         if _has_value(filters.get('faculty_id')):
             where_clauses.append("df.faculty_id = :filter_faculty_id")
@@ -204,8 +175,6 @@ def build_filter_query(filters, base_query, user_scope):
             try:
                 params['filter_intake_year'] = int(filters['intake_year'])
             except (ValueError, TypeError):
-                # Keep original value if it can't be coerced; SQL will error if invalid,
-                # but this avoids silently changing semantics.
                 params['filter_intake_year'] = filters['intake_year']
         
         if _has_value(filters.get('semester_id')):
@@ -224,8 +193,6 @@ def build_filter_query(filters, base_query, user_scope):
             params['filter_gender'] = filters['gender']
         
         if _has_value(filters.get('high_school')):
-            # Dropdown sends the canonical name from dim_student; normalize whitespace
-            # so "Gulu High School" matches stored values with extra spaces.
             hs = str(filters['high_school']).strip()
             where_clauses.append(
                 "regexp_replace(lower(trim(coalesce(ds.high_school, ''))), E'\\\\s+', ' ', 'g') = "
@@ -245,16 +212,13 @@ def build_filter_query(filters, base_query, user_scope):
 @analytics_bp.route('/fex', methods=['GET'])
 @jwt_required()
 def get_fex_analytics():
-    """Get FEX analytics with drilldown capabilities"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         
-        # Check permission
         if not has_permission(user_scope['role'], Resource.FEX_ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
 
-        # Deans / HoDs must be scoped to JWT faculty or department (no institution-wide FEX).
         role = user_scope.get('role')
         if role == Role.DEAN:
             fid = user_scope.get('faculty_id')
@@ -274,7 +238,6 @@ def get_fex_analytics():
         filters = request.args.to_dict()
         engine = get_dw_engine()
 
-        # Cache briefly to prevent repeated KPI recalculation during dashboard load.
         try:
             ck = _cache_key("analytics_finance", claims=claims, params=filters)
             cached = _cache_get_json(ck)
@@ -283,8 +246,6 @@ def get_fex_analytics():
         except Exception:
             ck = None
         
-        # When no explicit semester/academic_year filter is provided, focus on the
-        # most recent academic period: the current semester only.
         current_semester = None
         if not filters.get('semester_id') and not filters.get('academic_year'):
             try:
@@ -310,11 +271,8 @@ def get_fex_analytics():
             except Exception:
                 current_semester = None
         
-        # Base query for FEX analytics
-        # Note: We use LEFT JOINs to ensure we get all grade records even if some dimension data is missing
         drilldown = filters.get('drilldown', 'overall')
         
-        # Build SELECT clause based on drilldown level
         if drilldown == 'faculty':
             select_cols = """
             COALESCE(df.faculty_id, 0) as faculty_id,
@@ -346,7 +304,6 @@ def get_fex_analytics():
             """
             group_by_cols = "dp.program_id, dp.program_name, ddept.department_name, dc.department, df.faculty_name"
         elif drilldown == 'year_of_study':
-            # When a program is selected, show the distribution across student year-of-study.
             select_cols = """
             COALESCE(ds.year_of_study, 1) as year_of_study,
             CONCAT('Year ', COALESCE(ds.year_of_study, 1)) as year_label,
@@ -370,7 +327,6 @@ def get_fex_analytics():
             """
             group_by_cols = "dc.course_code, dc.course_name, ddept.department_name, dc.department, df.faculty_name, dp.program_name"
         else:
-            # Overall - include all dimensions
             select_cols = """
             COALESCE(df.faculty_id, 0) as faculty_id,
             COALESCE(df.faculty_name, 'Unknown') as faculty_name,
@@ -402,7 +358,6 @@ def get_fex_analytics():
         
         query, params = build_filter_query(filters, base_query, user_scope)
         
-        # Apply current-semester window if detected and no explicit semester filters
         if current_semester:
             ay, sem = current_semester
             params['recent_ay'] = ay
@@ -413,10 +368,8 @@ def get_fex_analytics():
             else:
                 query += f" WHERE {window_clause}"
         
-        # Add grouping
         query += f" GROUP BY {group_by_cols}"
         
-        # First, get summary totals (scoped by user and filters)
         summary_query_base = """
         SELECT 
             COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END) as total_fex,
@@ -433,7 +386,6 @@ def get_fex_analytics():
 
         summary_query, summary_params = build_filter_query(filters, summary_query_base, user_scope)
 
-        # Apply the same current-semester window to the summary query so KPIs match the chart
         if current_semester:
             ay, sem = current_semester
             summary_params['s_recent_ay'] = ay
@@ -445,7 +397,6 @@ def get_fex_analytics():
                 summary_query += f" WHERE {window_clause}"
         simple_df = pd.read_sql_query(text(summary_query), engine, params=summary_params)
         
-        # Get summary from simple query
         summary = {
             'total_fex': int(simple_df['total_fex'].iloc[0]) if not simple_df.empty and 'total_fex' in simple_df.columns else 0,
             'total_mex': int(simple_df['total_mex'].iloc[0]) if not simple_df.empty and 'total_mex' in simple_df.columns else 0,
@@ -454,14 +405,12 @@ def get_fex_analytics():
             'fex_rate': round((simple_df['total_fex'].iloc[0] / simple_df['total_exams'].iloc[0] * 100) if not simple_df.empty and simple_df['total_exams'].iloc[0] > 0 else 0, 2)
         }
         
-        # Now get detailed data with drilldown
         try:
             df = pd.read_sql_query(text(query), engine, params=params)
         except Exception as query_error:
             print(f"Error executing FEX query: {query_error}")
             import traceback
             traceback.print_exc()
-            # Return summary only if detailed query fails
             engine.dispose()
             return jsonify({
                 'data': [],
@@ -470,14 +419,12 @@ def get_fex_analytics():
         
         engine.dispose()
         
-        # Prepare response with debug info if empty
         data_records = df.to_dict('records') if not df.empty else []
         response_data = {
             'data': data_records,
             'summary': summary
         }
         
-        # Add debug info when no data
         if df.empty:
             response_data['debug_info'] = {
                 'message': 'No data matches the current filters. Try adjusting your filters or clearing them to see all data.',
@@ -492,7 +439,6 @@ def get_fex_analytics():
         import traceback
         print(f"Error in get_fex_analytics: {e}")
         print(traceback.format_exc())
-        # Return empty data structure on error
         return jsonify({
             'data': [],
             'summary': {
@@ -503,18 +449,12 @@ def get_fex_analytics():
                 'fex_rate': 0
             },
             'error': str(e)
-        }), 200  # Return 200 with error in response so frontend can display it
-
+        }), 200
 
 @analytics_bp.route('/student/retakes', methods=['GET'])
 @analytics_bp.route('/my-retakes', methods=['GET'])
 @jwt_required()
 def get_student_retakes():
-    """Return retake-related courses for the current student based on FCW/MEX/FEX statuses.
-
-    - Students: see only their own retake list.
-    - Other roles: currently receive 403; aggregate views use existing FEX/high-school analytics.
-    """
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -588,7 +528,7 @@ def get_student_retakes():
                 'exam_score': float(row['exam_score']) if 'exam_score' in row and pd.notna(row['exam_score']) else None,
                 'semester_id': int(row['semester_id']) if 'semester_id' in row and pd.notna(row['semester_id']) else None,
                 'academic_year': str(row.get('academic_year') or ''),
-                'status': 'pending',  # progression integration can refine this later
+                'status': 'pending',
             })
 
         return jsonify({
@@ -607,26 +547,15 @@ def get_student_retakes():
         print(traceback.format_exc())
         return jsonify({'retakes': [], 'summary': {'total_retakes': 0}, 'error': str(e)}), 200
 
-
 @analytics_bp.route('/enrollment-by-year', methods=['GET'])
 @jwt_required()
 def get_enrollment_by_year():
-    """
-    Enrollment rate by academic year.
-
-    Global rule (E.1):
-    - Population restricted to students in Year 1, Semester 1 for that academic year.
-    - enrollment_rate = enrolled_year1 / total_year1 * 100.
-    """
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
 
         role = user_scope['role']
 
-        # Enforce RBAC on dropdown scoping:
-        # Dean must not be able to override faculty scope, and HOD must not be able to override department scope.
-        # We overwrite the incoming request-scoped ids with JWT scope when available.
         if role == Role.DEAN and user_scope.get('faculty_id') is not None:
             try:
                 faculty_id = int(user_scope.get('faculty_id'))
@@ -637,7 +566,6 @@ def get_enrollment_by_year():
                 department_id = int(user_scope.get('department_id'))
             except Exception:
                 pass
-        # Allow only analytics-facing roles
         if role not in {Role.SENATE, Role.SYSADMIN, Role.ANALYST, Role.DEAN, Role.HOD, Role.FINANCE}:
             return jsonify({'error': 'Permission denied'}), 403
         if not has_permission(role, Resource.ANALYTICS, Permission.READ, user_scope):
@@ -697,11 +625,9 @@ def get_enrollment_by_year():
         print(traceback.format_exc())
         return jsonify({'error': str(e), 'enrollment_by_year': []}), 500
 
-
 @analytics_bp.route('/high-school', methods=['GET'])
 @jwt_required()
 def get_high_school_analytics():
-    """Get high school analytics - enrollment, retention, graduation rates, tuition completion, performance"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -761,11 +687,9 @@ def get_high_school_analytics():
         WHERE ds.high_school IS NOT NULL AND ds.high_school != '' AND ds.high_school != 'NULL'
         """
         
-        # Build filter query - need to handle WHERE clause properly since we already have one
         where_clauses = []
         params = {}
         
-        # Role-based scoping
         if user_scope['role'] == Role.STUDENT:
             if user_scope['student_id']:
                 where_clauses.append("ds.student_id = :student_id")
@@ -782,9 +706,7 @@ def get_high_school_analytics():
                 where_clauses.append("df.faculty_id = :faculty_id")
                 params['faculty_id'] = user_scope['faculty_id']
         
-        # Apply filters (skip empty strings, None, and "all" values)
         if filters:
-            # Helper function to check if filter value should be ignored
             def should_ignore_filter(value):
                 if value is None:
                     return True
@@ -846,7 +768,6 @@ def get_high_school_analytics():
         query += " HAVING COUNT(DISTINCT ds.student_id) > 0"
         query += " ORDER BY total_students DESC"
         
-        # First, check if we have any high school data at all
         check_query = "SELECT COUNT(DISTINCT high_school) as count FROM dim_student WHERE high_school IS NOT NULL AND high_school != ''"
         try:
             check_df = pd.read_sql_query(text(check_query), engine)
@@ -896,7 +817,6 @@ def get_high_school_analytics():
         
         engine.dispose()
         
-        # Calculate rates and relationships
         if not df.empty:
             df['retention_rate'] = (df['active_students'] / df['total_students'] * 100).round(2)
             df['graduation_rate'] = (df['graduated_students'] / df['total_students'] * 100).round(2)
@@ -904,7 +824,6 @@ def get_high_school_analytics():
             df['fex_rate'] = (df['total_fex'] / (df['total_fex'] + df['total_mex'] + df['total_fex'].fillna(0) + 1) * 100).round(2)
             df['tuition_completion_rate'] = df['tuition_completion_rate'].fillna(0).round(2)
             
-            # Performance vs Tuition Completion correlation
             df['performance_tuition_correlation'] = df.apply(
                 lambda row: 'High Performance, High Tuition Completion' if row['avg_grade'] >= 70 and row['tuition_completion_rate'] >= 80
                 else 'High Performance, Low Tuition Completion' if row['avg_grade'] >= 70 and row['tuition_completion_rate'] < 80
@@ -912,10 +831,8 @@ def get_high_school_analytics():
                 else 'Low Performance, Low Tuition Completion', axis=1
             )
         
-        # Prepare response data
         data_records = df.to_dict('records') if not df.empty else []
         
-        # Calculate summary - handle empty dataframe
         if df.empty:
             summary = {
                 'total_high_schools': 0,
@@ -931,7 +848,6 @@ def get_high_school_analytics():
                     'low_perf_low_tuition': 0
                 }
             }
-            # Include debug info when no data
             debug_info = {
                 'total_high_schools_in_db': int(total_high_schools_check),
                 'filters_applied': filters,
@@ -970,24 +886,19 @@ def get_high_school_analytics():
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
-
 @analytics_bp.route('/academic-risk', methods=['GET'])
 @jwt_required()
 def get_academic_risk_dashboard():
-    """Get high-level academic risk summary for the institution"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         
-        # Check permission (Senate, Analyst, Dean, HOD, Sysadmin)
         if not has_permission(user_scope['role'], Resource.ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
             
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
-        # Default window: current semester only when no explicit semester/academic_year is provided
-        # (or when dropdowns are effectively set to "all").
         current_semester = None
         sem_raw = (filters.get('semester_id') or '').strip()
         ay_raw = (filters.get('academic_year') or '').strip()
@@ -1016,8 +927,6 @@ def get_academic_risk_dashboard():
                         current_semester = (ay, sem)
             except Exception:
                 current_semester = None
-        # We use the v_academic_summary view joining with dim_student for scoping
-        # This allows us to see distributions of FCW, MEX, FEX across the institution
         query = """
         SELECT 
             exam_status,
@@ -1026,8 +935,6 @@ def get_academic_risk_dashboard():
         FROM v_academic_summary
         """
         
-        # Re-use build_filter_query logic for scoping
-        # Need to join with dim_student in the summary if we want to filter by faculty/dept
         base_query = """
         SELECT 
             exam_status,
@@ -1043,7 +950,6 @@ def get_academic_risk_dashboard():
 
         q, params = build_filter_query(filters, base_query, user_scope)
 
-        # Constrain summary to the current semester window when applicable
         if current_semester:
             ay, sem = current_semester
             params['ar_ay'] = ay
@@ -1065,17 +971,14 @@ def get_academic_risk_dashboard():
             v = sub.iloc[0]['avg_grade']
             return round(float(v), 2) if pd.notna(v) else 0.0
 
-        # Key categories per status
         stats = {
             'fcw_count': int(df[df['exam_status'] == 'FCW']['count'].sum()) if not df.empty and 'FCW' in df['exam_status'].values else 0,
             'mex_count': int(df[df['exam_status'] == 'MEX']['count'].sum()) if not df.empty and 'MEX' in df['exam_status'].values else 0,
             'fex_count': int(df[df['exam_status'] == 'FEX']['count'].sum()) if not df.empty and 'FEX' in df['exam_status'].values else 0,
             'completed_count': int(df[df['exam_status'] == 'Completed']['count'].sum()) if not df.empty and 'Completed' in df['exam_status'].values else 0,
-            # Avg academic standing = mean grade on completed exams only (not mean of per-status averages)
             'avg_grade': _row_avg('Completed'),
         }
 
-        # Risk trend by semester (last 12 semesters in scope) — keys match frontend SciLineChart yDataKeys
         trend_query = """
         SELECT
             fg.semester_id,
@@ -1095,7 +998,6 @@ def get_academic_risk_dashboard():
         LEFT JOIN dim_course dc ON fg.course_code = dc.course_code
         """
         tq, tparams = build_filter_query(filters, trend_query, user_scope)
-        # Do not pin trend to "current semester only" — show historical semesters for the same org filters.
         if "WHERE" in tq.upper():
             tq += " AND fg.semester_id IS NOT NULL"
         else:
@@ -1107,7 +1009,6 @@ def get_academic_risk_dashboard():
         """
 
         trend_df = pd.read_sql_query(text(tq), engine, params=tparams)
-        # Oldest → newest on the X axis (chronological left-to-right)
         if not trend_df.empty:
             trend_df = trend_df.sort_values(
                 by=['sort_year', 'semester_id'],
@@ -1116,7 +1017,6 @@ def get_academic_risk_dashboard():
             )
         trend_records = trend_df.to_dict('records')
         
-        # At-risk breakdown (those with 2+ failures)
         risk_list_query = """
         SELECT 
             ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name,
@@ -1131,7 +1031,6 @@ def get_academic_risk_dashboard():
         """
         rq, rparams = build_filter_query(filters, risk_list_query, user_scope)
 
-        # Constrain at-risk list to the current semester; HAVING 2+ failures then means 2+ in current semester
         if current_semester:
             ay, sem = current_semester
             rparams['rl_ay'] = ay
@@ -1157,11 +1056,9 @@ def get_academic_risk_dashboard():
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
-
 @analytics_bp.route('/high-school-risk-correlation-legacy', methods=['GET'])
 @jwt_required()
 def get_high_school_risk_correlation_legacy():
-    """Legacy version of high school risk correlation kept for backwards compatibility."""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -1228,21 +1125,14 @@ def get_high_school_risk_correlation_legacy():
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
-
 @analytics_bp.route('/finance', methods=['GET'])
 @jwt_required()
 def get_finance_analytics():
-    """
-    Finance analytics: tuition expected vs paid, outstanding balances, and payment rate.
-
-    Defaults to the current semester when no explicit semester_id/academic_year is provided.
-    """
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         role = user_scope['role']
         
-        # Only finance-facing roles should use this endpoint directly
         if role not in {Role.FINANCE, Role.SYSADMIN, Role.ANALYST}:
             return jsonify({'error': 'Permission denied'}), 403
         if not has_permission(role, Resource.FINANCE_ANALYTICS, Permission.READ, user_scope) and role not in {
@@ -1260,13 +1150,10 @@ def get_finance_analytics():
             s = str(v).strip()
             return bool(s) and s.lower() != 'all'
 
-        # build_filter_query uses `fg.semester_id` which does not exist on finance payment queries.
-        # Strip semester / academic_year here and apply with fp / ds below.
         pay_filters = {k: v for k, v in filters.items() if k not in ('semester_id', 'academic_year')}
         explicit_sem = filters.get('semester_id') if _filter_value_meaningful(filters.get('semester_id')) else None
         explicit_ay = filters.get('academic_year') if _filter_value_meaningful(filters.get('academic_year')) else None
 
-        # Determine current semester window (academic_year + semester_id) when no explicit filters exist.
         current_semester = None
         if not explicit_sem and not explicit_ay:
             try:
@@ -1292,8 +1179,6 @@ def get_finance_analytics():
             except Exception:
                 current_semester = None
 
-        # Base payment query: scoped to role and filters via build_filter_query (using dim_student joins).
-        # Align paid / outstanding statuses with fact_payment + /api/dashboard/stats (Completed + SUCCESS, etc.).
         base_q = """
         SELECT
             SUM(CASE WHEN fp.status IN ('Completed', 'SUCCESS') THEN fp.amount ELSE 0 END) AS total_payments,
@@ -1347,7 +1232,6 @@ def get_finance_analytics():
         if total_required > 0:
             payment_rate = round((total_payments / total_required) * 100, 1)
 
-        # Total students in scope (for denominator / context)
         students_q = """
         SELECT COUNT(DISTINCT ds.student_id) AS total_students
         FROM dim_student ds
@@ -1412,7 +1296,6 @@ def get_finance_analytics():
 @analytics_bp.route('/staff/classes', methods=['GET'])
 @jwt_required()
 def get_staff_classes():
-    """Return staff dashboard payload (classes + KPIs + chart-ready series) for the current staff member."""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -1424,14 +1307,11 @@ def get_staff_classes():
             return jsonify({'error': 'Missing username in token'}), 400
 
         filters = request.args.to_dict() or {}
-        # Staff users must not be able to broaden scope outside their own department/faculty.
         filters.pop('faculty_id', None)
         filters.pop('department_id', None)
 
-        # --- RBAC: resolve staff app_user + existing assignments ---
         rbac_engine = get_rbac_engine()
         with rbac_engine.connect() as conn:
-            # Ensure core tables exist (idempotent)
             conn.execute(
                 text(
                     """
@@ -1487,17 +1367,12 @@ def get_staff_classes():
                 params={"uid": app_user_id},
             )
 
-        # --- DW: compute/fill assignments if missing ---
         dw_engine = get_dw_engine()
         dw_conn = dw_engine.connect()
-        # Prevent one slow query from blocking the whole server under concurrency.
         dw_conn.execute(text("SET statement_timeout = 8000"))
 
         course_codes = [str(c) for c in (codes_df["course_code"].tolist() if not codes_df.empty else []) if c]
         if not course_codes:
-            # Auto-assign top courses by enrollment within staff department/faculty scope.
-            # If the staff user has no faculty/department assigned in `app_users`, we must
-            # not run a global query (it will be slow and can timeout under concurrency).
             if staff_department_id is None and staff_faculty_id is None:
                 return jsonify(
                     {
@@ -1554,7 +1429,6 @@ def get_staff_classes():
             ]
 
             if course_codes:
-                # Persist assignments back to RBAC so each staff has stable classes.
                 with rbac_engine.connect() as conn:
                     conn = conn.execution_options(autocommit=False)
                     for cc in course_codes:
@@ -1589,7 +1463,6 @@ def get_staff_classes():
                 }
             ), 200
 
-        # Optional semester filter
         semester_id = None
         try:
             if filters.get("semester_id") and str(filters.get("semester_id")).strip().lower() not in ("", "all"):
@@ -1597,7 +1470,6 @@ def get_staff_classes():
         except Exception:
             semester_id = None
 
-        # Use expanding bindparam for IN (...) safely.
         codes_param = {"codes": course_codes}
         in_codes = bindparam("codes", expanding=True)
 
@@ -1607,7 +1479,6 @@ def get_staff_classes():
             params=codes_param,
         )
 
-        # Stats per course from fact_grade + fact_enrollment (scoped to staff codes only)
         grade_where = "WHERE fg.course_code IN :codes"
         enroll_where = "WHERE fe.course_code IN :codes"
         params2 = {"codes": course_codes}
@@ -1648,20 +1519,17 @@ def get_staff_classes():
             params=params2,
         )
 
-        # Merge course meta + stats
         result_df = pd.merge(courses_df, enroll_df, on="course_code", how="left")
         result_df = pd.merge(result_df, stats_df, on="course_code", how="left")
         result_df = result_df.fillna(0)
 
         classes = result_df.to_dict("records")
 
-        # Overall KPIs
         total_classes = len(course_codes)
         total_students = int(result_df["enrolled_students"].sum()) if "enrolled_students" in result_df.columns else 0
         avg_grade = float(result_df["avg_grade"].replace(0, pd.NA).mean()) if "avg_grade" in result_df.columns else 0.0
         total_risk = int(result_df["risk_cases"].sum()) if "risk_cases" in result_df.columns else 0
 
-        # Chart series (frontend-ready)
         enrollment_by_course = [
             {"course": r.get("course_name") or r.get("course_code"), "course_code": r.get("course_code"), "students": int(r.get("enrolled_students") or 0)}
             for r in classes
@@ -1714,9 +1582,7 @@ def get_staff_classes():
         except Exception:
             pass
 
-
 def _filter_options_fallback_faculties(engine, role, user_scope, faculty_id, department_id, program_id):
-    """Get faculties; if dim_faculty is empty, derive from dim_student -> program -> department -> faculty."""
     try:
         if role == Role.HOD and user_scope.get('department_id'):
             q = """
@@ -1737,7 +1603,6 @@ def _filter_options_fallback_faculties(engine, role, user_scope, faculty_id, dep
         recs = df.to_dict('records') if not df.empty else []
         if recs:
             return recs
-        # Fallback: derive from students -> program -> department -> faculty
         q = """
             SELECT DISTINCT d.faculty_id, f.faculty_name
             FROM dim_student ds
@@ -1751,12 +1616,9 @@ def _filter_options_fallback_faculties(engine, role, user_scope, faculty_id, dep
     except Exception:
         return []
 
-
 @analytics_bp.route('/filter-options', methods=['GET'])
 @jwt_required()
 def get_filter_options():
-    """Get available filter options based on user role with cascading support.
-    Faculties -> Departments -> Programs -> Courses. Fallback from fact/student data when dims are empty."""
     engine = None
     try:
         claims = get_jwt()
@@ -1781,7 +1643,6 @@ def get_filter_options():
         }
         role = user_scope['role']
 
-        # Academic leaders: lock scope from JWT (do not trust faculty_id / department_id query params).
         if role == Role.DEAN and user_scope.get('faculty_id') is not None:
             try:
                 faculty_id = int(user_scope['faculty_id'])
@@ -1793,7 +1654,6 @@ def get_filter_options():
             except Exception:
                 pass
         
-        # --- Faculties (with fallback from student data) ---
         if role == Role.STUDENT:
             options['faculties'] = []
         else:
@@ -1801,7 +1661,6 @@ def get_filter_options():
                 engine, role, user_scope, faculty_id, department_id, program_id
             )
         
-        # --- Departments (filtered by faculty; fallback from student data) ---
         if role == Role.STUDENT:
             options['departments'] = []
         else:
@@ -1836,9 +1695,7 @@ def get_filter_options():
             except Exception:
                 options['departments'] = []
         
-        # --- Programs (filtered by department/faculty; fallback from student data) ---
         if role == Role.STUDENT:
-            # Students: restrict programs to what the current student is actually in.
             if user_scope.get('student_id'):
                 try:
                     q = """
@@ -1864,7 +1721,6 @@ def get_filter_options():
                 prog_where = []
                 if role == Role.HOD and user_scope.get('department_id') and not department_id:
                     prog_where.append(f"p.department_id = {user_scope['department_id']}")
-                # Dean: always constrain programs to JWT faculty (even when only department_id is sent).
                 if role == Role.DEAN and user_scope.get('faculty_id'):
                     prog_where.append(f"d.faculty_id = {user_scope['faculty_id']}")
                 if department_id:
@@ -1888,7 +1744,6 @@ def get_filter_options():
             except Exception:
                 options['programs'] = []
         
-        # --- Courses (filtered by department/faculty; fallback from fact_grade) ---
         try:
             if role == Role.STUDENT:
                 if user_scope.get('student_id'):
@@ -1986,8 +1841,6 @@ def get_filter_options():
         except Exception:
             options['courses'] = []
         
-        # --- Semesters ---
-        # Keep this lightweight/stable like analyst flow; expensive scoped joins here can cause worker timeouts.
         try:
             df = pd.read_sql_query(
                 text("SELECT semester_id, semester_name FROM dim_semester ORDER BY semester_id"),
@@ -2009,8 +1862,6 @@ def get_filter_options():
         except Exception:
             options['semesters'] = []
 
-        # --- Year of study ---
-        # Scope by faculty/department/program from dim_student (cheap). Avoid heavy fact_grade joins.
         try:
             if role == Role.STUDENT:
                 options['year_of_studies'] = []
@@ -2053,11 +1904,9 @@ def get_filter_options():
         except Exception:
             options['year_of_studies'] = [1, 2, 3, 4]
         
-        # --- High schools (role-based; fallback all students) ---
         if role == Role.STUDENT:
             options['high_schools'] = []
         else:
-            # Prefer request-scoped filters so dropdowns cascade consistently for dean/hod/analyst.
             if program_id:
                 scope_clause = ""
                 params = {'program_id': program_id}
@@ -2116,10 +1965,6 @@ def get_filter_options():
                 )
             options['high_schools'] = df.to_dict('records') if not df.empty else []
         
-        # --- Intake years ---
-        # Non-students: always expose the full supported UI window (2021–2026) so the
-        # Year dropdown always shows choices when opened (not only years present in data).
-        # Students: keep years derived from their record(s) only.
         if role == Role.STUDENT:
             if user_scope.get('student_id'):
                 df = pd.read_sql_query(
@@ -2154,8 +1999,6 @@ def get_filter_options():
                 static_years = [y for y in static_years if y != 2026]
             options['intake_years'] = sorted(static_years, reverse=True)
 
-        # If a specific intake year (e.g., 2026) is selected, restrict semesters accordingly:
-        # - For 2026, only January/Easter (semester_id = 1) should be visible
         if intake_year_filter == 2026 and options['semesters']:
             options['semesters'] = [
                 s for s in options['semesters']
@@ -2183,33 +2026,25 @@ def get_filter_options():
             'semesters': [], 'high_schools': [], 'intake_years': [],
             'year_of_studies': [],
         }
-        # Return safe payload so the frontend filter panel does not break hard.
         return jsonify(fallback_options), 200
-
 
 @analytics_bp.route('/faculty', methods=['GET'])
 @jwt_required()
 def get_faculty_analytics():
-    """Faculty-level analytics for deans and similar roles.
-    Scopes data to the faculty in the JWT (for Role.DEAN) and applies optional filters.
-    Returns summary stats plus distributions that the frontend dean dashboard can visualize."""
     engine = None
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
 
-        # Require general analytics permission
         if not has_permission(user_scope['role'], Resource.ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
 
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         filters = _jwt_scope_sanitize_filters(request.args.to_dict(), user_scope)
 
-        # Role / faculty scoping for student-based queries
         where_clauses = []
         params: dict = {}
 
-        # Role-based scope – dean limited to their faculty, HOD to their department
         if user_scope['role'] == Role.DEAN and user_scope.get('faculty_id'):
             where_clauses.append("df.faculty_id = :faculty_id")
             params['faculty_id'] = int(user_scope['faculty_id'])
@@ -2217,7 +2052,6 @@ def get_faculty_analytics():
             where_clauses.append("ddept.department_id = :department_id")
             params['department_id'] = int(user_scope['department_id'])
 
-        # Additional filters (cannot widen dean scope – they combine with above)
         if filters.get('faculty_id'):
             try:
                 params['filter_faculty_id'] = int(filters['faculty_id'])
@@ -2270,7 +2104,6 @@ def get_faculty_analytics():
                 pass
         params_student = {k: v for k, v in params.items() if k not in ('filter_course_code', 'filter_semester_id')}
 
-        # fact_enrollment KPIs: apply semester/course on `fe` (same as grade queries), not only student scope
         enroll_params = dict(params_student)
         enroll_fe_bits = []
         if filters.get('course_code') and str(filters.get('course_code', '')).strip().lower() not in ('', 'all'):
@@ -2286,7 +2119,6 @@ def get_faculty_analytics():
         if enroll_fe_bits:
             enroll_fe_sql = (" AND " if student_where else " WHERE ") + " AND ".join(enroll_fe_bits)
 
-        # 1) Total students in scope (faculty / department)
         total_students_q = f"""
         SELECT COUNT(DISTINCT ds.student_id) AS total_students
         FROM dim_student ds
@@ -2298,7 +2130,6 @@ def get_faculty_analytics():
         ts_df = pd.read_sql_query(text(total_students_q), engine, params=params_student)
         total_students = int(ts_df['total_students'][0]) if not ts_df.empty and pd.notna(ts_df['total_students'][0]) else 0
 
-        # 1b) Retention (active / total) — same student scope as headcount (aligned with /api/dashboard/stats)
         retention_rate = 0.0
         try:
             ret_q = f"""
@@ -2318,7 +2149,6 @@ def get_faculty_analytics():
             print(f"Error getting faculty retention_rate: {e}")
             retention_rate = 0.0
 
-        # 2) Average grade for students in scope
         avg_grade_q = f"""
         SELECT AVG(fg.grade) AS avg_grade
         FROM fact_grade fg
@@ -2331,8 +2161,6 @@ def get_faculty_analytics():
         ag_df = pd.read_sql_query(text(avg_grade_q), engine, params=params)
         avg_grade = float(ag_df['avg_grade'][0]) if not ag_df.empty and pd.notna(ag_df['avg_grade'][0]) else 0.0
 
-        # 3) Faculty-level course, enrollment, payment, and attendance KPIs
-        # Total distinct courses offered within this faculty/department scope
         total_courses = 0
         try:
             courses_q = f"""
@@ -2350,7 +2178,6 @@ def get_faculty_analytics():
             print(f"Error getting faculty total_courses: {e}")
             total_courses = 0
 
-        # Total enrollments (fact_enrollment rows) within scope
         total_enrollments = 0
         try:
             enroll_q = f"""
@@ -2368,7 +2195,6 @@ def get_faculty_analytics():
             print(f"Error getting faculty total_enrollments: {e}")
             total_enrollments = 0
 
-        # Average attendance (hours) within scope
         avg_attendance = 0.0
         try:
             att_q = f"""
@@ -2386,7 +2212,6 @@ def get_faculty_analytics():
             print(f"Error getting faculty avg_attendance: {e}")
             avg_attendance = 0.0
 
-        # 4) Students by department
         by_dept_q = f"""
         SELECT 
             COALESCE(ddept.department_name, 'Unknown') AS department,
@@ -2402,7 +2227,6 @@ def get_faculty_analytics():
         by_dept_df = pd.read_sql_query(text(by_dept_q), engine, params=params_student)
         students_by_department = by_dept_df.to_dict('records') if not by_dept_df.empty else []
 
-        # 5) Students by program
         by_prog_q = f"""
         SELECT 
             COALESCE(dp.program_name, 'Unknown') AS program_name,
@@ -2419,7 +2243,6 @@ def get_faculty_analytics():
         by_prog_df = pd.read_sql_query(text(by_prog_q), engine, params=params_student)
         students_by_program = by_prog_df.to_dict('records') if not by_prog_df.empty else []
 
-        # 6) Student demographics (gender + high school)
         by_gender_q = f"""
         SELECT 
             COALESCE(ds.gender, 'U') AS gender,
@@ -2450,7 +2273,6 @@ def get_faculty_analytics():
         """
         by_hs_df = pd.read_sql_query(text(by_hs_q), engine, params=params_student)
 
-        # 7) Grade distribution within scope
         grade_dist_q = f"""
         SELECT 
             fg.letter_grade,
@@ -2467,7 +2289,6 @@ def get_faculty_analytics():
         grade_dist_df = pd.read_sql_query(text(grade_dist_q), engine, params=params)
         grade_distribution = grade_dist_df.to_dict('records') if not grade_dist_df.empty else []
 
-        # 8) Performance by department
         perf_dept_q = f"""
         SELECT 
             COALESCE(ddept.department_name, 'Unknown') AS department,
@@ -2485,7 +2306,6 @@ def get_faculty_analytics():
         perf_dept_df = pd.read_sql_query(text(perf_dept_q), engine, params=params)
         performance_by_department = perf_dept_df.to_dict('records') if not perf_dept_df.empty else []
 
-        # 9) Performance by program
         perf_prog_q = f"""
         SELECT 
             COALESCE(dp.program_name, 'Unknown') AS program_name,
@@ -2504,7 +2324,6 @@ def get_faculty_analytics():
         perf_prog_df = pd.read_sql_query(text(perf_prog_q), engine, params=params)
         performance_by_program = perf_prog_df.to_dict('records') if not perf_prog_df.empty else []
 
-        # 10) Top 10 students in scope (by average grade)
         top_students_q = f"""
         SELECT 
             ds.student_id,
@@ -2528,7 +2347,6 @@ def get_faculty_analytics():
         top_students_df = pd.read_sql_query(text(top_students_q), engine, params=params)
         top_students = top_students_df.to_dict('records') if not top_students_df.empty else []
 
-        # 11) Tuition payment distribution & trends within faculty scope
         payment_where = "WHERE 1=1"
         if where_clauses:
             payment_where += " AND " + " AND ".join(where_clauses)
@@ -2566,7 +2384,6 @@ def get_faculty_analytics():
         pay_trend_df = pd.read_sql_query(text(payment_trend_q), engine, params=params_student)
         payment_trends = pay_trend_df.to_dict('records') if not pay_trend_df.empty else []
 
-        # 12) Staff summary for this faculty from dim_employee
         staff_where_clauses = []
         staff_params: dict = {}
         if user_scope['role'] == Role.DEAN and user_scope.get('faculty_id'):
@@ -2621,7 +2438,6 @@ def get_faculty_analytics():
         if engine:
             engine.dispose()
 
-        # Aggregate total payments from payment_status (per status totals)
         try:
             total_payments = sum(float(r.get('total_amount') or 0) for r in payment_status)
         except Exception:
@@ -2685,30 +2501,24 @@ def get_faculty_analytics():
             'performance_by_program': [],
         }), 500
 
-
 @analytics_bp.route('/department', methods=['GET'])
 @jwt_required()
 def get_department_analytics():
-    """Department-level analytics for HOD. Same as faculty analytics but scoped by HOD's department (role-based).
-    Filters (program, course, semester, search, high school) affect the data."""
     return get_faculty_analytics()
 
 @analytics_bp.route('/student', methods=['GET'])
 @jwt_required()
 def get_student_analytics():
-    """Get student-specific analytics"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         role = user_scope['role']
         
-        # Check permission
         if not has_permission(role, Resource.ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
         
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
-        # Students may only ever see their own record (ignore forged query params).
         if role == Role.STUDENT:
             access_number = user_scope.get('access_number')
             student_id = user_scope.get('student_id')
@@ -2719,7 +2529,6 @@ def get_student_analytics():
         if not access_number and not student_id:
             return jsonify({'error': 'Student identifier required'}), 400
         
-        # Build query to get student data
         if student_id:
             where_clause = "WHERE ds.student_id = :student_id"
             params = {'student_id': str(student_id).strip()}
@@ -2727,8 +2536,6 @@ def get_student_analytics():
             where_clause = "WHERE UPPER(TRIM(ds.access_number)) = UPPER(TRIM(:access_number))"
             params = {'access_number': str(access_number).strip()}
 
-        # Facts often store student as warehouse id, reg_no, or access_number (same as payment KPI join).
-        # Use correlated subqueries so SUM/AVG are not inflated by fe×fg×fp Cartesian products.
         def _fact_match(alias: str) -> str:
             return f"""(
                 ({alias}.student_id = ds.student_id)
@@ -2740,7 +2547,6 @@ def get_student_analytics():
 
         _mfe, _mfg, _mfp, _mfa = _fact_match('fe'), _fact_match('fg'), _fact_match('fp'), _fact_match('fa')
 
-        # Courses registered: distinct course codes from enrollment ∪ grade facts (realistic when ids differ).
         query = f"""
         SELECT 
             ds.student_id,
@@ -2818,7 +2624,6 @@ def get_student_analytics():
         
         student_data = df.iloc[0].to_dict()
         
-        # Get grade breakdown
         grade_query = f"""
         SELECT 
             letter_grade,
@@ -2844,7 +2649,6 @@ def get_student_analytics():
         
         grade_df = pd.read_sql_query(text(grade_query), engine, params=params)
         
-        # Get grades over time
         time_query = f"""
         SELECT 
             CONCAT(dt.month_name, ' ', CAST(dt.year AS TEXT)) as period,
@@ -2859,7 +2663,6 @@ def get_student_analytics():
         
         time_df = pd.read_sql_query(text(time_query), engine, params=params)
 
-        # Semester-based trend (many ETL loads use one date_key → monthly GROUP BY yields 1 point).
         sem_trend_query = f"""
         SELECT
             fg.semester_id,
@@ -2877,7 +2680,6 @@ def get_student_analytics():
         """
         sem_trend_df = pd.read_sql_query(text(sem_trend_query), engine, params=params)
         
-        # Course-level performance per course + semester (for student dashboard chart)
         course_query = f"""
         SELECT 
             fg.course_code,
@@ -2899,7 +2701,6 @@ def get_student_analytics():
         """
         course_df = pd.read_sql_query(text(course_query), engine, params=params)
 
-        # One row per completed grade (for trend when bucket averages are identical → flat line).
         grade_detail_query = f"""
         SELECT
             fg.grade_id,
@@ -2919,7 +2720,6 @@ def get_student_analytics():
         """
         grade_detail_df = pd.read_sql_query(text(grade_detail_query), engine, params=params)
 
-        # Tuition by semester (all semesters studied so far)
         tuition_query = f"""
         SELECT 
             fp.year,
@@ -2937,7 +2737,6 @@ def get_student_analytics():
         """
         tuition_df = pd.read_sql_query(text(tuition_query), engine, params=params)
 
-        # Tuition payment timeline with timestamps (most recent 200)
         timeline_query = f"""
         SELECT 
             fp.payment_timestamp,
@@ -2954,7 +2753,6 @@ def get_student_analytics():
         """
         timeline_df = pd.read_sql_query(text(timeline_query), engine, params=params)
 
-        # Infer residence / student type from payments (national vs international mapped to resident vs non-resident)
         residence_status = 'Unknown'
         try:
             residence_query = f"""
@@ -2974,7 +2772,6 @@ def get_student_analytics():
         except Exception:
             residence_status = 'Unknown'
 
-        # Explicit enrollment stats (backup if correlated subquery count is wrong / driver quirk).
         enroll_distinct_courses = 0
         enroll_row_count = 0
         try:
@@ -3077,7 +2874,6 @@ def get_student_analytics():
             return rows
 
         def _rows_grade_trend_by_course(course_perf_df):
-            """One point per course×semester, chronological — shows a trend when calendar month is degenerate."""
             rows = []
             if course_perf_df is None or course_perf_df.empty:
                 return rows
@@ -3220,7 +3016,6 @@ def get_student_analytics():
             admission_out = str(adm).split(' ')[0][:10]
 
         payload = {
-            # Lets the frontend distinguish this from /api/dashboard/stats (also returns total_students=1 for students).
             'student_analytics': True,
             'student_id': str(student_data['student_id']).strip() if pd.notna(student_data.get('student_id')) else None,
             'access_number': student_data.get('access_number'),
@@ -3280,34 +3075,19 @@ def get_student_analytics():
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
-
 @analytics_bp.route('/enrollment-pipeline', methods=['GET'])
 @jwt_required()
 def get_enrollment_pipeline():
-    """
-    Enrollment pipeline: trend of first-year, first-semester students by academic_year.
-    Used for the analyst 'Enrollment pipeline' chart.
-    """
     engine = None
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         role = user_scope['role']
 
-        # Students should not access institution-level pipeline
         if role == Role.STUDENT:
             return jsonify({'error': 'Permission denied'}), 403
 
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-
-        # Trend of first-year, first-semester students per academic_year.
-        #
-        # We intentionally use `fact_academic_performance` instead of `fact_enrollment`,
-        # because `fact_enrollment.date_key` is currently generated at ETL-time (and may
-        # not preserve historical academic-years for trend analytics).
-        #
-        # The synthetic performance facts already include `ACADEMIC_YEAR`, `SEMESTER`,
-        # and `SEMESTER_INDEX`, which makes this dashboard trend reliable.
 
         requested_academic_years = [
             '2020/2021',
@@ -3319,10 +3099,6 @@ def get_enrollment_pipeline():
             '2026/2027',
         ]
 
-        # Optional chart filters (applies to both base counts and roster scaling).
-        # Expected (any subset): faculty, department, program, program_id
-        # - `program_id` matches `dim_student.program_id` and `PROGRAM ID` from roster.
-        # - `faculty/department/program` match the corresponding *name* fields case-insensitively.
         filters = request.args.to_dict()
         faculty_filter = (filters.get('faculty') or filters.get('faculty_name') or '').strip()
         department_filter = (filters.get('department') or filters.get('department_name') or '').strip()
@@ -3335,21 +3111,15 @@ def get_enrollment_pipeline():
         semester_id_filter = (filters.get('semester_id') or '').strip()
 
         def _ay_start(ay: str) -> int:
-            # "2023/2024" -> 2023
             return int(str(ay).split('/')[0])
 
         def _predict_from_known(x: float, known_points: list[tuple[int, int]]) -> int:
-            """
-            Predict missing counts using log-linear interpolation/extrapolation
-            across two nearest known points.
-            """
             known_points = sorted(known_points, key=lambda t: t[0])
             if len(known_points) == 0:
                 return 0
             if len(known_points) == 1:
                 return int(round(known_points[0][1]))
 
-            # pick two points for interpolation/extrapolation
             first_x, first_y = known_points[0]
             last_x, last_y = known_points[-1]
             if x <= first_x:
@@ -3359,7 +3129,6 @@ def get_enrollment_pipeline():
                 x1, y1 = known_points[-2]
                 x2, y2 = known_points[-1]
             else:
-                # find adjacent known points around x
                 left = None
                 right = None
                 for i in range(len(known_points) - 1):
@@ -3378,8 +3147,6 @@ def get_enrollment_pipeline():
 
             y1 = max(int(y1), 1)
             y2 = max(int(y2), 1)
-            # log-linear: log(y) = log(y1) + t*(log(y2)-log(y1))
-            # allow t outside [0,1] for extrapolation at edges.
             t = (x - x1) / (x2 - x1) if x2 != x1 else 0.0
             import math
             log_pred = math.log(y1) + t * (math.log(y2) - math.log(y1))
@@ -3388,10 +3155,6 @@ def get_enrollment_pipeline():
 
         values_sql = ",\n".join([f"('{y}', {i})" for i, y in enumerate(requested_academic_years)])
 
-        # NOTE: column names are case-sensitive in the synthetic-loaded warehouse table,
-        # so we quote them. We also join dim_student so we can apply faculty/department/program filters.
-        # Map intake filter to semester index + label (UCU intakes)
-        # Default: January (Easter) — first semester
         sem_index = 1
         sem_label = 'SEM1'
         if semester_id_filter in ('1', '2', '3'):
@@ -3407,7 +3170,6 @@ def get_enrollment_pipeline():
         ds_where = ["COALESCE(ds.year_of_study, 1) = 1"]
         ds_params = {'sem_index': sem_index, 'sem_label': sem_label}
 
-        # RBAC: deans see only their faculty; HODs only their department (dim_student.program_id path).
         if role == Role.DEAN and user_scope.get('faculty_id'):
             ds_where.append(
                 "EXISTS (SELECT 1 FROM dim_program dp_rbac "
@@ -3423,7 +3185,6 @@ def get_enrollment_pipeline():
             )
             ds_params['rbac_department_id'] = int(user_scope['department_id'])
         else:
-            # Optional numeric faculty filter (analyst / senate / sysadmin / finance).
             q_faculty_id = request.args.get('faculty_id', type=int)
             if q_faculty_id and role in (Role.ANALYST, Role.SYSADMIN, Role.SENATE, Role.FINANCE):
                 ds_where.append(
@@ -3433,7 +3194,6 @@ def get_enrollment_pipeline():
                 )
                 ds_params['q_faculty_id'] = q_faculty_id
 
-            # Optional numeric department filter (analyst / senate / sysadmin / finance).
             q_department_id = request.args.get('department_id', type=int)
             if q_department_id and role in (Role.ANALYST, Role.SYSADMIN, Role.SENATE, Role.FINANCE):
                 ds_where.append(
@@ -3450,7 +3210,6 @@ def get_enrollment_pipeline():
             ds_where.append("ds.\"DEPARTMENT\" ILIKE :department")
             ds_params["department"] = f"%{department_filter}%"
         if program_id_filter:
-            # program_id column is lower-case in dim_student
             ds_where.append("ds.program_id = :program_id")
             try:
                 ds_params["program_id"] = int(program_id_filter)
@@ -3504,7 +3263,6 @@ def get_enrollment_pipeline():
             df = pd.read_sql_query(text(q_perf), engine, params=ds_params)
             records = df.to_dict('records') if not df.empty else []
         except Exception:
-            # Fallback: compute from synthetic CSVs on disk.
             from pathlib import Path
             root = Path(__file__).resolve().parent / "data" / "Synthetic_Data"
             csv_files = [
@@ -3518,13 +3276,11 @@ def get_enrollment_pipeline():
                     frames.append(pd.read_csv(p))
             if frames:
                 perf = pd.concat(frames, ignore_index=True)
-                # First-year first-semester = semester_index=sem_index and semester=SEM*
                 if "SEMESTER_INDEX" in perf.columns:
                     perf = perf[perf["SEMESTER_INDEX"] == sem_index]
                 if "SEMESTER" in perf.columns:
                     perf = perf[perf["SEMESTER"].astype(str).str.upper().eq(sem_label)]
 
-                # Join roster attributes (faculty/department/program) so filters behave consistently.
                 roster_cols = ["REG. NO.", "FACULTY", "DEPARTMENT", "PROGRAM ID", "PROGRAM"]
                 roster_frames = []
                 for roster_fn in ["students_list15.xlsx", "students_list16.xlsx"]:
@@ -3569,12 +3325,10 @@ def get_enrollment_pipeline():
             except Exception:
                 pass
 
-        # Normalize types early so interpolation works.
         for r in records:
             r['academic_year'] = str(r.get('academic_year'))
             r['total_enrollments'] = int(r.get('total_enrollments') or 0)
 
-        # Fill missing years with realistic log-linear interpolation/extrapolation.
         known_points = [(_ay_start(r['academic_year']), r['total_enrollments']) for r in records if r['total_enrollments'] > 0]
         if len(known_points) >= 1:
             for r in records:
@@ -3582,9 +3336,6 @@ def get_enrollment_pipeline():
                     x = _ay_start(r['academic_year'])
                     r['total_enrollments'] = _predict_from_known(x, known_points)
 
-        # Scale to be proportional to the roster student lists (students_list15/16).
-        # This ensures the line magnitude matches the real number of first-year sem1 students
-        # in your student profiling workbooks.
         anchor_year_used = None
         roster_anchor_used = 0
         try:
@@ -3608,7 +3359,6 @@ def get_enrollment_pipeline():
                 roster_df["start_year"] = pd.to_numeric(extracted[2], errors="coerce") + 2000
                 roster_df["academic_year"] = roster_df["start_year"].map(lambda y: f"{int(y)}/{int(y)+1}" if pd.notna(y) else None)
 
-                # Apply the same filters to roster (for proportional scaling within partitions).
                 if faculty_filter:
                     roster_df = roster_df[roster_df["FACULTY"].astype(str).str.contains(faculty_filter, case=False, na=False)]
                 if department_filter:
@@ -3624,7 +3374,6 @@ def get_enrollment_pipeline():
 
                 roster_counts = roster_df.groupby("academic_year")["REG_NO_STR"].nunique().to_dict()
 
-                # Find a year where roster provides a non-zero anchor for scaling.
                 overlap_years = [
                     (ay, int(roster_counts.get(ay, 0)))
                     for ay in requested_academic_years
@@ -3632,7 +3381,6 @@ def get_enrollment_pipeline():
                 ]
 
                 if overlap_years:
-                    # choose the academic year with the largest roster count
                     overlap_years.sort(key=lambda t: t[1], reverse=True)
                     anchor_year, roster_anchor = overlap_years[0]
                     anchor_year_used = anchor_year
@@ -3643,16 +3391,12 @@ def get_enrollment_pipeline():
                         for rec in records:
                             rec["total_enrollments"] = int(round(rec["total_enrollments"] * scale_factor))
         except Exception:
-            # If scaling fails for any reason, keep the base pipeline values.
             pass
 
-        # Apply a non-linear curve shape so the chart looks like a realistic enrollment trend.
-        # (Not a straight line; UCU-like pattern: COVID dip -> recovery -> growth -> plateau -> modest recovery)
         try:
             shape_factors_by_index = [0.82, 0.90, 1.00, 0.97, 1.04, 1.00, 1.03]
             year_to_index = {ay: idx for idx, ay in enumerate(requested_academic_years)}
 
-            # Apply the shape factors.
             for rec in records:
                 ay = rec.get("academic_year")
                 idx = year_to_index.get(ay)
@@ -3661,7 +3405,6 @@ def get_enrollment_pipeline():
                 factor = shape_factors_by_index[idx] if 0 <= idx < len(shape_factors_by_index) else 1.0
                 rec["total_enrollments"] = int(round(max(0, rec["total_enrollments"]) * factor))
 
-            # Re-normalize to keep the anchor year proportional to the roster counts.
             if anchor_year_used and roster_anchor_used > 0:
                 current_anchor = next(
                     (rec["total_enrollments"] for rec in records if rec.get("academic_year") == anchor_year_used),
@@ -3674,11 +3417,7 @@ def get_enrollment_pipeline():
         except Exception:
             pass
 
-        # If we still have no known points, keep all zeros (but frontend will show empty).
-        # In practice, the synthetic facts should populate at least some years.
         return jsonify({'pipeline': records}), 200
-
-        # (function end handled by return above)
 
     except Exception as e:
         import traceback
@@ -3691,9 +3430,7 @@ def get_enrollment_pipeline():
                 pass
         return jsonify({'error': str(e), 'pipeline': []}), 500
 
-
 def _hr_json_safe_scalar(v):
-    """Convert numpy/pandas scalars for Flask jsonify."""
     if v is None:
         return None
     if isinstance(v, pd.Timestamp):
@@ -3706,13 +3443,12 @@ def _hr_json_safe_scalar(v):
     if hasattr(v, 'item') and callable(getattr(v, 'item', None)):
         try:
             out = v.item()
-            if isinstance(out, float) and out != out:  # NaN
+            if isinstance(out, float) and out != out:
                 return None
             return out
         except Exception:
             pass
     return v
-
 
 def _hr_json_safe_records(df: pd.DataFrame) -> list:
     if df is None or df.empty:
@@ -3722,9 +3458,7 @@ def _hr_json_safe_records(df: pd.DataFrame) -> list:
         records.append({str(k): _hr_json_safe_scalar(row[k]) for k in df.columns})
     return records
 
-
 def _hr_role_mix_display_labels() -> dict:
-    """Human-readable labels for role_mix slices (matches classifier order)."""
     return {
         'senate': 'Senate',
         'dean': 'Dean / faculty head',
@@ -3736,9 +3470,7 @@ def _hr_role_mix_display_labels() -> dict:
         'other': 'Other staff',
     }
 
-
 def _hr_build_role_mix_records(df: pd.DataFrame) -> list:
-    """Build JSON-serializable role_mix from a query with role_group + headcount (or count)."""
     labels = _hr_role_mix_display_labels()
     if df is None or df.empty:
         return []
@@ -3755,9 +3487,7 @@ def _hr_build_role_mix_records(df: pd.DataFrame) -> list:
         })
     return out
 
-
 def _hr_legacy_db2_schema_available(engine) -> bool:
-    """True if warehouse DB has schema {DB2_NAME} with employees (linked administration tables)."""
     try:
         with engine.connect() as conn:
             r = conn.execute(
@@ -3775,16 +3505,7 @@ def _hr_legacy_db2_schema_available(engine) -> bool:
     except Exception:
         return False
 
-
 def _hr_legacy_employees_has_rows(engine) -> bool:
-    """
-    True if {DB2_NAME}.employees has at least one row.
-
-    Docker/postgres-init may create empty ucu_sourcedb2 administration tables, or ETL may truncate
-    the HR mirror without refilling (e.g. dim_employee not loaded that run). In those cases we must
-    keep serving HR KPIs from dim_employee via _hr_analytics_from_dim_warehouse instead of the
-    legacy path (which would return all zeros).
-    """
     if not _hr_legacy_db2_schema_available(engine):
         return False
     try:
@@ -3796,9 +3517,7 @@ def _hr_legacy_employees_has_rows(engine) -> bool:
     except Exception:
         return False
 
-
 def _hr_employee_attendance_table_available(engine) -> bool:
-    """True if {DB2_NAME}.employee_attendance exists (same connection as warehouse or linked schema)."""
     try:
         with engine.connect() as conn:
             r = conn.execute(
@@ -3816,9 +3535,7 @@ def _hr_employee_attendance_table_available(engine) -> bool:
     except Exception:
         return False
 
-
 def _hr_build_attendance_trend_from_df(df: pd.DataFrame) -> list:
-    """Normalize HR attendance-by-day rows for `employee_attendance_trend` JSON."""
     out = []
     if df is None or df.empty:
         return out
@@ -3854,8 +3571,6 @@ def _hr_build_attendance_trend_from_df(df: pd.DataFrame) -> list:
         })
     return out
 
-
-# Position title expression for dim_employee (must match warehouse HR logic)
 _HR_DIM_PT_SQL = """COALESCE(NULLIF(TRIM(e.position_title), ''), CASE e.position_id
         WHEN 1 THEN 'Lecturer'
         WHEN 2 THEN 'Assistant Lecturer'
@@ -3865,9 +3580,7 @@ _HR_DIM_PT_SQL = """COALESCE(NULLIF(TRIM(e.position_title), ''), CASE e.position
 
 HR_RETIREMENT_AGE = 60
 
-
 def _hr_months_between(d1: date, d2: date) -> int:
-    """Full calendar months from d1 to d2 (d1 <= d2)."""
     if d2 < d1:
         return 0
     m = (d2.year - d1.year) * 12 + (d2.month - d1.month)
@@ -3875,9 +3588,7 @@ def _hr_months_between(d1: date, d2: date) -> int:
         m -= 1
     return max(0, m)
 
-
 def _hr_retirement_countdown_label(today: date, retirement_date: date) -> str:
-    """Human-readable years/months (and days if under one month) until retirement_date."""
     days_left = (retirement_date - today).days
     if days_left <= 0:
         return 'At retirement or retired'
@@ -3893,9 +3604,7 @@ def _hr_retirement_countdown_label(today: date, retirement_date: date) -> str:
         return f'{", ".join(parts)} remaining to retirement'
     return f'{days_left} day{"s" if days_left != 1 else ""} remaining to retirement'
 
-
 def _hr_retirement_fields_from_dob(dob_raw):
-    """Age and retirement labels: <55 far only; 55–59 years+months left; 60+ at/retired."""
     empty = {
         'date_of_birth': None,
         'age': None,
@@ -3927,7 +3636,6 @@ def _hr_retirement_fields_from_dob(dob_raw):
     days_left = (retirement_date - today).days
     yrs_approx = round(max(0, days_left) / 365.25, 2) if days_left > 0 else 0.0
 
-    # At or past 60th birthday (or past retirement date)
     if age >= HR_RETIREMENT_AGE or days_left <= 0:
         return {
             'date_of_birth': d.isoformat(),
@@ -3948,7 +3656,6 @@ def _hr_retirement_fields_from_dob(dob_raw):
             'retirement_alert': False,
         }
 
-    # Ages 55–59: show years and months remaining (highlighted in UI)
     if 55 <= age <= 59:
         return {
             'date_of_birth': d.isoformat(),
@@ -3959,7 +3666,6 @@ def _hr_retirement_fields_from_dob(dob_raw):
             'retirement_alert': True,
         }
 
-    # Fallback (should not hit if age < 60 and days_left > 0)
     return {
         'date_of_birth': d.isoformat(),
         'age': int(age),
@@ -3969,9 +3675,7 @@ def _hr_retirement_fields_from_dob(dob_raw):
         'retirement_alert': False,
     }
 
-
 def _hr_parse_faculty_dept_filters(filters: dict):
-    """Faculty/department query params for dim_employee scoped SQL (trend + synthetic)."""
     params: dict = {}
     filter_faculty_sql = ''
     filter_dept_sql = ''
@@ -3991,7 +3695,6 @@ def _hr_parse_faculty_dept_filters(filters: dict):
             pass
     return params, filter_faculty_sql, filter_dept_sql
 
-
 def _hr_weekdays_series(count: int, end=None):
     end = end or date.today()
     out = []
@@ -4002,7 +3705,6 @@ def _hr_weekdays_series(count: int, end=None):
         d -= timedelta(days=1)
     out.reverse()
     return out
-
 
 def _hr_trend_end_date_from_warehouse(engine) -> date:
     try:
@@ -4018,7 +3720,6 @@ def _hr_trend_end_date_from_warehouse(engine) -> date:
         pass
     return date.today()
 
-
 def _hr_pick_syn_attendance_status(rng: random.Random) -> str:
     r = rng.random()
     if r < 0.78:
@@ -4029,9 +3730,7 @@ def _hr_pick_syn_attendance_status(rng: random.Random) -> str:
         return 'Late'
     return 'On Leave'
 
-
 def _hr_admin_role_category_from_pt(pt: str) -> str:
-    """Match legacy administration SQL role buckets for synthetic by-role rows."""
     tl = (pt or '').strip().lower()
     if 'senate' in tl:
         return 'Senate'
@@ -4049,7 +3748,6 @@ def _hr_admin_role_category_from_pt(pt: str) -> str:
         return 'HR'
     return 'Other Staff'
 
-
 def _hr_synthetic_attendance_from_dims(
     engine,
     params: dict,
@@ -4059,11 +3757,6 @@ def _hr_synthetic_attendance_from_dims(
     *,
     num_weekdays: int = 65,
 ):
-    """
-    When ucu_sourcedb2.employee_attendance has no data, build the same API shape from dim_employee:
-    daily stacked counts + present_rate, plus aggregate rate and attendance_by_role.
-    Scoped by faculty/dept only (ignores employee-role filter), same as the real trend.
-    """
     from collections import defaultdict
 
     emp_sql = f"""
@@ -4137,8 +3830,6 @@ def _hr_synthetic_attendance_from_dims(
 
     return trend, rate, abr
 
-
-# Approximate monthly net pay (UGX) by administration role bucket — used when payroll fact is empty.
 _HR_SYNTH_PAYROLL_BASE_BY_CATEGORY = {
     'Senate': 8_000_000.0,
     'Dean': 6_500_000.0,
@@ -4150,7 +3841,6 @@ _HR_SYNTH_PAYROLL_BASE_BY_CATEGORY = {
     'Other Staff': 2_800_000.0,
 }
 
-
 def _hr_synthetic_net_pay_for_employee(employee_id, role_category: str) -> float:
     base = _HR_SYNTH_PAYROLL_BASE_BY_CATEGORY.get(role_category, 2_800_000.0)
     try:
@@ -4159,12 +3849,7 @@ def _hr_synthetic_net_pay_for_employee(employee_id, role_category: str) -> float
         eid = 0
     return base + float(abs(eid) % 23) * 75_000.0
 
-
 def _hr_build_synthetic_payroll_by_role_from_df(emp_df) -> tuple:
-    """
-    Build payroll_by_role rows + total_payroll from a dataframe with columns employee_id, pt
-    (position title). One synthetic payslip per employee; matches legacy API field names.
-    """
     if emp_df is None or emp_df.empty:
         return [], 0.0
     from collections import defaultdict
@@ -4195,9 +3880,7 @@ def _hr_build_synthetic_payroll_by_role_from_df(emp_df) -> tuple:
     total = round(sum(r['total_net_pay'] for r in out), 2)
     return out, float(total)
 
-
 def _hr_warehouse_role_filter_sql(role_group: str) -> str:
-    """Extra AND clauses on alias b.pt (derived position title)."""
     rg = (role_group or '').strip().lower()
     if not rg:
         return ''
@@ -4225,7 +3908,6 @@ def _hr_warehouse_role_filter_sql(role_group: str) -> str:
         )
     return ''
 
-
 def _hr_synthetic_payroll_by_role_from_dims(
     engine,
     params: dict,
@@ -4234,7 +3916,6 @@ def _hr_synthetic_payroll_by_role_from_dims(
     pt_sql_fragment: str,
     role_group: str,
 ):
-    """When administration payroll is unavailable, mirror legacy payroll_by_role from dim_employee."""
     role_sql = _hr_warehouse_role_filter_sql(role_group)
     role_sql_inner = role_sql.replace('b.pt', 'pt')
     emp_sql = f"""
@@ -4253,9 +3934,7 @@ def _hr_synthetic_payroll_by_role_from_dims(
         return [], 0.0
     return _hr_build_synthetic_payroll_by_role_from_df(edf)
 
-
 def _hr_synthetic_payroll_by_role_from_mirror(engine, where_sql: str):
-    """Synthetic payroll rows scoped like legacy payroll_sql (mirror employees + filters)."""
     emp_sql = f"""
         SELECT e."EmployeeID" AS employee_id, p."PositionTitle" AS pt
         FROM {DB2_NAME}.employees e
@@ -4270,14 +3949,7 @@ def _hr_synthetic_payroll_by_role_from_mirror(engine, where_sql: str):
         return [], 0.0
     return _hr_build_synthetic_payroll_by_role_from_df(edf)
 
-
 def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
-    """
-    HR KPIs from gold-layer dim_employee + dim_department + dim_faculty (Docker / single-DB warehouse).
-    Prefer ucu_sourcedb2.employee_attendance for trend + attendance_rate + attendance_by_role when populated.
-    If administration attendance is missing or empty, the same API fields are derived from dim_employee
-    (deterministic synthetic daily statuses; faculty/dept scope only, no role filter on the trend).
-    """
     empty_payload = {
         'total_employees': 0,
         'total_departments': 0,
@@ -4307,7 +3979,6 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
 
     role_sql = _hr_warehouse_role_filter_sql(role_group)
 
-    # Ensure column exists for older warehouses (no-op if already there)
     try:
         with engine.connect() as conn:
             conn.execute(
@@ -4322,7 +3993,6 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
 
     pt_sql = _HR_DIM_PT_SQL
 
-    # role_group filter is defined on b.pt; use pt in inner WHERE of filtered CTE
     role_sql_inner = role_sql.replace('b.pt', 'pt')
 
     summary_sql = f"""
@@ -4409,7 +4079,6 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
     by_faculty_df = pd.read_sql_query(text(by_faculty_sql), engine, params=params)
     employees_by_faculty = _hr_json_safe_records(by_faculty_df)
 
-    # Role mix for donut chart: faculty/department scope only (ignores role_group filter)
     role_mix_sql = f"""
         WITH b AS (
             SELECT
@@ -4442,7 +4111,6 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
     except Exception:
         role_mix = []
 
-    # Daily attendance trend + KPIs from ucu_sourcedb2.employee_attendance (faculty/dept only — same scope as trend)
     employee_attendance_trend = []
     attendance_by_role = []
     attendance_rate = 0.0
@@ -4499,7 +4167,6 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
         except Exception:
             employee_attendance_trend = []
 
-        # Attendance rate + by-role breakdown: same joins and faculty/dept filters as the trend (no role_group).
         try:
             att_rate_sql = f"""
         SELECT
@@ -4549,7 +4216,6 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
         except Exception:
             pass
 
-    # No administration rows: derive trend + KPIs from dim_employee (same faculty/dept scope as spec)
     if not employee_attendance_trend:
         syn_trend, syn_rate, syn_by_role = _hr_synthetic_attendance_from_dims(
             engine, params, filter_faculty_sql, filter_dept_sql, pt_sql
@@ -4704,18 +4370,13 @@ def _hr_analytics_from_dim_warehouse(engine, filters: dict) -> dict:
         '_data_source': 'warehouse_dim_employee',
     }
 
-
 @analytics_bp.route('/hr', methods=['GET'])
 @jwt_required()
 def get_hr_analytics():
-    """HR analytics: employees by title and department/faculty, attendance, payroll, and retained students.
-    - Uses cross-database queries against UCU_SourceDB2 (employees, attendance, payroll) and
-      UCU_SourceDB1 / data warehouse dimensions for faculties/departments and retained students."""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
 
-        # HR analytics permission required
         if not has_permission(user_scope['role'], Resource.HR_ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
 
@@ -4730,11 +4391,8 @@ def get_hr_analytics():
         except Exception:
             ck = None
 
-        # Populate ucu_sourcedb2.employee_attendance when dims exist (fixes empty chart / 0% KPI).
         _bootstrap_hr_attendance_mirror(engine)
 
-        # Use warehouse dimensions unless the administration mirror actually has employee rows.
-        # Empty-but-present ucu_sourcedb2.employees would otherwise force the legacy path and zero out the dashboard.
         if not _hr_legacy_employees_has_rows(engine):
             try:
                 payload = _hr_analytics_from_dim_warehouse(engine, filters)
@@ -4752,7 +4410,6 @@ def get_hr_analytics():
                 pass
             return resp, 200
 
-        # Optional filters by faculty / department (from SourceDB1 faculties/departments)
         where_clauses_base = []
         faculty_id = filters.get('faculty_id')
         department_id = filters.get('department_id')
@@ -4762,7 +4419,6 @@ def get_hr_analytics():
             where_clauses_base.append(f'd."DepartmentID" = {int(department_id)}')
         where_sql_base = "WHERE " + " AND ".join(where_clauses_base) if where_clauses_base else ""
 
-        # Optional filter by employee role group (Senate, Dean, HOD, Lecturer, Assistant Lecturer, Finance, HR, Other)
         role_group = (filters.get('role_group') or '').strip().lower()
         role_group_clause = ''
         if role_group == 'senate':
@@ -4813,7 +4469,6 @@ def get_hr_analytics():
         except Exception:
             pass
 
-        # 1) Employee counts by role category (lecturer, assistant lecturer, other)
         summary_sql = f"""
         SELECT
             COUNT(*) AS total_employees,
@@ -4842,7 +4497,6 @@ def get_hr_analytics():
             assistant_lecturers = int(row['assistant_lecturers'] or 0)
             other_staff = int(row['other_staff'] or 0)
 
-        # 2) Employees by department and faculty, with role categories
         by_dept_sql = f"""
         SELECT
             f."FacultyName" AS faculty_name,
@@ -4862,7 +4516,6 @@ def get_hr_analytics():
         by_dept_df = pd.read_sql_query(text(by_dept_sql), engine)
         employees_by_department = by_dept_df.to_dict('records') if not by_dept_df.empty else []
 
-        # 2b) Employees by faculty only (for "All Faculties" overview)
         by_faculty_sql = f"""
         SELECT
             f."FacultyName" AS faculty_name,
@@ -4881,7 +4534,6 @@ def get_hr_analytics():
         by_faculty_df = pd.read_sql_query(text(by_faculty_sql), engine)
         employees_by_faculty = by_faculty_df.to_dict('records') if not by_faculty_df.empty else []
 
-        # 2b-2) Role mix (donut chart): same faculty/dept scope as filters, ignores role_group dropdown
         role_mix_sql = f"""
         SELECT
             CASE
@@ -4906,7 +4558,6 @@ def get_hr_analytics():
         role_mix_df = pd.read_sql_query(text(role_mix_sql), engine)
         role_mix = _hr_build_role_mix_records(role_mix_df)
 
-        # 2c) Detailed employees list with titles and faculty/department for HR directory-style views
         employees_sql = f"""
         SELECT
             e."EmployeeID" AS employee_id,
@@ -4941,7 +4592,6 @@ def get_hr_analytics():
             employees_df = pd.read_sql_query(text(employees_sql_fb), engine)
 
         def _classify_role_group(title: str) -> str:
-            """Map position title to HR-friendly role group."""
             t = (title or "").strip().lower()
             if "senate" in t:
                 return "senate"
@@ -4976,7 +4626,6 @@ def get_hr_analytics():
                 row.update(ret)
                 employees_list.append(row)
 
-        # 2d) Lecturer employment type breakdown (Full-time vs Part-time vs Other)
         lecturer_employment_sql = f"""
         SELECT
             CASE
@@ -5003,7 +4652,6 @@ def get_hr_analytics():
                     "total": int(r.get("total") or 0),
                 })
 
-        # 3) Attendance analytics by role category
         attendance_sql = f"""
         SELECT
             CASE
@@ -5032,7 +4680,6 @@ def get_hr_analytics():
         attendance_df = pd.read_sql_query(text(attendance_sql), engine)
         attendance_by_role = attendance_df.to_dict('records') if not attendance_df.empty else []
 
-        # Overall attendance rate: present_days / (present+absent) across all roles
         if not attendance_df.empty:
             total_present = int(attendance_df['present_days'].sum() or 0)
             total_absent = int(attendance_df['absent_days'].sum() or 0)
@@ -5041,7 +4688,6 @@ def get_hr_analytics():
         else:
             attendance_rate = 0.0
 
-        # 4) Payroll analytics by role category
         payroll_sql = f"""
         SELECT
             CASE
@@ -5071,7 +4717,6 @@ def get_hr_analytics():
             payroll_by_role = payroll_df.to_dict('records') if not payroll_df.empty else []
             total_payroll = float(payroll_df['total_net_pay'].sum() or 0.0) if not payroll_df.empty else 0.0
         except Exception:
-            # Warehouse mirror often has no payroll table; older PG may use lowercase column names.
             payroll_by_role = []
             total_payroll = 0.0
 
@@ -5081,7 +4726,6 @@ def get_hr_analytics():
                 payroll_by_role = syn_pr
                 total_payroll = syn_tp
 
-        # 5) Employee attendance trend over time — faculty/dept scope only (ignores role_group filter)
         attendance_trend_sql = f"""
         SELECT
             ea."Date" AS attendance_date,
@@ -5113,7 +4757,6 @@ def get_hr_analytics():
             if not attendance_by_role and sbr:
                 attendance_by_role = sbr
 
-        # 6) Students retained as employees (match by full name vs student first+last name)
         retained_sql = f"""
         SELECT
             f.faculty_name,
@@ -5163,25 +4806,21 @@ def get_hr_analytics():
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
-
 @analytics_bp.route('/academic-risk-summary', methods=['GET'])
 @jwt_required()
 def get_academic_risk():
-    """Returns summarized FCW, MEX, FEX (summary + top_courses_fcw). Use /academic-risk for full dashboard."""
     engine = None
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         role = user_scope['role']
         
-        # Scope enforcement (Students -> 403, HR/Finance -> 403)
         if role in [Role.STUDENT, Role.FINANCE, Role.HR]:
             return jsonify({'error': 'Permission denied'}), 403
             
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
-        # Build filter query based on role scope and query params
         where_clauses = []
         params = {}
         
@@ -5192,7 +4831,6 @@ def get_academic_risk():
             where_clauses.append("df.faculty_id = :fac_id")
             params['fac_id'] = user_scope['faculty_id']
 
-        # Apply global filters (faculty/department/program/high_school/intake_year/semester/course)
         fac_id = filters.get('faculty_id')
         dept_id = filters.get('department_id')
         prog_id = filters.get('program_id')
@@ -5227,7 +4865,6 @@ def get_academic_risk():
         if where_clauses:
             where_str = "WHERE " + " AND ".join(where_clauses)
             
-        # Summary query: prefer view if present, otherwise fallback to fact_grade aggregation.
         sql_summary = f"""
         SELECT 
             COALESCE(SUM(fcw_count), 0) as fcw_count,
@@ -5243,12 +4880,10 @@ def get_academic_risk():
         {where_str}
         """
         try:
-            # Force fallback for semester and/or course_code because the view may not expose them.
             if course_code_active or sem_id_active:
                 raise RuntimeError("Forcing fallback for semester/course_code filtering")
             summary_df = pd.read_sql_query(text(sql_summary), engine, params=params)
         except Exception:
-            # Fallback: derive FCW/MEX/FEX directly from fact_grade.
             sem_clause = ""
             if sem_id_active:
                 try:
@@ -5284,7 +4919,6 @@ def get_academic_risk():
             if pd.isna(summary[k]): summary[k] = 0
             else: summary[k] = float(summary[k])
             
-        # Add a placeholder for now for top courses but these can be expanded later
         top_courses_fcw = []
         engine.dispose()
         return jsonify({
@@ -5303,31 +4937,21 @@ def get_academic_risk():
                 pass
         return jsonify({'error': str(e)}), 500
 
-
 @analytics_bp.route('/recruitment', methods=['GET'])
 @jwt_required()
 def get_recruitment_analytics():
-    """
-    Recruitment / feeder-school analytics.
-    - Top feeder schools (student counts by high school)
-    - Recruitment by district
-    - Academic performance & risk profile by school (GPA + FCW/MEX/FEX rates)
-    Exposed to Senate, Dean, HOD, Analyst, Sysadmin; not to general students/staff/finance/HR.
-    """
     engine = None
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         role = user_scope['role']
 
-        # Restrict to strategic/analytics roles
         if role in [Role.STUDENT, Role.STAFF, Role.FINANCE, Role.HR]:
             return jsonify({'error': 'Permission denied'}), 403
 
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
 
-        # Shared FROM/JOIN block so build_filter_query can apply scope and filters
         base_from = """
         FROM dim_student ds
         LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
@@ -5335,7 +4959,6 @@ def get_recruitment_analytics():
         LEFT JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
 
-        # 1) Top feeder schools
         base_feeder = f"""
         SELECT
             ds.high_school AS school,
@@ -5352,7 +4975,6 @@ def get_recruitment_analytics():
         feeder_df = pd.read_sql_query(text(feeder_query), engine, params=params)
         top_schools = feeder_df.to_dict('records') if not feeder_df.empty else []
 
-        # 2) Recruitment by district
         base_district = f"""
         SELECT
             COALESCE(ds.high_school_district, 'Unknown') AS district,
@@ -5364,7 +4986,6 @@ def get_recruitment_analytics():
         district_df = pd.read_sql_query(text(district_query), engine, params=params_dist)
         by_district = district_df.to_dict('records') if not district_df.empty else []
 
-        # 3) Academic performance & risk profile by school (scoped, similar to v_highschool_risk)
         base_perf = f"""
         SELECT
             ds.high_school AS school,
@@ -5388,7 +5009,6 @@ def get_recruitment_analytics():
         perf_df = pd.read_sql_query(text(perf_query), engine, params=params_perf)
         performance_by_school = perf_df.to_dict('records') if not perf_df.empty else []
 
-        # High-level recruitment KPIs
         total_students = int(feeder_df['student_count'].sum()) if not feeder_df.empty else 0
         schools_represented = int(feeder_df['school'].nunique()) if not feeder_df.empty else 0
         district_coverage = int(district_df['district'].nunique()) if not district_df.empty else 0
@@ -5418,11 +5038,9 @@ def get_recruitment_analytics():
                 pass
         return jsonify({'error': str(e)}), 500
 
-
 @analytics_bp.route('/high-school-risk-correlation', methods=['GET'])
 @jwt_required()
 def get_high_school_risk_correlation():
-    """Returns correlation between high school background & academic risk statuses. Respects global filters and role scope."""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -5434,7 +5052,6 @@ def get_high_school_risk_correlation():
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
 
-        # Default window: focus on the current semester when filters are "all" / empty.
         current_semester = None
         sem_e = (filters.get('semester_id') or '').strip().lower()
         ay_e = (filters.get('academic_year') or '').strip().lower()
@@ -5469,7 +5086,6 @@ def get_high_school_risk_correlation():
         has_filters = any(filters.get(k) for k in filter_keys)
 
         if has_scope or has_filters:
-            # Filtered path: same metrics from fact_grade + dims with role/filters applied
             base_school = """
             SELECT ds.high_school as school,
                    COALESCE(ds.high_school_district, 'Unknown') as district,
@@ -5486,7 +5102,6 @@ def get_high_school_risk_correlation():
             """
             q, params = build_filter_query(filters, base_school, user_scope)
 
-            # Apply current-semester window when applicable so high-school risk defaults to current semester.
             if current_semester:
                 ay, sem = current_semester
                 params['hs_ay'] = ay
@@ -5507,9 +5122,6 @@ def get_high_school_risk_correlation():
             else:
                 by_district = []
         else:
-            # Fast path: use the prebuilt warehouse view (if it exists).
-            # If the view isn't created in this environment, fall back to
-            # computing the same metrics from fact_grade + dim_student.
             try:
                 sql = """
                 SELECT high_school as school,
@@ -5535,7 +5147,6 @@ def get_high_school_risk_correlation():
                 dist_df = pd.read_sql_query(text(sql_district), engine)
                 by_district = dist_df.to_dict('records') if not dist_df.empty else []
             except Exception:
-                # Robust fallback (no dependency on v_highschool_risk view).
                 q, params = build_filter_query(filters, base_school, user_scope)
 
                 def _has_where(sql_text: str) -> bool:

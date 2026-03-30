@@ -1,6 +1,3 @@
-"""
-PDF Report Generator for Dashboard Data
-"""
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
@@ -17,7 +14,6 @@ class PDFReportGenerator:
         self.token = token
     
     def generate_report(self, output_path=None):
-        """Generate comprehensive PDF report"""
         if output_path is None:
             from pathlib import Path
             output_path = Path('reports') / f'nextgen_analytics_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
@@ -27,7 +23,6 @@ class PDFReportGenerator:
         story = []
         styles = getSampleStyleSheet()
         
-        # Title
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
@@ -41,14 +36,11 @@ class PDFReportGenerator:
         story.append(Paragraph("Analytics Dashboard Report", styles['Heading2']))
         story.append(Spacer(1, 0.2*inch))
         
-        # Get data from API
         try:
             headers = {'Authorization': f'Bearer {self.token}'} if self.token else {}
-            # Use a different endpoint to get JSON data
             response = requests.get(f'{self.api_base_url}/api/dashboard/stats', headers=headers)
             stats_data = response.json()
             
-            # Get additional data
             dept_response = requests.get(f'{self.api_base_url}/api/dashboard/students-by-department', headers=headers)
             dept_data = dept_response.json()
             
@@ -70,7 +62,6 @@ class PDFReportGenerator:
             }
         except Exception as e:
             print(f"Error fetching data: {e}")
-            # Fallback data if API unavailable
             data = {
                 'stats': {
                     'total_students': 0,
@@ -83,7 +74,6 @@ class PDFReportGenerator:
                 'grades': []
             }
         
-        # Executive Summary
         story.append(Paragraph("Executive Summary", styles['Heading2']))
         story.append(Spacer(1, 0.1*inch))
         
@@ -110,7 +100,6 @@ class PDFReportGenerator:
         story.append(summary_table)
         story.append(Spacer(1, 0.3*inch))
         
-        # Department Distribution
         if data.get('departments'):
             story.append(Paragraph("Student Distribution by Department", styles['Heading2']))
             story.append(Spacer(1, 0.1*inch))
@@ -133,7 +122,6 @@ class PDFReportGenerator:
             story.append(dept_table)
             story.append(Spacer(1, 0.3*inch))
         
-        # Grade Distribution
         if data.get('grades'):
             story.append(Paragraph("Grade Distribution", styles['Heading2']))
             story.append(Spacer(1, 0.1*inch))
@@ -156,18 +144,15 @@ class PDFReportGenerator:
             story.append(grade_table)
             story.append(Spacer(1, 0.3*inch))
         
-        # Report Information
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(f"Report Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 
                               styles['Normal']))
         story.append(Paragraph("NextGen-Data-Architects - Uganda Christian University", 
                               styles['Normal']))
         
-        # Build PDF
         doc.build(story)
         return output_path
 
 if __name__ == '__main__':
     generator = PDFReportGenerator()
     generator.generate_report()
-

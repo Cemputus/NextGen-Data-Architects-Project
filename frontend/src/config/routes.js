@@ -1,7 +1,4 @@
-/**
- * Default route per role and route map (Phase 1 central config).
- * Used by App.js redirects and LayoutModern nav.
- */
+
 import { ROLES } from './roles';
 
 const DEFAULT_ROUTE_BY_ROLE = {
@@ -17,7 +14,6 @@ const DEFAULT_ROUTE_BY_ROLE = {
   [ROLES.FINANCE]: '/finance/dashboard',
 };
 
-/** Primary dashboard nav label per role (matches `LayoutModern` sidebar). */
 const ROLE_DASHBOARD_NAV_LABEL = {
   [ROLES.STUDENT]: 'Dashboard',
   [ROLES.STAFF]: 'Dashboard',
@@ -31,19 +27,11 @@ const ROLE_DASHBOARD_NAV_LABEL = {
   [ROLES.FINANCE]: 'Dashboard',
 };
 
-/**
- * @param {string} [role]
- * @returns {string} Default path for the role
- */
 export function getDefaultRoute(role) {
   const key = (role || '').toString().toLowerCase();
   return DEFAULT_ROUTE_BY_ROLE[key] ?? '/dashboard';
 }
 
-/**
- * @param {string} [role]
- * @returns {string} Nav label for that role’s home dashboard (Dashboard | Workspace | Console)
- */
 export function getRoleDashboardNavLabel(role) {
   const key = (role || '').toString().toLowerCase();
   return ROLE_DASHBOARD_NAV_LABEL[key] ?? 'Dashboard';

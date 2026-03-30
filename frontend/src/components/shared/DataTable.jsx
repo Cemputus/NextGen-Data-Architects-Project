@@ -1,9 +1,5 @@
 import React, { useState, useMemo } from 'react';
 
-/**
- * Enterprise DataTable: sticky header, sorting, pagination, optional search and export.
- * Use FilterChips above for visible active filters; use onExport with exportUtils for CSV/Excel.
- */
 export const DataTable = ({
     columns,
     data,

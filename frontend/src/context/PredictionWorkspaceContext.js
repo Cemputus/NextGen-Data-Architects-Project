@@ -1,7 +1,4 @@
-/**
- * In-memory prediction workspace: survives route changes within the SPA, no localStorage.
- * Cleared on logout so deployed multi-user browsers do not leak drafts or results.
- */
+
 import React, {
   createContext,
   useCallback,

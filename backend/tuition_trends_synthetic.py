@@ -1,9 +1,4 @@
-"""
-Synthetic Tuition payment trends payload when the warehouse returns no rows.
-Only used for institution-wide analyst/finance/senate/sysadmin views (no dimensional filters).
-"""
 from rbac import Role
-
 
 def _filter_active(filters):
     if not filters:
@@ -25,12 +20,7 @@ def _filter_active(filters):
             return True
     return False
 
-
 def should_use_synthetic_tuition_trends(filters, role, enabled):
-    """
-    When True, caller may return illustrative series so the dashboard chart is never empty
-    for unscoped roles. Disabled via TUITION_TRENDS_SYNTHETIC_FALLBACK=0.
-    """
     if not enabled:
         return False
     if role not in (Role.ANALYST, Role.FINANCE, Role.SENATE, Role.SYSADMIN):
@@ -39,9 +29,7 @@ def should_use_synthetic_tuition_trends(filters, role, enabled):
         return False
     return True
 
-
 def build_synthetic_tuition_trends(period):
-    """Build plausible avg-completed series labels matching SQL output shapes."""
     p = (period or 'yearly').strip().lower()
     if p == 'monthly':
         periods = [

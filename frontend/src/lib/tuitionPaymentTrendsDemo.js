@@ -1,7 +1,3 @@
-/**
- * Fallback series when /api/dashboard/tuition-payment-trends-dimensions returns no rows
- * (empty warehouse, API error, or scoped roles with no data). Shape matches SciLineChart data.
- */
 
 export function abbreviateTuitionPeriodLabel(period) {
   const s = String(period ?? '').trim();
@@ -13,10 +9,6 @@ export function abbreviateTuitionPeriodLabel(period) {
   return s;
 }
 
-/**
- * @param {'yearly' | 'quarterly' | 'monthly'} period
- * @returns {Array<{ period: string, faculty_amount: number, department_amount: number, program_amount: number }>}
- */
 export function buildDemoTuitionPaymentTrendsDim(period = 'yearly') {
   const p = (period || 'yearly').toString().toLowerCase();
   let rawPeriods;

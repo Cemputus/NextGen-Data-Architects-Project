@@ -1,6 +1,4 @@
-/**
- * Generic Analytics Page - For roles that need analytics (HOD, Dean, Senate, Analyst, HR, Finance)
- */
+
 import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -19,7 +17,6 @@ const AnalyticsPage = ({ type = 'general' }) => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
 
-  // Filters come exclusively from GlobalFilterPanel persistence (statePersistence.loadFilters/saveFilters).
   const [filters, setFilters] = useState({});
 
   useEffect(() => {
@@ -118,7 +115,7 @@ const AnalyticsPage = ({ type = 'general' }) => {
               filters={filters} 
               filename={`${type}_analytics`}
               chartSelectors={[
-                '.recharts-wrapper', // All recharts components
+                '.recharts-wrapper', 
                 '[class*="chart"]',
                 '[data-chart]'
               ]}
@@ -220,9 +217,3 @@ const AnalyticsPage = ({ type = 'general' }) => {
 };
 
 export default AnalyticsPage;
-
-
-
-
-
-

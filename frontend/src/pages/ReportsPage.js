@@ -1,7 +1,4 @@
-/**
- * Reports Page - For Senate and Analyst roles (and analysts)
- * Curated, one-click exports for common analytics views.
- */
+
 import React, { useState } from 'react';
 import { FileText, Download, BarChart3, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -37,7 +34,6 @@ const ReportsPage = () => {
       link.click();
       link.remove();
 
-      // Track in simple in-memory history for this session
       const now = new Date();
       setReports(prev => [
         {
@@ -66,7 +62,7 @@ const ReportsPage = () => {
       <GlobalFilterPanel onFilterChange={setFilters} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Dashboard summary report */}
+        {}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -89,7 +85,7 @@ const ReportsPage = () => {
           </CardContent>
         </Card>
 
-        {/* FEX analytics report */}
+        {}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -116,7 +112,7 @@ const ReportsPage = () => {
         </Card>
       </div>
 
-      {/* Simple in-session report history */}
+      {}
       <div className="mt-6">
         <Card>
           <CardHeader>
@@ -158,9 +154,3 @@ const ReportsPage = () => {
   );
 };
 export default ReportsPage;
-
-
-
-
-
-

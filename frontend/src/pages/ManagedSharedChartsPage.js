@@ -1,9 +1,4 @@
-/**
- * Manage Charts — 7.2
- * Saved Charts: all charts created by you from NextGen Query.
- * Manage Charts | Shared: subset actively shared with roles/users (view feedback, unshare/delete, edit).
- * List, filter, edit metadata, edit in SQL, delete/unshare workflows.
- */
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { useNavigate } from 'react-router-dom';
@@ -71,9 +66,9 @@ export default function ManagedSharedChartsPage() {
   };
 
   useEffect(() => {
-    // Always load shared charts.
+    
     loadShared();
-    // Only analyst and admin roles can see "Saved Charts" (dashboard-only charts).
+    
     const role = (user?.role || '').toString().toLowerCase();
     if (role === 'analyst' || role === 'admin') {
       loadSaved();
@@ -125,7 +120,7 @@ export default function ManagedSharedChartsPage() {
         { description: editDescValue },
         auth()
       );
-      // Update local state so both owner and reshared recipients see the new description.
+      
       setSavedList((prev) => prev.map((v) => (v.id === editDescViz.id ? { ...v, description: editDescValue } : v)));
       setSharedList((prev) => prev.map((v) => (v.id === editDescViz.id ? { ...v, description: editDescValue } : v)));
       setEditDescViz(null);
@@ -301,7 +296,7 @@ export default function ManagedSharedChartsPage() {
                         ))}
                 </div>
               ))}
-              {/* Single reply box for the latest feedback in this conversation */}
+              {}
               <div className="flex gap-2 items-center mt-2 pt-2 border-t border-border/60">
                           <Input
                             placeholder="Reply..."
@@ -318,7 +313,7 @@ export default function ManagedSharedChartsPage() {
                     if (!latest) return;
                     const msg = (newReplyMsg['__thread'] || '').trim();
                     if (!msg) return;
-                    // Reuse submitReply but pass the latest feedback id
+                    
                     setNewReplyMsg((prev) => ({ ...prev, [latest.id]: msg, __thread: '' }));
                     submitReply(viz.id, latest.id);
                   }}
@@ -369,7 +364,7 @@ export default function ManagedSharedChartsPage() {
         </div>
       ) : (
         <>
-          {/* Saved Charts — dashboard-only, not shared with any user/role (Analyst/Admin only) */}
+          {}
           {canSeeSaved && (
             <section className="space-y-3">
               <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
@@ -399,7 +394,7 @@ export default function ManagedSharedChartsPage() {
             </section>
           )}
 
-          {/* Manage Charts | Shared — shared with a role or user only (all roles) */}
+          {}
           <section className="space-y-3">
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
               <Share2 className="h-4 w-4 text-muted-foreground" />

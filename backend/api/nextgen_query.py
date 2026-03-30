@@ -1,8 +1,3 @@
-"""
-NextGen Query API
-Advanced SQL workspace for analysts.
-Assigned visualizations: analysts can assign a visualization to a role or app user.
-"""
 import time
 import re
 import json
@@ -19,12 +14,10 @@ from api.auth import _ensure_ucu_rbac_database, _ensure_app_users_table, RBAC_DB
 
 nextgen_query_bp = Blueprint("nextgen_query", __name__, url_prefix="/api/query")
 
-
 def _get_rbac_engine():
     _ensure_ucu_rbac_database()
     conn_str = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
     return create_engine(conn_str)
-
 
 def _ensure_assigned_viz_table(engine):
     with engine.connect() as conn:
@@ -61,9 +54,7 @@ def _ensure_assigned_viz_table(engine):
             pass
     _ensure_viz_feedback_tables(engine)
 
-
 def _add_assigned_viz_columns_if_missing(conn):
-    """Add reshare and chart-asset columns if table existed without them."""
     for col, defn in [
         ("parent_viz_id", "VARCHAR(64) NULL"),
         ("reshared_by_username", "VARCHAR(100) NULL"),
@@ -78,7 +69,6 @@ def _add_assigned_viz_columns_if_missing(conn):
             conn.commit()
         except Exception:
             conn.rollback()
-
 
 def _ensure_viz_feedback_tables(engine):
     with engine.connect() as conn:
@@ -112,9 +102,7 @@ def _ensure_viz_feedback_tables(engine):
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vfr_feedback ON viz_feedback_replies(feedback_id)"))
         conn.commit()
 
-
 def _build_response_frame(df: pd.DataFrame) -> Dict[str, Any]:
-    """Convert DataFrame to JSON-friendly structure with column metadata."""
     if df is None:
         return {"columns": [], "rows": [], "row_count": 0}
 
@@ -136,22 +124,11 @@ def _build_response_frame(df: pd.DataFrame) -> Dict[str, Any]:
         "row_count": len(rows),
     }
 
-
 @nextgen_query_bp.route("/execute", methods=["POST"])
 @jwt_required()
 def execute_query():
-    """
-    Execute an arbitrary SQL query against the data warehouse for analyst users.
-
-    Security:
-    - Analyst role only (enforced via JWT)
-    - No SQL keyword blocking; analysts are trusted.
-    - For SELECT/WITH statements, a configurable LIMIT is added if none is present
-      to minimize runaway result sets.
-    """
     claims = get_jwt()
     role = (claims.get("role") or "").strip().lower()
-    # Allow both Analyst and Sysadmin to use NextGen Query (read-only).
     if role not in ("analyst", "sysadmin"):
         return jsonify({"error": "Permission denied. Analyst or Sysadmin role required for NextGen Query."}), 403
 
@@ -167,8 +144,6 @@ def execute_query():
         max_rows = 1000
     max_rows = max(1, min(max_rows, 5000))
 
-    # Strip leading SQL comments and blank lines so queries that start with
-    # "-- comment" or multi-line comments are still treated as SELECT/WITH.
     def _strip_leading_comments(sql: str) -> str:
         lines = sql.splitlines()
         cleaned = []
@@ -194,8 +169,6 @@ def execute_query():
     first_token = lower.split(None, 1)[0] if lower else ""
     is_select_like = first_token in ("select", "with")
 
-    # Hard safety: NextGen Query is read-only. Block any non-SELECT/WITH statements so
-    # analysts cannot modify, update, or delete data from this workspace.
     if not is_select_like:
         return jsonify({
             "error": "NextGen Query is read-only. Only SELECT/WITH queries are allowed; "
@@ -203,7 +176,6 @@ def execute_query():
         }), 400
 
     safe_sql = normalized
-    # If user did not specify a LIMIT on a read query, append one to minimize errors
     if is_select_like and not re.search(r"\blimit\b", lower):
         safe_sql = f"{normalized} LIMIT {max_rows}"
 
@@ -212,13 +184,11 @@ def execute_query():
     try:
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         with engine.connect() as conn:
-            # Best-effort server-side timeout for PostgreSQL
             try:
                 conn.execute(text("SET statement_timeout = 8000"))
             except Exception:
                 pass
 
-            # Read-only: only SELECT/WITH reach this point
             df = pd.read_sql_query(text(safe_sql), conn)
             rows_affected = None
     except Exception as e:
@@ -237,29 +207,24 @@ def execute_query():
     frame["elapsed_ms"] = elapsed
     return jsonify(frame), 200
 
-
 def _current_user():
     claims = get_jwt()
     username = (claims.get("username") or claims.get("access_number") or "").strip()
     role = (claims.get("role") or "").strip().lower()
     return username, role
 
-
 def _require_analyst_or_sysadmin(role: str):
     if role not in ("analyst", "sysadmin"):
         return jsonify({"error": "Permission denied. Only Analyst or Sysadmin can assign visualizations."}), 403
     return None
 
-
 ROLES_FOR_ASSIGNMENT = [
     "Student", "Staff", "HOD", "Dean", "Senate", "Finance", "HR", "Analyst", "Sysadmin",
 ]
 
-
 @nextgen_query_bp.route("/assigned-visualizations/target-options", methods=["GET"])
 @jwt_required()
 def get_assignment_target_options():
-    """Return roles and app users for assign/reshare dropdowns. Any authenticated user (for reshare); also used by Analyst/Sysadmin for assign."""
     users = []
     try:
         engine = _get_rbac_engine()
@@ -286,11 +251,9 @@ def get_assignment_target_options():
         "users": users,
     }), 200
 
-
 @nextgen_query_bp.route("/assigned-visualizations", methods=["POST"])
 @jwt_required()
 def create_assigned_visualization():
-    """Create an assigned visualization (target = role or user). Analyst/Sysadmin only."""
     try:
         username, role = _current_user()
         err = _require_analyst_or_sysadmin(role)
@@ -381,11 +344,9 @@ def create_assigned_visualization():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @nextgen_query_bp.route("/assigned-visualizations/reshare", methods=["POST"])
 @jwt_required()
 def reshare_visualization():
-    """Reshare a visualization that was shared with the current user. Requires clear description. Any eligible user."""
     try:
         username, role = _current_user()
         body = request.get_json(silent=True) or {}
@@ -425,7 +386,6 @@ def reshare_visualization():
                 return jsonify({"error": "Visualization not found."}), 404
             parent = dict(row)
 
-        # Check current user can see the parent viz (is a recipient)
         pt = (parent.get("target_type") or "").strip().lower()
         pv = (parent.get("target_value") or "").strip().lower()
         role_ok = pt == "role" and pv == role
@@ -434,10 +394,8 @@ def reshare_visualization():
             engine.dispose()
             return jsonify({"error": "You can only reshare visualizations that were shared with you."}), 403
 
-        # Prevent resharing the same viz twice to the same target (role or user)
         target_val_lower = target_value.strip().lower()
         with engine.connect() as conn:
-            # Already shared: either this viz is the one assigned to that target, or a reshare to that target exists
             existing = conn.execute(
                 text(
                     """
@@ -499,20 +457,15 @@ def reshare_visualization():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @nextgen_query_bp.route("/assigned-visualizations/for-me", methods=["GET"])
 @jwt_required()
 def get_assigned_visualizations_for_me():
-    """Return visualizations assigned to the current user's role or to the current user (username)."""
     username, role = _current_user()
     engine = None
     try:
         engine = _get_rbac_engine()
         _ensure_assigned_viz_table(engine)
     except Exception as e:
-        # This endpoint powers sidebar notifications for *all* roles.
-        # If RBAC storage is temporarily unavailable (cold start, permissions, DB down),
-        # do not fail the entire UI with a 500: return an empty list and let the app proceed.
         try:
             import traceback
             print("assigned-visualizations/for-me init failed:", str(e))
@@ -544,7 +497,6 @@ def get_assigned_visualizations_for_me():
             rows = result.mappings().fetchall()
         engine.dispose()
     except Exception as e:
-        # Same fail-soft behavior as above; keep UI stable.
         try:
             import traceback
             print("assigned-visualizations/for-me query failed:", str(e))
@@ -591,11 +543,9 @@ def get_assigned_visualizations_for_me():
         out.append(item)
     return jsonify({"visualizations": out}), 200
 
-
 @nextgen_query_bp.route("/assigned-visualizations/saved", methods=["GET"])
 @jwt_required()
 def list_saved_visualizations():
-    """List visualizations saved for dashboards only (not shared with any role/user). Created by current user, target_type='dashboard'."""
     username, role = _current_user()
     err = _require_analyst_or_sysadmin(role)
     if err is not None:
@@ -649,11 +599,9 @@ def list_saved_visualizations():
         })
     return jsonify({"visualizations": out}), 200
 
-
 @nextgen_query_bp.route("/assigned-visualizations", methods=["GET"])
 @jwt_required()
 def list_assigned_visualizations():
-    """List assigned visualizations (analyst/sysadmin). Optional ?created_by=me to filter by current user."""
     username, role = _current_user()
     err = _require_analyst_or_sysadmin(role)
     if err is not None:
@@ -725,11 +673,9 @@ def list_assigned_visualizations():
         out.append(item)
     return jsonify({"visualizations": out}), 200
 
-
 @nextgen_query_bp.route("/assigned-visualizations/<viz_id>", methods=["DELETE"])
 @jwt_required()
 def delete_assigned_visualization(viz_id):
-    """Delete an assigned visualization. Allowed: Analyst/Sysadmin, creator (created_by), or reshared_by."""
     username, role = _current_user()
     if not viz_id or len(viz_id) > 64:
         return jsonify({"error": "Invalid visualization id."}), 400
@@ -770,11 +716,9 @@ def delete_assigned_visualization(viz_id):
         return jsonify({"error": "Visualization not found."}), 404
     return jsonify({"message": "Visualization removed."}), 200
 
-
 @nextgen_query_bp.route("/assigned-visualizations/<viz_id>", methods=["PUT"])
 @jwt_required()
 def update_assigned_visualization_content(viz_id):
-    """Replace visualization content (query, chart config, result snapshot). Creator or reshared_by only."""
     username, role = _current_user()
     if not viz_id or len(viz_id) > 64:
         return jsonify({"error": "Invalid visualization id."}), 400
@@ -845,11 +789,9 @@ def update_assigned_visualization_content(viz_id):
             engine.dispose()
         return jsonify({"error": str(e)}), 500
 
-
 @nextgen_query_bp.route("/assigned-visualizations/<viz_id>", methods=["PATCH"])
 @jwt_required()
 def update_assigned_visualization_metadata(viz_id):
-    """Update chart asset metadata (title, description, tags). Allowed: creator or reshared_by."""
     username, role = _current_user()
     if not viz_id or len(viz_id) > 64:
         return jsonify({"error": "Invalid visualization id."}), 400
@@ -905,9 +847,7 @@ def update_assigned_visualization_metadata(viz_id):
             engine.dispose()
         return jsonify({"error": str(e)}), 500
 
-
 def _can_reply_to_feedback(conn, viz_id: str, username: str) -> bool:
-    """True if user is creator or reshared_by for this viz (can reply to feedback)."""
     row = conn.execute(
         text("SELECT created_by_username, reshared_by_username FROM assigned_query_visualizations WHERE id = :id"),
         {"id": viz_id},
@@ -918,11 +858,9 @@ def _can_reply_to_feedback(conn, viz_id: str, username: str) -> bool:
     reshared = (row.get("reshared_by_username") or "").strip()
     return creator == username or reshared == username
 
-
 @nextgen_query_bp.route("/assigned-visualizations/<viz_id>/feedback", methods=["POST"])
 @jwt_required()
 def post_viz_feedback(viz_id):
-    """Add feedback on a visualization. Caller must be a recipient (see for-me)."""
     username, role = _current_user()
     if not viz_id or len(viz_id) > 64:
         return jsonify({"error": "Invalid viz id."}), 400
@@ -962,11 +900,9 @@ def post_viz_feedback(viz_id):
             engine.dispose()
         return jsonify({"error": str(e)}), 500
 
-
 @nextgen_query_bp.route("/assigned-visualizations/<viz_id>/feedback", methods=["GET"])
 @jwt_required()
 def get_viz_feedback(viz_id):
-    """List feedback and replies for a visualization. Caller must be able to see the viz (for-me) or be creator/resharer."""
     username, role = _current_user()
     if not viz_id or len(viz_id) > 64:
         return jsonify({"error": "Invalid viz id."}), 400
@@ -1010,11 +946,9 @@ def get_viz_feedback(viz_id):
             engine.dispose()
         return jsonify({"error": str(e)}), 500
 
-
 @nextgen_query_bp.route("/assigned-visualizations/feedback/<feedback_id>/reply", methods=["POST"])
 @jwt_required()
 def reply_to_feedback(feedback_id):
-    """Reply to a feedback. Only creator or reshared_by of the viz can reply."""
     username, role = _current_user()
     if not feedback_id or len(feedback_id) > 64:
         return jsonify({"error": "Invalid feedback id."}), 400
@@ -1052,11 +986,9 @@ def reply_to_feedback(feedback_id):
             engine.dispose()
         return jsonify({"error": str(e)}), 500
 
-
 @nextgen_query_bp.route("/assigned-visualizations/my-shared", methods=["GET"])
 @jwt_required()
 def get_my_shared_visualizations():
-    """List visualizations created OR reshared by the current user. So the resharer sees charts they reshared and can view/reply to feedback."""
     username, role = _current_user()
     engine = _get_rbac_engine()
     _ensure_assigned_viz_table(engine)
@@ -1129,4 +1061,3 @@ def get_my_shared_visualizations():
         if engine:
             engine.dispose()
         return jsonify({"error": str(e)}), 500
-

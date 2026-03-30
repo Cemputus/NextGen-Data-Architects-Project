@@ -1,6 +1,4 @@
-/**
- * Student Attendance Page - Independent page for viewing attendance
- */
+
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -78,7 +76,6 @@ const StudentAttendance = () => {
     );
   }
 
-  /** % of attendance fact rows marked present (days_present 0/1); from student analytics or scoped dashboard. */
   const rateRaw = stats?.attendance_rate ?? stats?.attendance_rate_pct;
   const attendanceRatePct =
     rateRaw !== undefined && rateRaw !== null && String(rateRaw).trim() !== ''
@@ -185,9 +182,3 @@ const StudentAttendance = () => {
 };
 
 export default StudentAttendance;
-
-
-
-
-
-

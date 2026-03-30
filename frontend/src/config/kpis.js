@@ -1,7 +1,4 @@
-/**
- * KPI IDs, chart IDs, and page config (Phase 1 central config).
- * Single source for dashboard builder and RoleDashboardRenderer; align with backend config/constants.py.
- */
+
 export const KPI_OPTIONS = [
   'total_students',
   'avg_grade',
@@ -22,7 +19,6 @@ export const CHART_OPTIONS = [
   'attendance_trends',
 ];
 
-/** Role home dashboards — edited under Dashboard Manager → “Current dashboard”, not “Pages with visuals”. */
 export const ROLE_DASHBOARD_PAGE_KEYS = [
   'dean_dashboard',
   'hod_dashboard',
@@ -33,10 +29,8 @@ export const ROLE_DASHBOARD_PAGE_KEYS = [
   'hr_dashboard',
 ];
 
-/** Analytics / workspace pages — “Pages with visuals” section only. */
 export const PAGES_WITH_VISUALS_KEYS = ['fex_analytics', 'risk_analytics', 'analyst_dashboard'];
 
-/** Full union (page-config API, copy operations, fallbacks). */
 export const PAGE_CONFIG_KEYS = [...PAGES_WITH_VISUALS_KEYS, ...ROLE_DASHBOARD_PAGE_KEYS];
 
 export const PAGE_CONFIG_LABELS = {
@@ -52,7 +46,6 @@ export const PAGE_CONFIG_LABELS = {
   hr_dashboard: 'HR Dashboard',
 };
 
-/** KPI definitions for RoleDashboardRenderer (key, label, subtitle, valuePath, isPercent). */
 export const KPI_DEFINITIONS = [
   { key: 'total_students', label: 'Total Students', subtitle: 'Scoped by applied filters', valuePath: 'total_students' },
   { key: 'avg_grade', label: 'Average Grade', subtitle: 'Completed exams only', valuePath: 'avg_grade' },

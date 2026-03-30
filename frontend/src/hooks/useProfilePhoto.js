@@ -1,7 +1,4 @@
-/**
- * Returns an object URL for the current user's profile photo if available.
- * Used by Layout and ProfilePage to display avatar.
- */
+
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 

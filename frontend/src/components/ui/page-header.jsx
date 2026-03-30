@@ -1,7 +1,4 @@
-/**
- * PageHeader — Consistent page title, description, and actions across all roles.
- * Design system: page title text-xl sm:text-2xl font-semibold; description text-sm text-muted-foreground.
- */
+
 import * as React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Home } from 'lucide-react';

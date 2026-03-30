@@ -1,6 +1,3 @@
-"""
-Admin API - system status, ETL tracking, audit logs, run ETL, setup audit DB (sysadmin only).
-"""
 from pathlib import Path
 import os
 import re
@@ -21,22 +18,10 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-
-# Append-only ledger in the ETL log dir (written by etl_pipeline); supplements DB + per-run .log files.
 ETL_RUN_LEDGER_FILENAME = 'etl_runs_ledger.jsonl'
-# When merging DB with on-disk logs, fetch enough DB rows to dedupe against files (caps at 10k).
 ETL_HISTORY_MERGE_DB_CAP = 10000
 
-
 def _get_etl_log_dir():
-    """
-    Single source of truth for ETL log directory so logs are always stored and retrievable.
-    Uses ETL_LOG_DIR env var if set (e.g. persistent volume); otherwise backend_dir/logs.
-    Same logic is used in etl_pipeline.py so both write and read from the same place.
-
-    Each run writes etl_pipeline_YYYYMMDD_HHMMSS.log; completed runs also append a line to
-    etl_runs_ledger.jsonl (append-only) for backup. Point ETL_LOG_DIR at durable storage on deploy.
-    """
     raw = os.environ.get('ETL_LOG_DIR')
     if raw and raw.strip():
         log_dir = Path(raw.strip()).resolve()
@@ -45,13 +30,7 @@ def _get_etl_log_dir():
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
 
-
 def _count_synthetic_files():
-    """
-    Count primary CSV/Excel files in the Synthetic_Data folder for display
-    on the admin ETL page. This only inspects the top-level folder so that
-    "other data" subfolders do not affect the primary count.
-    """
     synthetic_root = backend_dir / 'data' / 'Synthetic_Data'
     if not synthetic_root.exists():
         return 0
@@ -63,7 +42,6 @@ def _count_synthetic_files():
             if p.is_file() and p.suffix.lower() in exts
         )
     except Exception:
-        # If anything goes wrong, fall back to 0 rather than breaking /system-status
         return 0
 
 from config import (
@@ -75,7 +53,6 @@ from config import (
 )
 from config.connection import RBAC_DB_NAME
 def _get_rbac_conn_string():
-    """RBAC DB connection string."""
     from config.connection import get_sqlalchemy_conn_string, RBAC_DB_NAME
     return get_sqlalchemy_conn_string(RBAC_DB_NAME)
 
@@ -87,7 +64,6 @@ except ImportError:
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
 SETTINGS_FILE = Path(backend_dir) / 'data' / 'admin_settings.json'
-
 
 _ABOUT_DEFAULTS = {
     'systemDescription': (
@@ -123,9 +99,7 @@ _ADMIN_SETTINGS_DEFAULTS = {
     'about': _ABOUT_DEFAULTS,
 }
 
-
 def _load_settings():
-    """Load admin settings from JSON file; merge with defaults so notification keys always exist."""
     base = dict(_ADMIN_SETTINGS_DEFAULTS)
     if not SETTINGS_FILE.exists():
         return base
@@ -134,7 +108,6 @@ def _load_settings():
             loaded = json.load(f)
         if isinstance(loaded, dict):
             base.update(loaded)
-            # Deep-merge about so missing keys get defaults
             if isinstance(base.get('about'), dict):
                 about = dict(_ABOUT_DEFAULTS)
                 about.update(base['about'])
@@ -151,34 +124,26 @@ def _load_settings():
     except Exception:
         return base
 
-
 def _save_settings(settings):
-    """Persist admin settings to JSON file."""
     SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
         json.dump(settings, f, indent=2)
 
-
 @admin_bp.route('/ping', methods=['GET'])
 def ping():
-    """No auth - confirm admin API is reachable (returns 200)."""
     return jsonify({'ok': True, 'message': 'Admin API active'}), 200
-
 
 @admin_bp.route('/settings', methods=['GET'])
 @jwt_required()
 def get_settings():
-    """Return persisted admin settings (sysadmin only)."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
     return jsonify({'settings': _load_settings()})
 
-
 @admin_bp.route('/settings', methods=['PUT'])
 @jwt_required()
 def put_settings():
-    """Update and persist admin settings (sysadmin only)."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -188,7 +153,6 @@ def put_settings():
         return jsonify({'error': 'settings must be an object'}), 400
     prev = _load_settings()
     merged = {**prev, **incoming}
-    # Anchor next automatic ETL after one full interval (no immediate run when enabling auto).
     if merged.get('etl_auto_enabled'):
         if not prev.get('etl_auto_enabled') or merged.get('last_etl_auto_run') is None:
             merged['last_etl_auto_run'] = time.time()
@@ -200,17 +164,13 @@ def put_settings():
         pass
     return jsonify({'settings': _load_settings()})
 
-
 def _require_sysadmin():
-    """Ensure current user has sysadmin or admin role. Returns (None, None) if ok, else (error_response, status_code)."""
     claims = get_jwt()
     role = (claims.get('role') or '').strip().lower()
     if role not in ('sysadmin', 'admin'):
         return jsonify({'error': 'Admin access required'}), 403
     return None, None
 
-
-# Table type and short description for warehouse UI (4-column table)
 _WAREHOUSE_TABLE_INFO = {
     'dim_student': ('Dimension', 'Students (RegNo, name, program, year, status)'),
     'dim_course': ('Dimension', 'Courses (code, name, credits)'),
@@ -235,9 +195,7 @@ _WAREHOUSE_TABLE_INFO = {
     'fact_grades_summary': ('Fact', 'Pre-aggregated grade summaries'),
 }
 
-
 def _get_warehouse_counts(engine):
-    """Return dict of table names to row counts for data warehouse."""
     counts = {}
     tables = [
         'dim_student', 'dim_course', 'dim_semester', 'dim_faculty', 'dim_department',
@@ -255,9 +213,7 @@ def _get_warehouse_counts(engine):
             counts[table] = None
     return counts
 
-
 def _get_warehouse_tables(engine, counts=None):
-    """Return list of { table, count, type, description } for 4-column warehouse UI."""
     if counts is None:
         counts = _get_warehouse_counts(engine)
     tables = list(counts.keys())
@@ -271,9 +227,7 @@ def _get_warehouse_tables(engine, counts=None):
         for t in tables
     ]
 
-
 def _get_demo_counts():
-    """Demo app user counts for KPI fallback when ucu_rbac is empty or unreachable."""
     demo = [
         {'role': 'sysadmin'}, {'role': 'analyst'}, {'role': 'senate'}, {'role': 'staff'},
         {'role': 'dean'}, {'role': 'hod'}, {'role': 'hr'}, {'role': 'finance'},
@@ -283,10 +237,7 @@ def _get_demo_counts():
         'staff': sum(1 for d in demo if (d.get('role') or '').lower() == 'staff'),
     }
 
-
 def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
-    """Live KPIs: employees = ETL (dim_employee) + all app users; staff = dim_employee (staff/lecturers) + app users with role Staff only.
-    etl_jobs = total count of ETL log files (keeps counting as new runs are added)."""
     log_dir = Path(log_dir)
     etl_jobs_total = len(list(log_dir.glob('etl_pipeline_*.log'))) if log_dir.exists() else 0
     kpis = {
@@ -297,28 +248,23 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
         'employees': 0,
         'staff': 0,
     }
-    # Students in warehouse (updates when new data is loaded)
     try:
         r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM dim_student"), warehouse_engine)
         total_students = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
     except Exception:
         total_students = 0
         kpis['system_health'] = 50
-    # ETL: employees from warehouse (dim_employee) – re-run ETL to populate
     etl_employee_count = 0
-    etl_staff_lecturer_count = 0  # dim_employee rows (all are staff/lecturers per ETL)
+    etl_staff_lecturer_count = 0
     try:
-        # Use Postgres-friendly syntax (no MySQL-style backticks)
         r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM dim_employee"), warehouse_engine)
         etl_employee_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
-        etl_staff_lecturer_count = etl_employee_count  # dim_employee = staff/lecturers only
+        etl_staff_lecturer_count = etl_employee_count
     except Exception:
         pass
-    # App users (all are non-students: staff, dean, hod, hr, finance, analyst, sysadmin)
     try:
         rbac_engine = create_engine(_get_rbac_conn_string())
         _ensure_app_users_table(rbac_engine)
-        # App users count: prefer warehouse (dim_app_user) when ETL has loaded it, so Total Users reflects ETL data
         dim_app_users = 0
         try:
             r = pd.read_sql_query(text("SELECT COUNT(*) as c FROM dim_app_user"), warehouse_engine)
@@ -330,8 +276,6 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             rbac_app_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
         except Exception:
             rbac_app_count = 0
-            # RBAC is helpful but not strictly required for "system health".
-            # Keep health high if warehouse is reachable.
             if kpis['system_health'] == 100:
                 kpis['system_health'] = 85
         app_users_count = dim_app_users if dim_app_users > 0 else rbac_app_count
@@ -344,10 +288,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             app_staff_role_count = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
         except Exception:
             pass
-        # Employees = ETL (dim_employee) + all app users (none are students)
         kpis['employees'] = etl_employee_count + app_users_count
-        # Staff KPI: show ONLY app users with role 'staff' (RBAC staff accounts),
-        # not all employees in dim_employee.
         kpis['staff'] = app_staff_role_count
         try:
             _ensure_audit_db()
@@ -369,8 +310,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
         if kpis['system_health'] == 100:
             kpis['system_health'] = 85
         kpis['employees'] = etl_employee_count
-        kpis['staff'] = etl_staff_lecturer_count  # at least ETL staff/lecturers
-    # If both still 0, try direct psycopg2 to ucu_rbac (in case SQLAlchemy engine had issues)
+        kpis['staff'] = etl_staff_lecturer_count
     if kpis['employees'] == 0 and kpis['staff'] == 0:
         try:
             import psycopg2
@@ -392,19 +332,15 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             app_users_count = app_total
         except Exception:
             pass
-    # If still 0 (e.g. ucu_rbac not set up or empty), include demo app users so KPIs show something
     if kpis['employees'] == 0 and kpis['staff'] == 0:
         _demo = _get_demo_counts()
         kpis['employees'] = etl_employee_count + _demo['total']
         kpis['staff'] = etl_staff_lecturer_count + _demo['staff']
         app_users_count = _demo['total']
-    # Total users = students (warehouse) + app users (all roles)
     kpis['registered_users'] = total_students + app_users_count
     return kpis
 
-
 def _parse_etl_log_file_for_history(log_path: Path):
-    """Parse a single etl_pipeline_*.log; return dict aligned with admin UI + _sort datetime."""
     start_time = None
     duration_str = None
     success = False
@@ -465,9 +401,7 @@ def _parse_etl_log_file_for_history(log_path: Path):
         '_sort': sort_key,
     }
 
-
 def _read_etl_run_ledger_tail(log_dir: Path, max_lines=8000):
-    """Last N lines of etl_runs_ledger.jsonl (append-only backup)."""
     path = log_dir / ETL_RUN_LEDGER_FILENAME
     if not path.exists() or not path.is_file():
         return []
@@ -488,13 +422,7 @@ def _read_etl_run_ledger_tail(log_dir: Path, max_lines=8000):
             continue
     return rows
 
-
 def _sanitize_etl_run_statuses_newest_only_in_progress(combined):
-    """After sorting newest-first, only the latest run may stay in_progress.
-
-    Older rows that still say in_progress/running are stale (a newer run already finished).
-    They are coerced to failed so the UI never shows multiple concurrent in-progress runs.
-    """
     if not combined:
         return combined
     out = []
@@ -509,19 +437,7 @@ def _sanitize_etl_run_statuses_newest_only_in_progress(combined):
         out.append(row)
     return out
 
-
 def _get_etl_run_history(log_dir, max_runs=500):
-    """Return ETL run history: warehouse DB rows merged with orphan log files and ledger backup.
-
-    Older local setups often had hundreds of etl_pipeline_*.log files before etl_run_history existed.
-    We union DB + files not referenced in DB + ledger rows whose log file is missing (deleted) so the
-    admin UI can show 300+ runs when requested.
-
-    Status semantics (file parse):
-      - "success"     → log contains "ETL Pipeline completed successfully in ..."
-      - "failed"      → log contains "ETL Pipeline failed"
-      - "in_progress" → log exists but neither success nor failed markers are present yet
-    """
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     merge_cap = min(ETL_HISTORY_MERGE_DB_CAP, max(max_runs * 4, 500))
@@ -590,7 +506,6 @@ def _get_etl_run_history(log_dir, max_runs=500):
 
     db_files = {r['log_file'] for r in db_rows if r.get('log_file')}
 
-    # Log files on disk not present in DB (legacy runs)
     file_rows = []
     try:
         for log_path in sorted(log_dir.glob('etl_pipeline_*.log'), key=lambda p: p.stat().st_mtime, reverse=True):
@@ -601,7 +516,6 @@ def _get_etl_run_history(log_dir, max_runs=500):
     except Exception:
         pass
 
-    # Ledger: recover rows when DB was reset but ledger survived, or log file was removed
     ledger_rows = []
     for rec in _read_etl_run_ledger_tail(log_dir):
         lf = (rec.get('log_file') or '').strip()
@@ -645,7 +559,6 @@ def _get_etl_run_history(log_dir, max_runs=500):
             '_sort': sk,
         })
 
-    # Order: DB first, then file-only, then ledger-only; dedupe by log_file (DB wins)
     seen = set()
     combined = []
     for row in db_rows + file_rows + ledger_rows:
@@ -664,16 +577,11 @@ def _get_etl_run_history(log_dir, max_runs=500):
         out.append(row)
     return out
 
-
 def _get_audit_logs(limit=200):
-    """Fetch audit logs from ucu_rbac.audit_logs if available; else return empty list and message."""
     rbac_conn = _get_rbac_conn_string()
     try:
         engine = create_engine(rbac_conn)
-        # Ensure limit is valid integer between 1 and 500 (safe to use in f-string after validation)
         limit = max(1, min(int(limit), 500))
-        # Direct SQL with validated limit (safe from injection since limit is validated int)
-        # Ensure limit is definitely an integer
         limit_int = int(limit)
         query = f"""
             SELECT log_id, user_id, username, role_name, action, resource, resource_id,
@@ -707,8 +615,6 @@ def _get_audit_logs(limit=200):
     except Exception as e:
         return [], str(e)
 
-
-# Demo/staff accounts (same as auth.DEMO_USERS) for user list display only
 DEMO_ACCOUNTS = [
     {'username': 'admin', 'role': 'sysadmin', 'full_name': 'System Administrator'},
     {'username': 'analyst', 'role': 'analyst', 'full_name': 'Data Analyst'},
@@ -720,9 +626,7 @@ DEMO_ACCOUNTS = [
     {'username': 'finance', 'role': 'finance', 'full_name': 'Finance Manager'},
 ]
 
-
 def _ensure_app_users_table(engine):
-    """Create ucu_rbac DB if not exists, then app_users table (real users added via Admin)."""
     try:
         from pg_helpers import ensure_ucu_rbac_database
         ensure_ucu_rbac_database()
@@ -746,30 +650,18 @@ def _ensure_app_users_table(engine):
     except Exception:
         pass
 
-
-# User management (users, faculties, departments) is served from main app (app.py) only — do not duplicate here.
-
-
 def _server_time_str():
-    """
-    Single format for admin timestamps: YYYY-MM-DD HH:mm:ss in Africa/Kampala timezone.
-    Use for ETL, audit, and server_time in responses so UI matches Uganda local time.
-    """
     try:
-        # Python 3.9+ zoneinfo (no extra dependency) – container must have tzdata.
         from zoneinfo import ZoneInfo
         tz = ZoneInfo("Africa/Kampala")
         now = datetime.now(tz)
     except Exception:
-        # Fallback to naive local time if zoneinfo/tzdata are unavailable
         now = datetime.now()
     return now.strftime('%Y-%m-%d %H:%M:%S')
-
 
 @admin_bp.route('/server-time', methods=['GET'])
 @jwt_required()
 def server_time():
-    """Return current server time so admin UI can show one reference and keep all timestamps in sync. Sysadmin only."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -778,17 +670,15 @@ def server_time():
         'server_time_iso': datetime.now().isoformat(),
     })
 
-
 @admin_bp.route('/system-status', methods=['GET'])
 @jwt_required()
 def system_status():
-    """Data warehouse counts and ETL run history. Optional query: etl_runs_limit (default 500, max 5000)."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
     limit = request.args.get('etl_runs_limit', type=int)
     if limit is None or limit < 1:
-        limit = 500  # Default high enough for large local histories (300+ runs); UI can lower
+        limit = 500
     limit = min(max(limit, 1), 5000)
     engine = None
     try:
@@ -805,7 +695,6 @@ def system_status():
             'UCU_SourceDB1': 'Academics',
             'UCU_SourceDB2': 'Administration',
         }
-        # Synthetic data: show precise count of files + fixed "3 Databases" label for clarity
         source_databases = {
             'Synthetic_Data': f'Primary — {synthetic_file_count} CSV/Excel and 3 Databases',
             **other_db_sources,
@@ -826,11 +715,9 @@ def system_status():
         if engine:
             engine.dispose()
 
-
 @admin_bp.route('/etl-log/<filename>', methods=['GET'])
 @jwt_required()
 def get_etl_log(filename):
-    """Return raw content of a single ETL log file. Sysadmin only. Filename must match etl_pipeline_YYYYMMDD_HHMMSS.log."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -852,17 +739,9 @@ def get_etl_log(filename):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @admin_bp.route('/dim-app-users', methods=['GET'])
 @jwt_required()
 def dim_app_users():
-    """
-    List App Users from the warehouse dimension dim_app_user.
-    Sysadmin only. Optional query params:
-      - limit (default 200, max 1000)
-      - offset (default 0)
-      - role (filter by LOWER(role))
-    """
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -906,14 +785,9 @@ def dim_app_users():
         if engine:
             engine.dispose()
 
-
 @admin_bp.route('/app-users', methods=['GET'])
 @jwt_required()
 def list_app_users():
-    """
-    List live RBAC app users from ucu_rbac.app_users.
-    Sysadmin only. NOTE: Passwords are hashed and are NOT returned.
-    """
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -921,7 +795,6 @@ def list_app_users():
     try:
         engine = create_engine(_get_rbac_conn_string())
         _ensure_app_users_table(engine)
-        # Include created_by_username so admin can see who created each app user.
         sql = """
             SELECT id,
                    username,
@@ -936,7 +809,6 @@ def list_app_users():
         """
         df = pd.read_sql_query(text(sql), engine)
         records = df.to_dict('records') if not df.empty else []
-        # Never expose password hashes; only metadata needed for login testing and auditing
         return jsonify({'app_users': records, 'count': len(records)})
     except Exception as e:
         return jsonify({'error': str(e), 'app_users': [], 'count': 0}), 500
@@ -944,11 +816,7 @@ def list_app_users():
         if engine:
             engine.dispose()
 
-
 def _run_etl_in_background():
-    """Run etl_pipeline in subprocess (fallback when Airflow is not available).
-    etl_pipeline exports etl_seeds from the live DB at the start of each run.
-    """
     import subprocess
     import sys
     try:
@@ -961,11 +829,9 @@ def _run_etl_in_background():
     except Exception:
         pass
 
-
 @admin_bp.route('/run-etl', methods=['POST'])
 @jwt_required()
 def run_etl():
-    """Trigger a manual ETL run: try Airflow DAG first; if that fails, run ETL in background."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -979,7 +845,6 @@ def run_etl():
     import subprocess
     use_fallback = False
 
-    # Preferred path: trigger the DAG via Airflow's REST API running in its own container.
     try:
         import requests
         run_id = f"manual__{datetime.utcnow().isoformat()}"
@@ -1003,7 +868,6 @@ def run_etl():
     except Exception:
         use_fallback = True
 
-    # Legacy path: try Airflow CLI inside this container (only works when airflow is installed here).
     if not use_fallback:
         try:
             run_id = f"manual__{datetime.utcnow().isoformat()}"
@@ -1027,7 +891,6 @@ def run_etl():
         except Exception:
             use_fallback = True
 
-    # Fallback: run the ETL pipeline directly from the backend container.
     threading.Thread(target=_run_etl_in_background, daemon=True).start()
     return jsonify({
         'message': 'ETL pipeline started in background from the backend. The page will refresh to show progress.',
@@ -1035,9 +898,7 @@ def run_etl():
         'in_progress': True,
     }), 202
 
-
 def _ensure_audit_db():
-    """Ensure audit_logs table exists in the RBAC DB. Returns (success, error_message)."""
     try:
         from pg_helpers import ensure_ucu_rbac_database
         ensure_ucu_rbac_database()
@@ -1074,11 +935,9 @@ def _ensure_audit_db():
     except Exception as e:
         return False, str(e)
 
-
 @admin_bp.route('/setup-audit-db', methods=['POST'])
 @jwt_required()
 def setup_audit_db():
-    """Ensure audit DB/table exist so audit logging works."""
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -1092,15 +951,9 @@ def setup_audit_db():
         return jsonify({'message': 'Audit database and table created. You can now use Audit Logs.'}), 200
     return jsonify({'error': msg}), 500
 
-
 @admin_bp.route('/audit-logs', methods=['GET'])
 @jwt_required()
 def audit_logs():
-    """Audit log entries (from ucu_rbac.audit_logs or empty if DB not set up).
-    
-    Query param:
-      - limit: number of rows to return (default 500, max 5000).
-    """
     err, code = _require_sysadmin()
     if err is not None:
         return err, code
@@ -1108,7 +961,6 @@ def audit_logs():
         raw_limit = request.args.get('limit')
         print(f"[audit_logs] Raw limit from request: {raw_limit}, type: {type(raw_limit)}")
         if raw_limit is None:
-            # Higher default now that we have more data
             limit = 500
         else:
             limit = int(raw_limit)

@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -lh backend/*.py)",
+      "Read(//d/Software Projects/NextGen-Data-Architects-Project/**)",
+      "Bash(/tmp/tree_backend.txt:*)",
+      "Read(//tmp/**)",
+      "Bash(grep -E \"\\\\.\\(bat|txt\\)$\")",
+      "Bash(wc -l \"D:\\\\Software Projects\\\\NextGen-Data-Architects-Project\\\\backend\"/*.py)",
+      "Bash(wc -l *.py)",
+      "Read(//d D:/Software Projects/NextGen-Data-Architects-Project/**)",
+      "Bash(python -m py_compile api/user_mgmt.py)",
+      "Bash(python -m py_compile \"D:/Software Projects/NextGen-Data-Architects-Project/backend/api/user_mgmt.py\")",
+      "Bash(python -c \"import sys; sys.path.insert\\(0, ''.''\\); import ast; ast.parse\\(open\\(''api/user_mgmt.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''api/hr.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")",
+      "Bash(python3:*)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

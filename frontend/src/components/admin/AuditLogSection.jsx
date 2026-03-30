@@ -1,7 +1,4 @@
-/**
- * Reusable Audit Log section: filter (Show last N), search, table.
- * Used on the Audit Logs page and in the Admin Console "Audit Logs" tab.
- */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, Search, RefreshCw, BarChart3, Table2 } from 'lucide-react';
@@ -33,7 +30,7 @@ export default function AuditLogSection({
     if (!isNaN(n) && (AUDIT_LIMIT_OPTIONS.includes(n) || n === 500)) return n;
     return defaultLimit;
   };
-// 
+
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState([]);
   const [serverTime, setServerTime] = useState(null);
@@ -44,7 +41,7 @@ export default function AuditLogSection({
   const [logsLimit, setLogsLimit] = useState(getInitialLimit);
   const [dataViewMode, setDataViewModeState] = useState(() => (compact ? 'raw' : (auditState.dataViewMode || 'raw')));
   const [chartGroupBy, setChartGroupByState] = useState(() => (compact ? 'action' : (auditState.chartGroupBy || 'action')));
-  const [chartType, setChartTypeState] = useState(() => (compact ? 'bar' : (auditState.chartType || 'bar'))); // 'bar' | 'donut'
+  const [chartType, setChartTypeState] = useState(() => (compact ? 'bar' : (auditState.chartType || 'bar'))); 
 
   const setDataViewMode = (v) => {
     setDataViewModeState(v);
@@ -71,17 +68,16 @@ export default function AuditLogSection({
       setLoading(true);
       setError(null);
       
-      // Convert limit to number (backend expects int)
       let requestLimit;
       if (limit === 'all') {
-        requestLimit = 500; // Backend max
+        requestLimit = 500; 
       } else {
         requestLimit = Number(limit);
         if (isNaN(requestLimit) || requestLimit < 1) {
           throw new Error(`Invalid limit: ${limit}`);
         }
         if (requestLimit > 500) {
-          requestLimit = 500; // Cap at backend max
+          requestLimit = 500; 
         }
       }
 
@@ -109,19 +105,16 @@ export default function AuditLogSection({
     }
   };
 
-  // Initial load on mount - use the initialized logsLimit state
   useEffect(() => {
     loadLogs(logsLimit);
-  }, []); // Only run once on mount - loadLogs and logsLimit are stable
+  }, []); 
 
-  // Refetch when parent requests a full-page refresh (e.g. Admin Console Refresh button)
   useEffect(() => {
     if (typeof refreshTrigger === 'number' && refreshTrigger > 0) {
       loadLogs(logsLimit);
     }
   }, [refreshTrigger]);
 
-  // Persist limit changes (full page only)
   useEffect(() => {
     if (!compact && logsLimit !== undefined && logsLimit !== null) {
       adminUIState.setSection('audit', { limit: logsLimit });

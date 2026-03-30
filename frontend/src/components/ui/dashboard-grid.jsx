@@ -1,7 +1,6 @@
 import * as React from "react"
 import { cn } from "../../lib/utils"
 
-/** Explicit Tailwind classes so JIT includes them. 1 col mobile, 2 tablet, 3-4 desktop. */
 const COLS_MAP = {
   1: "grid-cols-1",
   2: "grid-cols-2",
@@ -53,4 +52,3 @@ const DashboardSection = ({ title, description, children, className }) => {
 }
 
 export { DashboardGrid, DashboardSection }
-

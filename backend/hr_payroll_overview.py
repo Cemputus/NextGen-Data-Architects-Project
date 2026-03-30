@@ -1,7 +1,3 @@
-"""
-HR payroll overview: latest pay period, totals by role, paid vs pending employees.
-Uses ucu_sourcedb2.payroll when present; otherwise derives a demo split from dim_employee.
-"""
 from __future__ import annotations
 
 from datetime import date
@@ -13,7 +9,6 @@ from config import DB2_NAME
 
 LIST_LIMIT = 300
 
-# Same role buckets as HR analytics (positions.PositionTitle)
 _ROLE_CASE_SQL = f"""
     CASE
         WHEN p."PositionTitle" LIKE '%Senate%' THEN 'Senate'
@@ -27,7 +22,6 @@ _ROLE_CASE_SQL = f"""
         ELSE 'Other Staff'
     END
 """
-
 
 def _empty_payload() -> dict:
     return {
@@ -43,7 +37,6 @@ def _empty_payload() -> dict:
         'data_source': 'none',
     }
 
-
 def _row_to_paid(r) -> dict:
     return {
         'employee_id': int(r['employee_id']) if pd.notna(r.get('employee_id')) else None,
@@ -55,7 +48,6 @@ def _row_to_paid(r) -> dict:
         'role_category': str(r.get('role_category') or ''),
     }
 
-
 def _row_to_pending(r) -> dict:
     return {
         'employee_id': int(r['employee_id']) if pd.notna(r.get('employee_id')) else None,
@@ -65,9 +57,7 @@ def _row_to_pending(r) -> dict:
         'role_category': str(r.get('role_category') or ''),
     }
 
-
 def _from_mirror_payroll(engine) -> dict | None:
-    """Return payload if payroll table has rows; else None."""
     try:
         chk = pd.read_sql_query(
             text(f'SELECT COUNT(*) AS c FROM {DB2_NAME}.payroll'),
@@ -218,9 +208,7 @@ def _from_mirror_payroll(engine) -> dict | None:
         'data_source': 'ucu_sourcedb2.payroll',
     }
 
-
 def _from_dim_employee(engine) -> dict:
-    """Synthetic paid vs pending when mirror payroll is empty."""
     from api.analytics import _HR_DIM_PT_SQL, _hr_admin_role_category_from_pt
 
     emp_sql = f"""
@@ -247,7 +235,6 @@ def _from_dim_employee(engine) -> dict:
         fn = str(row.get('full_name') or '').strip() or f'Employee {eid}'
         pt = str(row.get('pt') or '')
         rc = _hr_admin_role_category_from_pt(pt)
-        # ~78% paid for stable demo
         is_paid = (eid * 1103515245 + 12345) % 100 < 78
         if is_paid:
             net = float(2_200_000 + (abs(eid) % 55) * 45_000)
@@ -318,7 +305,6 @@ def _from_dim_employee(engine) -> dict:
         'pending_list_truncated': len(pending_rows) > LIST_LIMIT,
         'data_source': 'dim_employee_synthetic',
     }
-
 
 def build_hr_payroll_overview(engine) -> dict:
     out = _from_mirror_payroll(engine)

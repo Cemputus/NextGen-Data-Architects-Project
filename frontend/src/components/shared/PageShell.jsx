@@ -9,7 +9,7 @@ export const PageShell = ({
 }) => {
     return (
         <div className={`flex flex-col min-h-screen bg-background text-foreground ${className}`}>
-            {/* Header Area */}
+            {}
             <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-border/40 gap-4">
                 <div>
                     {breadcrumbs.length > 0 && (
@@ -40,7 +40,7 @@ export const PageShell = ({
                 )}
             </div>
 
-            {/* Main Content Area */}
+            {}
             <main className="flex-1 py-6 w-full max-w-7xl mx-auto space-y-8 animate-fade-in">
                 {children}
             </main>

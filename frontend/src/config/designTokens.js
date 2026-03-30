@@ -1,9 +1,4 @@
-/**
- * Enterprise design tokens — single source for spacing, chart palette, and shared constants.
- * Use these in components and charts for consistent UI/UX across all roles.
- */
 
-/** Spacing scale (Tailwind-aligned): 0, 1(4px), 2(8px), 3(12px), 4(16px), 5(20px), 6(24px), 8(32px), 10(40px), 12(48px), 16(64px), 20(80px), 24(96px) */
 export const SPACING = {
   none: 0,
   xs: 4,
@@ -20,21 +15,19 @@ export const SPACING = {
   '7xl': 96,
 };
 
-/** Chart color palette — use for ECharts, Recharts, and any data viz. Accessible and distinct. */
 export const CHART_PALETTE = [
-  '#2563eb', // primary blue
-  '#7c3aed', // accent purple
-  '#059669', // success green
-  '#ea580c', // warning orange
-  '#dc2626', // destructive red
-  '#0891b2', // cyan
-  '#ca8a04', // gold
-  '#db2777', // pink
-  '#4f46e5', // indigo
-  '#0d9488', // teal
+  '#2563eb', 
+  '#7c3aed', 
+  '#059669', 
+  '#ea580c', 
+  '#dc2626', 
+  '#0891b2', 
+  '#ca8a04', 
+  '#db2777', 
+  '#4f46e5', 
+  '#0d9488', 
 ];
 
-/** Chart palette for sequential/trend (e.g. single metric over time). */
 export const CHART_PALETTE_SEQUENTIAL = [
   '#3b82f6',
   '#60a5fa',
@@ -43,7 +36,6 @@ export const CHART_PALETTE_SEQUENTIAL = [
   '#dbeafe',
 ];
 
-/** Semantic colors (hex) for use in non-CSS-in-JS contexts (e.g. chart labels). */
 export const SEMANTIC_COLORS = {
   primary: '#1e293b',
   accent: '#7c3aed',

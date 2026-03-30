@@ -1,7 +1,4 @@
-/**
- * Normalize filters sent to analytics/dashboard APIs.
- * Drops empty / "all" / placeholder values so "clear all" = institution-wide (or role) scope.
- */
+
 const PLACEHOLDER = new Set(['', 'all', 'none', 'null', 'undefined', 'select faculty first', 'select department first']);
 
 function isBlankFilterValue(v) {
@@ -14,10 +11,6 @@ function isBlankFilterValue(v) {
   return false;
 }
 
-/**
- * @param {Record<string, unknown>|null|undefined} input
- * @returns {Record<string, unknown>}
- */
 export function sanitizeDashboardFilters(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
   const out = {};
@@ -28,7 +21,6 @@ export function sanitizeDashboardFilters(input) {
   return out;
 }
 
-/** Keys forwarded to dashboard/analytics APIs (drops blanks; avoids stray UI-only fields). */
 const DASHBOARD_PARAM_KEYS = new Set([
   'faculty_id',
   'department_id',
@@ -43,10 +35,6 @@ const DASHBOARD_PARAM_KEYS = new Set([
   'student_name',
 ]);
 
-/**
- * @param {Record<string, unknown>|null|undefined} filters — typically sanitized `apiFilters`
- * @returns {Record<string, unknown>}
- */
 export function buildDashboardQueryParams(filters) {
   if (!filters || typeof filters !== 'object' || Array.isArray(filters)) return {};
   const out = {};

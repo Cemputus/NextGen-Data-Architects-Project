@@ -1,7 +1,4 @@
-/**
- * Main Layout Component with Navigation
- * Role-based navigation menu
- */
+
 import React from 'react';
 import {
   Box,
@@ -129,7 +126,7 @@ const Layout = ({ children }) => {
 
   return (
     <Flex minH="100vh" bg="#F5F7FA">
-      {/* Sidebar */}
+      {}
       <Box
         w={{ base: 0, md: 250 }}
         bg={bg}
@@ -162,9 +159,9 @@ const Layout = ({ children }) => {
         </VStack>
       </Box>
 
-      {/* Main Content */}
+      {}
       <Flex flex={1} direction="column">
-        {/* Top Bar */}
+        {}
         <Box
           bg={bg}
           borderBottom="1px"
@@ -207,13 +204,13 @@ const Layout = ({ children }) => {
           </Flex>
         </Box>
 
-        {/* Page Content */}
+        {}
         <Box flex={1} p={6}>
           {children}
         </Box>
       </Flex>
 
-      {/* Mobile Drawer */}
+      {}
       <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
         <DrawerOverlay />
         <DrawerContent>
@@ -244,4 +241,3 @@ const Layout = ({ children }) => {
 };
 
 export default Layout;
-

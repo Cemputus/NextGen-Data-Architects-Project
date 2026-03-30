@@ -1,8 +1,5 @@
 import React from 'react';
 
-/**
- * Animated skeleton placeholder for loading states
- */
 export const LoadingSkeleton = ({ className = '', type = 'default' }) => {
     const baseClass = "animate-pulse bg-muted rounded-md";
 
@@ -57,7 +54,6 @@ export const LoadingSkeleton = ({ className = '', type = 'default' }) => {
         );
     }
 
-    // default type
     return <div className={`${baseClass} ${className}`}></div>;
 };
 

@@ -1,6 +1,4 @@
-/**
- * Admin Audit Logs Page - System audit logs (sysadmin only)
- */
+
 import React from 'react';
 import { PageHeader, PageContent } from '../components/ui/page-header';
 import AuditLogSection from '../components/admin/AuditLogSection';

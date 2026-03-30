@@ -1,6 +1,4 @@
-/**
- * Staff Classes Page - Independent page for managing classes
- */
+
 import React, { useState, useEffect } from 'react';
 import { GraduationCap, Users, BookOpen, Search } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -122,9 +120,3 @@ const StaffClasses = () => {
 };
 
 export default StaffClasses;
-
-
-
-
-
-

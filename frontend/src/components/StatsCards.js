@@ -122,7 +122,3 @@ const StatsCards = ({ stats }) => {
 };
 
 export default StatsCards;
-
-
-
-

@@ -1,7 +1,4 @@
-/**
- * Modern Layout Component - UCU Style with Advanced Styling
- * Clean, smooth sidebar navigation with professional design
- */
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { logAuditEvent } from '../utils/audit';
@@ -143,7 +140,6 @@ const LayoutModern = ({ children }) => {
       ],
     };
 
-    // Admin and sysadmin share the same Admin Console nav (Users, KPIs, ETL, etc.)
     if (role === 'admin') return navItems['sysadmin'] || [];
     return navItems[role] || [];
   };
@@ -188,11 +184,10 @@ const LayoutModern = ({ children }) => {
     try {
       localStorage.setItem(CHART_NOTIF_KEY, JSON.stringify(Array.from(idsSet)));
     } catch {
-      // ignore storage errors
+      
     }
   };
 
-  // ETL run list + unread count for sysadmin/admin sidebar badge; listen for read updates
   useEffect(() => {
     const role = (user?.role || '').toString().toLowerCase();
     if (role !== 'sysadmin' && role !== 'admin') {
@@ -235,7 +230,6 @@ const LayoutModern = ({ children }) => {
     };
   }, [user?.role]);
 
-  // Chart share/reshare notifications for all roles (based on assigned visualizations "for me")
   useEffect(() => {
     if (!user) {
       setChartNotifs([]);
@@ -271,7 +265,7 @@ const LayoutModern = ({ children }) => {
   const handleOpenChartNotifs = () => {
     setChartNotifOpen((open) => !open);
     if (!chartNotifOpen) {
-      // Mark all as read when opening the popover
+      
       const seen = getSeenVizIds();
       chartNotifs.forEach((v) => {
         if (v?.id) seen.add(v.id);
@@ -281,7 +275,6 @@ const LayoutModern = ({ children }) => {
     }
   };
 
-  // Admin settings for ETL countdown — fetch on mount and poll so timer resets after ETL runs
   const fetchAdminSettings = React.useCallback(() => {
     const token = sessionStorage.getItem('ucu_session_token');
     if (!token) return Promise.resolve();
@@ -305,7 +298,6 @@ const LayoutModern = ({ children }) => {
     return () => { cancelled = true; };
   }, [user?.role, fetchAdminSettings]);
 
-  // Poll admin settings when auto ETL is on so sidebar countdown resets after each run (no page refresh)
   useEffect(() => {
     const role = (user?.role || '').toString().toLowerCase();
     if ((role !== 'sysadmin' && role !== 'admin') || !adminSettings.etl_auto_enabled) return;
@@ -351,8 +343,7 @@ const LayoutModern = ({ children }) => {
       (user?.username?.[0] || user?.access_number?.[0] || '?');
     return base.toUpperCase().slice(0, 2);
   }, [user?.first_name, user?.last_name, user?.username, user?.access_number]);
-  // Top-right profile icon / name / role should always take the user
-  // to the high-level User Info page (summary + link into full profile editor).
+  
   const profilePath =
     role === 'student'
       ? '/student/user-info'
@@ -376,14 +367,14 @@ const LayoutModern = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Desktop Sidebar */}
+      {}
       <motion.aside
         initial={false}
         animate={{ width: sidebarOpen ? 256 : 80 }}
         className="bg-card/80 backdrop-blur-xl border-r border-border hidden md:flex md:flex-col shadow-xl"
       >
         <div className="flex flex-col h-full">
-          {/* Logo/Header */}
+          {}
           <div className="p-6 border-b border-border">
             <div className="flex items-center justify-between">
               <AnimatePresence mode="wait">
@@ -414,7 +405,7 @@ const LayoutModern = ({ children }) => {
             </div>
           </div>
 
-          {/* Navigation */}
+          {}
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
             {navItems.map((item, index) => {
               const Icon = item.icon;
@@ -463,8 +454,8 @@ const LayoutModern = ({ children }) => {
             })}
           </nav>
 
-          {/* ETL countdown - admin only, in sidebar; updates every second, no refresh needed.
-              Hidden on ETL Jobs page since that page already focuses on ETL timing. */}
+          {
+}
           {(role === 'sysadmin' || role === 'admin') &&
             adminSettings.etl_auto_enabled &&
             etlCountdownSec != null &&
@@ -487,7 +478,7 @@ const LayoutModern = ({ children }) => {
               </div>
             )}
 
-          {/* User Section */}
+          {}
           <div className="p-4 border-t border-border bg-muted/30">
             <div className="flex items-center gap-3 mb-3">
               <button
@@ -532,7 +523,7 @@ const LayoutModern = ({ children }) => {
         </div>
       </motion.aside>
 
-      {/* Mobile Sidebar Overlay */}
+      {}
       <AnimatePresence>
         {mobileMenuOpen && (
           <>
@@ -653,7 +644,7 @@ const LayoutModern = ({ children }) => {
         )}
       </AnimatePresence>
 
-      {/* ── Idle Session Warning Banner ──────────────────────────────── */}
+      {}
       {sessionWarning && (
         <div className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between gap-4 bg-amber-500 text-white px-5 py-3 shadow-lg">
           <div className="flex items-center gap-2 text-sm font-medium">
@@ -671,9 +662,9 @@ const LayoutModern = ({ children }) => {
         </div>
       )}
 
-      {/* Main Content */}
+      {}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
+        {}
         <header className="bg-card/80 backdrop-blur-xl border-b border-border px-3 sm:px-4 md:px-6 py-3 sm:py-4 sticky top-0 z-30 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 min-w-0">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
@@ -690,7 +681,7 @@ const LayoutModern = ({ children }) => {
               </h2>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              {/* Chart share/reshare notifications */}
+              {}
               <div className="relative hidden sm:block">
                 <Button
                   type="button"
@@ -799,7 +790,7 @@ const LayoutModern = ({ children }) => {
           </div>
         </header>
 
-        {/* Page Content - responsive padding, no overflow-x; compact density */}
+        {}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-muted/30">
           <div className="w-full max-w-7xl mx-auto px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5 lg:px-6 lg:py-5">
             <PageErrorBoundary userRole={user?.role}>{children}</PageErrorBoundary>

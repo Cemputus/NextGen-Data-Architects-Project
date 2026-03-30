@@ -1,7 +1,4 @@
-/**
- * Leave Requests – Directory for all employee roles: who's on leave + request log.
- * Approve / reject: HR, sysadmin, and admin only.
- */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
@@ -12,7 +9,6 @@ import { useAuth } from '../context/AuthContext';
 
 const auth = () => ({ headers: { Authorization: `Bearer ${sessionStorage.getItem('ucu_session_token')}` } });
 
-/** Path prefix for User Info (submit leave) for current workspace */
 function userInfoPathForRole(role) {
   const r = (role || '').toString().toLowerCase();
   if (r === 'admin' || r === 'sysadmin') return '/admin/user-info';

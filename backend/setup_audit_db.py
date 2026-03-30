@@ -1,8 +1,3 @@
-"""
-Create ucu_rbac database and audit_logs table for audit trail.
-Run once to fix: Unknown database 'ucu_rbac'
-  cd backend && python setup_audit_db.py
-"""
 import sys
 from pathlib import Path
 

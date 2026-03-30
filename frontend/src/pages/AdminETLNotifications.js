@@ -1,7 +1,4 @@
-/**
- * Admin Notifications - ETL runs, user & system activity. Organized like Console (Users, Settings, ETL Jobs, Audit).
- * Read state: viewing or downloading an ETL run marks it read; count decreases in sidebar.
- */
+
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, FileText, Download, Eye, Database, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';

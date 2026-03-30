@@ -1,7 +1,4 @@
-/**
- * Professional circular countdown timer (Days / Hours / Minutes or Hours / Minutes / Seconds).
- * Gradient progress arcs, dotted rings, large numbers. Use on admin pages for "Next ETL run" etc.
- */
+
 import React from 'react';
 
 const SEGMENT_COLORS = {
@@ -36,7 +33,7 @@ const CircleSegment = ({ value, max, label, size = 'md', strokeWidth = 8 }) => {
               <stop offset="100%" stopColor="hsl(262, 83%, 58%)" />
             </linearGradient>
           </defs>
-          {/* Dotted circle (track) */}
+          {}
           <circle
             cx={radius + strokeWidth}
             cy={radius + strokeWidth}
@@ -47,7 +44,7 @@ const CircleSegment = ({ value, max, label, size = 'md', strokeWidth = 8 }) => {
             strokeDasharray={`${strokeWidth * 0.8} ${strokeWidth * 1.2}`}
             className="text-border opacity-80"
           />
-          {/* Progress arc */}
+          {}
           {progress > 0 && (
             <circle
               cx={radius + strokeWidth}
@@ -82,12 +79,6 @@ const CircleSegment = ({ value, max, label, size = 'md', strokeWidth = 8 }) => {
   );
 };
 
-/**
- * @param {number} seconds - Total seconds remaining (can be 0 or null)
- * @param {string} [title] - Optional title above the circles (e.g. "Countdown Timer", "Next ETL run")
- * @param {'sm'|'md'|'lg'} [size] - Ring size
- * @param {boolean} [compact] - If true, single row, no title; for sidebar
- */
 const CountdownTimer = ({ seconds, title = 'Countdown Timer', size = 'md', compact = false }) => {
   const sec = seconds != null ? Math.max(0, Math.floor(Number(seconds))) : 0;
 

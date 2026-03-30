@@ -1,6 +1,4 @@
-/**
- * Staff Analytics Page - Independent page for teaching analytics
- */
+
 import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -66,9 +64,3 @@ const StaffAnalytics = () => {
 };
 
 export default StaffAnalytics;
-
-
-
-
-
-

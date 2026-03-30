@@ -1,6 +1,3 @@
-"""
-Shared prediction post-processing: calibration, GPA (0–5), and student profile enrichment.
-"""
 from __future__ import annotations
 
 import math
@@ -11,11 +8,7 @@ from sqlalchemy import create_engine, text
 
 from config import DATA_WAREHOUSE_CONN_STRING
 
-
 def json_safe(value: Any) -> Any:
-    """
-    Recursively convert numpy/pandas scalars to native Python types for Flask jsonify.
-    """
     if value is None:
         return None
     if isinstance(value, bool):
@@ -45,12 +38,7 @@ def json_safe(value: Any) -> Any:
     except (TypeError, ValueError):
         return str(value)
 
-
 def resolve_student_identifier(identifier: Optional[str]) -> Optional[str]:
-    """
-    Resolve access number, registration number, or student_id to dim_student.student_id.
-    Returns None if no matching row exists.
-    """
     if identifier is None:
         return None
     s = str(identifier).strip()
@@ -80,17 +68,10 @@ def resolve_student_identifier(identifier: Optional[str]) -> Optional[str]:
             pass
     return None
 
-
-# Trained regressors often sit optimistically high; shrink the upper tail toward realistic marks.
 _DEBIAS_PIVOT = 62.0
 _DEBIAS_ABOVE_PIVOT_SLOPE = 0.58
 
-
 def de_bias_percent(raw: float) -> float:
-    """
-    Reduce systematic optimism: piecewise linear with gentler slope above a pivot so
-    raw scores do not cluster near 90–100 for every student.
-    """
     try:
         x = float(raw)
     except (TypeError, ValueError):
@@ -103,11 +84,7 @@ def de_bias_percent(raw: float) -> float:
     y = _DEBIAS_PIVOT + (x - _DEBIAS_PIVOT) * _DEBIAS_ABOVE_PIVOT_SLOPE
     return round(max(0.0, min(100.0, y)), 2)
 
-
 def calibrate_percent(raw: float) -> float:
-    """
-    Map raw model output (0–100) to a display percentage (single de-bias pass; no extra top band).
-    """
     try:
         x = float(raw)
     except (TypeError, ValueError):
@@ -117,12 +94,7 @@ def calibrate_percent(raw: float) -> float:
     x = max(0.0, min(100.0, x))
     return de_bias_percent(x)
 
-
 def percent_to_gpa(percent: float, scale_max: float = 5.0) -> float:
-    """
-    Convert percentage (0–100) to GPA on a fixed scale (default highest grade = 5.0).
-    Uses calibrated percentage after clamping to [0, 100].
-    """
     try:
         p = float(percent)
     except (TypeError, ValueError):
@@ -132,9 +104,7 @@ def percent_to_gpa(percent: float, scale_max: float = 5.0) -> float:
     p = max(0.0, min(100.0, p))
     return round((p / 100.0) * scale_max, 2)
 
-
 def letter_grade_from_percent(score: float) -> str:
-    """Letter grade from numeric percentage (uses calibrated range)."""
     try:
         s = float(score)
     except (TypeError, ValueError):
@@ -153,12 +123,7 @@ def letter_grade_from_percent(score: float) -> str:
         return 'D'
     return 'F'
 
-
 def fetch_student_profile(student_id: str) -> Dict[str, Any]:
-    """
-    Load display fields from the warehouse for a resolved dim_student.student_id.
-    Returns nulls when joins are missing (orphan program, etc.).
-    """
     out: Dict[str, Any] = {
         'student_name': None,
         'first_name': None,
@@ -208,7 +173,6 @@ def fetch_student_profile(student_id: str) -> Dict[str, Any]:
             v = row.get(k)
             if v is not None and not (isinstance(v, float) and pd.isna(v)):
                 out[k] = json_safe(v)
-        # Normalize empty name
         sn = out.get('student_name')
         if isinstance(sn, str) and not sn.strip():
             out['student_name'] = None
@@ -221,7 +185,6 @@ def fetch_student_profile(student_id: str) -> Dict[str, Any]:
             pass
     return out
 
-
 def build_prediction_payload(
     *,
     student_id_resolved: str,
@@ -229,9 +192,6 @@ def build_prediction_payload(
     model_type: str,
     extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """
-    Standard API shape: calibrated %, GPA (max 5), letter grade, student profile.
-    """
     try:
         raw = float(raw_percent)
     except (TypeError, ValueError):
@@ -250,7 +210,6 @@ def build_prediction_payload(
         'gpa_scale_max': 5.0,
     }
     payload['student'] = profile
-    # Flatten common fields for clients that do not read nested `student`
     payload['student_name'] = profile.get('student_name')
     payload['access_number'] = profile.get('access_number')
     payload['reg_number'] = profile.get('reg_number')
@@ -263,9 +222,7 @@ def build_prediction_payload(
                 payload[k] = json_safe(v)
     return json_safe(payload)
 
-
 def enrich_model_prediction_block(raw_percent: float) -> Dict[str, Any]:
-    """For nested scenario / multi-model outputs."""
     try:
         raw = float(raw_percent)
     except (TypeError, ValueError):

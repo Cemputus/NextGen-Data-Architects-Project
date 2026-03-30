@@ -1,7 +1,4 @@
-/**
- * Apache ECharts chart components – drop-in replacements for SciChart.
- * Same prop API: data, xDataKey, yDataKey, height, xAxisLabel, yAxisLabel, etc.
- */
+
 import React, { useMemo } from 'react';
 import { BaseChart } from './BaseChart';
 import { UCU_COLORS, CHART_PALETTE_THEME, defaultGrid, defaultTooltip, defaultTextStyle, defaultTitleTextStyle, formatCompactNumber, formatTooltipValue } from '../../lib/chartTheme';
@@ -9,11 +6,10 @@ import { UCU_COLORS, CHART_PALETTE_THEME, defaultGrid, defaultTooltip, defaultTe
 const chartHeight = 360;
 const chartMinHeight = 300;
 const chartMaxHeight = 480;
-/** Slightly taller defaults for bar charts (plot + axis labels). */
+
 const barChartMinHeight = 340;
 const barChartMaxHeight = 520;
 
-/** Line chart — single series (`yDataKey`) or multiple (`yDataKeys` like SciBarChart). */
 export function SciLineChart({
   data = [],
   xDataKey = 'x',
@@ -30,7 +26,7 @@ export function SciLineChart({
   symbolSize = 6,
   minHeight = chartMinHeight,
   maxHeight = chartMaxHeight,
-  /** Merge into ECharts grid (e.g. { bottom: 72, top: 48 }) */
+  
   gridPadding = null,
 }) {
   const option = useMemo(() => {
@@ -156,7 +152,6 @@ export function SciLineChart({
   );
 }
 
-/** Bar/column chart – single or multiple series */
 export function SciBarChart({
   data = [],
   xDataKey = 'name',
@@ -168,16 +163,16 @@ export function SciBarChart({
   showLegend = true,
   showGrid = true,
   tooltipNameKey = null,
-  tooltipMode = 'single', // 'single' (old) or 'breakdown' (multi-series breakdown)
+  tooltipMode = 'single', 
   minHeight = barChartMinHeight,
   maxHeight = barChartMaxHeight,
-  /** Axis tick / name font size (px); default follows theme (11). */
+  
   axisFontSize = null,
-  /** X-axis label rotation in degrees; null = auto from category count. */
+  
   xAxisLabelRotate = null,
-  /** Merge into ECharts grid (e.g. { bottom: 72, top: 48 }) for tall charts / legend. */
+  
   gridPadding = null,
-  /** When any `yDataKeys` item has `yAxisIndex: 1`, render a second y-axis (e.g. % vs GPA scale). */
+  
   secondaryYAxisLabel = null,
 }) {
   const option = useMemo(() => {
@@ -185,7 +180,7 @@ export function SciBarChart({
       if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
       if (value == null) return 0;
       if (typeof value === 'string') {
-        // Accept formatted payloads like "1,467", "12.5%", " 300 ".
+        
         const cleaned = value.replace(/,/g, '').replace(/%/g, '').trim();
         const n = Number(cleaned);
         return Number.isFinite(n) ? n : 0;
@@ -198,7 +193,7 @@ export function SciBarChart({
     const hasMultiple = yDataKeys && Array.isArray(yDataKeys) && yDataKeys.length > 0;
     const useDualY =
       hasMultiple && yDataKeys.some((s) => Number(s?.yAxisIndex) === 1);
-    /** FEX-style charts: legend under axis — always leave room and tilt labels to avoid collision. */
+    
     const multiSeriesLegend = hasMultiple && showLegend;
     const fs = axisFontSize != null ? axisFontSize : defaultTextStyle.fontSize;
     const axisTextStyle = { ...defaultTextStyle, fontSize: fs };
@@ -228,7 +223,7 @@ export function SciBarChart({
       left: pad.left ?? defaultGrid.left,
       right: pad.right ?? defaultGrid.right,
     };
-    // Avoid Math.max('%', px) → NaN; use pixel reserve when legend + multi-series need space.
+    
     if (minBottomPx != null) {
       const pb = pad.bottom;
       if (pb == null) {
@@ -254,7 +249,7 @@ export function SciBarChart({
             data: data.map((d) => toFiniteNumber(d[s.key])),
             itemStyle: { color: s.color || CHART_PALETTE_THEME[i % CHART_PALETTE_THEME.length] },
           };
-          // Only set yAxisIndex when using two y-axes; some ECharts builds mis-handle yAxisIndex:0 with a single axis.
+          
           if (useDualY) {
             item.yAxisIndex = Number(s.yAxisIndex) === 1 ? 1 : 0;
           }
@@ -431,7 +426,6 @@ export function SciBarChart({
   );
 }
 
-/** Area chart */
 export function SciAreaChart({
   data = [],
   xDataKey = 'x',
@@ -518,10 +512,6 @@ export function SciAreaChart({
   );
 }
 
-/**
- * Stacked area chart — multiple series over a shared category axis (e.g. HR attendance by day).
- * @param {Array<{ key: string, label: string, color: string, areaOpacity?: number }>} seriesKeys
- */
 export function SciStackedAreaChart({
   data = [],
   xDataKey = 'date',
@@ -597,7 +587,6 @@ export function SciStackedAreaChart({
   return <BaseChart option={option} minHeight={minHeight} maxHeight={maxHeight} />;
 }
 
-/** Stacked column (per-category bars with optional percentages in legend/tooltip) */
 export function SciStackedColumnChart({
   data = [],
   xDataKey = 'name',
@@ -615,9 +604,6 @@ export function SciStackedColumnChart({
     const values = data.map((d) => d[yDataKey] ?? 0);
     const total = values.reduce((s, v) => s + v, 0);
 
-    // System-level risk color lock:
-    // If stacked segments are exactly FCW/MEX/FEX, force consistent colors
-    // so the palette never makes FEX appear non-red.
     const lockRiskColors = colors === CHART_PALETTE_THEME;
     const riskColorByName = {
       FCW: UCU_COLORS.maroon,
@@ -692,7 +678,6 @@ export function SciStackedColumnChart({
   );
 }
 
-/** Donut chart – proportions / composition (use sparingly) */
 export function SciDonutChart({
   data = [],
   nameKey = 'name',
@@ -707,11 +692,10 @@ export function SciDonutChart({
     const seriesData = (data || []).map((d, i) => ({
       name: String(d[nameKey] ?? ''),
       value: Number(d[valueKey]) || 0,
-      // Allow callers to override colors per-slice (e.g. grade distribution).
+      
       itemStyle: { color: d.color ?? colors[i % colors.length] },
     })).filter((d) => d.value > 0);
 
-    // Empty pie data crashes or blanks some ECharts builds (e.g. all-zero risk slices).
     if (seriesData.length === 0) {
       return {
         tooltip: { show: false },
@@ -776,7 +760,6 @@ export function SciDonutChart({
   );
 }
 
-/** 3D-styled pie chart (visual depth using shadow + top layer) */
 export function Sci3DPieChart({
   data = [],
   nameKey = 'name',
@@ -784,10 +767,10 @@ export function Sci3DPieChart({
   title = '',
   minHeight = chartMinHeight,
   maxHeight = chartMaxHeight,
-  // Optional overrides
-  failedColor = '#ef4444', // red
-  successColor = '#22c55e', // green
-  otherColor = '#f59e0b', // amber for the 3rd slice
+  
+  failedColor = '#ef4444', 
+  successColor = '#22c55e', 
+  otherColor = '#f59e0b', 
 }) {
   const option = useMemo(() => {
     const raw = (data || [])
@@ -815,7 +798,7 @@ export function Sci3DPieChart({
       name: d.name,
       value: d.value,
       itemStyle: {
-        // Darker shadow tone of the slice color
+        
         color: d.itemStyle?.color || otherColor,
         opacity: 0.55,
       },
@@ -838,7 +821,7 @@ export function Sci3DPieChart({
       },
       title: title ? { text: title, left: 'center', top: 8, textStyle: defaultTitleTextStyle } : undefined,
       series: [
-        // Shadow / bottom layer for the 3D feel
+        
         {
           type: 'pie',
           radius: ['55%', '78%'],
@@ -848,7 +831,7 @@ export function Sci3DPieChart({
           data: seriesDataShadow,
           avoidLabelOverlap: true,
         },
-        // Top layer
+        
         {
           type: 'pie',
           radius: ['55%', '78%'],
@@ -875,10 +858,6 @@ export function Sci3DPieChart({
   return <BaseChart option={option} minHeight={minHeight} maxHeight={maxHeight} />;
 }
 
-/**
- * Full solid 3D-styled pie (no donut): shadow “floor” + raised top layer with soft shadow.
- * Pass a vibrant `colors` array (e.g. MODERN_CHART_PALETTE) or set `color` on each data row.
- */
 export function Sci3DFullPieChart({
   data = [],
   nameKey = 'name',
@@ -888,7 +867,7 @@ export function Sci3DFullPieChart({
   minHeight = chartMinHeight,
   maxHeight = chartMaxHeight,
   outerRadius = '64%',
-  /** Larger vertical gap + shadow so the stacked layers read clearly as 3D */
+  
   emphasizeDepth = false,
 }) {
   const hasPositiveValue = (data || []).some((d) => Number(d?.[valueKey]) > 0);
@@ -977,7 +956,7 @@ export function Sci3DFullPieChart({
             fontWeight: 600,
             lineHeight: 20,
             color: '#0f172a',
-            // High-contrast “tag” so text stays readable on any slice / background
+            
             backgroundColor: 'rgba(255, 255, 255, 0.96)',
             borderColor: '#cbd5e1',
             borderWidth: 1,
@@ -1031,7 +1010,6 @@ export function Sci3DFullPieChart({
   return <BaseChart option={option} minHeight={minHeight} maxHeight={maxHeight} />;
 }
 
-/** Full pie chart (no donut hole) */
 export function SciPieChart({
   data = [],
   nameKey = 'name',
@@ -1087,7 +1065,6 @@ export function SciPieChart({
   return <BaseChart option={option} minHeight={minHeight} maxHeight={maxHeight} />;
 }
 
-/** Flat full pie chart with status-based colors */
 export function SciStatusPieChart({
   data = [],
   nameKey = 'name',
@@ -1095,10 +1072,10 @@ export function SciStatusPieChart({
   title = '',
   minHeight = chartMinHeight,
   maxHeight = chartMaxHeight,
-  // Status mapping colors
-  failedColor = '#ef4444', // red
-  successColor = '#22c55e', // green
-  otherColor = '#f59e0b', // amber
+  
+  failedColor = '#ef4444', 
+  successColor = '#22c55e', 
+  otherColor = '#f59e0b', 
 }) {
   const option = useMemo(() => {
     const seriesData = (data || [])

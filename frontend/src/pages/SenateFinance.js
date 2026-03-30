@@ -1,6 +1,4 @@
-/**
- * Senate Finance Page - Financial analytics for Senate role only
- */
+
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, DollarSign, CreditCard, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -15,7 +13,6 @@ const SenateFinance = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
 
-  // Filters come exclusively from GlobalFilterPanel persistence (statePersistence.saveFilters/loadFilters).
   const [filters, setFilters] = useState({});
 
   useEffect(() => {
@@ -50,7 +47,7 @@ const SenateFinance = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Financial Analytics</h1>
@@ -68,7 +65,7 @@ const SenateFinance = () => {
         />
       </div>
 
-      {/* Filters */}
+      {}
       <GlobalFilterPanel onFilterChange={setFilters} pageName="senate_finance" />
 
       {loading ? (
@@ -80,10 +77,10 @@ const SenateFinance = () => {
         </div>
       ) : (
         <>
-          {/* KPI Cards */}
+          {}
           <ModernStatsCards stats={stats} type="finance" />
 
-          {/* Financial Charts */}
+          {}
           <Card>
             <CardHeader>
               <CardTitle>Financial Analytics</CardTitle>
@@ -100,7 +97,3 @@ const SenateFinance = () => {
 };
 
 export default SenateFinance;
-
-
-
-

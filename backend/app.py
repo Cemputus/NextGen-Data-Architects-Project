@@ -1,7 +1,3 @@
-"""
-Flask Backend API for NextGen-Data-Architects System
-Enhanced with RBAC, Multi-role Support, and Advanced Analytics
-"""
 from flask import Flask, request, jsonify, make_response, g
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt, get_jwt_identity, verify_jwt_in_request
@@ -32,201 +28,11 @@ from config.connection import (
 from werkzeug.security import generate_password_hash
 from werkzeug.exceptions import NotFound
 from ml_models import MultiModelPredictor
-
-# Shared engines + lightweight caching (performance under concurrent dashboard loads)
 from db_engines import get_dw_engine
 from cache import make_key as _cache_key, get_json as _cache_get_json, set_json as _cache_set_json
+from api.user_mgmt import user_mgmt_bp, _ensure_app_users_table, _ensure_default_app_user
+from api.hr import hr_bp
 
-# Admin user-management: always available on main app (no blueprint dependency)
-from config.connection import get_sqlalchemy_conn_string
-RBAC_CONN_STRING = get_sqlalchemy_conn_string(RBAC_DB_NAME)
-
-
-def _ensure_dim_app_user_table(engine):
-    """Create dim_app_user in the data warehouse if not present (so sync works before first ETL run)."""
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS dim_app_user (
-                    app_user_id INT PRIMARY KEY,
-                    username VARCHAR(100) NOT NULL UNIQUE,
-                    role VARCHAR(50) NOT NULL,
-                    full_name VARCHAR(200),
-                    faculty_id INT NULL,
-                    department_id INT NULL,
-                    created_at TIMESTAMP NULL
-                )
-            """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_username ON dim_app_user(username)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_role ON dim_app_user(role)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_faculty ON dim_app_user(faculty_id)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_dau_department ON dim_app_user(department_id)"))
-            conn.commit()
-    except Exception:
-        pass
-
-
-def _sync_dim_app_user(action, app_user_id, data=None):
-    """Keep dim_app_user in sync with ucu_rbac.app_users. action: 'insert'|'update'|'delete'. data: dict for insert/update."""
-    try:
-        dw_engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        _ensure_dim_app_user_table(dw_engine)
-        with dw_engine.connect() as conn:
-            if action == 'delete':
-                conn.execute(text("DELETE FROM dim_app_user WHERE app_user_id = :aid"), {'aid': app_user_id})
-            elif action in ('insert', 'update') and data:
-                # Upsert: insert or update so dim_app_user always matches app_users
-                conn.execute(text("""
-                    INSERT INTO dim_app_user (app_user_id, username, role, full_name, faculty_id, department_id, created_at)
-                    VALUES (:aid, :username, :role, :full_name, :faculty_id, :department_id, :created_at)
-                    ON CONFLICT (app_user_id) DO UPDATE SET
-                    username = EXCLUDED.username, role = EXCLUDED.role, full_name = EXCLUDED.full_name,
-                    faculty_id = EXCLUDED.faculty_id, department_id = EXCLUDED.department_id
-                """), {
-                    'aid': app_user_id,
-                    'username': data.get('username', ''),
-                    'role': data.get('role', 'staff'),
-                    'full_name': data.get('full_name') or data.get('username', ''),
-                    'faculty_id': data.get('faculty_id'),
-                    'department_id': data.get('department_id'),
-                    'created_at': data.get('created_at'),
-                })
-            conn.commit()
-        dw_engine.dispose()
-    except Exception:
-        pass  # Sync failure must not break create/update/delete; ETL will reconcile
-DEMO_ACCOUNTS_FOR_LIST = [
-    {'username': 'admin', 'role': 'sysadmin', 'full_name': 'System Administrator'},
-    {'username': 'analyst', 'role': 'analyst', 'full_name': 'Data Analyst'},
-    {'username': 'senate', 'role': 'senate', 'full_name': 'Senate Member'},
-    {'username': 'staff', 'role': 'staff', 'full_name': 'Staff Member'},
-    {'username': 'dean', 'role': 'dean', 'full_name': 'Faculty Dean'},
-    {'username': 'hod', 'role': 'hod', 'full_name': 'Head of Department'},
-    {'username': 'hr', 'role': 'hr', 'full_name': 'HR Manager'},
-    {'username': 'finance', 'role': 'finance', 'full_name': 'Finance Manager'},
-]
-
-
-def _ensure_app_users_table(engine):
-    """Create ucu_rbac DB and app_users table if not present."""
-    try:
-        from pg_helpers import ensure_ucu_rbac_database
-        ensure_ucu_rbac_database()
-    except Exception:
-        pass
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS app_users (
-                    id SERIAL PRIMARY KEY,
-                    username VARCHAR(100) NOT NULL UNIQUE,
-                    password_hash VARCHAR(255) NOT NULL,
-                    role VARCHAR(50) NOT NULL,
-                    full_name VARCHAR(200),
-                    faculty_id INT NULL,
-                    department_id INT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-            conn.commit()
-            # Ensure staff_course_assignments exists for dean/HOD dashboards and course scoping
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS staff_course_assignments (
-                    app_user_id INT NOT NULL,
-                    course_code VARCHAR(50) NOT NULL,
-                    PRIMARY KEY (app_user_id, course_code),
-                    FOREIGN KEY (app_user_id) REFERENCES app_users(id) ON DELETE CASCADE
-                )
-            """))
-            conn.commit()
-            # Ensure created_by_username column exists so we always know who created the app user
-            try:
-                conn.execute(text("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS created_by_username VARCHAR(100)"))
-                conn.commit()
-            except Exception:
-                # If this fails (permissions, etc.), we still keep core login working.
-                pass
-    except Exception:
-        pass
-
-
-# Default app user so you can always log in as an app user (username: Cemputus, password: cen123)
-DEFAULT_APP_USER = {
-    'username': 'Cemputus',
-    'password': 'cen123',
-    'role': 'staff',
-    'full_name': 'Emmanuel Nsubuga',
-    'faculty_id': 1,
-    'department_id': 1,
-}
-
-
-def _ensure_default_app_user(engine):
-    """Ensure default app user Cemputus exists with password cen123 so app-user login works."""
-    try:
-        ph = generate_password_hash(DEFAULT_APP_USER['password'], method='pbkdf2:sha256')
-        with engine.connect() as conn:
-            r = pd.read_sql_query(
-                text("SELECT id FROM app_users WHERE LOWER(username) = :uname"),
-                conn, params={'uname': DEFAULT_APP_USER['username'].lower()}
-            )
-            if not r.empty:
-                conn.execute(
-                    text("UPDATE app_users SET password_hash = :ph, full_name = :fn, role = :role, faculty_id = :fid, department_id = :did WHERE LOWER(username) = :uname"),
-                    {
-                        'ph': ph, 'fn': DEFAULT_APP_USER['full_name'], 'role': DEFAULT_APP_USER['role'],
-                        'fid': DEFAULT_APP_USER['faculty_id'], 'did': DEFAULT_APP_USER['department_id'],
-                        'uname': DEFAULT_APP_USER['username'].lower(),
-                    }
-                )
-            else:
-                conn.execute(
-                    text("""
-                        INSERT INTO app_users (username, password_hash, role, full_name, faculty_id, department_id)
-                        VALUES (:username, :ph, :role, :fn, :fid, :did)
-                    """),
-                    {
-                        'username': DEFAULT_APP_USER['username'],
-                        'ph': ph, 'role': DEFAULT_APP_USER['role'], 'fn': DEFAULT_APP_USER['full_name'],
-                        'fid': DEFAULT_APP_USER['faculty_id'], 'did': DEFAULT_APP_USER['department_id'],
-                    }
-                )
-            conn.commit()
-            r = pd.read_sql_query(text("SELECT id FROM app_users WHERE LOWER(username) = :uname"), conn, params={'uname': DEFAULT_APP_USER['username'].lower()})
-            if not r.empty:
-                _sync_dim_app_user('insert', int(r.iloc[0]['id']), {
-                    'username': DEFAULT_APP_USER['username'], 'role': DEFAULT_APP_USER['role'],
-                    'full_name': DEFAULT_APP_USER['full_name'], 'faculty_id': DEFAULT_APP_USER['faculty_id'],
-                    'department_id': DEFAULT_APP_USER['department_id'], 'created_at': datetime.now(),
-                })
-    except Exception:
-        pass
-
-
-def _get_staff_assigned_course_codes(identity):
-    """Return list of course_code for staff user (identity=username). Empty if not staff or no assignments."""
-    try:
-        from flask_jwt_extended import get_jwt
-        claims = get_jwt()
-        if (claims.get('role') or '').strip().lower() != 'staff':
-            return []
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        df = pd.read_sql_query(
-            text("""
-                SELECT sca.course_code FROM staff_course_assignments sca
-                JOIN app_users u ON u.id = sca.app_user_id
-                WHERE LOWER(u.username) = :uname
-            """),
-            rbac_engine, params={'uname': str(identity).strip().lower()}
-        )
-        rbac_engine.dispose()
-        return [str(r['course_code']) for _, r in df.iterrows() if pd.notna(r['course_code'])]
-    except Exception:
-        return []
-
-
-# Import blueprints
 from api.auth import auth_bp
 from api.analytics import analytics_bp
 from api.hod import hod_bp
@@ -240,19 +46,16 @@ except Exception as e:
     dashboard_manager_bp = None
     page_config_bp = None
 
-# Import predictions blueprint
 try:
     from api.predictions import predictions_bp
 except ImportError:
     predictions_bp = None
 
-# Import export blueprint
 try:
     from api.export import export_bp
 except ImportError:
     export_bp = None
 
-# Admin API (system status, ETL, audit logs)
 try:
     from api.admin import admin_bp
 except Exception as e:
@@ -261,7 +64,6 @@ except Exception as e:
     traceback.print_exc()
     admin_bp = None
 
-# NextGen Query API (analyst SQL workspace)
 try:
     from api.nextgen_query import nextgen_query_bp
 except Exception as e:
@@ -273,7 +75,6 @@ except Exception as e:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
-# Session expiry: on by default (60-minute access token). Set DISABLE_SESSION_EXPIRY=1 for long-lived JWTs (local/demo only).
 _session_expiry_on = os.environ.get('DISABLE_SESSION_EXPIRY', '0').strip().lower() in ('0', 'false', 'no')
 if _session_expiry_on:
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=60)
@@ -282,11 +83,6 @@ else:
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=3650)
     app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=3650)
 
-# CORS: allow local dev + configured production frontend origins.
-# Supports:
-# - FRONTEND_URL (single URL)
-# - FRONTEND_URLS (comma-separated URLs)
-# Includes Vercel production + preview domains by default.
 _cors_origins = [
     'http://localhost:3000',
     'http://localhost:5000',
@@ -301,46 +97,32 @@ if _frontend_url:
 _frontend_urls_raw = os.environ.get('FRONTEND_URLS', '').strip()
 if _frontend_urls_raw:
     _cors_origins.extend([u.strip() for u in _frontend_urls_raw.split(',') if u.strip()])
-# De-duplicate while preserving order
 _cors_origins = list(dict.fromkeys(_cors_origins))
 CORS(app, supports_credentials=True, origins=_cors_origins,
      allow_headers=['Content-Type', 'Authorization'], methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])
 jwt = JWTManager(app)
 
-# JWT error handlers: always return 401 (not 422) so frontend can treat as "session expired"
 @jwt.unauthorized_loader
 def _jwt_unauthorized(err_str):
-    # No token present in the request
     return jsonify({'error': 'Auth required', 'detail': err_str}), 401
-
 
 @jwt.invalid_token_loader
 def _jwt_invalid_token(err_str):
-    # Malformed or otherwise invalid token
     return jsonify({'error': 'Invalid token', 'detail': err_str}), 401
-
 
 @jwt.expired_token_loader
 def _jwt_expired_token(jwt_header, jwt_payload):
-    # Access or refresh token has expired
     return jsonify({'error': 'Token expired'}), 401
-
 
 @jwt.revoked_token_loader
 def _jwt_revoked_token(jwt_header, jwt_payload):
     return jsonify({'error': 'Token revoked'}), 401
 
-
-# --- KPI/chart caching for fast multi-user loads ---
-# This caches GET JSON responses for short TTL keyed by endpoint + JWT scope + filters.
-# It prevents repeated heavy KPI queries from re-running when multiple users open the same dashboard.
 KPI_CACHE_TTL_SECONDS = int(os.environ.get("KPI_CACHE_TTL_SECONDS", "10"))
-
 
 def _kpi_should_cache() -> bool:
     raw = os.environ.get("KPI_CACHE_ENABLED", "1").strip().lower()
     return raw not in ("0", "false", "no", "off")
-
 
 @app.before_request
 def _kpi_cache_before_request():
@@ -351,14 +133,10 @@ def _kpi_cache_before_request():
     path = (request.path or "").strip()
     if not (path.startswith("/api/dashboard") or path.startswith("/api/analytics")):
         return None
-    # Filter-option endpoints are relatively small but can change as role scope changes; avoid caching.
     if path.startswith("/api/analytics/filter-options"):
         return None
 
-    # Most KPI endpoints are jwt_required; if we can't read claims, don't cache.
     try:
-        # Ensure JWT is validated before reading claims (before_request runs
-        # before @jwt_required's wrapper logic for many routes).
         verify_jwt_in_request()
         claims = get_jwt()
     except Exception:
@@ -377,7 +155,6 @@ def _kpi_cache_before_request():
     g._kpi_cache_hit = False
     return None
 
-
 @app.after_request
 def _kpi_cache_after_request(resp):
     if not _kpi_should_cache():
@@ -390,7 +167,6 @@ def _kpi_cache_after_request(resp):
             return resp
         if resp.status_code != 200:
             return resp
-        # Only cache JSON responses.
         if resp.mimetype != "application/json":
             return resp
         ck = getattr(g, "_kpi_cache_key", None)
@@ -402,1255 +178,8 @@ def _kpi_cache_after_request(resp):
         pass
     return resp
 
-
-# --- User Management: explicit ping first (no auth), then catch-all ---
-@app.route('/api/user-mgmt/ping', methods=['GET', 'OPTIONS'], strict_slashes=False)
-@app.route('/user-mgmt/ping', methods=['GET', 'OPTIONS'], strict_slashes=False)
-def user_mgmt_ping():
-    """No auth. Always 200 so frontend can verify backend is up."""
-    if request.method == 'OPTIONS':
-        return _user_mgmt_options()
-    return jsonify({'ok': True, 'message': 'User Management API active'}), 200
-
-
-def _user_mgmt_options():
-    origin = request.headers.get('Origin') or ''
-    allowed = ('http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5000', 'http://127.0.0.1:5000')
-    allow_origin = origin if origin in allowed else 'http://localhost:3000'
-    resp = make_response('', 200)
-    resp.headers['Access-Control-Allow-Origin'] = allow_origin
-    resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PATCH, DELETE, OPTIONS'
-    resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-    resp.headers['Access-Control-Allow-Credentials'] = 'true'
-    resp.headers['Access-Control-Max-Age'] = '86400'
-    return resp
-
-
-def _user_mgmt_dispatch(subpath):
-    raw = (subpath or '').strip().rstrip('/')
-    norm = raw.lower()
-    if '?' in norm:
-        norm = norm.split('?')[0].strip()
-    if norm == 'ping':
-        return jsonify({'ok': True, 'message': 'Admin API active'}), 200
-    if norm == 'users' and request.method == 'GET':
-        return admin_list_users()
-    if norm == 'users' and request.method == 'POST':
-        return admin_create_user()
-    # GET single user: users/<type>/<id>
-    if request.method == 'GET' and norm.startswith('users/'):
-        parts = raw.split('/')
-        if len(parts) == 3 and parts[1].lower() in ('student', 'demo', 'app_user'):
-            try:
-                verify_jwt_in_request()
-            except Exception:
-                return jsonify({'error': 'Auth required'}), 401
-            err = _require_sysadmin()
-            if err is not None:
-                return err
-            return admin_get_user(parts[1], parts[2])
-    # PATCH/DELETE app_user: users/app_user/<id>
-    if request.method in ('PATCH', 'DELETE') and norm.startswith('users/app_user/'):
-        parts = raw.split('/')
-        if len(parts) == 3 and parts[2].isdigit():
-            try:
-                verify_jwt_in_request()
-            except Exception:
-                return jsonify({'error': 'Auth required'}), 401
-            err = _require_sysadmin()
-            if err is not None:
-                return err
-            uid = int(parts[2])
-            if request.method == 'PATCH':
-                return admin_update_user(uid)
-            return admin_delete_user(uid)
-    if norm == 'faculties' and request.method == 'GET':
-        return admin_list_faculties()
-    if norm == 'departments' and request.method == 'GET':
-        return admin_list_departments()
-    if request.method == 'OPTIONS':
-        return _user_mgmt_options()
-    return jsonify({'error': 'Not found', 'path': subpath}), 404
-
-
-@app.route('/api/user-mgmt/<path:subpath>', methods=['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], strict_slashes=False)
-def user_mgmt_handle(subpath):
-    return _user_mgmt_dispatch(subpath)
-
-
-@app.route('/user-mgmt/<path:subpath>', methods=['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], strict_slashes=False)
-def user_mgmt_handle_no_api(subpath):
-    """In case proxy forwards without /api prefix."""
-    return _user_mgmt_dispatch(subpath)
-
-
-def _require_sysadmin():
-    """Allow sysadmin or admin role so Admin Console, User Management, and KPIs work for both."""
-    claims = get_jwt()
-    role = str(claims.get('role') or '').strip().lower()
-    if role not in ('sysadmin', 'admin'):
-        return jsonify({'error': 'Admin access required'}), 403
-    return None
-
-
-@app.route('/api/user-mgmt/users', methods=['GET'], strict_slashes=False)
-@app.route('/api/sysadmin/users', methods=['GET'], strict_slashes=False)
-@app.route('/api/admin/users', methods=['GET'], strict_slashes=False)
-@jwt_required()
-def admin_list_users():
-    """List users: students + demo + app_users. Sysadmin only. Always on main app."""
-    err = _require_sysadmin()
-    if err is not None:
-        return err
-    search = (request.args.get('search') or '').strip().lower()
-    role_filter = (request.args.get('role') or '').strip().lower()
-    # Allow up to 10,000 users in one response so all synthetic students are visible in User Management.
-    limit = min(max(request.args.get('limit', type=int) or 500, 1), 10000)
-    offset = max(request.args.get('offset', type=int) or 0, 0)
-    users_app = []
-    users_demo = []
-    users_students = []
-    warning = None
-    try:
-        # 1) App users first (staff, dean, hod, etc.) so they always show in the table when limit is used
-        try:
-            rbac_engine = create_engine(RBAC_CONN_STRING)
-            _ensure_app_users_table(rbac_engine)
-            app_df = pd.read_sql_query(
-                "SELECT id, username, role, full_name, faculty_id, department_id, created_by_username FROM app_users",
-                rbac_engine
-            )
-            rbac_engine.dispose()
-            demo_usernames = {a['username'].lower() for a in DEMO_ACCOUNTS_FOR_LIST}
-            for _, row in app_df.iterrows():
-                uname = str(row['username']) if pd.notna(row['username']) else ''
-                if not uname or uname.lower() in demo_usernames:
-                    continue
-                if role_filter and (str(row['role']) if pd.notna(row['role']) else '').lower() != role_filter:
-                    continue
-                if search and search not in uname.lower() and search not in (str(row['full_name']) if pd.notna(row['full_name']) else '').lower():
-                    continue
-                users_app.append({
-                    'id': str(row['id']), 'username': uname,
-                    'access_number': None, 'reg_number': None,
-                    'first_name': str(row['full_name']) if pd.notna(row['full_name']) else uname,
-                    'last_name': '',
-                    'full_name': str(row['full_name']) if pd.notna(row['full_name']) else uname,
-                    'role': str(row['role']) if pd.notna(row['role']) else 'staff',
-                    'type': 'app_user',
-                    'faculty_id': int(row['faculty_id']) if pd.notna(row['faculty_id']) else None,
-                    'department_id': int(row['department_id']) if pd.notna(row['department_id']) else None,
-                    'created_by_username': str(row['created_by_username']) if pd.notna(row.get('created_by_username')) else None,
-                })
-        except Exception as e:
-            warning = str(e)
-        # 2) Demo accounts
-        if not role_filter or role_filter != 'student':
-            for acc in DEMO_ACCOUNTS_FOR_LIST:
-                if role_filter and acc['role'] != role_filter:
-                    continue
-                if search and search not in acc['username'].lower() and search not in (acc.get('full_name') or '').lower():
-                    continue
-                users_demo.append({
-                    'id': acc['username'], 'username': acc['username'],
-                    'access_number': None, 'reg_number': None,
-                    'first_name': acc.get('full_name') or acc['username'], 'last_name': '',
-                    'full_name': acc.get('full_name') or acc['username'],
-                    'role': acc['role'], 'type': 'demo',
-                })
-        # 3) Students (often many, so they come last so app users aren't pushed off by limit)
-        if not role_filter or role_filter == 'student':
-            try:
-                engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-                q = """
-                    SELECT ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name,
-                           ds.admission_date, ds.year_of_study, dp.program_name
-                    FROM dim_student ds
-                    LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
-                """
-                params = {}
-                conditions = []
-                if search:
-                    conditions.append(
-                        "(LOWER(ds.access_number) LIKE :search OR LOWER(ds.reg_no) LIKE :search "
-                        "OR LOWER(ds.first_name) LIKE :search OR LOWER(ds.last_name) LIKE :search "
-                        "OR LOWER(ds.first_name || ' ' || ds.last_name) LIKE :search)"
-                    )
-                    params['search'] = f'%{search}%'
-                if conditions:
-                    q += " WHERE " + " AND ".join(conditions)
-                q += " ORDER BY ds.last_name, ds.first_name LIMIT :limit"
-                params['limit'] = limit
-                df = pd.read_sql_query(text(q), engine, params=params)
-                engine.dispose()
-                for _, row in df.iterrows():
-                    first = str(row['first_name']) if pd.notna(row['first_name']) else ''
-                    last = str(row['last_name']) if pd.notna(row['last_name']) else ''
-                    adm = row.get('admission_date')
-                    year_of_admission = int(adm.year) if adm is not None and pd.notna(adm) and hasattr(adm, 'year') else None
-                    users_students.append({
-                        'id': str(row['student_id']),
-                        'username': str(row['access_number']) if pd.notna(row['access_number']) else '',
-                        'access_number': str(row['access_number']) if pd.notna(row['access_number']) else '',
-                        'reg_number': str(row['reg_no']) if pd.notna(row['reg_no']) else '',
-                        'first_name': first, 'last_name': last,
-                        'full_name': f'{first} {last}'.strip() or '—',
-                        'role': 'student', 'type': 'student',
-                        'program_name': str(row['program_name']) if pd.notna(row.get('program_name')) else None,
-                        'year_of_admission': year_of_admission,
-                        'year_of_study': int(row['year_of_study']) if pd.notna(row.get('year_of_study')) else None,
-                    })
-            except Exception:
-                pass
-    except Exception as e:
-        warning = str(e)
-    # Combine: students first, then app users, then demo (user-requested order for table)
-    users = users_students + users_app + users_demo
-    total = len(users)
-    users = users[offset:offset + limit]
-    out = {'users': users, 'total': total}
-    if warning:
-        out['warning'] = warning
-    return jsonify(out)
-
-
-@app.route('/api/user-mgmt/users/<user_type>/<user_id>', methods=['GET'], strict_slashes=False)
-@jwt_required()
-def admin_get_user(user_type, user_id):
-    """Get one user by type and id. Sysadmin only. For view-details."""
-    err = _require_sysadmin()
-    if err is not None:
-        return err
-    user_type = (user_type or '').strip().lower()
-    if user_type not in ('student', 'demo', 'app_user'):
-        return jsonify({'error': 'Invalid user type'}), 400
-    try:
-        if user_type == 'student':
-            engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-            # Try by student_id (may be string or int from frontend)
-            try:
-                sid_param = int(user_id)
-            except (ValueError, TypeError):
-                sid_param = user_id
-            # Be flexible: allow lookup by student_id, access_number, or reg_no
-            df = pd.read_sql_query(
-                text("""
-                    SELECT ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name,
-                           ds.admission_date, ds.year_of_study, ds.status,
-                           dp.program_name
-                    FROM dim_student ds
-                    LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
-                    WHERE ds.student_id = :sid
-                       OR ds.access_number = :sid2
-                       OR ds.reg_no = :sid3
-                """),
-                engine, params={'sid': sid_param, 'sid2': str(user_id), 'sid3': str(user_id)}
-            )
-            engine.dispose()
-            if df.empty:
-                return jsonify({'error': 'Student not found'}), 404
-            row = df.iloc[0]
-            first = str(row['first_name']) if pd.notna(row['first_name']) else ''
-            last = str(row['last_name']) if pd.notna(row['last_name']) else ''
-            adm_date = row.get('admission_date')
-            year_of_admission = None
-            if adm_date is not None and pd.notna(adm_date):
-                if hasattr(adm_date, 'year'):
-                    year_of_admission = int(adm_date.year)
-                elif isinstance(adm_date, str) and len(adm_date) >= 4:
-                    try:
-                        year_of_admission = int(adm_date[:4])
-                    except (ValueError, TypeError):
-                        pass
-            return jsonify({
-                'id': str(row['student_id']),
-                'username': str(row['access_number']) if pd.notna(row['access_number']) else '',
-                'access_number': str(row['access_number']) if pd.notna(row['access_number']) else '',
-                'reg_number': str(row['reg_no']) if pd.notna(row['reg_no']) else '',
-                'first_name': first, 'last_name': last,
-                'full_name': f'{first} {last}'.strip() or '—',
-                'role': 'student', 'type': 'student',
-                'admission_date': adm_date.strftime('%Y-%m-%d') if adm_date is not None and pd.notna(adm_date) and hasattr(adm_date, 'strftime') else None,
-                'year_of_admission': year_of_admission,
-                'year_of_study': int(row['year_of_study']) if pd.notna(row.get('year_of_study')) else None,
-                'program_name': str(row['program_name']) if pd.notna(row.get('program_name')) else None,
-                'status': str(row['status']) if pd.notna(row.get('status')) else None,
-            })
-        if user_type == 'demo':
-            for acc in DEMO_ACCOUNTS_FOR_LIST:
-                if acc['username'].lower() == str(user_id).lower():
-                    return jsonify({
-                        'id': acc['username'], 'username': acc['username'],
-                        'access_number': None, 'reg_number': None,
-                        'first_name': acc.get('full_name') or acc['username'], 'last_name': '',
-                        'full_name': acc.get('full_name') or acc['username'],
-                        'role': acc['role'], 'type': 'demo',
-                    })
-            return jsonify({'error': 'Demo user not found'}), 404
-        # app_user: look up by id (int) or by username
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        try:
-            uid_int = int(user_id)
-            df = pd.read_sql_query(
-                text("SELECT id, username, role, full_name, faculty_id, department_id, created_by_username FROM app_users WHERE id = :uid"),
-                rbac_engine, params={'uid': uid_int}
-            )
-        except (ValueError, TypeError):
-            df = pd.DataFrame()
-        if df.empty and str(user_id).strip():
-            df = pd.read_sql_query(
-                text("SELECT id, username, role, full_name, faculty_id, department_id, created_by_username FROM app_users WHERE LOWER(username) = :uname"),
-                rbac_engine, params={'uname': str(user_id).strip().lower()}
-            )
-        rbac_engine.dispose()
-        if df.empty:
-            return jsonify({'error': 'User not found'}), 404
-        row = df.iloc[0]
-        uname = str(row['username']) if pd.notna(row['username']) else ''
-        out = {
-            'id': str(row['id']), 'username': uname,
-            'access_number': None, 'reg_number': None,
-            'first_name': str(row['full_name']) if pd.notna(row['full_name']) else uname,
-            'last_name': '',
-            'full_name': str(row['full_name']) if pd.notna(row['full_name']) else uname,
-            'role': str(row['role']) if pd.notna(row['role']) else 'staff',
-            'type': 'app_user',
-            'faculty_id': int(row['faculty_id']) if pd.notna(row['faculty_id']) else None,
-            'department_id': int(row['department_id']) if pd.notna(row['department_id']) else None,
-            'created_by_username': str(row['created_by_username']) if pd.notna(row.get('created_by_username')) else None,
-        }
-        # Resolve faculty/department names
-        try:
-            dw = create_engine(DATA_WAREHOUSE_CONN_STRING)
-            if out.get('faculty_id'):
-                fd = pd.read_sql_query(text("SELECT faculty_name FROM dim_faculty WHERE faculty_id = :fid"), dw, params={'fid': out['faculty_id']})
-                out['faculty_name'] = fd.iloc[0]['faculty_name'] if not fd.empty else None
-            else:
-                out['faculty_name'] = None
-            if out.get('department_id'):
-                dd = pd.read_sql_query(text("SELECT department_name FROM dim_department WHERE department_id = :did"), dw, params={'did': out['department_id']})
-                out['department_name'] = dd.iloc[0]['department_name'] if not dd.empty else None
-            else:
-                out['department_name'] = None
-            dw.dispose()
-        except Exception:
-            out['faculty_name'] = None
-            out['department_name'] = None
-        return jsonify(out)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/user-mgmt/users/app_user/<int:user_id>', methods=['PATCH'], strict_slashes=False)
-@jwt_required()
-def admin_update_user(user_id):
-    """Update app_user (full_name, role, faculty_id, department_id, optional password). Sysadmin only."""
-    err = _require_sysadmin()
-    if err is not None:
-        return err
-    data = request.get_json() or {}
-    allowed_roles = {'dean', 'hod', 'staff', 'hr', 'finance', 'analyst', 'sysadmin', 'senate'}
-    role = (data.get('role') or '').strip().lower()
-    if role and role not in allowed_roles:
-        return jsonify({'error': f'Role must be one of: {", ".join(sorted(allowed_roles))}'}), 400
-    faculty_id = data.get('faculty_id') if data.get('faculty_id') is not None else None
-    department_id = data.get('department_id') if data.get('department_id') is not None else None
-    if role == 'dean' and faculty_id is None:
-        return jsonify({'error': 'Dean must be assigned to a faculty'}), 400
-    if role == 'hod' and department_id is None:
-        return jsonify({'error': 'HOD must be assigned to a department'}), 400
-    if role == 'staff' and (data.get('faculty_id') is not None or data.get('department_id') is not None):
-        eff_f = data.get('faculty_id') if 'faculty_id' in data else None
-        eff_d = data.get('department_id') if 'department_id' in data else None
-        if eff_f is None or eff_d is None:
-            return jsonify({'error': 'Staff must be assigned to a faculty and a department'}), 400
-    try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        with rbac_engine.connect() as conn:
-            check = pd.read_sql_query(text("SELECT id, username, role, full_name, faculty_id, department_id FROM app_users WHERE id = :uid"), conn, params={'uid': user_id})
-            if check.empty:
-                rbac_engine.dispose()
-                return jsonify({'error': 'User not found'}), 404
-            current = check.iloc[0].to_dict()
-            updates = []
-            params = {'uid': user_id}
-            if 'full_name' in data:
-                full_name = (data.get('full_name') or '').strip() or (current.get('full_name') or current.get('username'))
-                updates.append('full_name = :full_name')
-                params['full_name'] = full_name
-            if role:
-                updates.append('role = :role')
-                params['role'] = role
-            if 'faculty_id' in data:
-                updates.append('faculty_id = :faculty_id')
-                params['faculty_id'] = faculty_id
-            if 'department_id' in data:
-                updates.append('department_id = :department_id')
-                params['department_id'] = department_id
-            password = (data.get('password') or '').strip()
-            if password and len(password) >= 6:
-                updates.append('password_hash = :password_hash')
-                params['password_hash'] = generate_password_hash(password, method='pbkdf2:sha256')
-            if not updates:
-                rbac_engine.dispose()
-                return jsonify({'message': 'No changes', 'username': str(current.get('username'))}), 200
-            effective_role = role if role else (str(current.get('role')) if current.get('role') else '')
-            def _safe_int(v):
-                if v is None or (isinstance(v, float) and v != v):
-                    return None
-                try:
-                    return int(v)
-                except (TypeError, ValueError):
-                    return None
-            effective_faculty = params.get('faculty_id') if 'faculty_id' in data else _safe_int(current.get('faculty_id'))
-            effective_dept = params.get('department_id') if 'department_id' in data else _safe_int(current.get('department_id'))
-            if effective_role == 'dean' and effective_faculty is None:
-                rbac_engine.dispose()
-                return jsonify({'error': 'Dean must be assigned to a faculty'}), 400
-            if effective_role == 'hod' and effective_dept is None:
-                rbac_engine.dispose()
-                return jsonify({'error': 'HOD must be assigned to a department'}), 400
-            if effective_role == 'staff' and (effective_faculty is None or effective_dept is None):
-                rbac_engine.dispose()
-                return jsonify({'error': 'Staff must be assigned to a faculty and a department'}), 400
-            if effective_role == 'dean' and effective_faculty is not None:
-                conflict = pd.read_sql_query(
-                    text("SELECT id FROM app_users WHERE role = 'dean' AND faculty_id = :fid AND id != :uid"),
-                    conn, params={'fid': effective_faculty, 'uid': user_id}
-                )
-                if not conflict.empty:
-                    rbac_engine.dispose()
-                    return jsonify({'error': 'This faculty already has a dean assigned'}), 400
-            if effective_role == 'hod' and effective_dept is not None:
-                conflict = pd.read_sql_query(
-                    text("SELECT id FROM app_users WHERE role = 'hod' AND department_id = :did AND id != :uid"),
-                    conn, params={'did': effective_dept, 'uid': user_id}
-                )
-                if not conflict.empty:
-                    rbac_engine.dispose()
-                    return jsonify({'error': 'This department already has an HOD assigned'}), 400
-            conn.execute(text(f"UPDATE app_users SET {', '.join(updates)} WHERE id = :uid"), params)
-            conn.commit()
-            try:
-                from export_user_snapshot import run_export_user_snapshot_async
-                run_export_user_snapshot_async()
-            except Exception:
-                pass
-            # Sync to dim_app_user so warehouse stays in sync
-            updated = pd.read_sql_query(
-                text("SELECT id, username, role, full_name, faculty_id, department_id FROM app_users WHERE id = :uid"),
-                conn, params={'uid': user_id}
-            )
-            if not updated.empty:
-                r = updated.iloc[0]
-                _sync_dim_app_user('update', user_id, {
-                    'username': str(r.get('username', '')),
-                    'role': str(r.get('role', 'staff')),
-                    'full_name': str(r.get('full_name') or r.get('username', '')),
-                    'faculty_id': int(r['faculty_id']) if pd.notna(r.get('faculty_id')) else None,
-                    'department_id': int(r['department_id']) if pd.notna(r.get('department_id')) else None,
-                })
-        rbac_engine.dispose()
-        return jsonify({'message': 'User updated', 'id': user_id}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/user-mgmt/users/app_user/<int:user_id>', methods=['DELETE'], strict_slashes=False)
-@jwt_required()
-def admin_delete_user(user_id):
-    """Delete app_user. Sysadmin only. Students and demo users cannot be deleted here."""
-    err = _require_sysadmin()
-    if err is not None:
-        return err
-    try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        with rbac_engine.connect() as conn:
-            result = conn.execute(text("DELETE FROM app_users WHERE id = :uid"), {'uid': user_id})
-            conn.commit()
-            if result.rowcount == 0:
-                rbac_engine.dispose()
-                return jsonify({'error': 'User not found'}), 404
-        rbac_engine.dispose()
-        _sync_dim_app_user('delete', user_id)
-        try:
-            from export_user_snapshot import run_export_user_snapshot_async
-            run_export_user_snapshot_async()
-        except Exception:
-            pass
-        return jsonify({'message': 'User deleted', 'id': user_id}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/user-mgmt/users/reset-password', methods=['POST'], strict_slashes=False)
-@jwt_required()
-def admin_reset_app_user_password():
-    """Reset an app user's password by username. Sysadmin only. Body: { username, new_password }."""
-    err = _require_sysadmin()
-    if err is not None:
-        return err
-    data = request.get_json() or {}
-    username = (data.get('username') or '').strip()
-    new_password = (data.get('new_password') or '').strip()
-    if not username:
-        return jsonify({'error': 'Username is required'}), 400
-    if len(new_password) < 6:
-        return jsonify({'error': 'New password must be at least 6 characters'}), 400
-    try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        with rbac_engine.connect() as conn:
-            check = pd.read_sql_query(
-                text("SELECT id FROM app_users WHERE LOWER(username) = :uname"),
-                conn, params={'uname': username.lower()}
-            )
-            if check.empty:
-                rbac_engine.dispose()
-                return jsonify({'error': 'App user not found'}), 404
-            uid = int(check.iloc[0]['id'])
-            conn.execute(
-                text("UPDATE app_users SET password_hash = :ph WHERE id = :uid"),
-                {'ph': generate_password_hash(new_password, method='pbkdf2:sha256'), 'uid': uid}
-            )
-            conn.commit()
-        rbac_engine.dispose()
-        try:
-            from export_user_snapshot import run_export_user_snapshot_async
-            run_export_user_snapshot_async()
-        except Exception:
-            pass
-        return jsonify({'message': 'Password reset successfully', 'username': username}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/user-mgmt/users', methods=['POST'], strict_slashes=False)
-@app.route('/api/sysadmin/users', methods=['POST'], strict_slashes=False)
-@app.route('/api/admin/users', methods=['POST'], strict_slashes=False)
-@jwt_required()
-def admin_create_user():
-    """Create user (dean, hod, staff, hr, finance, analyst, sysadmin). Sysadmin only.
-
-    Important: app_users.id is SERIAL; RBAC seeds can insert explicit IDs.
-    Before inserting we always realign the sequence so new users never hit
-    "duplicate key value violates unique constraint app_users_pkey".
-    """
-    err = _require_sysadmin()
-    if err is not None:
-        return err
-    data = request.get_json() or {}
-    username = (data.get('username') or '').strip()
-    password = (data.get('password') or '').strip()
-    role = (data.get('role') or 'staff').strip().lower()
-    full_name = (data.get('full_name') or '').strip() or username
-    faculty_id = data.get('faculty_id') if data.get('faculty_id') is not None else None
-    department_id = data.get('department_id') if data.get('department_id') is not None else None
-    if not username:
-        return jsonify({'error': 'Username is required'}), 400
-    if len(password) < 6:
-        return jsonify({'error': 'Password must be at least 6 characters'}), 400
-    allowed_roles = {'dean', 'hod', 'staff', 'hr', 'finance', 'analyst', 'sysadmin', 'senate'}
-    if role not in allowed_roles:
-        return jsonify({'error': f'Role must be one of: {", ".join(sorted(allowed_roles))}'}), 400
-    if role == 'dean' and faculty_id is None:
-        return jsonify({'error': 'Dean must be assigned to a faculty'}), 400
-    if role == 'hod' and department_id is None:
-        return jsonify({'error': 'HOD must be assigned to a department'}), 400
-    if role == 'staff' and (faculty_id is None or department_id is None):
-        return jsonify({'error': 'Staff must be assigned to a faculty and a department'}), 400
-    demo_usernames = {a['username'].lower() for a in DEMO_ACCOUNTS_FOR_LIST}
-    if username.lower() in demo_usernames:
-        return jsonify({'error': 'Username is reserved for a demo account'}), 400
-    if role == 'dean' and faculty_id is not None and faculty_id in _faculty_ids_with_dean():
-        return jsonify({'error': 'This faculty already has a dean assigned'}), 400
-    if role == 'hod' and department_id is not None and department_id in _department_ids_with_hod():
-        return jsonify({'error': 'This department already has an HOD assigned'}), 400
-    try:
-        # Ensure ucu_rbac DB exists before connecting (avoids connection failure on first user)
-        try:
-            from api.auth import _ensure_ucu_rbac_database
-            _ensure_ucu_rbac_database()
-        except Exception:
-            pass
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        password_hash = generate_password_hash(password, method='pbkdf2:sha256')
-        with rbac_engine.connect() as conn:
-            # Enforce unique username (case-insensitive, trimmed) before insert
-            dup = pd.read_sql_query(
-                text(
-                    """
-                    SELECT 1 FROM app_users
-                    WHERE LOWER(TRIM(username)) = LOWER(:uname)
-                    LIMIT 1
-                    """
-                ),
-                conn,
-                params={'uname': username},
-            )
-            if not dup.empty:
-                rbac_engine.dispose()
-                return jsonify({'error': 'Username already exists'}), 409
-
-            # Realign SERIAL sequence to max(id) to avoid duplicate key on insert
-            try:
-                max_id_row = conn.execute(text("SELECT COALESCE(MAX(id), 0) AS max_id FROM app_users")).fetchone()
-                max_id = int(max_id_row[0]) if max_id_row is not None else 0
-                conn.execute(
-                    text("SELECT setval(pg_get_serial_sequence('app_users', 'id'), :next_id, false)"),
-                    {'next_id': max_id + 1},
-                )
-            except Exception:
-                # If this fails, Postgres will still enforce PK; we just skip realign.
-                pass
-
-            creator = (get_jwt().get('username') or '').strip() or None
-            r = conn.execute(
-                text("""
-                    INSERT INTO app_users (username, password_hash, role, full_name, faculty_id, department_id, created_by_username)
-                    VALUES (:username, :password_hash, :role, :full_name, :faculty_id, :department_id, :created_by_username)
-                    RETURNING id
-                """),
-                {
-                    'username': username,
-                    'password_hash': password_hash,
-                    'role': role,
-                    'full_name': full_name,
-                    'faculty_id': faculty_id,
-                    'department_id': department_id,
-                    'created_by_username': creator,
-                },
-            )
-            row = r.fetchone()
-            new_id = int(row[0]) if row and row[0] is not None else None
-            conn.commit()
-        rbac_engine.dispose()
-        if new_id:
-            _sync_dim_app_user('insert', new_id, {
-                'username': username, 'role': role, 'full_name': full_name,
-                'faculty_id': faculty_id, 'department_id': department_id, 'created_at': datetime.now(),
-            })
-        try:
-            from export_user_snapshot import run_export_user_snapshot_async
-            run_export_user_snapshot_async()
-        except Exception:
-            pass
-        return jsonify({'message': 'User created successfully', 'username': username}), 201
-    except Exception as e:
-        msg = str(e)
-        if 'Duplicate' in msg or 'UNIQUE' in msg or '1062' in msg:
-            return jsonify({'error': 'Username already exists'}), 409
-        return jsonify({'error': msg}), 500
-
-
-def _faculty_ids_with_dean():
-    """Return set of faculty_id that already have a dean (app_users with role=dean)."""
-    try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        df = pd.read_sql_query(
-            "SELECT DISTINCT faculty_id FROM app_users WHERE role = 'dean' AND faculty_id IS NOT NULL",
-            rbac_engine
-        )
-        rbac_engine.dispose()
-        return {int(r['faculty_id']) for _, r in df.iterrows() if pd.notna(r['faculty_id'])}
-    except Exception:
-        return set()
-
-
-def _department_ids_with_hod():
-    """Return set of department_id that already have an HOD (app_users with role=hod)."""
-    try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        df = pd.read_sql_query(
-            "SELECT DISTINCT department_id FROM app_users WHERE role = 'hod' AND department_id IS NOT NULL",
-            rbac_engine
-        )
-        rbac_engine.dispose()
-        return {int(r['department_id']) for _, r in df.iterrows() if pd.notna(r['department_id'])}
-    except Exception:
-        return set()
-
-
-@app.route('/api/user-mgmt/faculties', methods=['GET'], strict_slashes=False)
-@app.route('/api/sysadmin/faculties', methods=['GET'], strict_slashes=False)
-@app.route('/api/admin/faculties', methods=['GET'], strict_slashes=False)
-@jwt_required()
-def admin_list_faculties():
-    """List faculties. When for_role=dean, exclude faculties that already have a dean (unless current_faculty_id). Sysadmin only."""
-    err = _require_sysadmin()
-    if err is not None:
-        return err
-    for_role = (request.args.get('for_role') or '').strip().lower()
-    current_faculty_id = request.args.get('current_faculty_id', type=int)
-    try:
-        engine = get_dw_engine()
-        df = pd.read_sql_query(
-            "SELECT faculty_id, faculty_name FROM dim_faculty ORDER BY faculty_name",
-            engine
-        )
-        engine.dispose()
-        records = df.to_dict('records') if not df.empty else []
-        if for_role == 'dean':
-            assigned = _faculty_ids_with_dean()
-            records = [r for r in records if r['faculty_id'] not in assigned or (current_faculty_id is not None and r['faculty_id'] == current_faculty_id)]
-        return jsonify({'faculties': records})
-    except Exception as e:
-        return jsonify({'faculties': [], 'warning': str(e)}), 200
-
-
-@app.route('/api/user-mgmt/departments', methods=['GET'], strict_slashes=False)
-@app.route('/api/sysadmin/departments', methods=['GET'], strict_slashes=False)
-@app.route('/api/admin/departments', methods=['GET'], strict_slashes=False)
-@jwt_required()
-def admin_list_departments():
-    """List departments. When for_role=hod, exclude departments that already have an HOD (unless current_department_id). Sysadmin only."""
-    err = _require_sysadmin()
-    if err is not None:
-        return err
-    faculty_id = request.args.get('faculty_id', type=int)
-    for_role = (request.args.get('for_role') or '').strip().lower()
-    current_department_id = request.args.get('current_department_id', type=int)
-    try:
-        engine = get_dw_engine()
-        if faculty_id:
-            df = pd.read_sql_query(
-                text("SELECT department_id, department_name, faculty_id FROM dim_department WHERE faculty_id = :fid ORDER BY department_name"),
-                engine, params={'fid': faculty_id}
-            )
-        else:
-            df = pd.read_sql_query(
-                "SELECT department_id, department_name, faculty_id FROM dim_department ORDER BY department_name",
-                engine
-            )
-        engine.dispose()
-        records = df.to_dict('records') if not df.empty else []
-        if for_role == 'hod':
-            assigned = _department_ids_with_hod()
-            records = [r for r in records if r['department_id'] not in assigned or (current_department_id is not None and r['department_id'] == current_department_id)]
-        return jsonify({'departments': records})
-    except Exception as e:
-        return jsonify({'departments': [], 'warning': str(e)}), 200
-
-
-def _require_hod():
-    """Return (jsonify_error, status_code) if not HOD or missing department_id; else None."""
-    claims = get_jwt()
-    if (claims.get('role') or '').strip().lower() != 'hod':
-        return jsonify({'error': 'HOD access required'}), 403
-    if claims.get('department_id') is None:
-        return jsonify({'error': 'HOD must be assigned to a department'}), 403
-    return None
-
-
-@app.route('/api/hod/department-courses', methods=['GET'], strict_slashes=False)
-@jwt_required()
-def hod_department_courses():
-    """List courses (course_code, course_name) offered in HOD's department. HOD only."""
-    err = _require_hod()
-    if err is not None:
-        return err
-    dept_id = get_jwt().get('department_id')
-    try:
-        engine = get_dw_engine()
-        df = pd.read_sql_query(text("""
-            SELECT DISTINCT dc.course_code, dc.course_name
-            FROM fact_enrollment fe
-            JOIN dim_student ds ON fe.student_id = ds.student_id
-            JOIN dim_program dp ON ds.program_id = dp.program_id
-            JOIN dim_course dc ON fe.course_code = dc.course_code
-            WHERE dp.department_id = :dept_id
-            ORDER BY dc.course_name
-        """), engine, params={'dept_id': dept_id})
-        engine.dispose()
-        courses = [{'course_code': r['course_code'], 'course_name': str(r['course_name']) if pd.notna(r['course_name']) else r['course_code']} for _, r in df.iterrows()]
-        return jsonify({'courses': courses})
-    except Exception as e:
-        return jsonify({'error': str(e), 'courses': []}), 500
-
-
-@app.route('/api/hod/staff-in-department', methods=['GET'], strict_slashes=False)
-@jwt_required()
-def hod_staff_in_department():
-    """List app_users with role=staff in HOD's department. HOD only."""
-    err = _require_hod()
-    if err is not None:
-        return err
-    dept_id = get_jwt().get('department_id')
-    try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        df = pd.read_sql_query(text("""
-            SELECT id, username, full_name, role, department_id
-            FROM app_users WHERE role = 'staff' AND department_id = :dept_id
-            ORDER BY full_name, username
-        """), rbac_engine, params={'dept_id': dept_id})
-        rbac_engine.dispose()
-        staff = [{'id': int(r['id']), 'username': str(r['username']), 'full_name': str(r['full_name']) if pd.notna(r['full_name']) else str(r['username'])} for _, r in df.iterrows()]
-        return jsonify({'staff': staff})
-    except Exception as e:
-        return jsonify({'error': str(e), 'staff': []}), 500
-
-
-@app.route('/api/hr/staff-list', methods=['GET'], strict_slashes=False)
-@jwt_required()
-def hr_staff_list():
-    """List all non-student staff members created in the system (app_users + demo accounts).
-    Visible to HR role only."""
-    from flask_jwt_extended import get_jwt
-    claims = get_jwt()
-    role = (claims.get('role') or '').strip().lower()
-    if role != 'hr':
-        return jsonify({'error': 'HR access required'}), 403
-    staff = []
-    try:
-        # Load app_users from RBAC database
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        df = pd.read_sql_query(
-            text("""
-                SELECT id, username, full_name, role, faculty_id, department_id, created_at
-                FROM app_users
-                WHERE LOWER(role) <> 'student'
-                ORDER BY full_name, username
-            """),
-            rbac_engine,
-        )
-        rbac_engine.dispose()
-
-        # Map faculty/department names from data warehouse
-        try:
-            dw_engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-            fac_df = pd.read_sql_query(
-                "SELECT faculty_id, faculty_name FROM dim_faculty", dw_engine
-            )
-            dept_df = pd.read_sql_query(
-                "SELECT department_id, department_name FROM dim_department", dw_engine
-            )
-            dw_engine.dispose()
-            fac_map = {
-                int(r['faculty_id']): str(r['faculty_name'])
-                for _, r in fac_df.iterrows()
-                if pd.notna(r.get('faculty_id'))
-            }
-            dept_map = {
-                int(r['department_id']): str(r['department_name'])
-                for _, r in dept_df.iterrows()
-                if pd.notna(r.get('department_id'))
-            }
-        except Exception:
-            fac_map, dept_map = {}, {}
-
-        # App users
-        for _, r in df.iterrows():
-            fid = int(r['faculty_id']) if pd.notna(r.get('faculty_id')) else None
-            did = int(r['department_id']) if pd.notna(r.get('department_id')) else None
-            staff.append({
-                'id': int(r['id']) if pd.notna(r.get('id')) else None,
-                'username': str(r['username']) if pd.notna(r.get('username')) else '',
-                'full_name': str(r['full_name']) if pd.notna(r.get('full_name')) else str(r.get('username') or ''),
-                'role': str(r['role']) if pd.notna(r.get('role')) else '',
-                'faculty_id': fid,
-                'faculty_name': fac_map.get(fid),
-                'department_id': did,
-                'department_name': dept_map.get(did),
-                'source': 'app_user',
-                'created_at': r['created_at'].isoformat() if hasattr(r.get('created_at'), 'isoformat') else None,
-            })
-
-        # Include built-in demo accounts (admin, analyst, senate, staff, dean, hod, hr, finance)
-        demo_usernames = {s['username'].lower() for s in staff if s.get('username')}
-        for acc in DEMO_ACCOUNTS:
-            uname = (acc.get('username') or '').strip()
-            if not uname or uname.lower() in demo_usernames:
-                continue
-            if (acc.get('role') or '').lower() == 'student':
-                continue
-            staff.append({
-                'id': f"demo:{uname}",
-                'username': uname,
-                'full_name': acc.get('full_name') or uname,
-                'role': acc.get('role') or '',
-                'faculty_id': None,
-                'faculty_name': None,
-                'department_id': None,
-                'department_name': None,
-                'source': 'demo',
-                'created_at': None,
-            })
-
-        return jsonify({'staff': staff, 'total': len(staff)})
-    except Exception as e:
-        return jsonify({'error': str(e), 'staff': []}), 500
-
-
-@app.route('/api/hr/my-employment', methods=['GET'])
-@jwt_required()
-def hr_my_employment():
-    """Current user's employment status (for User Info page). Returns placeholder if no record."""
-    from flask_jwt_extended import get_jwt
-    claims = get_jwt()
-    username = (claims.get('username') or '').strip()
-    role = (claims.get('role') or '').strip().lower()
-    try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        df = pd.read_sql_query(text("SELECT full_name, role, faculty_id, department_id FROM app_users WHERE username = :u"), rbac_engine, params={'u': username})
-        rbac_engine.dispose()
-        if not df.empty:
-            r = df.iloc[0]
-            fid, did = r.get('faculty_id'), r.get('department_id')
-            fac_name = dept_name = None
-            try:
-                dw = create_engine(DATA_WAREHOUSE_CONN_STRING)
-                if pd.notna(fid):
-                    fn = pd.read_sql_query(text("SELECT faculty_name FROM dim_faculty WHERE faculty_id = :fid"), dw, params={'fid': int(fid)})
-                    fac_name = fn.iloc[0]['faculty_name'] if not fn.empty else None
-                if pd.notna(did):
-                    dn = pd.read_sql_query(text("SELECT department_name FROM dim_department WHERE department_id = :did"), dw, params={'did': int(did)})
-                    dept_name = dn.iloc[0]['department_name'] if not dn.empty else None
-                dw.dispose()
-            except Exception:
-                pass
-            return jsonify({'status': 'Active', 'role': role, 'faculty_id': fid, 'faculty_name': fac_name, 'department_id': did, 'department_name': dept_name})
-        return jsonify({'status': 'Active', 'role': role})
-    except Exception as e:
-        return jsonify({'status': 'Active', 'role': role})
-
-
-# Roles that may view org-wide leave directory (on leave today + all requests read-only). Students excluded.
-_LEAVE_DIRECTORY_ROLES = frozenset(
-    {'staff', 'hod', 'dean', 'senate', 'finance', 'hr', 'analyst', 'sysadmin', 'admin'}
-)
-
-
-def _leave_can_view_directory() -> bool:
-    from flask_jwt_extended import get_jwt
-
-    r = (get_jwt().get('role') or '').strip().lower()
-    return r in _LEAVE_DIRECTORY_ROLES
-
-
-def _leave_can_review_requests() -> bool:
-    from flask_jwt_extended import get_jwt
-
-    r = (get_jwt().get('role') or '').strip().lower()
-    return r in ('hr', 'sysadmin', 'admin')
-
-
-def _ensure_leave_requests_table(engine):
-    """Create leave_requests table in RBAC DB if not present."""
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS leave_requests (
-                    id SERIAL PRIMARY KEY,
-                    username VARCHAR(100) NOT NULL,
-                    start_date DATE NOT NULL,
-                    end_date DATE NOT NULL,
-                    reason TEXT NOT NULL,
-                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
-                    request_type VARCHAR(20) NOT NULL DEFAULT 'new',
-                    parent_leave_id INT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    reviewed_at TIMESTAMP NULL,
-                    reviewed_by VARCHAR(100) NULL
-                )
-            """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_lr_username ON leave_requests(username)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_lr_status_dates ON leave_requests(status, start_date, end_date)"))
-            conn.commit()
-    except Exception:
-        pass
-
-
-@app.route('/api/hr/my-leave-requests', methods=['GET'])
-@jwt_required()
-def hr_my_leave_requests():
-    """Current user's leave requests."""
-    from flask_jwt_extended import get_jwt
-    username = (get_jwt().get('username') or '').strip()
-    if not username:
-        return jsonify({'requests': []})
-    try:
-        engine = create_engine(RBAC_CONN_STRING)
-        _ensure_leave_requests_table(engine)
-        with engine.connect() as conn:
-            rows = conn.execute(text("""
-                SELECT id, start_date, end_date, reason, status, request_type, parent_leave_id, created_at
-                FROM leave_requests WHERE username = :u ORDER BY created_at DESC
-            """), {'u': username}).mappings().fetchall()
-        engine.dispose()
-        requests = []
-        for r in rows:
-            requests.append({
-                'id': r['id'],
-                'start_date': r['start_date'].isoformat() if hasattr(r['start_date'], 'isoformat') else str(r['start_date']),
-                'end_date': r['end_date'].isoformat() if hasattr(r['end_date'], 'isoformat') else str(r['end_date']),
-                'reason': r['reason'] or '',
-                'status': r['status'] or 'pending',
-                'request_type': r['request_type'] or 'new',
-                'parent_leave_id': r['parent_leave_id'],
-                'created_at': r['created_at'].isoformat() if hasattr(r['created_at'], 'isoformat') else str(r['created_at']),
-            })
-        return jsonify({'requests': requests})
-    except Exception as e:
-        return jsonify({'requests': []})
-
-
-@app.route('/api/hr/my-payroll', methods=['GET'])
-@jwt_required()
-def hr_my_payroll():
-    """Current user's payroll status. Placeholder until payroll integration."""
-    return jsonify({'status': None, 'last_payment_date': None, 'pending': None})
-
-
-@app.route('/api/hr/leave-request', methods=['POST', 'OPTIONS'])
-def hr_submit_leave_request():
-    """Submit a leave request. OPTIONS for CORS preflight; POST requires JWT. Validates start <= end; blocks new request if user has active leave (use extension instead)."""
-    if request.method == 'OPTIONS':
-        return '', 204
-    verify_jwt_in_request()
-    from flask_jwt_extended import get_jwt
-    username = (get_jwt().get('username') or '').strip()
-    if not username:
-        return jsonify({'error': 'Not authenticated'}), 401
-    role_claim = (get_jwt().get('role') or '').strip().lower()
-    if role_claim not in _LEAVE_DIRECTORY_ROLES:
-        return jsonify({'error': 'Leave requests are only available for staff and employee roles.'}), 403
-    body = request.get_json(silent=True) or {}
-    start_date_s = body.get('start_date') or ''
-    end_date_s = body.get('end_date') or ''
-    reason = (body.get('reason') or '').strip()
-    request_type = (body.get('request_type') or 'new').strip().lower() or 'new'
-    parent_leave_id = body.get('parent_leave_id')
-    if not start_date_s or not end_date_s or not reason:
-        return jsonify({'error': 'start_date, end_date, and reason are required'}), 400
-    try:
-        from datetime import datetime
-        start_d = datetime.strptime(start_date_s, '%Y-%m-%d').date()
-        end_d = datetime.strptime(end_date_s, '%Y-%m-%d').date()
-    except (ValueError, TypeError):
-        return jsonify({'error': 'start_date and end_date must be in YYYY-MM-DD format'}), 400
-    if start_d > end_d:
-        return jsonify({'error': 'Start date must be earlier than or equal to end date'}), 400
-    try:
-        engine = create_engine(RBAC_CONN_STRING)
-        _ensure_leave_requests_table(engine)
-        with engine.connect() as conn:
-            if request_type != 'extension':
-                active = conn.execute(text("""
-                    SELECT id FROM leave_requests
-                    WHERE username = :u AND status = 'approved'
-                    AND CURRENT_DATE <= end_date AND start_date <= CURRENT_DATE
-                    LIMIT 1
-                """), {'u': username}).mappings().fetchone()
-                if active:
-                    engine.dispose()
-                    return jsonify({'error': 'You already have an active leave. To add more time, request a leave extension from HR or use the extension option.'}), 400
-            conn.execute(text("""
-                INSERT INTO leave_requests (username, start_date, end_date, reason, status, request_type, parent_leave_id)
-                VALUES (:u, :start, :end, :reason, 'pending', :req_type, :parent)
-            """), {'u': username, 'start': start_d, 'end': end_d, 'reason': reason, 'req_type': request_type, 'parent': parent_leave_id})
-            conn.commit()
-        engine.dispose()
-        return jsonify({'message': 'Leave request submitted. HR will review.'}), 201
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/hr/leave-requests', methods=['GET'])
-@jwt_required()
-def hr_list_leave_requests():
-    """List all leave requests (read-only for staff/managers; HR/sysadmin/admin may review via POST)."""
-    if not _leave_can_view_directory():
-        return jsonify({'error': 'Not authorized to view leave directory'}), 403
-    try:
-        engine = create_engine(RBAC_CONN_STRING)
-        _ensure_leave_requests_table(engine)
-        with engine.connect() as conn:
-            rows = conn.execute(text("""
-                SELECT id, username, start_date, end_date, reason, status, request_type, parent_leave_id, created_at
-                FROM leave_requests ORDER BY created_at DESC
-            """)).mappings().fetchall()
-        engine.dispose()
-        requests = []
-        for r in rows:
-            requests.append({
-                'id': r['id'],
-                'username': r['username'] or '',
-                'start_date': r['start_date'].isoformat() if hasattr(r['start_date'], 'isoformat') else str(r['start_date']),
-                'end_date': r['end_date'].isoformat() if hasattr(r['end_date'], 'isoformat') else str(r['end_date']),
-                'reason': r['reason'] or '',
-                'status': r['status'] or 'pending',
-                'request_type': r['request_type'] or 'new',
-                'parent_leave_id': r['parent_leave_id'],
-                'created_at': r['created_at'].isoformat() if hasattr(r['created_at'], 'isoformat') else str(r['created_at']),
-            })
-        return jsonify({'requests': requests})
-    except Exception as e:
-        return jsonify({'requests': [], 'error': str(e)})
-
-
-@app.route('/api/hr/leave-requests/<int:leave_id>/review', methods=['POST', 'OPTIONS'])
-def hr_review_leave_request(leave_id):
-    """HR: approve or reject a leave request. OPTIONS for CORS."""
-    if request.method == 'OPTIONS':
-        return '', 204
-    verify_jwt_in_request()
-    if not _leave_can_review_requests():
-        return jsonify({'error': 'Only HR or administrators can approve or reject leave'}), 403
-    from flask_jwt_extended import get_jwt
-    body = request.get_json(silent=True) or {}
-    action = (body.get('action') or '').strip().lower()
-    if action not in ('approve', 'reject'):
-        return jsonify({'error': 'action must be approve or reject'}), 400
-    reviewer = (get_jwt().get('username') or '').strip()
-    try:
-        engine = create_engine(RBAC_CONN_STRING)
-        _ensure_leave_requests_table(engine)
-        with engine.connect() as conn:
-            conn.execute(text("""
-                UPDATE leave_requests SET status = :status, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = :by
-                WHERE id = :id
-            """), {'status': 'approved' if action == 'approve' else 'rejected', 'by': reviewer, 'id': leave_id})
-            conn.commit()
-        engine.dispose()
-        return jsonify({'message': 'Leave request ' + ('approved' if action == 'approve' else 'rejected') + '.'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/hr/employees-on-leave', methods=['GET'])
-@jwt_required()
-def hr_employees_on_leave():
-    """List employees currently on approved leave (today between start and end). Same audience as leave directory."""
-    if not _leave_can_view_directory():
-        return jsonify({'error': 'Not authorized to view leave directory'}), 403
-    try:
-        engine = create_engine(RBAC_CONN_STRING)
-        _ensure_leave_requests_table(engine)
-        _ensure_app_users_table(engine)
-        with engine.connect() as conn:
-            rows = conn.execute(text("""
-                SELECT lr.id, lr.username, lr.start_date, lr.end_date, lr.reason, lr.request_type,
-                       au.full_name
-                FROM leave_requests lr
-                LEFT JOIN app_users au ON au.username = lr.username
-                WHERE lr.status = 'approved'
-                AND CURRENT_DATE BETWEEN lr.start_date AND lr.end_date
-                ORDER BY lr.end_date
-            """)).mappings().fetchall()
-        engine.dispose()
-        on_leave = []
-        for r in rows:
-            on_leave.append({
-                'id': r['id'],
-                'username': r['username'] or '',
-                'full_name': r['full_name'] or r['username'] or '',
-                'start_date': r['start_date'].isoformat() if hasattr(r['start_date'], 'isoformat') else str(r['start_date']),
-                'end_date': r['end_date'].isoformat() if hasattr(r['end_date'], 'isoformat') else str(r['end_date']),
-                'reason': r['reason'] or '',
-                'request_type': r['request_type'] or 'new',
-            })
-        return jsonify({'on_leave': on_leave})
-    except Exception as e:
-        return jsonify({'on_leave': [], 'error': str(e)})
-
-
-@app.route('/api/hr/payroll-overview', methods=['GET'])
-@jwt_required()
-def hr_payroll_overview():
-    """HR: payroll by role for latest period, paid vs pending employees (mirror or dim fallback)."""
-    from flask_jwt_extended import get_jwt
-    if (get_jwt().get('role') or '').strip().lower() != 'hr':
-        return jsonify({'error': 'HR only'}), 403
-    try:
-        from hr_payroll_overview import build_hr_payroll_overview
-
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        try:
-            payload = build_hr_payroll_overview(engine)
-        finally:
-            engine.dispose()
-        return jsonify(payload), 200
-    except Exception as e:
-        return jsonify(
-            {
-                'error': str(e),
-                'payroll_by_role': [],
-                'total_payroll': 0,
-                'paid': [],
-                'pending': [],
-                'latest_pay_period': None,
-                'paid_count': 0,
-                'pending_count': 0,
-            }
-        ), 500
-
-
-@app.route('/api/hod/staff-assignments/<int:staff_id>', methods=['GET'], strict_slashes=False)
-@jwt_required()
-def hod_get_staff_assignments(staff_id):
-    """Get course codes assigned to a staff user. HOD can only view staff in their department."""
-    err = _require_hod()
-    if err is not None:
-        return err
-    dept_id = get_jwt().get('department_id')
-    try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        check = pd.read_sql_query(text("SELECT id FROM app_users WHERE id = :uid AND role = 'staff' AND department_id = :dept_id"), rbac_engine, params={'uid': staff_id, 'dept_id': dept_id})
-        if check.empty:
-            rbac_engine.dispose()
-            return jsonify({'error': 'Staff not found in your department'}), 404
-        df = pd.read_sql_query(text("SELECT course_code FROM staff_course_assignments WHERE app_user_id = :uid"), rbac_engine, params={'uid': staff_id})
-        rbac_engine.dispose()
-        course_codes = [str(r['course_code']) for _, r in df.iterrows() if pd.notna(r['course_code'])]
-        return jsonify({'course_codes': course_codes})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/hod/staff-assignments/<int:staff_id>', methods=['PUT'], strict_slashes=False)
-@jwt_required()
-def hod_set_staff_assignments(staff_id):
-    """Set course code assignments for a staff user. HOD can only set for staff in their department."""
-    err = _require_hod()
-    if err is not None:
-        return err
-    dept_id = get_jwt().get('department_id')
-    data = request.get_json() or {}
-    course_codes = data.get('course_codes')
-    if course_codes is not None and not isinstance(course_codes, list):
-        course_codes = [course_codes]
-    course_codes = list(course_codes) if course_codes else []
-    try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
-        _ensure_app_users_table(rbac_engine)
-        with rbac_engine.connect() as conn:
-            check = pd.read_sql_query(text("SELECT id FROM app_users WHERE id = :uid AND role = 'staff' AND department_id = :dept_id"), conn, params={'uid': staff_id, 'dept_id': dept_id})
-            if check.empty:
-                rbac_engine.dispose()
-                return jsonify({'error': 'Staff not found in your department'}), 404
-            conn.execute(text("DELETE FROM staff_course_assignments WHERE app_user_id = :uid"), {'uid': staff_id})
-            for cc in course_codes:
-                cc = str(cc).strip()[:50]
-                if cc:
-                    conn.execute(text("INSERT IGNORE INTO staff_course_assignments (app_user_id, course_code) VALUES (:uid, :cc)"), {'uid': staff_id, 'cc': cc})
-            conn.commit()
-        rbac_engine.dispose()
-        return jsonify({'message': 'Assignments updated', 'staff_id': staff_id})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-# --- Now register blueprints (sysadmin routes above are already on the app) ---
+app.register_blueprint(user_mgmt_bp)
+app.register_blueprint(hr_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(analytics_bp)
 if dashboards_bp:
@@ -1668,19 +197,14 @@ if admin_bp:
 if nextgen_query_bp:
     app.register_blueprint(nextgen_query_bp)
 
-# CORS preflight for NextGen Query assigned-visualizations (browser sends OPTIONS before POST/GET)
 @app.route('/api/query/assigned-visualizations', methods=['OPTIONS'], strict_slashes=False)
 @app.route('/api/query/assigned-visualizations/<path:subpath>', methods=['OPTIONS'], strict_slashes=False)
 def nextgen_query_assigned_viz_options(subpath=None):
     return '', 200
 
-
-# --- Automatic ETL scheduler (reads admin_settings.json) ---
 _ADMIN_SETTINGS_FILE = Path(__file__).resolve().parent / 'data' / 'admin_settings.json'
 
-
 def _load_admin_settings():
-    """Load admin settings from JSON file."""
     if not _ADMIN_SETTINGS_FILE.exists():
         return {}
     try:
@@ -1689,9 +213,7 @@ def _load_admin_settings():
     except Exception:
         return {}
 
-
 def _save_admin_settings(settings):
-    """Persist admin settings."""
     try:
         _ADMIN_SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(_ADMIN_SETTINGS_FILE, 'w', encoding='utf-8') as f:
@@ -1699,14 +221,11 @@ def _save_admin_settings(settings):
     except Exception:
         pass
 
-
 def _run_etl_subprocess():
-    """Run export_user_snapshot + ETL pipeline in subprocess; on failure, send email if enabled."""
     backend_dir = Path(__file__).resolve().parent
     etl_failed = False
     log_tail = None
     try:
-        # export_user_snapshot runs inside etl_pipeline.run() (and bronze/silver phases) so seeds stay in sync.
         result = subprocess.run(
             [sys.executable, '-m', 'etl_pipeline'],
             cwd=str(backend_dir),
@@ -1737,12 +256,10 @@ def _run_etl_subprocess():
                 import traceback
                 traceback.print_exc()
 
-
 def _etl_scheduler_loop():
-    """Background loop: check admin_settings every 10s; if auto ETL enabled and interval elapsed, run ETL."""
     while True:
         try:
-            time.sleep(10)  # Check every 10s so short intervals (e.g. 30 sec) trigger on time
+            time.sleep(10)
             if not _ADMIN_SETTINGS_FILE.exists():
                 continue
             with open(_ADMIN_SETTINGS_FILE, 'r', encoding='utf-8') as f:
@@ -1750,12 +267,10 @@ def _etl_scheduler_loop():
             if not settings.get('etl_auto_enabled'):
                 continue
             interval_min = float(settings.get('etl_auto_interval_minutes') or 300)
-            # Enforce a minimum interval of 5 hours for automatic ETL.
-            min_interval_sec = 5 * 60 * 60  # 5 hours
+            min_interval_sec = 5 * 60 * 60
             interval_sec = max(min_interval_sec, int(interval_min * 60))
             last_run = settings.get('last_etl_auto_run')
             now_sec = time.time()
-            # First time / missing anchor: schedule first run after one full interval (no immediate run).
             if last_run is None:
                 settings['last_etl_auto_run'] = now_sec
                 try:
@@ -1783,22 +298,14 @@ def _etl_scheduler_loop():
             import traceback
             traceback.print_exc()
 
-
-# By default, automatic ETL scheduling is now handled by Apache Airflow
-# via the DAG defined in airflow/dags/etl_auto_scheduler.py.
-# The legacy Flask-based background scheduler is disabled unless explicitly
-# re-enabled via an environment flag for backwards compatibility.
 if os.environ.get('USE_FLASK_ETL_SCHEDULER') == '1':
     _etl_scheduler_thread = threading.Thread(target=_etl_scheduler_loop, daemon=True)
     _etl_scheduler_thread.start()
 
-
-# --- Daily digest email (if enabled in settings) ---
 def _daily_digest_loop():
-    """Once per day, if dailyDigest and supportEmail are set, send a summary email."""
     while True:
         try:
-            time.sleep(3600)  # Check every hour
+            time.sleep(3600)
             settings = _load_admin_settings()
             if not settings.get('dailyDigest') or not (settings.get('supportEmail') or '').strip():
                 continue
@@ -1831,14 +338,12 @@ def _daily_digest_loop():
             import traceback
             traceback.print_exc()
 
-
 _daily_digest_thread = threading.Thread(target=_daily_digest_loop, daemon=True)
 _daily_digest_thread.start()
 
-
-# Fallback: catch /api/admin/users, faculties, departments, ping when exact route didn't match (e.g. path quirk). Registered after blueprint so other /api/admin/* routes still work.
 @app.route('/api/admin/<path:subpath>', methods=['GET', 'POST'], strict_slashes=False)
 def admin_user_management_fallback(subpath):
+    from api.user_mgmt import admin_list_users, admin_create_user, admin_list_faculties, admin_list_departments
     norm = (subpath or '').strip().rstrip('/').lower()
     if norm == 'ping' and request.method == 'GET':
         return jsonify({'ok': True, 'message': 'Admin API active'}), 200
@@ -1852,18 +357,14 @@ def admin_user_management_fallback(subpath):
         return admin_list_departments()
     return jsonify({'error': 'Not Found', 'message': 'The requested URL was not found.'}), 404
 
-
-# Initialize ML model
 predictor = MultiModelPredictor()
 try:
     predictor.load_models()
 except:
     print("Models not loaded. Train models first.")
 
-
 @app.route('/')
 def index():
-    """Root: confirm server and point to API."""
     return jsonify({
         'message': 'NextGen Data Architects API',
         'docs': {
@@ -1873,11 +374,9 @@ def index():
         },
     }), 200
 
-
 @app.errorhandler(404)
 @app.errorhandler(NotFound)
 def not_found(e):
-    """Always return JSON 404 (never HTML). Hint for user-mgmt and /api paths."""
     path = request.path or ''
     msg = 'The requested URL was not found.'
     if path.startswith('/api/user-mgmt') or (path.startswith('/api/admin') and ('users' in path or 'faculties' in path or 'departments' in path or 'ping' in path)):
@@ -1886,10 +385,8 @@ def not_found(e):
     resp.headers['Content-Type'] = 'application/json'
     return resp
 
-
 @app.route('/api/status', methods=['GET'])
 def get_status():
-    """Health check endpoint"""
     return jsonify({
         'status': 'ok',
         'message': 'Backend server is running',
@@ -1897,11 +394,6 @@ def get_status():
     }), 200
 
 def _dashboard_role_scope():
-    """Return (join_sql, where_sql) for student/dean/HOD/staff to scope queries.
-    Student: own records only. Dean/HOD: by faculty/department. Staff: by assigned courses only (no department-wide data).
-    Use with dim_student ds: FROM dim_student ds {join} WHERE {where}.
-    For fact tables: JOIN dim_student ds ON fact.student_id = ds.student_id {join} WHERE {where}.
-    Returns ('', '') for sysadmin, analyst, senate, etc. (no scope)."""
     try:
         from flask_jwt_extended import get_jwt, get_jwt_identity
         from rbac import Role
@@ -1916,7 +408,6 @@ def _dashboard_role_scope():
         JOIN dim_department ddept ON dp.department_id = ddept.department_id
         JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
-        # Students: scope strictly to their own records
         if role == Role.STUDENT:
             student_id = claims.get('student_id')
             access_number = claims.get('access_number')
@@ -1932,6 +423,7 @@ def _dashboard_role_scope():
         if role == Role.HOD and claims.get('department_id') is not None:
             return join_sql, f"ddept.department_id = {int(claims['department_id'])}"
         if role == Role.STAFF:
+            from api.user_mgmt import _get_staff_assigned_course_codes
             courses = _get_staff_assigned_course_codes(get_jwt_identity())
             if not courses:
                 return '', '1=0'
@@ -1942,24 +434,14 @@ def _dashboard_role_scope():
         pass
     return '', ''
 
-
 def _sql_exam_completed_predicate(alias='fg'):
-    """
-    SQL boolean for fact_grade rows that count as completed exams.
-    ETL may store exam_status as 'Completed', 'COMPLETED', or leave it blank when grade is present.
-    """
     a = alias
     return (
         f"(UPPER(TRIM(COALESCE({a}.exam_status, ''))) IN ('COMPLETED', 'COMPLETE') "
         f"OR (COALESCE(TRIM({a}.exam_status::text), '') = '' AND {a}.grade IS NOT NULL))"
     )
 
-
 def _sql_grade_has_outcome_for_analytics(alias='fg'):
-    """
-    Broader than strict "completed" only: any row usable for grade / pass-fail analytics
-    (completed exam OR numeric grade OR letter grade present). Used by grade-performance-breakdown.
-    """
     a = alias
     return (
         f"({_sql_exam_completed_predicate(a)} OR "
@@ -1967,13 +449,7 @@ def _sql_grade_has_outcome_for_analytics(alias='fg'):
         f"NULLIF(TRIM({a}.letter_grade::text), '') IS NOT NULL)"
     )
 
-
 def _sql_effective_grade_numeric(alias='fg'):
-    """
-    SQL expression for ranking averages: use numeric grade when present, else map letter_grade to
-    midpoint percentages (A–F). Matches how top-students must behave when ETL fills letter_grade
-    but leaves grade NULL — same rows faculty/department charts already show.
-    """
     a = alias
     letter_map = (
         f"CASE UPPER(TRIM(COALESCE({a}.letter_grade::text, ''))) "
@@ -1989,9 +465,7 @@ def _sql_effective_grade_numeric(alias='fg'):
     )
     return f"COALESCE({a}.grade::numeric, {letter_map})"
 
-
 def _filter_query_int(filters, key):
-    """Parse a query param as int, or None if missing / 'all' / invalid."""
     if not filters:
         return None
     v = filters.get(key)
@@ -2005,14 +479,7 @@ def _filter_query_int(filters, key):
     except Exception:
         return None
 
-
 def _finance_chart_breakdown(filters):
-    """
-    Bar-chart grouping aligned with global filter depth (Finance / role dashboards):
-      - No faculty filter → group by faculty
-      - Faculty selected (no department) → group by department
-      - Department or program selected → group by program
-    """
     if _filter_query_int(filters, 'program_id') is not None:
         return 'program'
     if _filter_query_int(filters, 'department_id') is not None:
@@ -2021,13 +488,7 @@ def _finance_chart_breakdown(filters):
         return 'department'
     return 'faculty'
 
-
 def _staff_assigned_course_fact_where_parts(assigned_course_codes, semester_id_filter, filters, alias='fe'):
-    """
-    Build AND-clauses for fact rows (enrollment or grade) limited to assigned courses.
-    `alias` is the table alias (e.g. 'fe' for fact_enrollment, 'fg' for fact_grade).
-    Returns None if there are no assigned courses; otherwise a non-empty list of SQL fragments.
-    """
     if not assigned_course_codes:
         return None
     safe = [str(c).replace("'", "''")[:50] for c in assigned_course_codes]
@@ -2046,11 +507,9 @@ def _staff_assigned_course_fact_where_parts(assigned_course_codes, semester_id_f
             parts.append('1=0')
     return parts
 
-
 @app.route('/api/dashboard/stats', methods=['GET'])
 @jwt_required()
 def get_dashboard_stats():
-    """Get dashboard statistics (scoped by role and optional faculty/department/program/semester filters)."""
     engine = None
     try:
         from rbac import Role
@@ -2067,8 +526,6 @@ def get_dashboard_stats():
         filters = request.args.to_dict()
         lite = str(filters.get('lite') or '').strip().lower() in ('1', 'true', 'yes')
 
-        # Short TTL cache: KPI strip is requested frequently (page load, filter changes).
-        # Keep TTL small so data freshness is maintained while eliminating request bursts.
         try:
             ck = _cache_key("dashboard_stats", claims=claims, params=filters)
             cached = _cache_get_json(ck)
@@ -2080,7 +537,6 @@ def get_dashboard_stats():
         except Exception:
             ck = None
 
-        # JWT scope wins: clients cannot override faculty/department for scoped roles
         if dash_role == Role.DEAN and claims.get('faculty_id') is not None:
             filters.pop('faculty_id', None)
         elif dash_role == Role.HOD and claims.get('department_id') is not None:
@@ -2146,8 +602,6 @@ def get_dashboard_stats():
         all_where = [w for w in [role_where, " AND ".join(filter_where_parts) if filter_where_parts else ""] if w]
         scope_where = f" WHERE {' AND '.join(all_where)} " if all_where else ""
 
-        # Enrollment KPI: count fact_enrollment rows (not unfiltered table when role is wide, e.g. analyst/senate).
-        # Strip semester/course EXISTS (student-level); apply semester/course on `fe` directly.
         enroll_student_filter_parts = [
             p for p in filter_where_parts
             if 'FROM fact_enrollment fe2' not in p and 'FROM fact_enrollment fe3' not in p
@@ -2159,8 +613,6 @@ def get_dashboard_stats():
             cc = str(filters.get('course_code')).replace("'", "''")
             fe_enroll_clauses.append(f"fe.course_code = '{cc}'")
 
-        # Fast path: KPI strip only (saves multiple heavy warehouse queries).
-        # Returns the fields used by the "Executive overview" cards.
         if lite:
             total_students = 0
             total_enrollments = 0
@@ -2229,7 +681,6 @@ def get_dashboard_stats():
             except Exception as e:
                 print(f"Error getting avg_retention_rate (lite): {e}")
 
-            # Finance KPIs for analyst/senate workspaces (same semantics as full /api/dashboard/stats).
             total_payments = 0.0
             outstanding_payments = 0.0
             tuition_mex_count = 0
@@ -2251,16 +702,9 @@ def get_dashboard_stats():
                 except Exception as e:
                     print(f"Error determining unfiltered semester (lite): {e}")
 
-            # Apply the same role scope + global filters consistently to payment/tuition KPIs.
-            # all_where contains conditions referencing `ds` (+ optional df/ddept joins in scope_join).
-            # Finance KPI queries should NOT inherit enrollment-semester/course EXISTS filters.
-            # Those can zero out payments when enrollment facts and payment facts don't align.
             payment_filter_parts = []
             if role_where:
                 payment_filter_parts.append(role_where)
-            # filter_where_parts can include:
-            # - student attributes (faculty/department/program/high_school/intake_year) -> keep
-            # - enrollment-based EXISTS clauses (semester_id/course_code) -> skip here
             for p in filter_where_parts:
                 if "fact_enrollment" in p:
                     continue
@@ -2337,7 +781,6 @@ def get_dashboard_stats():
         elif dash_role == Role.HOD and claims.get('department_id') is not None:
             enrollment_kpi_kind = 'department_enrollment_records'
 
-        # Restrict payment KPIs to selected semester; else current/latest semester for all users
         current_semester_clause = ""
         if semester_id_filter is not None:
             current_semester_clause = f" AND fp.semester_id = {semester_id_filter}"
@@ -2354,8 +797,6 @@ def get_dashboard_stats():
                 print(f"Error determining current semester for payments: {e}")
                 current_semester_clause = ""
 
-        # For debug / verification: payments + tuition KPIs using RBAC only (ignore global filters),
-        # but still restrict to the latest semester available in fact tables.
         unfiltered_payment_semester_clause = ""
         unfiltered_grade_semester_clause = ""
         if semester_id_filter is not None:
@@ -2374,7 +815,6 @@ def get_dashboard_stats():
             except Exception as e:
                 print(f"Error determining unfiltered semester: {e}")
 
-        # Same as lite: avoid inheriting enrollment-semester/course EXISTS filters.
         payment_filter_parts = []
         if role_where:
             payment_filter_parts.append(role_where)
@@ -2388,7 +828,6 @@ def get_dashboard_stats():
             cc = str(filters.get('course_code')).replace("'", "''")
             course_code_filter_sql = f" AND fg.course_code = '{cc}'"
 
-        # Total students - with role scope
         try:
             total_students_result = pd.read_sql_query(
                 text(f"SELECT COUNT(DISTINCT ds.student_id) as count FROM dim_student ds{scope_join}{scope_where}"),
@@ -2399,7 +838,6 @@ def get_dashboard_stats():
             print(f"Error getting total_students: {e}")
             total_students = 0
         
-        # Total courses (no faculty/dept on dim_course; leave unscoped or scope via programs - keep simple)
         try:
             total_courses_result = pd.read_sql_query("SELECT COUNT(*) as count FROM dim_course", engine)
             total_courses = int(total_courses_result['count'][0]) if not total_courses_result.empty and pd.notna(total_courses_result['count'][0]) else 0
@@ -2407,11 +845,10 @@ def get_dashboard_stats():
             print(f"Error getting total_courses: {e}")
             total_courses = 0
 
-        # Total enrollments — dean/HOD/student: enrollment rows scoped by role + filters.
-        # Staff: distinct students in assigned courses only (not institution-wide enrollment rows).
         try:
             if dash_role == Role.STAFF:
                 enrollment_kpi_kind = 'assigned_class_students'
+                from api.user_mgmt import _get_staff_assigned_course_codes
                 assigned = _get_staff_assigned_course_codes(get_jwt_identity())
                 staff_fe_parts = _staff_assigned_course_fact_where_parts(
                     assigned, semester_id_filter, filters, alias='fe'
@@ -2459,10 +896,9 @@ def get_dashboard_stats():
             print(f"Error getting total_enrollments: {e}")
             total_enrollments = 0
 
-        # Average grade (completed exams): dean/HOD/student use role + same student/course/semester filters as enrollment KPI.
-        # Staff: only grades in assigned courses (not all grades for any student who took an assigned course).
         try:
             if dash_role == Role.STAFF:
+                from api.user_mgmt import _get_staff_assigned_course_codes
                 assigned_g = _get_staff_assigned_course_codes(get_jwt_identity())
                 staff_fg_parts = _staff_assigned_course_fact_where_parts(
                     assigned_g, semester_id_filter, filters, alias='fg'
@@ -2517,7 +953,6 @@ def get_dashboard_stats():
             print(f"Error getting avg_grade: {e}")
             avg_grade = 0.0
 
-        # MEX/FEX statistics - role scoped
         try:
             if role_where:
                 sem_grade_clause = f" AND fg.semester_id = {semester_id_filter}" if semester_id_filter is not None else ""
@@ -2544,8 +979,6 @@ def get_dashboard_stats():
             print(f"Error getting fex_count: {e}")
             fex_count = 0
 
-        # Tuition-related missed exams
-        # For now: RBAC only (ignore global filters) to verify base KPI wiring.
         try:
             tuition_q = f"""
             SELECT COUNT(*) as count
@@ -2564,14 +997,6 @@ def get_dashboard_stats():
             print(f"Error getting tuition_mex_count: {e}")
             tuition_mex_count = 0
 
-        # Payment-to-student match:
-        # Use the same fast join approach as /api/analytics/finance to avoid
-        # statement timeouts caused by LATERAL + ORDER BY on large payment sets.
-        #
-        # Note: fact_payment.student_id is expected to match dim_student.student_id.
-        # If your source contains other identifiers, update ETL to normalize it.
-
-        # Total payments (RBAC only for KPI wiring verification)
         try:
             pay_q = f"""
             SELECT SUM(fp.amount) as total
@@ -2588,7 +1013,6 @@ def get_dashboard_stats():
             print(f"Error getting total_payments: {e}")
             total_payments = 0.0
 
-        # Average attendance - role scoped
         try:
             if role_where:
                 att_q = f"SELECT AVG(fa.total_hours) as avg FROM fact_attendance fa JOIN dim_student ds ON fa.student_id = ds.student_id{scope_join}{scope_where}"
@@ -2600,7 +1024,6 @@ def get_dashboard_stats():
             print(f"Error getting avg_attendance: {e}")
             avg_attendance = 0.0
 
-        # Total High Schools - role scoped
         try:
             if role_where:
                 hs_q = f"SELECT COUNT(DISTINCT ds.high_school) as count FROM dim_student ds{scope_join}{scope_where} AND ds.high_school IS NOT NULL AND ds.high_school != ''"
@@ -2612,10 +1035,9 @@ def get_dashboard_stats():
             print(f"Error getting total_high_schools: {e}")
             total_high_schools = 0
 
-        # Retention: dean/HOD/student use full scope_where (same as total_students headcount).
-        # Staff: only students with at least one enrollment in an assigned class (same base as enrollment KPI), not all students loosely linked by any past enrollment.
         try:
             if dash_role == Role.STAFF:
+                from api.user_mgmt import _get_staff_assigned_course_codes
                 assigned_r = _get_staff_assigned_course_codes(get_jwt_identity())
                 staff_fe_r = _staff_assigned_course_fact_where_parts(
                     assigned_r, semester_id_filter, filters, alias='fe'
@@ -2668,7 +1090,6 @@ def get_dashboard_stats():
             print(f"Error getting avg_retention_rate: {e}")
             avg_retention_rate = 0.0
 
-        # Average Graduation Rate - role scoped
         try:
             if role_where:
                 grad_q = f"""
@@ -2693,7 +1114,6 @@ def get_dashboard_stats():
             print(f"Error getting avg_graduation_rate: {e}")
             avg_graduation_rate = 0.0
 
-        # Outstanding Payments (RBAC only for KPI wiring verification)
         try:
             out_q = f"""
             SELECT SUM(fp.amount) as total
@@ -2744,7 +1164,6 @@ def get_dashboard_stats():
             'graduation_rate': round(avg_graduation_rate, 2),
         }
 
-        # Student "My dashboard" fallback: same KPI semantics as /api/analytics/student (distinct courses, grades, attendance).
         if dash_role == Role.STUDENT and role_where:
             try:
                 skidf = pd.read_sql_query(
@@ -2803,18 +1222,11 @@ def get_dashboard_stats():
         print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
     finally:
-        # Engine is pooled and shared; do not dispose per request.
         pass
-
 
 @app.route('/api/dashboard/students-by-department', methods=['GET'])
 @jwt_required()
 def get_students_by_department():
-    """Get student count grouped by department, faculty, program, or course with role-based filtering.
-
-    Default grouping is by department to preserve existing behavior.
-    New query parameter: group_by = 'department' | 'faculty' | 'program' | 'course'
-    """
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -2829,7 +1241,6 @@ def get_students_by_department():
         engine = get_dw_engine()
         filters = request.args.to_dict()
 
-        # Cache briefly to smooth out repeated chart requests during page load.
         try:
             ck = _cache_key("students_by_department", claims=claims, params=filters)
             cached = _cache_get_json(ck)
@@ -2841,15 +1252,12 @@ def get_students_by_department():
         except Exception:
             ck = None
 
-        # Grouping dimension (validated)
         group_by = (filters.get('group_by') or 'department').strip().lower()
         if group_by not in ('department', 'faculty', 'program', 'course', 'year_of_study'):
             group_by = 'department'
 
-        # Build WHERE clause based on role and filters
         where_clauses = []
 
-        # Role-based scoping
         if role == Role.DEAN and claims.get('faculty_id'):
             where_clauses.append(f"df.faculty_id = {claims['faculty_id']}")
         elif role == Role.HOD and claims.get('department_id'):
@@ -2857,7 +1265,6 @@ def get_students_by_department():
         elif role == Role.STAFF and claims.get('department_id'):
             where_clauses.append(f"ddept.department_id = {claims['department_id']}")
 
-        # Apply user filters (faculty/department/program/semester)
         faculty_id = filters.get('faculty_id')
         department_id = filters.get('department_id')
         program_id = filters.get('program_id')
@@ -2900,7 +1307,6 @@ def get_students_by_department():
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-        # Build query based on grouping dimension
         if group_by == 'faculty':
             query = f"""
             SELECT 
@@ -2930,7 +1336,6 @@ def get_students_by_department():
             ORDER BY student_count DESC
             """
         elif group_by == 'course':
-            # Group by course within the selected program / department / faculty scope
             query = f"""
             SELECT 
                 COALESCE(dc.course_name, fe.course_code) AS course,
@@ -2946,17 +1351,6 @@ def get_students_by_department():
             ORDER BY student_count DESC
             """
         elif group_by == 'year_of_study':
-            # Group by effective year of study using program-duration business rules.
-            # Rules:
-            # - Medicine/Dentistry: 5 years
-            # - Law, Engineering (bachelor), Nursing: 4 years
-            # - Diploma: 2 years
-            # - Masters: 2 years
-            # - PhD: 3 years
-            # - Others: 3 years
-            # Graduation nuance:
-            # - For 3-year programs, students with Year-4/Sem-1 retake signals remain treated as Year 3 finalists.
-            # - Graduated students in 3-year programs with no such retake are excluded from year-of-study distribution.
             query = f"""
             WITH scoped AS (
                 SELECT DISTINCT
@@ -3041,7 +1435,6 @@ def get_students_by_department():
             ORDER BY effective_year ASC
             """
         else:
-            # Default: group by department (existing behavior)
             query = f"""
             SELECT 
                 ddept.department_name AS department,
@@ -3077,7 +1470,6 @@ def get_students_by_department():
             'group_by': group_by,
         }
 
-        # Backwards-compatible fields for existing consumers
         if group_by == 'department':
             response['departments'] = df_res['department'].tolist()
             response['faculties'] = df_res['faculty'].tolist()
@@ -3107,7 +1499,6 @@ def get_students_by_department():
 @app.route('/api/dashboard/grades-over-time', methods=['GET'])
 @jwt_required()
 def get_grades_over_time():
-    """Get average grades over time with role-based filtering"""
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -3133,10 +1524,8 @@ def get_grades_over_time():
         except Exception:
             ck = None
         
-        # Build WHERE clause based on role
         where_clauses = []
         
-        # Role-based scoping
         if role == Role.STAFF and claims.get('department_id'):
             where_clauses.append(f"ddept.department_id = {claims['department_id']}")
         elif role == Role.STAFF and filters.get('program_id'):
@@ -3151,7 +1540,6 @@ def get_grades_over_time():
             elif claims.get('access_number'):
                 where_clauses.append(f"ds.access_number = '{claims['access_number']}'")
         
-        # Apply user filters (ignore empty strings and "all" values)
         if filters.get('faculty_id') and str(filters['faculty_id']).strip() and str(filters['faculty_id']).lower() != 'all':
             where_clauses.append(f"df.faculty_id = {filters['faculty_id']}")
         if filters.get('department_id') and str(filters['department_id']).strip() and str(filters['department_id']).lower() != 'all':
@@ -3222,7 +1610,6 @@ def get_grades_over_time():
         
         df = pd.read_sql_query(text(query), engine)
         
-        # Calculate pass rate and other metrics
         if not df.empty:
             df['total_exams'] = df['completed_exams'] + df['missed_exams'] + df['failed_exams']
             df['pass_rate'] = (df['completed_exams'] / df['total_exams'] * 100).round(2)
@@ -3273,7 +1660,6 @@ def get_grades_over_time():
 @app.route('/api/dashboard/payment-status', methods=['GET'])
 @jwt_required()
 def get_payment_status():
-    """Get payment status distribution with role-based filtering"""
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -3288,10 +1674,8 @@ def get_payment_status():
         engine = get_dw_engine()
         filters = request.args.to_dict()
         
-        # Build WHERE clause based on role
         where_clauses = []
         
-        # Role-based scoping
         if role == Role.DEAN and claims.get('faculty_id'):
             where_clauses.append(f"df.faculty_id = {claims['faculty_id']}")
         elif role == Role.HOD and claims.get('department_id'):
@@ -3304,7 +1688,6 @@ def get_payment_status():
             elif claims.get('access_number'):
                 where_clauses.append(f"ds.access_number = '{claims['access_number']}'")
 
-        # Apply user filters
         if filters.get('faculty_id') and str(filters.get('faculty_id')).strip().lower() not in ('', 'all'):
             where_clauses.append(f"df.faculty_id = {filters['faculty_id']}")
         if filters.get('department_id') and str(filters.get('department_id')).strip().lower() not in ('', 'all'):
@@ -3323,8 +1706,6 @@ def get_payment_status():
                 pass
         if filters.get('course_code') and str(filters.get('course_code')).strip().lower() not in ('', 'all'):
             cc = str(filters.get('course_code')).replace("'", "''")
-            # Payments aren't course-granular in the fact table; approximate by restricting
-            # to students enrolled in the course during the same payment semester.
             where_clauses.append(
                 f"EXISTS (SELECT 1 FROM fact_enrollment fe "
                 f"WHERE fe.student_id = ds.student_id AND fe.course_code = '{cc}' AND fe.semester_id = fp.semester_id)"
@@ -3332,7 +1713,6 @@ def get_payment_status():
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-        # Join with student, program, department, faculty for role-based + filter-based clauses.
         needs_ds_dim = (
             role in [Role.DEAN, Role.HOD, Role.STAFF, Role.STUDENT] or
             (filters.get('faculty_id') and str(filters.get('faculty_id')).strip().lower() not in ('', 'all')) or
@@ -3344,7 +1724,6 @@ def get_payment_status():
         )
         join_clause = ""
         if needs_ds_dim:
-            # Use LATERAL mapping so fp.student_id can match ds.student_id OR ds.reg_no OR ds.access_number.
             join_clause = """
             LEFT JOIN LATERAL (
                 SELECT ds.*
@@ -3398,11 +1777,6 @@ def get_payment_status():
 @app.route('/api/dashboard/outstanding-by-faculty-program', methods=['GET'])
 @jwt_required()
 def get_outstanding_by_faculty_program():
-    """
-    Outstanding balances (Pending/FAILED), grouped to match filter depth:
-      institution → by faculty; faculty → by department; department/program → by program.
-    The semester is chosen as the latest semester in scope unless `semester_id` is explicitly provided.
-    """
     try:
         from flask_jwt_extended import get_jwt
 
@@ -3410,7 +1784,6 @@ def get_outstanding_by_faculty_program():
         filters = request.args.to_dict()
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
 
-        # Limit / pagination (frontend charts only need a small top-N list)
         raw_limit = filters.get('limit', None)
         try:
             limit = int(raw_limit) if raw_limit is not None else 15
@@ -3418,12 +1791,10 @@ def get_outstanding_by_faculty_program():
             limit = 15
         limit = max(5, min(limit, 25))
 
-        # User-provided semester filter (optional)
         semester_id_filter = filters.get('semester_id', None)
         if semester_id_filter and str(semester_id_filter).strip().lower() in ('all', ''):
             semester_id_filter = None
 
-        # Role-based scope (returns where_sql that references ds/fp as appropriate)
         _, role_where = _dashboard_role_scope()
 
         join_clause = """
@@ -3433,12 +1804,10 @@ def get_outstanding_by_faculty_program():
         JOIN dim_faculty df ON ddept.faculty_id = df.faculty_id
         """
 
-        # Base filter: only outstanding statuses
         where_clauses = ["fp.status IN ('Pending','FAILED')"]
         if role_where:
             where_clauses.append(f"({role_where})")
 
-        # Apply request filters
         if filters.get('faculty_id') and str(filters['faculty_id']).strip().lower() not in ('', 'all'):
             where_clauses.append(f"df.faculty_id = {int(filters['faculty_id'])}")
         if filters.get('department_id') and str(filters['department_id']).strip().lower() not in ('', 'all'):
@@ -3446,7 +1815,6 @@ def get_outstanding_by_faculty_program():
         if filters.get('program_id') and str(filters['program_id']).strip().lower() not in ('', 'all'):
             where_clauses.append(f"dp.program_id = {int(filters['program_id'])}")
 
-        # Pick latest semester in scope if not explicitly filtered
         if semester_id_filter is not None:
             latest_sem = int(semester_id_filter)
         else:
@@ -3504,11 +1872,6 @@ def get_outstanding_by_faculty_program():
 @app.route('/api/dashboard/high-risk-debt-segments', methods=['GET'])
 @jwt_required()
 def get_high_risk_debt_segments():
-    """
-    Largest outstanding balances (Pending/FAILED), grouped like other finance bars:
-    by faculty, department, or program according to global filter depth.
-    Uses latest semester in scope unless `semester_id` is explicitly provided.
-    """
     try:
         from flask_jwt_extended import get_jwt
 
@@ -3527,7 +1890,6 @@ def get_high_risk_debt_segments():
         if semester_id_filter and str(semester_id_filter).strip().lower() in ('', 'all'):
             semester_id_filter = None
 
-        # Role scoping (references ds alias, so keep ds joined in query)
         _, role_where = _dashboard_role_scope()
 
         base_join = """
@@ -3549,7 +1911,6 @@ def get_high_risk_debt_segments():
             where_clauses.append(f"dp.program_id = {int(filters['program_id'])}")
 
         if filters.get('intake_year') and str(filters['intake_year']).strip().lower() not in ('', 'all'):
-            # If intake_year filter is set, restrict output to that cohort only.
             where_clauses.append(
                 f"EXTRACT(YEAR FROM CAST(ds.admission_date AS DATE)) = {int(filters['intake_year'])}"
             )
@@ -3611,7 +1972,6 @@ def get_high_risk_debt_segments():
 @app.route('/api/dashboard/attendance-by-course', methods=['GET'])
 @jwt_required()
 def get_attendance_by_course():
-    """Get attendance statistics by course (scoped by faculty for dean, department for HOD)."""
     try:
         engine = get_dw_engine()
         role_join, role_where = _dashboard_role_scope()
@@ -3646,10 +2006,6 @@ def get_attendance_by_course():
 @app.route('/api/dashboard/grade-distribution', methods=['GET'])
 @jwt_required()
 def get_grade_distribution():
-    """Get grade distribution.
-    - Students: only their own grades.
-    - Dean/HOD/Staff: scoped by faculty/department via _dashboard_role_scope and filters.
-    - Others: global or filter-scoped."""
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -3665,10 +2021,8 @@ def get_grade_distribution():
         filters = request.args.to_dict()
         role_join, role_where = _dashboard_role_scope()
 
-        # Build WHERE clause: role scope first, then filters
         where_clauses = []
         if role == Role.STUDENT:
-            # For students, ignore faculty/department filters and scope strictly to their own grades
             student_id = claims.get('student_id')
             access_number = claims.get('access_number')
             if student_id:
@@ -3678,7 +2032,6 @@ def get_grade_distribution():
                 safe_acc = str(access_number).replace("'", "''")
                 where_clauses.append(f"ds.access_number = '{safe_acc}'")
             else:
-                # No valid identifier; return empty distribution
                 return jsonify({'grades': [], 'counts': []})
         else:
             if role_where:
@@ -3745,14 +2098,9 @@ def get_grade_distribution():
         print(f"Error in get_grade_distribution: {e}")
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/dashboard/grade-performance-breakdown', methods=['GET'])
 @jwt_required()
 def get_grade_performance_breakdown():
-    """
-    Letter-grade distribution (same semantics as /grade-distribution) plus pass/fail counts
-    grouped by faculty, department, program, or year of study for the Performance card.
-    """
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -3816,7 +2164,6 @@ def get_grade_performance_breakdown():
                 cc = str(filters.get('course_code')).replace("'", "''")
                 where_clauses.append(f"fg.course_code = '{cc}'")
 
-        # Include any scoreable row so Performance charts populate when exam_status is missing or inconsistent.
         where_clauses.append(_sql_grade_has_outcome_for_analytics('fg'))
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
@@ -3837,7 +2184,6 @@ def get_grade_performance_breakdown():
             "WHEN fg.grade IS NOT NULL AND fg.grade >= 50 THEN 1 ELSE 0 END"
         )
 
-        # --- Letter distribution ---
         dist_q = f"""
         SELECT
             COALESCE(NULLIF(TRIM(fg.letter_grade::text), ''), '—') AS letter_grade,
@@ -3971,16 +2317,9 @@ def get_grade_performance_breakdown():
             'error': str(e),
         }), 500
 
-
 @app.route('/api/dashboard/top-students', methods=['GET'])
 @jwt_required()
 def get_top_students_filtered():
-    """
-    Top students by average score: numeric fg.grade when present, else letter_grade mapped to a percentage.
-    Row scope matches grade-performance (completed / letter / numeric outcome), not fg.grade IS NOT NULL alone.
-    RBAC-scoped: Dean/HOD/Staff/Senate/Analyst/Sysadmin as for other dashboard endpoints.
-    Uses LEFT JOIN dim_student; optional fact-only fallback for institution roles when dim joins return no rows.
-    """
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -4021,9 +2360,6 @@ def get_top_students_filtered():
         pi = _int_param('program_id')
         semester_id = _int_param('semester_id')
 
-        # Same row scope as grade-performance / distribution: completed or letter/numeric outcome.
-        # Require a computable score (numeric grade or mapped letter); raw fg.grade IS NOT NULL alone
-        # misses letter-only ETL rows while faculty filters still "work" on other charts.
         where_clauses = [
             _sql_grade_has_outcome_for_analytics('fg'),
             f"({_sql_effective_grade_numeric('fg')}) IS NOT NULL",
@@ -4053,7 +2389,6 @@ def get_top_students_filtered():
             elif pi is not None:
                 where_clauses.append(f"ds.program_id = {pi}")
         else:
-            # Senate, Analyst, Sysadmin — institution-wide when no faculty/department/program filter
             if fi is not None:
                 where_clauses.append(f"df.faculty_id = {fi}")
             if di is not None:
@@ -4061,7 +2396,6 @@ def get_top_students_filtered():
             if pi is not None:
                 where_clauses.append(f"ds.program_id = {pi}")
 
-        # Same optional slice as grade-distribution / students-by-department (semester on fact_grade)
         if semester_id is not None:
             where_clauses.append(f"fg.semester_id = {semester_id}")
         iy = qf.get('intake_year')
@@ -4093,8 +2427,6 @@ def get_top_students_filtered():
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-        # Always join the student → program → department → faculty chain so role filters and
-        # program_id / faculty_id clauses resolve (previously INNER JOIN + missing joins dropped all rows).
         join_clause = """
             LEFT JOIN dim_student ds ON fg.student_id = ds.student_id
             LEFT JOIN dim_program dp ON ds.program_id = dp.program_id
@@ -4121,7 +2453,6 @@ def get_top_students_filtered():
         
         df = pd.read_sql_query(text(query), engine)
         if df.empty:
-            # Fact-only path: institution-wide Senate/Analyst/Sysadmin with no org/dim slices that need dim_student.
             use_fact_only_fallback = (
                 role in (Role.SENATE, Role.ANALYST, Role.SYSADMIN)
                 and fi is None
@@ -4174,7 +2505,6 @@ def get_top_students_filtered():
 @app.route('/api/dashboard/attendance-trends', methods=['GET'])
 @jwt_required()
 def get_attendance_trends():
-    """Get attendance trends over time with role-based filtering"""
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -4189,10 +2519,8 @@ def get_attendance_trends():
         engine = get_dw_engine()
         filters = request.args.to_dict()
         
-        # Build WHERE clause based on role
         where_clauses = []
         
-        # Role-based scoping
         if role == Role.STAFF and claims.get('department_id'):
             where_clauses.append(f"ddept.department_id = {claims['department_id']}")
         elif role == Role.STAFF and filters.get('program_id'):
@@ -4207,7 +2535,6 @@ def get_attendance_trends():
             elif claims.get('access_number'):
                 where_clauses.append(f"ds.access_number = '{claims['access_number']}'")
         
-        # Apply user filters (ignore empty strings and "all" values)
         if filters.get('faculty_id') and str(filters['faculty_id']).strip() and str(filters['faculty_id']).lower() != 'all':
             where_clauses.append(f"df.faculty_id = {filters['faculty_id']}")
         if filters.get('department_id') and str(filters['department_id']).strip() and str(filters['department_id']).lower() != 'all':
@@ -4220,7 +2547,6 @@ def get_attendance_trends():
 
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-        # Join with student, program, department, faculty for role-based filtering or when filters are used
         join_clause = ""
         needs_join = (role in [Role.DEAN, Role.HOD, Role.STAFF, Role.STUDENT] or
                      (filters.get('faculty_id') and str(filters['faculty_id']).strip() and str(filters['faculty_id']).lower() != 'all') or
@@ -4269,10 +2595,8 @@ def get_attendance_trends():
         
         df = pd.read_sql_query(text(query), engine)
         
-        
-        # Calculate attendance rate
         if not df.empty:
-            df['attendance_rate'] = (df['avg_days_present'] / 30 * 100).round(2)  # Assuming ~30 days per month
+            df['attendance_rate'] = (df['avg_days_present'] / 30 * 100).round(2)
             df['attendance_rate'] = df['attendance_rate'].fillna(0)
             
             result = {
@@ -4306,7 +2630,6 @@ def get_attendance_trends():
 @app.route('/api/dashboard/payment-trends', methods=['GET'])
 @jwt_required()
 def get_payment_trends():
-    """Get payment trends over time with role-based filtering - grouped by quarters for longer periods"""
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -4321,10 +2644,8 @@ def get_payment_trends():
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         filters = request.args.to_dict()
         
-        # Build WHERE clause based on role
         where_clauses = []
         
-        # Role-based scoping - Senate and Finance can see all, others are scoped
         if role == Role.DEAN and claims.get('faculty_id'):
             where_clauses.append(f"df.faculty_id = {claims['faculty_id']}")
         elif role == Role.HOD and claims.get('department_id'):
@@ -4337,7 +2658,6 @@ def get_payment_trends():
             elif claims.get('access_number'):
                 where_clauses.append(f"ds.access_number = '{claims['access_number']}'")
         
-        # Apply user filters (ignore empty strings and "all" values)
         if filters.get('faculty_id') and str(filters['faculty_id']).strip() and str(filters['faculty_id']).lower() != 'all':
             where_clauses.append(f"df.faculty_id = {filters['faculty_id']}")
         if filters.get('department_id') and str(filters['department_id']).strip() and str(filters['department_id']).lower() != 'all':
@@ -4364,7 +2684,6 @@ def get_payment_trends():
         period = (filters.get('period') or 'quarterly').strip().lower()
         if period not in ('monthly', 'quarterly', 'yearly'):
             period = 'quarterly'
-        # Include historical payments (pre-2023); a high floor was hiding all series when warehouse years were older.
         min_year = 2000 if period == 'yearly' else 2010
         where_clauses.append(f"dt.year >= {min_year}")
 
@@ -4407,8 +2726,6 @@ def get_payment_trends():
             and str(filters.get('course_code')).strip().lower() != 'all'
         )
 
-        # Fast path: institution-wide roles + program-only filter.
-        # Avoid the expensive LATERAL match for every payment row.
         if (
             role in [Role.ANALYST, Role.FINANCE, Role.SENATE, Role.SYSADMIN]
             and program_filter
@@ -4525,11 +2842,8 @@ def get_payment_trends():
 
         program_pushdown = ""
         if filters.get('program_id') and str(filters['program_id']).strip().lower() != 'all':
-            # Push `program_id` into the student-match subquery for performance.
             program_pushdown = f" AND ds.program_id = {filters['program_id']}"
 
-        # Only join to dim_student/dim_program when filters require it.
-        # For Analyst/Finance default views, joining can be expensive and is unnecessary.
         join_clause = f"""
         LEFT JOIN LATERAL (
             SELECT ds.*
@@ -4601,14 +2915,9 @@ def get_payment_trends():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/dashboard/tuition-defaulters', methods=['GET'])
 @jwt_required()
 def get_tuition_defaulters():
-    """
-    Tuition/fees defaulters (pending/failed payments), one dimension at a time:
-    faculty vs department vs program rows according to global filter depth (same as other finance charts).
-    """
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -4646,7 +2955,6 @@ def get_tuition_defaulters():
         if filters.get('course_code') and str(filters.get('course_code')).strip().lower() not in ('', 'all'):
             course_code = str(filters.get('course_code')).replace("'", "''")
 
-        # Scope to role (similar spirit to /api/dashboard/payment-trends)
         where_clauses = []
         if role == Role.DEAN and claims.get('faculty_id') is not None:
             where_clauses.append(f"df.faculty_id = {int(claims['faculty_id'])}")
@@ -4677,7 +2985,6 @@ def get_tuition_defaulters():
         where_sql = " AND ".join(where_clauses)
         where_sql = f" AND {where_sql}" if where_sql else ""
 
-        # Pick latest semester in scope (if not explicitly filtered)
         if requested_semester_id is not None:
             latest_sem = requested_semester_id
         else:
@@ -4783,19 +3090,11 @@ def get_tuition_defaulters():
         print(traceback.format_exc())
         return jsonify({'tuition_defaulters': [], 'semester_id': None, 'error': str(e)}), 500
     finally:
-        # pooled engine; do not dispose
         pass
-
 
 @app.route('/api/dashboard/tuition-payment-trends-dimensions', methods=['GET'])
 @jwt_required()
 def get_tuition_payment_trends_dimensions():
-    """
-    Tuition payment trends over time, showing a 3-line series for:
-      - Faculty average completed amount per faculty unit
-      - Department average completed amount per department unit
-      - Program average completed amount per program unit
-    """
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -4830,7 +3129,6 @@ def get_tuition_payment_trends_dimensions():
         if period not in ('monthly', 'quarterly', 'yearly'):
             period = 'quarterly'
 
-        # Align with /api/dashboard/payment-trends: a high floor (e.g. 2010) can hide all points when dim_time years are older.
         min_year = 2000
 
         where_clauses = [f"dt.year >= {min_year}"]
@@ -4840,7 +3138,6 @@ def get_tuition_payment_trends_dimensions():
                 return ''
             return str(s).replace("'", "''")
 
-        # Same completed definition spirit as payment-trends; source systems vary (Completed, SUCCESS, PAID, etc.).
         _paid_cond = (
             "((UPPER(TRIM(COALESCE(fp.status::text, ''))) IN ("
             "'COMPLETED', 'SUCCESS', 'PAID', 'COMPLETE', 'SETTLED', 'CLEARED', 'OK'"
@@ -4848,7 +3145,6 @@ def get_tuition_payment_trends_dimensions():
             " OR (UPPER(TRIM(COALESCE(fp.status::text, ''))) LIKE 'PAID%'))"
         )
 
-        # Role-based scoping
         if role == Role.DEAN and claims.get('faculty_id') is not None:
             where_clauses.append(f"df.faculty_id = {int(claims['faculty_id'])}")
         elif role in (Role.HOD, Role.STAFF) and claims.get('department_id') is not None:
@@ -4869,7 +3165,6 @@ def get_tuition_payment_trends_dimensions():
         if semester_id is not None:
             where_clauses.append(f"fp.semester_id = {semester_id}")
 
-        # Apply remaining student-level filters (high_school/intake_year/course_code).
         if filters.get('high_school') and str(filters.get('high_school')).strip().lower() not in ('', 'all'):
             hs = str(filters.get('high_school')).replace("'", "''")
             where_clauses.append(f"ds.high_school ILIKE '%{hs}%'")
@@ -4887,7 +3182,6 @@ def get_tuition_payment_trends_dimensions():
 
         where_sql = " AND ".join(where_clauses)
 
-        # Narrow LATERAL student match when a program filter is applied (same idea as payment-trends fast paths).
         program_pushdown = ""
         if program_id is not None:
             program_pushdown = f" AND ds.program_id = {int(program_id)}"
@@ -4905,7 +3199,6 @@ def get_tuition_payment_trends_dimensions():
             group_by = "dt.year, dt.quarter"
             order_by = "dt.year, dt.quarter"
 
-        # Resolve payments to dim_student the same way as /api/dashboard/payment-trends: fp.student_id may be REG_NO or access_number.
         query = f"""
         SELECT
             {period_select} AS period,
@@ -4956,7 +3249,6 @@ def get_tuition_payment_trends_dimensions():
                 du = int(r.get('department_units') or 0)
                 pu = int(r.get('program_units') or 0)
 
-                # If amounts exist but dimension joins are missing, still surface total (avoids all-zero lines).
                 faculty_amounts.append(
                     round(total_amt / fu, 2) if fu > 0 else (round(total_amt, 2) if total_amt > 0 else 0.0)
                 )
@@ -4995,16 +3287,13 @@ def get_tuition_payment_trends_dimensions():
         }), 500
     finally:
         try:
-            # pooled engine; do not dispose
             pass
         except Exception:
             pass
 
-
 @app.route('/api/dashboard/student-payment-breakdown', methods=['GET'])
 @jwt_required()
 def get_student_payment_breakdown():
-    """Per-student tuition breakdown (total paid vs pending) for the currently logged-in student only."""
     try:
         from flask_jwt_extended import get_jwt
         from rbac import Role
@@ -5016,7 +3305,6 @@ def get_student_payment_breakdown():
         except Exception:
             role = Role.STUDENT
 
-        # Only meaningful for students; for other roles just return empty structure
         if role != Role.STUDENT:
             return jsonify({
                 'total_paid': 0,
@@ -5094,7 +3382,6 @@ def get_student_payment_breakdown():
 @app.route('/api/dashboard/predict-performance', methods=['POST'])
 @jwt_required()
 def predict_performance():
-    """Predict student performance"""
     data = request.get_json()
     student_id = data.get('student_id')
     
@@ -5113,7 +3400,6 @@ def predict_performance():
 @app.route('/api/dashboard/mex-fex-analysis', methods=['GET'])
 @jwt_required()
 def get_mex_fex_analysis():
-    """Get MEX/FEX analysis with reasons (scoped by faculty for dean, department for HOD)."""
     try:
         engine = get_dw_engine()
         role_join, role_where = _dashboard_role_scope()
@@ -5121,7 +3407,6 @@ def get_mex_fex_analysis():
         scope_where = f" WHERE {role_where} " if role_where else ""
         scope_and = f" AND {role_where} " if role_where else ""
 
-        # Overall statistics
         overall_query = f"""
         SELECT 
             COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) as total_mex,
@@ -5134,7 +3419,6 @@ def get_mex_fex_analysis():
         """
         overall_df = pd.read_sql_query(text(overall_query), engine)
 
-        # Reasons breakdown for MEX
         if role_where:
             reasons_query = f"""
             SELECT 
@@ -5172,7 +3456,6 @@ def get_mex_fex_analysis():
             """
         reasons_df = pd.read_sql_query(text(reasons_query), engine)
 
-        # Impact on performance (students with MEX vs without) - role scoped via subquery
         if role_where:
             performance_query = f"""
             SELECT 
@@ -5233,18 +3516,15 @@ def get_mex_fex_analysis():
         print(f"Error in get_mex_fex_analysis: {e}")
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/report/generate', methods=['POST', 'GET'])
 @jwt_required()
 def generate_report():
-    """Generate PDF report"""
     from pdf_generator import PDFReportGenerator
     from flask import send_file
     from flask_jwt_extended import get_jwt
     import os
     
     try:
-        # Generate PDF
         generator = PDFReportGenerator(
             api_base_url=f"http://localhost:5000",
             token=request.headers.get('Authorization', '').replace('Bearer ', '')
@@ -5252,7 +3532,6 @@ def generate_report():
         
         output_path = generator.generate_report()
         
-        # Return PDF file
         if os.path.exists(output_path):
             try:
                 from audit_log import log as audit_log
@@ -5272,7 +3551,6 @@ def generate_report():
         import traceback
         print(f"Error generating PDF: {e}")
         print(traceback.format_exc())
-        # Fallback: return JSON data
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
         stats_query = """
@@ -5313,25 +3591,14 @@ def generate_report():
             'generated_at': datetime.now().isoformat()
         })
 
-# Ensure ucu_rbac DB, app_users table, and default app user (Cemputus / cen123) exist
 try:
-    from sqlalchemy import create_engine
-    _rbac = create_engine(RBAC_CONN_STRING)
+    from config.connection import get_sqlalchemy_conn_string as _gcs, RBAC_DB_NAME as _rdbn
+    _rbac = create_engine(_gcs(_rdbn))
     _ensure_app_users_table(_rbac)
     _ensure_default_app_user(_rbac)
     _rbac.dispose()
-    print(f"  - Default app user: {DEFAULT_APP_USER['username']} / {DEFAULT_APP_USER['password']}")
 except Exception as ex:
-    print(f"Warning: Could not ensure RBAC DB (app-user login may fail): {ex}")
+    print(f"Warning: Could not ensure RBAC DB: {ex}")
 
 if __name__ == '__main__':
-    # ML models are already initialized above
-    print("Starting Flask server...")
-    print("Backend API: http://localhost:5000")
-    print("API Documentation:")
-    print("  - Auth: /api/auth/login, /api/auth/profile")
-    print("  - Analytics: /api/analytics/fex, /api/analytics/high-school")
-    print("  - Predictions: /api/predictions/predict, /api/predictions/scenario")
-    print("  - Dashboard: /api/dashboard/stats")
     app.run(debug=True, host='0.0.0.0', port=5000)
-

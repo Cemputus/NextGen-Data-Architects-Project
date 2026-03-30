@@ -1,7 +1,4 @@
-/**
- * Global Filter Panel Component - shadcn/ui + TailwindCSS
- * Enhanced with cascading filters, advanced icons, and modern UI
- */
+
 import React, { useState, useEffect } from 'react';
 import {
   Filter, 
@@ -42,8 +39,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
   const formatIntakeYearLabel = (rawYear) => {
     const y = Number(rawYear);
     if (!Number.isFinite(y)) return String(rawYear ?? '');
-    // Requested UI window: 2021/2 to 2026
-    // 2021 -> 2021/2, 2022 -> 2022/3, ... 2025 -> 2025/6
+    
     if (y >= 2021 && y <= 2025) {
       const next = y + 1;
       return `${y}/${String(next).slice(-1)}`;
@@ -84,7 +80,6 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
     intake_years: (data.intake_years || []).map((y) => Number(y)).filter((y) => !Number.isNaN(y)),
   });
 
-  // Load filter options with cascading support
   const loadFilterOptions = async (facultyId = null, departmentId = null, semesterId = null) => {
     setLoading(true);
     const params = {};
@@ -99,7 +94,6 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
       });
       setFilterOptions(normalizeOptions(res.data || {}));
       
-      // If faculty changed, clear department and program filters
       if (facultyId && filters.department_id) {
         const newFilters = { ...filters };
         delete newFilters.department_id;
@@ -107,7 +101,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
         setFilters(newFilters);
         onFilterChange(newFilters);
       }
-      // If department changed, clear program filter
+      
       if (departmentId && filters.program_id) {
         const newFilters = { ...filters };
         delete newFilters.program_id;
@@ -121,26 +115,24 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
     }
   };
 
-  // Load / refresh options (intake years list respects semester_id for 2026 rule)
   useEffect(() => {
     const facultyId = filters.faculty_id ? parseInt(filters.faculty_id, 10) : null;
     const departmentId = filters.department_id ? parseInt(filters.department_id, 10) : null;
     const semesterId = filters.semester_id ? parseInt(filters.semester_id, 10) : null;
     loadFilterOptions(facultyId, departmentId, semesterId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [filters.faculty_id, filters.department_id, filters.semester_id]);
 
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters };
     
-    // Cascading filter logic
     if (key === 'faculty_id') {
-      // When faculty changes, clear department and program
+      
       delete newFilters.department_id;
       delete newFilters.program_id;
       newFilters[key] = value;
     } else if (key === 'department_id') {
-      // When department changes, clear program
+      
       delete newFilters.program_id;
       newFilters[key] = value;
     } else {
@@ -153,7 +145,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
 
   const handleSearch = () => {
     if (searchTerm) {
-      // Try to detect format
+      
       if (/^[AB]\d{5}$/.test(searchTerm)) {
         handleFilterChange('access_number', searchTerm);
       } else if (/\d{2}[BMD]\d{2}\/\d{3}/.test(searchTerm)) {
@@ -168,7 +160,7 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
     setFilters({});
     setSearchTerm('');
     onFilterChange({});
-    loadFilterOptions(); // Reload all options
+    loadFilterOptions(); 
   };
 
   const activeFiltersCount = Object.keys(filters).filter(k => filters[k]).length;
@@ -379,5 +371,3 @@ const GlobalFilterPanelShadcn = ({ onFilterChange, savedFilters = [] }) => {
 };
 
 export default GlobalFilterPanelShadcn;
-
-

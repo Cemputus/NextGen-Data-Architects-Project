@@ -1,13 +1,9 @@
-"""
-Prediction API with multiple ML models and scenario analysis
-"""
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import create_engine, text
 import pandas as pd
 import numpy as np
 from datetime import datetime
-# Import from parent directory (backend/)
 import sys
 from pathlib import Path
 backend_dir = Path(__file__).parent.parent
@@ -44,21 +40,15 @@ except ImportError:
 
 predictions_bp = Blueprint('predictions', __name__, url_prefix='/api/predictions')
 
-# Initialize predictor
 predictor = MultiModelPredictor()
 try:
     predictor.load_models()
 except:
     print("Models not loaded. Train models first.")
 
-
 @predictions_bp.route('/model-status', methods=['GET'])
 @jwt_required()
 def model_status():
-    """
-    Return which model artifacts are present and what the in-memory predictors currently have loaded.
-    This is the easiest way to verify that the deployed backend is using the latest shipped .pkl files.
-    """
     claims = get_jwt()
     role_str = (claims.get('role') or '').strip().lower()
     if role_str not in ('sysadmin', 'admin', 'analyst'):
@@ -100,13 +90,10 @@ def model_status():
     }), 200
 
 def safe_float(value, default=0.0):
-    """Safely convert value to float, handling various edge cases"""
     if pd.isna(value) or value is None:
         return default
     if isinstance(value, str):
-        # Try to convert string, return default if it fails
         try:
-            # Handle common non-numeric strings
             if value.upper() in ['M', 'N/A', 'NULL', 'NONE', '']:
                 return default
             return float(value)
@@ -118,7 +105,6 @@ def safe_float(value, default=0.0):
         return default
 
 def safe_int(value, default=0):
-    """Safely convert value to int"""
     if pd.isna(value) or value is None:
         return default
     if isinstance(value, str):
@@ -133,9 +119,7 @@ def safe_int(value, default=0):
     except (ValueError, TypeError):
         return default
 
-
 def _days_since_payment_to_float(val, default=45.0):
-    """Normalize SQL interval / numeric days to float for modelling."""
     if val is None:
         return default
     if isinstance(val, float) and pd.isna(val):
@@ -150,7 +134,6 @@ def _days_since_payment_to_float(val, default=45.0):
     except (TypeError, ValueError):
         return default
 
-
 def apply_scenario_to_tuition_feature_row(
     student_features: pd.DataFrame,
     modified_payment_rate: float,
@@ -161,15 +144,9 @@ def apply_scenario_to_tuition_feature_row(
     base_attendance_rate: float,
     base_courses: int,
 ) -> pd.DataFrame:
-    """
-    Rewrite tuition/attendance feature columns so they stay internally consistent when
-    scenario parameters change. Previously only a few columns were updated, so the
-    tuition model often saw nearly identical inputs for different scenarios.
-    """
     mf = student_features.copy()
     tr = safe_float(mf['total_required'].iloc[0], 0.0)
 
-    # --- Payment coherence (rates, totals, counts, recency) ---
     if tr > 1e-6:
         new_paid = tr * (modified_payment_rate / 100.0)
         mf['total_paid'] = new_paid
@@ -198,7 +175,6 @@ def apply_scenario_to_tuition_feature_row(
 
     mf['has_significant_balance'] = 1 if has_significant_balance else 0
 
-    # --- Attendance: scale hours/days with rate; keep avg_hours per course consistent ---
     base_ar = max(base_attendance_rate, 1.0)
     ar_scale = modified_attendance_rate / base_ar
     ar_scale = max(0.28, min(3.2, ar_scale))
@@ -217,9 +193,7 @@ def apply_scenario_to_tuition_feature_row(
 
     return mf
 
-
 def ensure_tuition_feature_columns_for_scenario(df: pd.DataFrame) -> pd.DataFrame:
-    """Match training dataframe: derived columns missing from the scenario SQL query."""
     out = df.copy()
     if 'attendance_payment_score' not in out.columns:
         ar = safe_float(out['attendance_rate'].iloc[0], 0.0)
@@ -227,12 +201,7 @@ def ensure_tuition_feature_columns_for_scenario(df: pd.DataFrame) -> pd.DataFram
         out['attendance_payment_score'] = (ar * pr) / 100.0
     return out
 
-
 def predict_tuition_attendance_from_feature_row(enhanced_predictor, feature_df: pd.DataFrame):
-    """
-    Run the tuition+attendance regressor on one warehouse row (baseline or scenario-adjusted).
-    Returns None if the model or required columns are unavailable.
-    """
     if not enhanced_predictor or 'tuition_attendance_performance' not in (enhanced_predictor.models or {}):
         return None
     if 'tuition_attendance_performance' not in (enhanced_predictor.feature_cols or {}):
@@ -258,21 +227,13 @@ def predict_tuition_attendance_from_feature_row(enhanced_predictor, feature_df: 
         print(f"predict_tuition_attendance_from_feature_row: {ex}")
         return None
 
-
 def _norm_scope_id(value):
-    """Normalize IDs from JWT or warehouse for comparison."""
     if value is None:
         return None
     s = str(value).strip()
     return s if s else None
 
-
 def ensure_prediction_scope_dean_hod(user_scope, resolved_student_id: str):
-    """
-    Dean: student must belong to the dean's faculty.
-    HOD: student must belong to the HOD's department.
-    Returns a Flask (response, status) tuple if access is denied, or None if allowed.
-    """
     role = user_scope['role']
     if role not in (Role.DEAN, Role.HOD):
         return None
@@ -330,18 +291,14 @@ def ensure_prediction_scope_dean_hod(user_scope, resolved_student_id: str):
             )
     return None
 
-
 def get_user_scope(claims):
-    """Get user's data scope based on role"""
     role_str = claims.get('role', 'student')
-    # Convert string role to Role enum, handling both string and enum inputs
     try:
         if isinstance(role_str, str):
             role = Role(role_str.lower())
         else:
             role = role_str
     except (ValueError, AttributeError):
-        # Fallback to student if role is invalid
         role = Role.STUDENT
     
     scope = {
@@ -357,18 +314,16 @@ def get_user_scope(claims):
 @predictions_bp.route('/predict', methods=['POST'])
 @jwt_required()
 def predict_student_performance():
-    """Predict student performance using selected model"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         data = request.get_json()
         
-        # Check RBAC permissions
         if not has_permission(user_scope['role'], Resource.PREDICTIONS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
         
         student_id = data.get('student_id') or data.get('access_number') or data.get('reg_number')
-        model_type = data.get('model_type', 'ensemble')  # 'random_forest', 'gradient_boosting', 'neural_network', 'ensemble'
+        model_type = data.get('model_type', 'ensemble')
         
         if not student_id:
             return jsonify({'error': 'Student ID, Access Number, or Reg Number required'}), 400
@@ -377,7 +332,6 @@ def predict_student_performance():
         if not resolved:
             return jsonify({'error': 'Student not found'}), 404
         
-        # Students can only predict their own performance (match by warehouse id or access number)
         if user_scope['role'] == Role.STUDENT:
             uid = user_scope.get('student_id')
             uacc = user_scope.get('access_number')
@@ -410,17 +364,14 @@ def predict_student_performance():
 @predictions_bp.route('/scenario', methods=['POST'])
 @jwt_required()
 def predict_scenario():
-    """Predict performance for a hypothetical scenario (what-if analysis)"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         data = request.get_json()
         
-        # Check permissions - only analysts, sysadmin, and senate can do scenario analysis
         if user_scope['role'] not in [Role.ANALYST, Role.SYSADMIN, Role.SENATE]:
             return jsonify({'error': 'Permission denied: Scenario analysis not allowed'}), 403
         
-        # Get student_id and scenario parameters
         student_id = data.get('student_id') or data.get('access_number')
         scenario_params = data.get('scenario', {})
         
@@ -433,7 +384,6 @@ def predict_scenario():
         student_id = resolved
         
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        # Get base student features (tuition and attendance data)
         query = text("""
         SELECT 
             ds.student_id,
@@ -478,7 +428,6 @@ def predict_scenario():
         base_attendance_rate = safe_float(student_features['attendance_rate'].iloc[0], 0.0)
         base_courses = safe_int(student_features['courses_attended'].iloc[0], 0)
         
-        # Override with scenario parameters if provided (clamp to valid % range)
         modified_payment_rate = safe_float(
             scenario_params.get('payment_completion_rate', base_payment_rate), base_payment_rate
         )
@@ -488,7 +437,6 @@ def predict_scenario():
         modified_payment_rate = max(0.0, min(100.0, modified_payment_rate))
         modified_attendance_rate = max(0.0, min(100.0, modified_attendance_rate))
         
-        # Handle courses_enrolled changes
         courses_change = scenario_params.get('courses_enrolled', 0)
         if isinstance(courses_change, str):
             if courses_change.startswith('+'):
@@ -496,24 +444,21 @@ def predict_scenario():
             elif courses_change.startswith('-'):
                 modified_courses = max(0, base_courses - int(courses_change[1:]))
             elif courses_change == 'optimal':
-                modified_courses = min(base_courses + 2, 8)  # Optimal is slightly more courses
+                modified_courses = min(base_courses + 2, 8)
             else:
                 modified_courses = base_courses
         else:
             modified_courses = courses_change if courses_change > 0 else base_courses
         
-        # Handle has_significant_balance
         has_significant_balance = scenario_params.get('has_significant_balance', 
                                                       bool(student_features['has_significant_balance'].iloc[0]))
         
-        # Prepare modified feature vector for prediction
         predictions = {}
         raw_by_model = {}
-        scenario_signal = None  # tuition(scenario) − tuition(baseline), applied to RF/GB/NN
+        scenario_signal = None
 
         student_features = ensure_tuition_feature_columns_for_scenario(student_features)
 
-        # Tuition + attendance: baseline row vs scenario row — same model, two inputs
         if enhanced_predictor and 'tuition_attendance_performance' in enhanced_predictor.models:
             try:
                 pred_base_tuition = predict_tuition_attendance_from_feature_row(
@@ -541,12 +486,9 @@ def predict_scenario():
             except Exception as e:
                 print(f"Error in tuition-attendance scenario prediction: {e}")
 
-        # Random forest, gradient boosting, neural network: shift by the same scenario delta as
-        # tuition+attendance (so all four tracks respond to the what-if consistently).
         d_att = modified_attendance_rate - base_attendance_rate
         d_pay = modified_payment_rate - base_payment_rate
         d_crs = modified_courses - base_courses
-        # Same tuition-driven scenario shift applied to each base model (RF / GB / NN differ via base_pred).
         model_scenario_blend = {
             'random_forest': 1.0,
             'gradient_boosting': 1.0,
@@ -585,7 +527,6 @@ def predict_scenario():
                 **enrich_model_prediction_block(avg_raw),
             }
         
-        # Build scenario description
         scenario_description = {
             'name': 'Custom Scenario',
             'description': (
@@ -629,13 +570,11 @@ def predict_scenario():
 @predictions_bp.route('/batch-predict', methods=['POST'])
 @jwt_required()
 def batch_predict():
-    """Batch prediction for multiple students"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
         data = request.get_json()
         
-        # Check permissions
         if user_scope['role'] == Role.STUDENT:
             return jsonify({'error': 'Permission denied'}), 403
         
@@ -643,11 +582,9 @@ def batch_predict():
         model_type = data.get('model_type', 'ensemble')
         filters = data.get('filters', {})
         
-        # Apply role-based filtering
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
         if user_scope['role'] == Role.STAFF:
-            # Staff can only predict for their classes
             query = text("""
             SELECT DISTINCT fe.student_id 
             FROM fact_enrollment fe
@@ -658,7 +595,6 @@ def batch_predict():
             student_ids = [s for s in student_ids if s in allowed_students['student_id'].tolist()]
         
         elif user_scope['role'] == Role.HOD:
-            # HOD can predict for their department
             query = text("""
             SELECT DISTINCT ds.student_id
             FROM dim_student ds
@@ -669,7 +605,6 @@ def batch_predict():
             student_ids = [s for s in student_ids if s in allowed_students['student_id'].tolist()]
         
         elif user_scope['role'] == Role.DEAN:
-            # Dean can predict for their faculty
             query = text("""
             SELECT DISTINCT ds.student_id
             FROM dim_student ds
@@ -718,7 +653,6 @@ def batch_predict():
 @predictions_bp.route('/scenarios', methods=['GET'])
 @jwt_required()
 def get_scenario_templates():
-    """Get predefined scenario templates"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -788,7 +722,6 @@ def get_scenario_templates():
         return jsonify({'error': str(e)}), 500
 
 def analyze_scenario(scenario, predictions):
-    """Analyze scenario predictions and provide insights"""
     analysis = {
         'risk_level': 'medium',
         'recommendations': [],
@@ -800,10 +733,8 @@ def analyze_scenario(scenario, predictions):
         analysis['recommendations'].append('Unable to generate predictions. Please check model availability.')
         return analysis
     
-    # Calculate average prediction across all models
     avg_prediction = sum([p['predicted_grade'] for p in predictions.values()]) / len(predictions)
     
-    # Determine risk level based on predicted grade
     if avg_prediction < 50:
         analysis['risk_level'] = 'high'
         analysis['recommendations'].append('Student is at high risk of failure. Immediate intervention needed.')
@@ -824,7 +755,6 @@ def analyze_scenario(scenario, predictions):
         analysis['risk_level'] = 'low'
         analysis['recommendations'].append('Student is performing well. Continue current approach.')
     
-    # Analyze scenario parameters
     attendance_rate = scenario.get('attendance_rate')
     payment_rate = scenario.get('payment_completion_rate')
     has_balance = scenario.get('has_significant_balance', False)
@@ -853,7 +783,6 @@ def analyze_scenario(scenario, predictions):
         analysis['key_factors'].append('Student has significant outstanding balance')
         analysis['recommendations'].append('Review financial situation and provide payment assistance')
     
-    # Performance trend analysis
     if len(predictions) > 1:
         model_scores = [p['predicted_grade'] for p in predictions.values()]
         score_range = max(model_scores) - min(model_scores)
@@ -861,7 +790,6 @@ def analyze_scenario(scenario, predictions):
             analysis['key_factors'].append('High prediction variance - model uncertainty')
             analysis['recommendations'].append('Gather more data to improve prediction accuracy')
     
-    # Ensure we have at least one recommendation
     if not analysis['recommendations']:
         analysis['recommendations'].append('Continue monitoring student progress')
     
@@ -870,7 +798,6 @@ def analyze_scenario(scenario, predictions):
 @predictions_bp.route('/tuition-attendance-performance', methods=['POST'])
 @jwt_required()
 def predict_tuition_attendance_performance():
-    """Predict performance based on tuition timeliness and attendance"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -907,9 +834,7 @@ def predict_tuition_attendance_performance():
         if denied is not None:
             return denied
 
-        # Get student features
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
-        # Use the same query structure as in enhanced_predictions.py
         query = text("""
         SELECT 
             ds.student_id,
@@ -959,55 +884,40 @@ def predict_tuition_attendance_performance():
         if student_data.empty:
             return jsonify({'error': 'Student not found'}), 404
         
-        # Prepare features - ensure all values are numeric
         feature_cols = enhanced_predictor.feature_cols['tuition_attendance_performance']
         
-        # Check for missing columns and add them with default values
         missing_cols = set(feature_cols) - set(student_data.columns)
         if missing_cols:
             print(f"Warning: Missing columns in prediction data: {missing_cols}")
             for col in missing_cols:
-                student_data[col] = 0  # Add missing columns with default value 0
+                student_data[col] = 0
         
         X_df = student_data[feature_cols].copy()
-        # Convert all columns to numeric, coercing errors to NaN then filling with 0
         for col in X_df.columns:
             X_df[col] = pd.to_numeric(X_df[col], errors='coerce').fillna(0)
         X = X_df.values.astype(np.float64)
         
-        # Scale and predict
         scaler = enhanced_predictor.scalers['tuition_attendance_performance']
         X_scaled = scaler.transform(X)
         model = enhanced_predictor.models['tuition_attendance_performance']
         prediction = model.predict(X_scaled)[0]
         
-        # Safely convert all values
         pred_float = safe_float(prediction, 0.0)
         
-        # Get the actual values and ensure they're properly calculated
         payment_completion = safe_float(student_data['payment_completion_rate'].iloc[0], 0.0)
         attendance_rate = safe_float(student_data['attendance_rate'].iloc[0], 0.0)
         
-        # Ensure attendance rate doesn't exceed 100%
         attendance_rate = min(100.0, max(0.0, attendance_rate))
         
-        # If there's no attendance data but student exists, set to 0 instead of showing 100%
         total_attendance_records = safe_float(student_data.get('total_attendance_records', pd.Series([0])).iloc[0], 0.0)
         total_days_present = safe_float(student_data.get('total_days_present', pd.Series([0])).iloc[0], 0.0)
         
-        # Recalculate attendance rate properly: if no records, it's 0%
         if total_attendance_records == 0:
             attendance_rate = 0.0
         else:
-            # Calculate as percentage: (days_present / total_possible_days) * 100
-            # Since we don't have total_possible_days, use a more meaningful calculation
-            # Attendance rate = (days_present / attendance_records) * 100, capped at 100%
-            # But this assumes each record is one day, which might not be accurate
-            # For now, use the calculated rate but ensure it's between 0 and 100
             calculated_rate = (total_days_present / total_attendance_records) * 100 if total_attendance_records > 0 else 0.0
             attendance_rate = min(100.0, max(0.0, calculated_rate))
         
-        # If there's no payment data, payment completion should be 0, not showing incorrectly
         total_paid = safe_float(student_data.get('total_paid', pd.Series([0])).iloc[0], 0.0)
         total_required = safe_float(student_data.get('total_required', pd.Series([0])).iloc[0], 0.0)
         if total_required == 0 and total_paid == 0:
@@ -1036,7 +946,6 @@ def predict_tuition_attendance_performance():
 @predictions_bp.route('/enrollment-trend', methods=['POST'])
 @jwt_required()
 def predict_enrollment_trend():
-    """Predict enrollment trends for resource allocation"""
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
@@ -1054,11 +963,8 @@ def predict_enrollment_trend():
         department_id = data.get('department_id')
         faculty_id = data.get('faculty_id')
         
-        # Get historical data for lag features
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         try:
-            # Implementation would fetch historical data and create lag features
-            # Then use the model to predict
             pass
         finally:
             engine.dispose()
@@ -1066,9 +972,8 @@ def predict_enrollment_trend():
             'message': 'Enrollment trend prediction',
             'year': year,
             'quarter': quarter,
-            'predicted_enrollment': 0  # Placeholder
+            'predicted_enrollment': 0
         }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-

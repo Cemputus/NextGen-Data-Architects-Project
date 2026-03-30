@@ -1,10 +1,3 @@
-"""
-Mirror dim_faculty / dim_department / dim_employee into ucu_sourcedb1 / ucu_sourcedb2
-on the same PostgreSQL database as the data warehouse, and seed employee_attendance
-so HR analytics can return employee_attendance_trend (Present / Absent / Late / On Leave).
-
-Disable with environment variable: SKIP_HR_ADMIN_MIRROR=1
-"""
 from __future__ import annotations
 
 import logging
@@ -22,12 +15,10 @@ logger = logging.getLogger(__name__)
 
 _SQL_FILE = Path(__file__).resolve().parent / "sql" / "hr_admin_warehouse_schemas.sql"
 
-
 def _apply_schema_ddl(engine) -> None:
     if not _SQL_FILE.is_file():
         raise FileNotFoundError(f"Missing HR mirror DDL: {_SQL_FILE}")
     raw = _SQL_FILE.read_text(encoding="utf-8")
-    # Strip line comments; split on semicolon + newline for simple statements
     lines = []
     for line in raw.splitlines():
         stripped = line.strip()
@@ -40,7 +31,6 @@ def _apply_schema_ddl(engine) -> None:
         for stmt in stmts:
             conn.execute(text(stmt))
 
-
 def _weekdays_chronological(count: int, end: date | None = None) -> list[date]:
     end = end or date.today()
     out: list[date] = []
@@ -52,12 +42,7 @@ def _weekdays_chronological(count: int, end: date | None = None) -> list[date]:
     out.reverse()
     return out
 
-
 def _attendance_series_end_date(engine) -> date:
-    """
-    Last day of the attendance trend window — aligned with loaded warehouse dates when possible
-    (dim_time, then fact tables), else today. Keeps HR charts in the same timeframe as academic facts.
-    """
     candidates = [
         "SELECT MAX(date) AS d FROM dim_time WHERE date IS NOT NULL",
         (
@@ -86,9 +71,7 @@ def _attendance_series_end_date(engine) -> date:
             continue
     return date.today()
 
-
 def _count_dim_employees_without_valid_org(engine) -> int:
-    """Employees whose department_id does not resolve to a row in dim_department + dim_faculty."""
     try:
         row = pd.read_sql_query(
             text(
@@ -109,7 +92,6 @@ def _count_dim_employees_without_valid_org(engine) -> int:
     except Exception:
         return 0
 
-
 def _pick_status(rng: random.Random) -> str:
     r = rng.random()
     if r < 0.78:
@@ -120,12 +102,7 @@ def _pick_status(rng: random.Random) -> str:
         return "Late"
     return "On Leave"
 
-
 def _bulk_insert_employee_attendance(engine, rows: list[tuple]) -> None:
-    """
-    Bulk insert attendance rows. Uses psycopg2 execute_values (reliable); SQLAlchemy multi-dict
-    executemany is driver/version-sensitive and has silently inserted 0 rows in some setups.
-    """
     if not rows:
         return
     try:
@@ -164,9 +141,7 @@ def _bulk_insert_employee_attendance(engine, rows: list[tuple]) -> None:
     finally:
         raw.close()
 
-
 def count_employee_attendance_rows(engine) -> int:
-    """Return row count in ucu_sourcedb2.employee_attendance, or 0 if table missing."""
     try:
         return int(
             pd.read_sql_query(
@@ -177,15 +152,7 @@ def count_employee_attendance_rows(engine) -> int:
     except Exception:
         return 0
 
-
 def ensure_hr_admin_mirror_for_attendance(engine) -> None:
-    """
-    If dim_faculty / dim_department / dim_employee have data but ucu_sourcedb2.employee_attendance
-    is empty (or missing), run seed_hr_admin_mirror so HR attendance trend charts have a series.
-
-    Safe for repeated calls: skips when attendance already has rows. Intended for Docker/warehouse
-    setups after ETL skipped the mirror step or first API hit before ETL.
-    """
     if os.environ.get("SKIP_HR_ADMIN_MIRROR", "").strip().lower() in ("1", "true", "yes"):
         return
     try:
@@ -203,7 +170,6 @@ def ensure_hr_admin_mirror_for_attendance(engine) -> None:
         return
     if n_fac == 0 or n_dep == 0 or n_emp == 0:
         return
-    # Skip expensive orphan check when mirror already has attendance
     try:
         n_att = count_employee_attendance_rows(engine)
     except Exception:
@@ -223,18 +189,12 @@ def ensure_hr_admin_mirror_for_attendance(engine) -> None:
     except Exception as e:
         logger.warning("ensure_hr_admin_mirror_for_attendance failed: %s", e, exc_info=True)
 
-
 def seed_hr_admin_mirror(
     engine,
     *,
     attendance_weekdays: int = 65,
     random_seed: int = 42,
 ) -> dict:
-    """
-    Ensure HR admin tables exist, sync from dim_* , generate synthetic attendance rows.
-
-    Returns a small stats dict for logging.
-    """
     if os.environ.get("SKIP_HR_ADMIN_MIRROR", "").strip().lower() in ("1", "true", "yes"):
         return {"skipped": True, "reason": "SKIP_HR_ADMIN_MIRROR"}
 
@@ -373,7 +333,6 @@ def seed_hr_admin_mirror(
         "dim_employees_excluded_orphans": excluded_orphans,
     }
 
-
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     from config import DATA_WAREHOUSE_CONN_STRING
@@ -381,7 +340,6 @@ def main() -> None:
     eng = create_engine(DATA_WAREHOUSE_CONN_STRING)
     stats = seed_hr_admin_mirror(eng)
     print(stats)
-
 
 if __name__ == "__main__":
     main()

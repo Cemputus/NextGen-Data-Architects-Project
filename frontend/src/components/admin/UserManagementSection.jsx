@@ -1,7 +1,4 @@
-/**
- * Shared User Management section for Admin Users page and Admin Console (dashboard) Users tab.
- * Lists students (dim_student), demo accounts, and app users. Add User creates real users with role scope.
- */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Search, Loader2, RefreshCw, UserCircle, ExternalLink, Plus, X, Eye, Pencil, Trash2 } from 'lucide-react';
@@ -18,7 +15,6 @@ import { cn } from '../../lib/utils';
 import adminUIState from '../../utils/adminUIState';
 import { SciDonutChart, SciBarChart } from '../charts/EChartsComponents';
 
-// Keep in sync with AuthContext's TOKEN_KEY
 const TOKEN_KEY = 'ucu_session_token';
 const getToken = () => (typeof window !== 'undefined' ? sessionStorage.getItem(TOKEN_KEY) : null);
 
@@ -35,7 +31,6 @@ const ROLES = [
   { value: 'finance', label: 'Finance' },
 ];
 
-// Roles that are not assigned to any department or faculty
 const ROLES_NO_FACULTY_DEPARTMENT = ['finance', 'hr', 'senate', 'sysadmin', 'analyst'];
 
 const ADD_USER_ROLES = [
@@ -57,11 +52,11 @@ export default function UserManagementSection({
   showOpenFullPage = false,
   refreshTrigger,
   onUsersChanged,
-  // Optional: cap "all" for preview contexts (e.g. Admin Console tab)---
+  
   maxUsers = null,
-  // Optional: hide the "Show last N" selector
+  
   hideLimitSelector = false,
-  // Optional: override the per-page options (defaults to USER_LIMIT_OPTIONS)
+  
   limitOptionsOverride = null,
 }) {
   const usersState = adminUIState.getSection('users');
@@ -69,7 +64,7 @@ export default function UserManagementSection({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [dataViewMode, setDataViewModeState] = useState(() => usersState.dataViewMode || 'raw'); // 'raw' | 'visual'
+  const [dataViewMode, setDataViewModeState] = useState(() => usersState.dataViewMode || 'raw'); 
   const [searchTerm, setSearchTermState] = useState(() => usersState.searchTerm || '');
   const [roleFilter, setRoleFilterState] = useState(() => usersState.roleFilter || '');
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -124,7 +119,7 @@ export default function UserManagementSection({
   const [resetSubmitting, setResetSubmitting] = useState(false);
   const [resetError, setResetError] = useState(null);
 
-  const [roleChartType, setRoleChartType] = useState('donut'); // 'donut' | 'bar'
+  const [roleChartType, setRoleChartType] = useState('donut'); 
 
   const roleDistribution = React.useMemo(() => {
     if (!users || users.length === 0) return [];
@@ -154,8 +149,7 @@ export default function UserManagementSection({
       const params = new URLSearchParams();
       if (searchTerm.trim()) params.set('search', searchTerm.trim());
       if (roleFilter) params.set('role', roleFilter);
-      // When "all" is selected, request up to 10,000 users so all synthetic students are visible.
-      // For preview contexts (maxUsers), cap the "all" case at maxUsers.
+      
       const effectiveLimit =
         usersLimit === 'all'
           ? (maxUsers && typeof maxUsers === 'number' ? maxUsers : 10000)
@@ -235,7 +229,6 @@ export default function UserManagementSection({
       .catch(() => setDepartments([]));
   }, [addModalOpen, editUser, addForm.role, addForm.faculty_id, editForm.role, editForm.faculty_id]);
 
-  // Refetch departments when faculty filter changes (for HOD/dean/staff/hr/finance)
   useEffect(() => {
     if (!addModalOpen && !editUser) return;
     const token = getToken();
@@ -270,7 +263,7 @@ export default function UserManagementSection({
       setAddSubmitting(false);
       return;
     }
-    // Client-side guardrails (backend also enforces uniqueness/required scope)
+    
     if (addForm.role === 'dean' && !addForm.faculty_id) {
       setAddError('Please select a faculty for the Dean.');
       setAddSubmitting(false);
@@ -312,7 +305,7 @@ export default function UserManagementSection({
     try {
       await axios.post('/api/user-mgmt/users', payload, { headers: { Authorization: `Bearer ${token}` } });
       setAddModalOpen(false);
-      // After adding a user, clear filters so the new user is visible in the list
+      
       setSearchTerm('');
       setRoleFilter('');
       setUsersLimit(50);
@@ -381,7 +374,7 @@ export default function UserManagementSection({
     setEditError(null);
     const token = getToken();
     if (!token) return;
-    // Client-side guardrails (backend also enforces uniqueness/required scope)
+    
     if (editForm.role === 'dean' && !editForm.faculty_id) {
       setEditError('Please select a faculty for the Dean.');
       setEditSubmitting(false);
@@ -765,7 +758,7 @@ export default function UserManagementSection({
         </ModalBody>
       </Modal>
 
-      {/* View user modal */}
+      {}
       <Modal open={!!viewUser} onClose={() => { setViewUser(null); setViewError(null); }} titleId="view-user-title" maxWidth="max-w-lg">
         <ModalHeader title="User details" titleId="view-user-title" onClose={() => { setViewUser(null); setViewError(null); }} />
         <ModalBody>
@@ -862,7 +855,7 @@ export default function UserManagementSection({
         </ModalBody>
       </Modal>
 
-      {/* Edit user modal (app_user only) */}
+      {}
       <Modal open={!!editUser} onClose={() => !editSubmitting && setEditUser(null)} titleId="edit-user-title" maxWidth="max-w-lg">
         <ModalHeader title="Edit user" titleId="edit-user-title" onClose={() => !editSubmitting && setEditUser(null)} />
         <ModalBody>
@@ -997,7 +990,7 @@ export default function UserManagementSection({
         </ModalBody>
       </Modal>
 
-      {/* Delete confirmation */}
+      {}
       <Modal open={!!deleteConfirm} onClose={() => { if (!deleteSubmitting) { setDeleteConfirm(null); setDeleteError(null); } }} titleId="delete-user-title" maxWidth="max-w-sm">
         <ModalHeader title="Delete user" titleId="delete-user-title" onClose={() => { if (!deleteSubmitting) { setDeleteConfirm(null); setDeleteError(null); } }} />
         <ModalBody>
@@ -1019,7 +1012,7 @@ export default function UserManagementSection({
         </ModalBody>
       </Modal>
 
-      {/* Reset password modal (app_user only) */}
+      {}
       <Modal
         open={!!resetUser}
         onClose={() => {

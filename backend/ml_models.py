@@ -1,7 +1,3 @@
-"""
-Enhanced Machine Learning Models for Student Performance Prediction
-Includes: Random Forest, Gradient Boosting, and Neural Network
-"""
 import pandas as pd
 import numpy as np
 import pickle
@@ -15,7 +11,6 @@ from sqlalchemy import create_engine, text
 from config import DATA_WAREHOUSE_CONN_STRING
 
 class MultiModelPredictor:
-    """Multiple ML models for student performance prediction"""
     def __init__(self):
         self.models = {
             'random_forest': None,
@@ -23,17 +18,14 @@ class MultiModelPredictor:
             'neural_network': None
         }
         self.scaler = StandardScaler()
-        # Use relative path since we're already in backend folder
         self.model_path = Path(__file__).parent / "models"
         self.model_path.mkdir(parents=True, exist_ok=True)
         self.feature_cols = None
-        self.label_encoders = {}  # Store label encoders for categorical variables
+        self.label_encoders = {}
     
     def prepare_features(self):
-        """Prepare features from data warehouse with enhanced features including high school"""
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
-        # Get student demographic data with high school
         student_query = """
         SELECT 
             ds.student_id,
@@ -57,7 +49,6 @@ class MultiModelPredictor:
         """
         student_df = pd.read_sql_query(student_query, engine)
         
-        # Get attendance data
         attendance_query = """
         SELECT 
             fa.student_id,
@@ -76,7 +67,6 @@ class MultiModelPredictor:
         """
         attendance_df = pd.read_sql_query(attendance_query, engine)
         
-        # Get payment data with tuition completion metrics
         payment_query = """
         SELECT 
             fp.student_id,
@@ -100,7 +90,6 @@ class MultiModelPredictor:
         """
         payment_df = pd.read_sql_query(payment_query, engine)
         
-        # Get enrollment data
         enrollment_query = """
         SELECT 
             fe.student_id,
@@ -111,7 +100,6 @@ class MultiModelPredictor:
         """
         enrollment_df = pd.read_sql_query(enrollment_query, engine)
         
-        # Get grade data (target variable) with high school performance metrics
         grade_query = """
         SELECT 
             fg.student_id,
@@ -139,7 +127,6 @@ class MultiModelPredictor:
         """
         grade_df = pd.read_sql_query(grade_query, engine)
         
-        # Get high school performance metrics (aggregate by high school)
         high_school_query = """
         SELECT 
             ds.high_school,
@@ -155,25 +142,21 @@ class MultiModelPredictor:
         """
         hs_performance_df = pd.read_sql_query(high_school_query, engine)
         
-        # Merge all data
         features_df = student_df.copy()
         features_df = features_df.merge(attendance_df, on='student_id', how='left')
         features_df = features_df.merge(payment_df, on='student_id', how='left')
         features_df = features_df.merge(enrollment_df, on='student_id', how='left')
         features_df = features_df.merge(grade_df, on='student_id', how='left')
         
-        # Merge high school performance metrics
         features_df = features_df.merge(
             hs_performance_df[['high_school', 'school_avg_grade', 'school_student_count', 'school_avg_payment', 'school_pending_rate']],
             on='high_school',
             how='left'
         )
         
-        # Fill missing values
         numeric_cols = features_df.select_dtypes(include=[np.number]).columns
         features_df[numeric_cols] = features_df[numeric_cols].fillna(0)
         
-        # Fill missing MEX/FEX features
         mex_fex_cols = ['missed_exams', 'failed_exams', 'completed_exams', 
                        'tuition_related_missed', 'family_related_missed', 
                        'medical_related_missed', 'missed_exam_rate', 'failed_coursework']
@@ -183,7 +166,6 @@ class MultiModelPredictor:
             else:
                 features_df[col] = features_df[col].fillna(0)
         
-        # Fill high school metrics
         hs_cols = ['school_avg_grade', 'school_student_count', 'school_avg_payment', 'school_pending_rate']
         for col in hs_cols:
             if col not in features_df.columns:
@@ -195,54 +177,42 @@ class MultiModelPredictor:
         return features_df
     
     def train_all_models(self, use_grid_search=False):
-        """Train all models"""
         print("Preparing features...")
         features_df = self.prepare_features()
         
-        # Prepare target variable
         target = features_df['avg_grade'].fillna(0)
         features_df = features_df.drop(['student_id', 'avg_grade'], axis=1, errors='ignore')
         
-        # Encode categorical variables - ensure all strings are converted
         categorical_cols = ['gender', 'nationality', 'high_school', 'high_school_district']
         self.label_encoders = {}
         
         for col in categorical_cols:
             if col in features_df.columns:
                 le = LabelEncoder()
-                # Convert to string, handle NaN/None values
                 features_df[col] = features_df[col].fillna('Unknown').astype(str)
                 features_df[col] = le.fit_transform(features_df[col])
                 self.label_encoders[col] = le
         
-        # Ensure all non-numeric columns are either encoded or dropped
-        # Convert any remaining object/string columns that might cause issues
         for col in features_df.columns:
             if features_df[col].dtype == 'object':
-                # Try to convert to numeric if possible, otherwise encode
                 try:
                     features_df[col] = pd.to_numeric(features_df[col], errors='coerce').fillna(0)
                 except:
-                    # If conversion fails, use label encoding
                     le = LabelEncoder()
                     features_df[col] = le.fit_transform(features_df[col].astype(str).fillna('Unknown'))
                     self.label_encoders[col] = le
         
-        # Select numeric features
         self.feature_cols = features_df.select_dtypes(include=[np.number]).columns.tolist()
         X = features_df[self.feature_cols].fillna(0)
         y = target.fillna(0)
         
-        # Split data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         
-        # Scale features
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
         
         results = {}
         
-        # Train Random Forest
         print("\nTraining Random Forest...")
         rf = RandomForestRegressor(n_estimators=100, max_depth=15, random_state=42, n_jobs=-1)
         if use_grid_search:
@@ -264,7 +234,6 @@ class MultiModelPredictor:
         }
         print(f"Random Forest - R²: {results['random_forest']['r2']:.4f}, RMSE: {results['random_forest']['rmse']:.2f}")
         
-        # Train Gradient Boosting
         print("\nTraining Gradient Boosting...")
         gb = GradientBoostingRegressor(n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42)
         if use_grid_search:
@@ -286,7 +255,6 @@ class MultiModelPredictor:
         }
         print(f"Gradient Boosting - R²: {results['gradient_boosting']['r2']:.4f}, RMSE: {results['gradient_boosting']['rmse']:.2f}")
         
-        # Train Neural Network (regularized to limit optimistic saturation toward 100)
         print("\nTraining Neural Network...")
         nn = MLPRegressor(
             hidden_layer_sizes=(64, 32),
@@ -308,18 +276,11 @@ class MultiModelPredictor:
         }
         print(f"Neural Network - R²: {results['neural_network']['r2']:.4f}, RMSE: {results['neural_network']['rmse']:.2f}")
         
-        # Save models
         self.save_models()
         
         return results
     
     def _apply_scenario_override_to_student_data(self, student_data: pd.DataFrame, o: dict) -> None:
-        """
-        Mutate the warehouse feature row so what-if attendance, payment, course load,
-        and balance match the scenario. Used by /predictions/scenario so Random Forest,
-        Gradient Boosting, and Neural Network all read the same hypothetical inputs as
-        the tuition+attendance model (instead of only adding a delta on top of baseline).
-        """
         if student_data.empty or not o:
             return
         idx = student_data.index[0]
@@ -368,19 +329,8 @@ class MultiModelPredictor:
                 student_data.loc[idx, 'payment_count'] = max(0.0, bpc + mod_pr / 25.0)
 
     def predict(self, student_id, model_type='ensemble', scenario_override=None, scenario_mode=False):
-        """
-        Predict student performance using specified model or ensemble.
-
-        scenario_override: optional dict with base/modified attendance, payment, courses, balance
-            (see /api/predictions/scenario). When set, the warehouse row is rewritten before
-            scaling so NN and tree models reflect the hypothetical case.
-
-        scenario_mode: when True with scenario_override, skip observable-signal blending so
-            scenario differences are visible (used for what-if analysis only).
-        """
         engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
         
-        # Get student features
         query = text("""
         SELECT 
             ds.student_id,
@@ -452,70 +402,49 @@ class MultiModelPredictor:
         if scenario_override:
             self._apply_scenario_override_to_student_data(student_data, scenario_override)
         
-        # Encode categorical variables - MUST match training encoding
-        # Use the same label encoders from training, or encode in place like training does
         categorical_cols = ['gender', 'nationality', 'high_school', 'high_school_district']
         
         for col in categorical_cols:
             if col in student_data.columns:
                 if col in self.label_encoders:
-                    # Use saved label encoder from training
                     le = self.label_encoders[col]
-                    # Convert to string, handle NaN/None values (same as training)
                     student_data[col] = student_data[col].fillna('Unknown').astype(str)
-                    # Handle unseen values - use 'Unknown' for values not in training
                     try:
                         student_data[col] = le.transform(student_data[col])
                     except ValueError:
-                        # If value not seen during training, map to 'Unknown' first
                         student_data[col] = student_data[col].replace(
                             [v for v in student_data[col].unique() if v not in le.classes_],
                             'Unknown'
                         )
                         student_data[col] = le.transform(student_data[col])
                 else:
-                    # Fallback: encode using same method as training
-                    # Convert to string, handle NaN/None values
                     student_data[col] = student_data[col].fillna('Unknown').astype(str)
-                    # For gender, use simple mapping
                     if col == 'gender':
                         student_data[col] = student_data[col].map({'M': 1, 'F': 0, 'Male': 1, 'Female': 0}).fillna(0)
                     else:
-                        # Use categorical codes as fallback
                         student_data[col] = pd.Categorical(student_data[col]).codes
         
-        # Prepare feature vector
         if not self.feature_cols:
             raise ValueError("Model not trained. Please train models first.")
         
-        # Check for missing columns and add them with default values
         missing_cols = set(self.feature_cols) - set(student_data.columns)
         if missing_cols:
             print(f"Warning: Missing columns in prediction data: {missing_cols}")
             for col in missing_cols:
-                student_data[col] = 0  # Add missing columns with default value 0
+                student_data[col] = 0
         
-        # Use all feature_cols to match training (in correct order)
         X_df = student_data[self.feature_cols].copy()
         
-        # Ensure all columns are numeric before converting to array
-        # This is a safety check - encoding above should have made them numeric, but double-check
         for col in X_df.columns:
-            # First replace common non-numeric strings (case-insensitive) - safety check
             if X_df[col].dtype == 'object' or X_df[col].dtype == 'string':
-                # Replace any string values that look like 'M', 'N/A', etc.
                 X_df[col] = X_df[col].astype(str).replace(['M', 'm', 'N/A', 'n/a', 'NULL', 'null', 'NONE', 'none', '', 'nan', 'NaN', 'None'], '0')
-            # Then convert to numeric - this will handle any remaining non-numeric values
             X_df[col] = pd.to_numeric(X_df[col], errors='coerce').fillna(0)
-        # Ensure final array is float64 - this will raise an error if there are still non-numeric values
         try:
             X = X_df.values.astype(np.float64)
         except (ValueError, TypeError) as e:
-            # If conversion fails, log the problematic columns and force conversion
             print(f"Warning: Error converting to float64: {e}")
             print(f"Problematic columns and their dtypes: {X_df.dtypes}")
             print(f"Sample values:\n{X_df.head()}")
-            # Force all columns to be numeric one more time
             for col in X_df.columns:
                 X_df[col] = pd.to_numeric(X_df[col], errors='coerce').fillna(0)
             X = X_df.values.astype(np.float64)
@@ -526,44 +455,33 @@ class MultiModelPredictor:
         try:
             X_scaled = self.scaler.transform(X)
         except (ValueError, TypeError) as e:
-            # If transform fails, check for any remaining non-numeric values
             error_msg = str(e)
             print(f"Error transforming features: {error_msg}")
             print(f"Feature columns: {available_cols}")
             print(f"X shape: {X.shape}, X dtype: {X.dtype}")
             print(f"X_df dtypes:\n{X_df.dtypes}")
             print(f"X_df sample:\n{X_df.head()}")
-            # Check if X is still object type (contains strings)
             if X.dtype == 'object':
                 print("WARNING: X array is object type - contains non-numeric values!")
-                # Force all values to be numeric one more time, more aggressively
                 for col in X_df.columns:
-                    # Convert to string first, replace all non-numeric patterns
                     col_series = X_df[col].astype(str)
-                    # Replace any single character 'M' or other problematic values
                     col_series = col_series.replace(['M', 'm', 'N/A', 'n/a', 'NULL', 'null', 'NONE', 'none', '', 'nan', 'NaN', 'None'], '0')
                     X_df[col] = pd.to_numeric(col_series, errors='coerce').fillna(0)
                 X = X_df.values.astype(np.float64)
             else:
-                # Just retry with the same X
                 pass
-            # Try transform again
             try:
                 X_scaled = self.scaler.transform(X)
             except Exception as e2:
                 print(f"Second transform attempt also failed: {e2}")
                 raise ValueError(f"Unable to transform features. Error: {error_msg}. Retry error: {e2}")
         
-        # Make predictions
         row = student_data.iloc[0]
         if model_type == 'ensemble':
-            # Weight tree models higher than the neural net (NN often saturates near 100).
             prediction = self._weighted_ensemble_predict(X_scaled)
         elif model_type in self.models and self.models[model_type] is not None:
             prediction = self.models[model_type].predict(X_scaled)[0]
         elif model_type in self.models and self.models[model_type] is None:
-            # If a model was intentionally disabled (e.g. to keep artifacts small),
-            # degrade gracefully to the ensemble rather than failing the request.
             predictions = []
             for _, model in self.models.items():
                 if model is not None:
@@ -579,7 +497,7 @@ class MultiModelPredictor:
         prediction = float(prediction)
         if not scenario_mode and model_type in ('ensemble', 'neural_network'):
             prediction = self._blend_with_observable_signals(row, prediction)
-        return max(0.0, min(100.0, prediction))  # Clamp between 0 and 100
+        return max(0.0, min(100.0, prediction))
     
     @staticmethod
     def _safe_float_series(row: pd.Series, key: str, default: float = 0.0) -> float:
@@ -594,7 +512,6 @@ class MultiModelPredictor:
             return default
     
     def _weighted_ensemble_predict(self, X_scaled: np.ndarray) -> float:
-        """Combine base models with weights that favor tree ensembles over the MLP."""
         weights = {
             'random_forest': 0.38,
             'gradient_boosting': 0.38,
@@ -616,10 +533,6 @@ class MultiModelPredictor:
         return sum(p * w for p, w in parts) / wsum
     
     def _blend_with_observable_signals(self, row: pd.Series, raw_pred: float) -> float:
-        """
-        Blend optimistic model output with observable academic and attendance signals
-        so scores are not clustered at ~95–100 for every student.
-        """
         cw = self._safe_float_series(row, 'avg_coursework_score')
         ex = self._safe_float_series(row, 'avg_exam_score')
         att = self._safe_float_series(row, 'attendance_rate')
@@ -635,20 +548,15 @@ class MultiModelPredictor:
             if prior < 1e-6:
                 prior = 62.0
         prior = max(0.0, min(100.0, prior))
-        # When the model is very optimistic, trust observables more.
         w = 0.45 if raw_pred >= 88.0 else 0.30
         blended = (1.0 - w) * raw_pred + w * prior
         blended = 50.0 + (blended - 50.0) * 0.92
         return float(max(0.0, min(100.0, blended)))
     
     def predict_scenario(self, scenario_params):
-        """Predict performance for a hypothetical scenario"""
-        # Create feature vector from scenario parameters
-        # This allows "what-if" analysis
         pass
     
     def save_models(self):
-        """Save all models"""
         model_data = {
             'models': self.models,
             'scaler': self.scaler,
@@ -659,7 +567,6 @@ class MultiModelPredictor:
             pickle.dump(model_data, f)
     
     def load_models(self):
-        """Load saved models"""
         model_file = self.model_path / 'multi_model_predictor.pkl'
         if model_file.exists():
             with open(model_file, 'rb') as f:
@@ -667,7 +574,7 @@ class MultiModelPredictor:
                 self.models = model_data['models']
                 self.scaler = model_data['scaler']
                 self.feature_cols = model_data['feature_cols']
-                self.label_encoders = model_data.get('label_encoders', {})  # Load label encoders if available
+                self.label_encoders = model_data.get('label_encoders', {})
         else:
             print("Models not found. Training new models...")
             self.train_all_models()
@@ -678,5 +585,3 @@ if __name__ == "__main__":
     print("\n=== Model Performance Summary ===")
     for model_name, metrics in results.items():
         print(f"{model_name}: R²={metrics['r2']:.4f}, RMSE={metrics['rmse']:.2f}, MAE={metrics['mae']:.2f}")
-
-

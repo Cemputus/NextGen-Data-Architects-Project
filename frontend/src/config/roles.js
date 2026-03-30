@@ -1,7 +1,4 @@
-/**
- * RBAC role constants (Phase 1 central config).
- * Align with backend backend/rbac.py Role enum and backend/config/constants.py RBAC_ROLES.
- */
+
 export const ROLES = {
   SENATE: 'senate',
   SYSADMIN: 'sysadmin',
@@ -26,7 +23,6 @@ export const ROLE_LIST = [
   'sysadmin',
 ];
 
-/** Roles shown in dashboard manager role filter (excludes admin alias). */
 export const ROLE_FILTER_OPTIONS = [
   'student',
   'staff',

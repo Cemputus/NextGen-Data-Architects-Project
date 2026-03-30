@@ -1,6 +1,4 @@
-/**
- * Profile Page – modern UI for all users with profile picture upload
- */
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Save, Camera, Loader2, Mail, Phone, Hash, BadgeCheck, ImagePlus, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -24,10 +22,10 @@ export default function ProfilePage() {
     phone: user?.phone ?? '',
   });
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(null); // { type: 'success'|'error', text }
-  const [avatarUrl, setAvatarUrl] = useState(null); // object URL from API or null
-  const [previewUrl, setPreviewUrl] = useState(null); // data URL from file picker
-  const [photoFile, setPhotoFile] = useState(null); // selected File for upload
+  const [message, setMessage] = useState(null); 
+  const [avatarUrl, setAvatarUrl] = useState(null); 
+  const [previewUrl, setPreviewUrl] = useState(null); 
+  const [photoFile, setPhotoFile] = useState(null); 
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState(null);
@@ -35,7 +33,6 @@ export default function ProfilePage() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  // Load full profile (including profile_picture_url) on mount
   useEffect(() => {
     const token = getToken();
     if (!token || !user?.id) return;
@@ -56,7 +53,6 @@ export default function ProfilePage() {
       .catch(() => {});
   }, []);
 
-  // Load profile photo from API when user has profile_picture_url
   useEffect(() => {
     if (!user?.profile_picture_url || !getToken()) {
       setAvatarUrl(null);
@@ -80,7 +76,6 @@ export default function ProfilePage() {
     };
   }, [user?.profile_picture_url]);
 
-  // Sync profile state when user changes
   useEffect(() => {
     setProfile({
       first_name: user?.first_name ?? '',
@@ -90,7 +85,6 @@ export default function ProfilePage() {
     });
   }, [user?.first_name, user?.last_name, user?.email, user?.phone]);
 
-  // Attach stream to video when camera modal opens
   useEffect(() => {
     if (!cameraOpen || !streamRef.current || !videoRef.current) return;
     videoRef.current.srcObject = streamRef.current;
@@ -258,7 +252,7 @@ export default function ProfilePage() {
 
   return (
     <PageContent className="max-w-3xl mx-auto space-y-6">
-      {/* Camera capture modal */}
+      {}
       {cameraOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
           <div className="bg-card rounded-2xl shadow-2xl overflow-hidden max-w-lg w-full">
@@ -307,9 +301,9 @@ export default function ProfilePage() {
 
       <PageHeader title="My Profile" description="Manage your account and profile picture" />
 
-      {/* Profile card */}
+      {}
       <Card className="overflow-hidden">
-        {/* Hero strip with avatar */}
+        {}
         <div className="h-28 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent border-b border-border" />
         <CardHeader className="relative -mt-16 pb-2">
           <div className="flex flex-col sm:flex-row sm:items-end gap-6">
@@ -428,7 +422,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Read-only info */}
+          {}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-4">
               <Hash className="h-5 w-5 text-muted-foreground" />

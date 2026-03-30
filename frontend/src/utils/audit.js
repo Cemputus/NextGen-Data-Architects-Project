@@ -1,7 +1,4 @@
-/**
- * Client-side audit: send page views and filter actions to the backend for audit logs.
- * Fire-and-forget; does not block UI.
- */
+
 import axios from 'axios';
 
 const TOKEN_KEY = 'ucu_session_token';

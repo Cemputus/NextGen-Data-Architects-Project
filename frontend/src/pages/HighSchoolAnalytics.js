@@ -1,7 +1,4 @@
-/**
- * High School Analytics Page
- * FCW/MEX/FEX incidence by high school and district, backed by /api/analytics/high-school-risk-correlation.
- */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { School } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';

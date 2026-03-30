@@ -1,6 +1,4 @@
-/**
- * Finance Payments Page - Payment management
- */
+
 import React, { useState, useEffect } from 'react';
 import { DollarSign, CreditCard, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -71,9 +69,3 @@ const FinancePayments = () => {
 };
 
 export default FinancePayments;
-
-
-
-
-
-

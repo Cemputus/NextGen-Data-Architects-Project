@@ -1,6 +1,4 @@
-/**
- * Theme switcher: Light / Dark / System. For use in layout and login.
- */
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';

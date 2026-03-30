@@ -1,6 +1,4 @@
-/**
- * Student Payments Page - Independent page for viewing payments
- */
+
 import React, { useState, useEffect } from 'react';
 import { DollarSign, CheckCircle, AlertCircle, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
@@ -171,7 +169,7 @@ const StudentPayments = () => {
               <SciLineChart
                 data={stats.payment_timeline.map((p) => ({
                   ...p,
-                  // Normalize timestamp to a readable label
+                  
                   timestamp_label: p.payment_timestamp,
                 }))}
                 xDataKey="timestamp_label"
@@ -196,9 +194,3 @@ const StudentPayments = () => {
 };
 
 export default StudentPayments;
-
-
-
-
-
-

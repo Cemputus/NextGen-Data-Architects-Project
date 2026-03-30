@@ -1,7 +1,4 @@
-/**
- * Dean / Faculty dashboard — same KPIs and charts as the analytics workspace,
- * scoped to the dean's faculty. Faculty is fixed from the JWT; filters start at Department → Program.
- */
+
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import AnalystDashboard from './AnalystDashboard';

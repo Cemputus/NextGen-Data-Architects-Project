@@ -1,6 +1,4 @@
-/**
- * Catches render errors in role layouts so users see recovery UI instead of a blank page.
- */
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';

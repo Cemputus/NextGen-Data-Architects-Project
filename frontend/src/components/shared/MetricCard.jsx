@@ -39,17 +39,6 @@ const variantConfig = {
     }
 };
 
-/**
- * Enterprise KPI tile component.
- * 
- * @param {string} title KPI Label
- * @param {string|number} value KPI Value
- * @param {React.ReactNode} icon Icon to display
- * @param {string} trend 'up', 'down', 'neutral' or null
- * @param {string} trendValue Text to display next to trend (e.g. '+2.5%')
- * @param {string} variant 'primary', 'accent', 'success', 'destructive', 'warning', 'default'
- * @param {string} subtext Optional small text below value
- */
 export const MetricCard = ({
     title,
     value,

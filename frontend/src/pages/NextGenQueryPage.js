@@ -1,7 +1,4 @@
-/**
- * NextGen Query - Advanced SQL Analytics Workspace (Analyst only)
- * Three-panel layout: SQL editor (top), table results (bottom-left), chart (bottom-right)
- */
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -46,7 +43,7 @@ const NextGenQueryPage = () => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState(null); // { columns, rows, row_count, elapsed_ms }
+  const [result, setResult] = useState(null); 
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -112,7 +109,6 @@ const NextGenQueryPage = () => {
     [columns]
   );
 
-  // When navigating from Managed shared Charts (Edit), prefill SQL and chart settings; keep viz id for update-in-place
   useEffect(() => {
     const editViz = location.state?.editViz;
     if (editViz && editViz.id) {
@@ -129,7 +125,6 @@ const NextGenQueryPage = () => {
     }
   }, [location.state?.editViz]);
 
-  // Restore persisted NextGen Query workspace from backend (per-user, survives hard refresh / logout / devices)
   useEffect(() => {
     const token = sessionStorage.getItem('ucu_session_token');
     if (!token) {
@@ -164,7 +159,7 @@ const NextGenQueryPage = () => {
   }, []);
 
   useEffect(() => {
-    // When new results arrive, reset paging and choose sensible defaults for chart axes
+    
     setPage(1);
     setSortCol(null);
     setSortDir('asc');
@@ -178,7 +173,6 @@ const NextGenQueryPage = () => {
     }
   }, [columns, numericColumns]);
 
-  // Persist visualization (chart type + axes) and full workspace when they change so it survives hard refresh
   useEffect(() => {
     if (!hasRestoredRef.current) return;
     const token = sessionStorage.getItem('ucu_session_token');
@@ -400,7 +394,6 @@ const NextGenQueryPage = () => {
   const handleRun = async () => {
     setError('');
 
-    // Build new history entry (most recent first, deduped)
     const trimmed = query.trim();
     let newHistory = history;
     if (trimmed) {
@@ -421,7 +414,6 @@ const NextGenQueryPage = () => {
       const resultData = response.data || null;
       setResult(resultData);
 
-      // Persist workspace state to backend so it survives logout/login and across devices
       const token = sessionStorage.getItem('ucu_session_token');
       if (token) {
         const stateToSave = {
@@ -430,7 +422,7 @@ const NextGenQueryPage = () => {
           chartType,
           xColumn,
           yColumn,
-          // Persist a truncated snapshot of results to avoid huge payloads
+          
           result: resultData
             ? {
                 ...resultData,
@@ -495,7 +487,6 @@ const NextGenQueryPage = () => {
     if (!rows || rows.length === 0) return [];
     let data = [...rows];
 
-    // Column filters
     Object.entries(columnFilters).forEach(([colName, filter]) => {
       const value = String(filter || '').trim().toLowerCase();
       if (!value) return;
@@ -504,7 +495,6 @@ const NextGenQueryPage = () => {
       );
     });
 
-    // Sorting
     if (sortCol) {
       data.sort((a, b) => {
         const av = a[sortCol];
@@ -1341,4 +1331,3 @@ const NextGenQueryPage = () => {
 };
 
 export default NextGenQueryPage;
-

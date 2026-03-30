@@ -1,7 +1,4 @@
-/**
- * Displays visualizations assigned to the current user (by role or by username).
- * Used on role dashboards so users see "Views shared with you" from analysts.
- */
+
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
