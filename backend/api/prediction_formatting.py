@@ -7,6 +7,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 
 from config import DATA_WAREHOUSE_CONN_STRING
+from db_engines import get_dw_engine
 
 def json_safe(value: Any) -> Any:
     if value is None:
@@ -44,7 +45,7 @@ def resolve_student_identifier(identifier: Optional[str]) -> Optional[str]:
     s = str(identifier).strip()
     if not s:
         return None
-    engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+    engine = get_dw_engine()
     try:
         q = text(
             """
@@ -62,10 +63,7 @@ def resolve_student_identifier(identifier: Optional[str]) -> Optional[str]:
     except Exception:
         pass
     finally:
-        try:
-            engine.dispose()
-        except Exception:
-            pass
+        pass
     return None
 
 _DEBIAS_PIVOT = 62.0
@@ -140,7 +138,7 @@ def fetch_student_profile(student_id: str) -> Dict[str, Any]:
     if not student_id or not str(student_id).strip():
         return out
 
-    engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+    engine = get_dw_engine()
     try:
         q = text(
             """
@@ -179,10 +177,7 @@ def fetch_student_profile(student_id: str) -> Dict[str, Any]:
     except Exception:
         pass
     finally:
-        try:
-            engine.dispose()
-        except Exception:
-            pass
+        pass
     return out
 
 def build_prediction_payload(

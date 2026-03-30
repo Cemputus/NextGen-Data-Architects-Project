@@ -52,6 +52,7 @@ from config import (
     PG_PASSWORD,
 )
 from config.connection import RBAC_DB_NAME
+from db_engines import get_dw_engine, get_rbac_engine
 def _get_rbac_conn_string():
     from config.connection import get_sqlalchemy_conn_string, RBAC_DB_NAME
     return get_sqlalchemy_conn_string(RBAC_DB_NAME)
@@ -263,7 +264,7 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
     except Exception:
         pass
     try:
-        rbac_engine = create_engine(_get_rbac_conn_string())
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         dim_app_users = 0
         try:
@@ -304,7 +305,6 @@ def _get_console_kpis(warehouse_engine, etl_runs, log_dir):
             kpis['active_sessions'] = int(r['c'][0]) if not r.empty and pd.notna(r['c'][0]) else 0
         except Exception as e:
             print(f"[_get_console_kpis] active_sessions query failed: {e}")
-        rbac_engine.dispose()
     except Exception as e:
         app_users_count = 0
         if kpis['system_health'] == 100:
@@ -445,7 +445,7 @@ def _get_etl_run_history(log_dir, max_runs=500):
     db_rows = []
     engine = None
     try:
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS etl_run_history (
@@ -501,8 +501,7 @@ def _get_etl_run_history(log_dir, max_runs=500):
     except Exception:
         pass
     finally:
-        if engine:
-            engine.dispose()
+        pass
 
     db_files = {r['log_file'] for r in db_rows if r.get('log_file')}
 
@@ -580,7 +579,7 @@ def _get_etl_run_history(log_dir, max_runs=500):
 def _get_audit_logs(limit=200):
     rbac_conn = _get_rbac_conn_string()
     try:
-        engine = create_engine(rbac_conn)
+        engine = get_rbac_engine()
         limit = max(1, min(int(limit), 500))
         limit_int = int(limit)
         query = f"""
@@ -596,7 +595,6 @@ def _get_audit_logs(limit=200):
         print(f"[_get_audit_logs] Query returned {actual_count} rows (requested LIMIT {limit_int})")
         if actual_count > limit_int:
             print(f"[_get_audit_logs] WARNING: Got {actual_count} rows but LIMIT was {limit_int}!")
-        engine.dispose()
         logs = []
         for _, row in df.iterrows():
             logs.append({
@@ -682,7 +680,7 @@ def system_status():
     limit = min(max(limit, 1), 5000)
     engine = None
     try:
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         warehouse = _get_warehouse_counts(engine)
         warehouse_tables = _get_warehouse_tables(engine, warehouse)
         log_dir = _get_etl_log_dir()
@@ -712,8 +710,7 @@ def system_status():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     finally:
-        if engine:
-            engine.dispose()
+        pass
 
 @admin_bp.route('/etl-log/<filename>', methods=['GET'])
 @jwt_required()
@@ -758,7 +755,7 @@ def dim_app_users():
     role_filter = (request.args.get('role') or '').strip().lower()
     engine = None
     try:
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         base_sql = """
             SELECT app_user_id, username, role, full_name,
                    faculty_id, department_id, created_at
@@ -782,8 +779,7 @@ def dim_app_users():
     except Exception as e:
         return jsonify({'error': str(e), 'app_users': [], 'limit': limit, 'offset': offset}), 500
     finally:
-        if engine:
-            engine.dispose()
+        pass
 
 @admin_bp.route('/app-users', methods=['GET'])
 @jwt_required()
@@ -793,7 +789,7 @@ def list_app_users():
         return err, code
     engine = None
     try:
-        engine = create_engine(_get_rbac_conn_string())
+        engine = get_rbac_engine()
         _ensure_app_users_table(engine)
         sql = """
             SELECT id,
@@ -813,8 +809,7 @@ def list_app_users():
     except Exception as e:
         return jsonify({'error': str(e), 'app_users': [], 'count': 0}), 500
     finally:
-        if engine:
-            engine.dispose()
+        pass
 
 def _run_etl_in_background():
     import subprocess
@@ -904,7 +899,7 @@ def _ensure_audit_db():
         ensure_ucu_rbac_database()
 
         rbac_conn = _get_rbac_conn_string()
-        engine = create_engine(rbac_conn)
+        engine = get_rbac_engine()
         with engine.connect() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -930,7 +925,6 @@ def _ensure_audit_db():
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_role ON audit_logs(role_name)"))
             conn.commit()
-        engine.dispose()
         return True, None
     except Exception as e:
         return False, str(e)

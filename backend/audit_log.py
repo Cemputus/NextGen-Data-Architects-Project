@@ -1,11 +1,12 @@
 from sqlalchemy import create_engine, text
 from config import RBAC_DB_NAME
 from config.connection import get_sqlalchemy_conn_string
+from db_engines import get_rbac_engine
 
 
 def log(action, resource, username=None, role_name=None, resource_id=None, status='success', error_message=None):
     try:
-        engine = create_engine(get_sqlalchemy_conn_string(RBAC_DB_NAME))
+        engine = get_rbac_engine()
         with engine.connect() as conn:
             conn.execute(text("""
                 INSERT INTO audit_logs (username, role_name, action, resource, resource_id, status, error_message)
@@ -20,6 +21,5 @@ def log(action, resource, username=None, role_name=None, resource_id=None, statu
                 'error_message': error_message,
             })
             conn.commit()
-        engine.dispose()
     except Exception:
         pass

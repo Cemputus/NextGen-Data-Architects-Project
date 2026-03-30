@@ -411,13 +411,11 @@ def get_fex_analytics():
             print(f"Error executing FEX query: {query_error}")
             import traceback
             traceback.print_exc()
-            engine.dispose()
             return jsonify({
                 'data': [],
                 'summary': summary
             }), 200
         
-        engine.dispose()
         
         data_records = df.to_dict('records') if not df.empty else []
         response_data = {
@@ -466,7 +464,7 @@ def get_student_retakes():
         if not student_id and not access_number:
             return jsonify({'retakes': [], 'summary': {'total_retakes': 0}}), 200
 
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         params = {}
         where_clauses = ["fg.exam_status IN ('FEX', 'MEX', 'FCW')"]
 
@@ -506,7 +504,6 @@ def get_student_retakes():
         """
 
         df = pd.read_sql_query(text(query), engine, params=params)
-        engine.dispose()
 
         retakes = []
         for _, row in df.iterrows():
@@ -571,7 +568,7 @@ def get_enrollment_by_year():
         if not has_permission(role, Resource.ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
 
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
 
         sql = """
         WITH base AS (
@@ -607,7 +604,6 @@ def get_enrollment_by_year():
         """
 
         df = pd.read_sql_query(text(sql), engine)
-        engine.dispose()
 
         records = []
         for _, row in df.iterrows():
@@ -636,7 +632,7 @@ def get_high_school_analytics():
             return jsonify({'error': 'Permission denied'}), 403
         
         filters = _jwt_scope_sanitize_filters(request.args.to_dict(), user_scope)
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         query = """
         SELECT 
@@ -790,7 +786,6 @@ def get_high_school_analytics():
             print(f"High school analytics query error: {query_error}")
             print(f"Query: {query}")
             print(f"Params: {params}")
-            engine.dispose()
             return jsonify({
                 'data': [],
                 'summary': {
@@ -815,7 +810,6 @@ def get_high_school_analytics():
                 }
             }), 200
         
-        engine.dispose()
         
         if not df.empty:
             df['retention_rate'] = (df['active_students'] / df['total_students'] * 100).round(2)
@@ -897,7 +891,7 @@ def get_academic_risk_dashboard():
             return jsonify({'error': 'Permission denied'}), 403
             
         filters = request.args.to_dict()
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         current_semester = None
         sem_raw = (filters.get('semester_id') or '').strip()
@@ -1043,7 +1037,6 @@ def get_academic_risk_dashboard():
         
         risk_list_df = pd.read_sql_query(text(rq), engine, params=rparams)
         
-        engine.dispose()
         return jsonify({
             'summary': stats,
             'trends': trend_records,
@@ -1067,7 +1060,7 @@ def get_high_school_risk_correlation_legacy():
             return jsonify({'error': 'Permission denied'}), 403
             
         filters = request.args.to_dict()
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         base_query = """
         SELECT 
@@ -1113,7 +1106,6 @@ def get_high_school_risk_correlation_legacy():
         
         district_df = pd.read_sql_query(text(dq), engine, params=dparams)
         
-        engine.dispose()
         return jsonify({
             'by_school': df.to_dict('records'),
             'by_district': district_df.to_dict('records')
@@ -1142,7 +1134,7 @@ def get_finance_analytics():
             return jsonify({'error': 'Permission denied'}), 403
 
         filters = request.args.to_dict()
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
 
         def _filter_value_meaningful(v):
             if v is None:
@@ -1623,7 +1615,7 @@ def get_filter_options():
     try:
         claims = get_jwt()
         user_scope = get_user_scope(claims)
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         faculty_id = request.args.get('faculty_id', type=int)
         department_id = request.args.get('department_id', type=int)
@@ -2006,10 +1998,7 @@ def get_filter_options():
             ]
         
         if engine is not None:
-            try:
-                engine.dispose()
-            except Exception:
-                pass
+            pass
         return jsonify(options), 200
         
     except Exception as e:
@@ -2017,10 +2006,7 @@ def get_filter_options():
         print(f"Error in get_filter_options: {e}")
         print(traceback.format_exc())
         if engine:
-            try:
-                engine.dispose()
-            except Exception:
-                pass
+            pass
         fallback_options = locals().get('options') or {
             'faculties': [], 'departments': [], 'programs': [], 'courses': [],
             'semesters': [], 'high_schools': [], 'intake_years': [],
@@ -2039,7 +2025,7 @@ def get_faculty_analytics():
         if not has_permission(user_scope['role'], Resource.ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
 
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         filters = _jwt_scope_sanitize_filters(request.args.to_dict(), user_scope)
 
         where_clauses = []
@@ -2435,8 +2421,6 @@ def get_faculty_analytics():
         staff_list_df = pd.read_sql_query(text(staff_list_q), engine, params=staff_params)
         staff_list = staff_list_df.to_dict('records') if not staff_list_df.empty else []
 
-        if engine:
-            engine.dispose()
 
         try:
             total_payments = sum(float(r.get('total_amount') or 0) for r in payment_status)
@@ -2486,8 +2470,6 @@ def get_faculty_analytics():
         import traceback
         print(f"Error in get_faculty_analytics: {e}")
         print(traceback.format_exc())
-        if engine:
-            engine.dispose()
         return jsonify({
             'error': str(e),
             'total_students': 0,
@@ -2517,7 +2499,7 @@ def get_student_analytics():
         if not has_permission(role, Resource.ANALYTICS, Permission.READ, user_scope):
             return jsonify({'error': 'Permission denied'}), 403
         
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         if role == Role.STUDENT:
             access_number = user_scope.get('access_number')
@@ -2792,7 +2774,6 @@ def get_student_analytics():
         except Exception as ex:
             _analytics_log.warning("student analytics enroll_stats_sql: %s", ex)
 
-        engine.dispose()
         
         def _num(row, key, default=0):
             v = row.get(key)
@@ -3087,7 +3068,7 @@ def get_enrollment_pipeline():
         if role == Role.STUDENT:
             return jsonify({'error': 'Permission denied'}), 403
 
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
 
         requested_academic_years = [
             '2020/2021',
@@ -3320,10 +3301,7 @@ def get_enrollment_pipeline():
             else:
                 records = [{"academic_year": ay, "total_enrollments": 0} for ay in requested_academic_years]
         finally:
-            try:
-                engine.dispose()
-            except Exception:
-                pass
+            pass
 
         for r in records:
             r['academic_year'] = str(r.get('academic_year'))
@@ -3424,10 +3402,7 @@ def get_enrollment_pipeline():
         print(f"Error in get_enrollment_pipeline: {e}")
         print(traceback.format_exc())
         if engine is not None:
-            try:
-                engine.dispose()
-            except Exception:
-                pass
+            pass
         return jsonify({'error': str(e), 'pipeline': []}), 500
 
 def _hr_json_safe_scalar(v):
@@ -4819,7 +4794,7 @@ def get_academic_risk():
             return jsonify({'error': 'Permission denied'}), 403
             
         filters = request.args.to_dict()
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         where_clauses = []
         params = {}
@@ -4920,7 +4895,6 @@ def get_academic_risk():
             else: summary[k] = float(summary[k])
             
         top_courses_fcw = []
-        engine.dispose()
         return jsonify({
             'summary': summary,
             'top_courses_fcw': top_courses_fcw
@@ -4931,10 +4905,7 @@ def get_academic_risk():
         print(f"Error in get_academic_risk: {e}")
         print(traceback.format_exc())
         if engine is not None:
-            try:
-                engine.dispose()
-            except Exception:
-                pass
+            pass
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/recruitment', methods=['GET'])
@@ -4950,7 +4921,7 @@ def get_recruitment_analytics():
             return jsonify({'error': 'Permission denied'}), 403
 
         filters = request.args.to_dict()
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
 
         base_from = """
         FROM dim_student ds
@@ -5013,8 +4984,6 @@ def get_recruitment_analytics():
         schools_represented = int(feeder_df['school'].nunique()) if not feeder_df.empty else 0
         district_coverage = int(district_df['district'].nunique()) if not district_df.empty else 0
 
-        if engine is not None:
-            engine.dispose()
 
         return jsonify({
             'summary': {
@@ -5032,10 +5001,7 @@ def get_recruitment_analytics():
         print(f"Error in get_recruitment_analytics: {e}")
         print(traceback.format_exc())
         if engine is not None:
-            try:
-                engine.dispose()
-            except Exception:
-                pass
+            pass
         return jsonify({'error': str(e)}), 500
 
 @analytics_bp.route('/high-school-risk-correlation', methods=['GET'])
@@ -5050,7 +5016,7 @@ def get_high_school_risk_correlation():
             return jsonify({'error': 'Permission denied'}), 403
 
         filters = request.args.to_dict()
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
 
         current_semester = None
         sem_e = (filters.get('semester_id') or '').strip().lower()
@@ -5177,7 +5143,6 @@ def get_high_school_risk_correlation():
                 else:
                     by_district = []
 
-        engine.dispose()
         return jsonify({
             'by_school': by_school,
             'by_district': by_district,

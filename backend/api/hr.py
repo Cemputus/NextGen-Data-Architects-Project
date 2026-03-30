@@ -10,7 +10,7 @@ from config.connection import (
     DATA_WAREHOUSE_CONN_STRING,
     get_sqlalchemy_conn_string,
 )
-from db_engines import get_dw_engine
+from db_engines import get_rbac_engine, get_dw_engine
 
 hr_bp = Blueprint('hr', __name__, url_prefix='/api/hr')
 
@@ -88,7 +88,7 @@ def hr_staff_list():
         return jsonify({'error': 'HR access required'}), 403
     staff = []
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         df = pd.read_sql_query(
             text("""
@@ -99,13 +99,11 @@ def hr_staff_list():
             """),
             rbac_engine,
         )
-        rbac_engine.dispose()
 
         try:
-            dw_engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+            dw_engine = get_dw_engine()
             fac_df = pd.read_sql_query("SELECT faculty_id, faculty_name FROM dim_faculty", dw_engine)
             dept_df = pd.read_sql_query("SELECT department_id, department_name FROM dim_department", dw_engine)
-            dw_engine.dispose()
             fac_map = {int(r['faculty_id']): str(r['faculty_name']) for _, r in fac_df.iterrows() if pd.notna(r.get('faculty_id'))}
             dept_map = {int(r['department_id']): str(r['department_name']) for _, r in dept_df.iterrows() if pd.notna(r.get('department_id'))}
         except Exception:
@@ -153,26 +151,24 @@ def hr_my_employment():
     username = (claims.get('username') or '').strip()
     role = (claims.get('role') or '').strip().lower()
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         df = pd.read_sql_query(
             text("SELECT full_name, role, faculty_id, department_id FROM app_users WHERE username = :u"),
             rbac_engine, params={'u': username}
         )
-        rbac_engine.dispose()
         if not df.empty:
             r = df.iloc[0]
             fid, did = r.get('faculty_id'), r.get('department_id')
             fac_name = dept_name = None
             try:
-                dw = create_engine(DATA_WAREHOUSE_CONN_STRING)
+                dw = get_dw_engine()
                 if pd.notna(fid):
                     fn = pd.read_sql_query(text("SELECT faculty_name FROM dim_faculty WHERE faculty_id = :fid"), dw, params={'fid': int(fid)})
                     fac_name = fn.iloc[0]['faculty_name'] if not fn.empty else None
                 if pd.notna(did):
                     dn = pd.read_sql_query(text("SELECT department_name FROM dim_department WHERE department_id = :did"), dw, params={'did': int(did)})
                     dept_name = dn.iloc[0]['department_name'] if not dn.empty else None
-                dw.dispose()
             except Exception:
                 pass
             return jsonify({'status': 'Active', 'role': role, 'faculty_id': fid, 'faculty_name': fac_name, 'department_id': did, 'department_name': dept_name})
@@ -192,14 +188,13 @@ def hr_my_leave_requests():
     if not username:
         return jsonify({'requests': []})
     try:
-        engine = create_engine(RBAC_CONN_STRING)
+        engine = get_rbac_engine()
         _ensure_leave_requests_table(engine)
         with engine.connect() as conn:
             rows = conn.execute(text("""
                 SELECT id, start_date, end_date, reason, status, request_type, parent_leave_id, created_at
                 FROM leave_requests WHERE username = :u ORDER BY created_at DESC
             """), {'u': username}).mappings().fetchall()
-        engine.dispose()
         requests = [{
             'id': r['id'],
             'start_date': r['start_date'].isoformat() if hasattr(r['start_date'], 'isoformat') else str(r['start_date']),
@@ -241,7 +236,7 @@ def hr_submit_leave_request():
     if start_d > end_d:
         return jsonify({'error': 'Start date must be earlier than or equal to end date'}), 400
     try:
-        engine = create_engine(RBAC_CONN_STRING)
+        engine = get_rbac_engine()
         _ensure_leave_requests_table(engine)
         with engine.connect() as conn:
             if request_type != 'extension':
@@ -252,14 +247,12 @@ def hr_submit_leave_request():
                     LIMIT 1
                 """), {'u': username}).mappings().fetchone()
                 if active:
-                    engine.dispose()
                     return jsonify({'error': 'You already have an active leave. To add more time, request a leave extension.'}), 400
             conn.execute(text("""
                 INSERT INTO leave_requests (username, start_date, end_date, reason, status, request_type, parent_leave_id)
                 VALUES (:u, :start, :end, :reason, 'pending', :req_type, :parent)
             """), {'u': username, 'start': start_d, 'end': end_d, 'reason': reason, 'req_type': request_type, 'parent': parent_leave_id})
             conn.commit()
-        engine.dispose()
         return jsonify({'message': 'Leave request submitted. HR will review.'}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -270,14 +263,13 @@ def hr_list_leave_requests():
     if not _leave_can_view_directory():
         return jsonify({'error': 'Not authorized to view leave directory'}), 403
     try:
-        engine = create_engine(RBAC_CONN_STRING)
+        engine = get_rbac_engine()
         _ensure_leave_requests_table(engine)
         with engine.connect() as conn:
             rows = conn.execute(text("""
                 SELECT id, username, start_date, end_date, reason, status, request_type, parent_leave_id, created_at
                 FROM leave_requests ORDER BY created_at DESC
             """)).mappings().fetchall()
-        engine.dispose()
         requests = [{
             'id': r['id'],
             'username': r['username'] or '',
@@ -306,7 +298,7 @@ def hr_review_leave_request(leave_id):
         return jsonify({'error': 'action must be approve or reject'}), 400
     reviewer = (get_jwt().get('username') or '').strip()
     try:
-        engine = create_engine(RBAC_CONN_STRING)
+        engine = get_rbac_engine()
         _ensure_leave_requests_table(engine)
         with engine.connect() as conn:
             conn.execute(text("""
@@ -314,7 +306,6 @@ def hr_review_leave_request(leave_id):
                 WHERE id = :id
             """), {'status': 'approved' if action == 'approve' else 'rejected', 'by': reviewer, 'id': leave_id})
             conn.commit()
-        engine.dispose()
         return jsonify({'message': 'Leave request ' + ('approved' if action == 'approve' else 'rejected') + '.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -325,7 +316,7 @@ def hr_employees_on_leave():
     if not _leave_can_view_directory():
         return jsonify({'error': 'Not authorized to view leave directory'}), 403
     try:
-        engine = create_engine(RBAC_CONN_STRING)
+        engine = get_rbac_engine()
         _ensure_leave_requests_table(engine)
         _ensure_app_users_table(engine)
         with engine.connect() as conn:
@@ -338,7 +329,6 @@ def hr_employees_on_leave():
                 AND CURRENT_DATE BETWEEN lr.start_date AND lr.end_date
                 ORDER BY lr.end_date
             """)).mappings().fetchall()
-        engine.dispose()
         on_leave = [{
             'id': r['id'],
             'username': r['username'] or '',
@@ -359,11 +349,11 @@ def hr_payroll_overview():
         return jsonify({'error': 'HR only'}), 403
     try:
         from hr_payroll_overview import build_hr_payroll_overview
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         try:
             payload = build_hr_payroll_overview(engine)
         finally:
-            engine.dispose()
+            pass
         return jsonify(payload), 200
     except Exception as e:
         return jsonify({

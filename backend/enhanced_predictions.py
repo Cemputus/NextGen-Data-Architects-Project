@@ -10,6 +10,7 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, a
 from sqlalchemy import create_engine, text
 from config import DATA_WAREHOUSE_CONN_STRING
 from datetime import datetime, timedelta
+from db_engines import get_dw_engine
 
 class EnhancedPredictor:
     
@@ -22,7 +23,7 @@ class EnhancedPredictor:
         self.feature_cols = {}
     
     def prepare_tuition_attendance_features(self):
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         query = """
         SELECT 
@@ -74,7 +75,6 @@ class EnhancedPredictor:
         """
         
         df = pd.read_sql_query(text(query), engine)
-        engine.dispose()
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         df[numeric_cols] = df[numeric_cols].fillna(0)
@@ -124,7 +124,7 @@ class EnhancedPredictor:
         return {'r2': r2, 'rmse': rmse}
     
     def prepare_enrollment_trend_features(self):
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         query = """
         SELECT 
@@ -152,7 +152,6 @@ class EnhancedPredictor:
         """
         
         df = pd.read_sql_query(text(query), engine)
-        engine.dispose()
         
         df = df.sort_values(['year', 'quarter', 'program_id'])
         df['enrollment_lag1'] = df.groupby(['program_id', 'quarter'])['enrollment_count'].shift(1)
@@ -215,7 +214,7 @@ class EnhancedPredictor:
         return {'r2': r2, 'rmse': rmse}
     
     def prepare_foundational_course_features(self):
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         query = """
         SELECT 
@@ -247,7 +246,6 @@ class EnhancedPredictor:
         """
         
         df = pd.read_sql_query(text(query), engine)
-        engine.dispose()
         
         df['will_pass'] = (df['course_avg_grade'] >= 50).astype(int)
         
@@ -302,7 +300,7 @@ class EnhancedPredictor:
         return {'accuracy': accuracy}
     
     def prepare_hr_features(self):
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         query = """
         SELECT 
@@ -341,7 +339,6 @@ class EnhancedPredictor:
                 'processed_payrolls': np.random.randint(10, 24, 100)
             })
         
-        engine.dispose()
         df = df.fillna(0)
         
         return df

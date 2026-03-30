@@ -9,6 +9,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sqlalchemy import create_engine, text
 from config import DATA_WAREHOUSE_CONN_STRING
+from db_engines import get_dw_engine
 
 class MultiModelPredictor:
     def __init__(self):
@@ -24,7 +25,7 @@ class MultiModelPredictor:
         self.label_encoders = {}
     
     def prepare_features(self):
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         student_query = """
         SELECT 
@@ -173,7 +174,6 @@ class MultiModelPredictor:
             else:
                 features_df[col] = features_df[col].fillna(0)
         
-        engine.dispose()
         return features_df
     
     def train_all_models(self, use_grid_search=False):
@@ -329,7 +329,7 @@ class MultiModelPredictor:
                 student_data.loc[idx, 'payment_count'] = max(0.0, bpc + mod_pr / 25.0)
 
     def predict(self, student_id, model_type='ensemble', scenario_override=None, scenario_mode=False):
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         query = text("""
         SELECT 
@@ -394,7 +394,6 @@ class MultiModelPredictor:
         """)
         
         student_data = pd.read_sql_query(query, engine, params={'student_id': student_id})
-        engine.dispose()
         
         if student_data.empty:
             raise ValueError(f"Student {student_id} not found")

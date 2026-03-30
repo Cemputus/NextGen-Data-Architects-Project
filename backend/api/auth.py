@@ -26,6 +26,7 @@ except ImportError:
     Permission = None
 
 from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME, PG_HOST, PG_PORT, PG_USER, PG_PASSWORD
+from db_engines import get_dw_engine, get_rbac_engine
 
 try:
     from audit_log import log as audit_log
@@ -50,7 +51,7 @@ def _has_profile_photo(identity):
 def _audit_log_login(username, role_name, status='success', error_message=None):
     try:
         from config.connection import get_sqlalchemy_conn_string, RBAC_DB_NAME as _RBAC_DB
-        engine = create_engine(get_sqlalchemy_conn_string(_RBAC_DB))
+        engine = get_rbac_engine()
         with engine.connect() as conn:
             conn.execute(text("""
                 INSERT INTO audit_logs (username, role_name, action, resource, status, error_message)
@@ -62,7 +63,6 @@ def _audit_log_login(username, role_name, status='success', error_message=None):
                 'error_message': error_message,
             })
             conn.commit()
-        engine.dispose()
     except Exception:
         pass
 
@@ -126,7 +126,7 @@ def _load_user_profile(username: str, role_name: str) -> dict:
         if not username:
             return {}
         _ensure_ucu_rbac_database()
-        engine = create_engine(RBAC_CONN_STRING)
+        engine = get_rbac_engine()
         _ensure_user_profiles_table(engine)
         df = pd.read_sql_query(
             text(
@@ -136,7 +136,6 @@ def _load_user_profile(username: str, role_name: str) -> dict:
             engine,
             params={"uname": username},
         )
-        engine.dispose()
         if df.empty:
             return {}
         row = df.iloc[0]
@@ -180,7 +179,7 @@ def validate_access_number(access_number: str) -> bool:
 def get_db_session():
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
-    engine = create_engine(RBAC_CONN_STRING)
+    engine = get_rbac_engine()
     Session = sessionmaker(bind=engine)
     return Session()
 
@@ -260,7 +259,7 @@ def login():
         for attempt in (1, 2):
             try:
                 _ensure_ucu_rbac_database()
-                rbac_engine = create_engine(RBAC_CONN_STRING)
+                rbac_engine = get_rbac_engine()
                 _ensure_app_users_table(rbac_engine)
                 result = pd.read_sql_query(
                     text("""
@@ -271,12 +270,11 @@ def login():
                     rbac_engine,
                     params={'uname': identifier_lower}
                 )
-                rbac_engine.dispose()
                 if result.empty:
                     if attempt == 2:
                         try:
                             _ensure_ucu_rbac_database()
-                            diag_engine = create_engine(RBAC_CONN_STRING)
+                            diag_engine = get_rbac_engine()
                             _ensure_app_users_table(diag_engine)
                             count_df = pd.read_sql_query(text("SELECT COUNT(*) AS n FROM app_users"), diag_engine)
                             n = int(count_df['n'].iloc[0]) if not count_df.empty else 0
@@ -427,13 +425,12 @@ def login():
             }), 200
         
         if validate_access_number(identifier):
-            engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+            engine = get_dw_engine()
             result = pd.read_sql_query(
                 text("SELECT student_id, access_number, reg_no, first_name, last_name FROM dim_student WHERE access_number = :access_number"),
                 engine,
                 params={'access_number': identifier.upper()}
             )
-            engine.dispose()
             
             if not result.empty:
                 expected_password = f"{identifier.upper()}@ucu"
@@ -485,7 +482,7 @@ def login():
         if identifier_lower == 'cemputus' and password == 'cen123':
             try:
                 _ensure_ucu_rbac_database()
-                rbac_engine = create_engine(RBAC_CONN_STRING)
+                rbac_engine = get_rbac_engine()
                 _ensure_app_users_table(rbac_engine)
                 ph = generate_password_hash('cen123', method='pbkdf2:sha256')
                 with rbac_engine.connect() as conn:
@@ -499,7 +496,6 @@ def login():
                         """), {'ph': ph})
                     conn.commit()
                     row = pd.read_sql_query(text("SELECT id, username, role, full_name, faculty_id, department_id FROM app_users WHERE LOWER(username) = 'cemputus'"), conn).iloc[0]
-                rbac_engine.dispose()
                 username_str = 'Cemputus'
                 role_str = 'staff'
                 claims = {'role': role_str, 'username': username_str, 'full_name': 'Emmanuel Nsubuga', 'first_name': 'Emmanuel', 'last_name': 'Nsubuga', 'faculty_id': 1, 'department_id': 1}
@@ -580,14 +576,13 @@ def get_profile():
         try:
             if username:
                 _ensure_ucu_rbac_database()
-                engine = create_engine(RBAC_CONN_STRING)
+                engine = get_rbac_engine()
                 _ensure_user_profiles_table(engine)
                 df = pd.read_sql_query(
                     text("SELECT first_name, last_name, email, phone, profile_picture_url FROM user_profiles WHERE username = :uname"),
                     engine,
                     params={'uname': username},
                 )
-                engine.dispose()
                 if not df.empty:
                     row = df.iloc[0]
                     if pd.notna(row.get('first_name')):
@@ -649,7 +644,7 @@ def update_profile():
         try:
             if username:
                 _ensure_ucu_rbac_database()
-                engine = create_engine(RBAC_CONN_STRING)
+                engine = get_rbac_engine()
                 _ensure_user_profiles_table(engine)
                 first_name = data.get('first_name', claims.get('first_name'))
                 last_name = data.get('last_name', claims.get('last_name'))
@@ -671,7 +666,6 @@ def update_profile():
                             params={'email': email, 'uname': username},
                         )
                         if not dup_email.empty:
-                            engine.dispose()
                             return jsonify({'error': 'Email address is already in use by another user.'}), 400
 
                     if phone:
@@ -689,7 +683,6 @@ def update_profile():
                             params={'p': norm_phone, 'uname': username},
                         )
                         if not dup_phone.empty:
-                            engine.dispose()
                             return jsonify({'error': 'Phone number is already in use by another user.'}), 400
 
                     conn.execute(
@@ -716,7 +709,6 @@ def update_profile():
                         },
                     )
                     conn.commit()
-                engine.dispose()
                 try:
                     from export_user_snapshot import run_export_user_snapshot_async
                     run_export_user_snapshot_async()
@@ -753,7 +745,7 @@ def user_state(state_key):
             return jsonify({'state': None}), 200
 
         _ensure_ucu_rbac_database()
-        engine = create_engine(RBAC_CONN_STRING)
+        engine = get_rbac_engine()
         _ensure_user_state_table(engine)
 
         if request.method == 'GET':
@@ -765,7 +757,6 @@ def user_state(state_key):
                     engine,
                     params={'uname': username, 'role': role_name, 'skey': state_key},
                 )
-                engine.dispose()
                 if df.empty:
                     return jsonify({'state': None}), 200
                 raw = df.iloc[0]['state_json']
@@ -775,18 +766,15 @@ def user_state(state_key):
                     state_obj = None
                 return jsonify({'state': state_obj}), 200
             except Exception:
-                engine.dispose()
                 return jsonify({'state': None}), 200
 
         body = request.get_json(silent=True) or {}
         state = body.get('state')
         if state is None:
-            engine.dispose()
             return jsonify({'error': 'Missing state payload'}), 400
         try:
             state_json = json.dumps(state)
         except Exception:
-            engine.dispose()
             return jsonify({'error': 'State must be JSON-serializable'}), 400
 
         try:
@@ -807,10 +795,8 @@ def user_state(state_key):
                     },
                 )
                 conn.commit()
-            engine.dispose()
             return jsonify({'ok': True}), 200
         except Exception as e:
-            engine.dispose()
             return jsonify({'error': str(e)}), 500
 
     except Exception as e:

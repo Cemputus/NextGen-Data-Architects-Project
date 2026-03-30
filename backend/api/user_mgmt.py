@@ -10,7 +10,7 @@ from config.connection import (
     DATA_WAREHOUSE_CONN_STRING,
     get_sqlalchemy_conn_string,
 )
-from db_engines import get_dw_engine
+from db_engines import get_rbac_engine,  get_dw_engine
 
 user_mgmt_bp = Blueprint('user_mgmt', __name__)
 RBAC_CONN_STRING = get_sqlalchemy_conn_string(RBAC_DB_NAME)
@@ -50,7 +50,7 @@ def _ensure_dim_app_user_table(engine):
 
 def _sync_dim_app_user(action, app_user_id, data=None):
     try:
-        dw_engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        dw_engine = get_dw_engine()
         _ensure_dim_app_user_table(dw_engine)
         with dw_engine.connect() as conn:
             if action == 'delete':
@@ -72,7 +72,6 @@ def _sync_dim_app_user(action, app_user_id, data=None):
                     'created_at': data.get('created_at'),
                 })
             conn.commit()
-        dw_engine.dispose()
     except Exception:
         pass
 
@@ -259,13 +258,12 @@ def admin_list_users():
     warning = None
     try:
         try:
-            rbac_engine = create_engine(RBAC_CONN_STRING)
+            rbac_engine = get_rbac_engine()
             _ensure_app_users_table(rbac_engine)
             app_df = pd.read_sql_query(
                 "SELECT id, username, role, full_name, faculty_id, department_id, created_by_username FROM app_users",
                 rbac_engine
             )
-            rbac_engine.dispose()
             demo_usernames = {a['username'].lower() for a in DEMO_ACCOUNTS_FOR_LIST}
             for _, row in app_df.iterrows():
                 uname = str(row['username']) if pd.notna(row['username']) else ''
@@ -304,7 +302,7 @@ def admin_list_users():
                 })
         if not role_filter or role_filter == 'student':
             try:
-                engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+                engine = get_dw_engine()
                 q = """
                     SELECT ds.student_id, ds.access_number, ds.reg_no, ds.first_name, ds.last_name,
                            ds.admission_date, ds.year_of_study, dp.program_name
@@ -325,7 +323,6 @@ def admin_list_users():
                 q += " ORDER BY ds.last_name, ds.first_name LIMIT :limit"
                 params['limit'] = limit
                 df = pd.read_sql_query(text(q), engine, params=params)
-                engine.dispose()
                 for _, row in df.iterrows():
                     first = str(row['first_name']) if pd.notna(row['first_name']) else ''
                     last = str(row['last_name']) if pd.notna(row['last_name']) else ''
@@ -366,7 +363,7 @@ def admin_get_user(user_type, user_id):
         return jsonify({'error': 'Invalid user type'}), 400
     try:
         if user_type == 'student':
-            engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+            engine = get_dw_engine()
             try:
                 sid_param = int(user_id)
             except (ValueError, TypeError):
@@ -384,7 +381,6 @@ def admin_get_user(user_type, user_id):
                 """),
                 engine, params={'sid': sid_param, 'sid2': str(user_id), 'sid3': str(user_id)}
             )
-            engine.dispose()
             if df.empty:
                 return jsonify({'error': 'Student not found'}), 404
             row = df.iloc[0]
@@ -425,7 +421,7 @@ def admin_get_user(user_type, user_id):
                         'role': acc['role'], 'type': 'demo',
                     })
             return jsonify({'error': 'Demo user not found'}), 404
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         try:
             uid_int = int(user_id)
@@ -440,7 +436,6 @@ def admin_get_user(user_type, user_id):
                 text("SELECT id, username, role, full_name, faculty_id, department_id, created_by_username FROM app_users WHERE LOWER(username) = :uname"),
                 rbac_engine, params={'uname': str(user_id).strip().lower()}
             )
-        rbac_engine.dispose()
         if df.empty:
             return jsonify({'error': 'User not found'}), 404
         row = df.iloc[0]
@@ -458,7 +453,7 @@ def admin_get_user(user_type, user_id):
             'created_by_username': str(row['created_by_username']) if pd.notna(row.get('created_by_username')) else None,
         }
         try:
-            dw = create_engine(DATA_WAREHOUSE_CONN_STRING)
+            dw = get_dw_engine()
             if out.get('faculty_id'):
                 fd = pd.read_sql_query(text("SELECT faculty_name FROM dim_faculty WHERE faculty_id = :fid"), dw, params={'fid': out['faculty_id']})
                 out['faculty_name'] = fd.iloc[0]['faculty_name'] if not fd.empty else None
@@ -469,7 +464,6 @@ def admin_get_user(user_type, user_id):
                 out['department_name'] = dd.iloc[0]['department_name'] if not dd.empty else None
             else:
                 out['department_name'] = None
-            dw.dispose()
         except Exception:
             out['faculty_name'] = None
             out['department_name'] = None
@@ -500,12 +494,11 @@ def admin_update_user(user_id):
         if eff_f is None or eff_d is None:
             return jsonify({'error': 'Staff must be assigned to a faculty and a department'}), 400
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         with rbac_engine.connect() as conn:
             check = pd.read_sql_query(text("SELECT id, username, role, full_name, faculty_id, department_id FROM app_users WHERE id = :uid"), conn, params={'uid': user_id})
             if check.empty:
-                rbac_engine.dispose()
                 return jsonify({'error': 'User not found'}), 404
             current = check.iloc[0].to_dict()
             updates = []
@@ -528,7 +521,6 @@ def admin_update_user(user_id):
                 updates.append('password_hash = :password_hash')
                 params['password_hash'] = generate_password_hash(password, method='pbkdf2:sha256')
             if not updates:
-                rbac_engine.dispose()
                 return jsonify({'message': 'No changes', 'username': str(current.get('username'))}), 200
             effective_role = role if role else (str(current.get('role')) if current.get('role') else '')
             def _safe_int(v):
@@ -541,13 +533,10 @@ def admin_update_user(user_id):
             effective_faculty = params.get('faculty_id') if 'faculty_id' in data else _safe_int(current.get('faculty_id'))
             effective_dept = params.get('department_id') if 'department_id' in data else _safe_int(current.get('department_id'))
             if effective_role == 'dean' and effective_faculty is None:
-                rbac_engine.dispose()
                 return jsonify({'error': 'Dean must be assigned to a faculty'}), 400
             if effective_role == 'hod' and effective_dept is None:
-                rbac_engine.dispose()
                 return jsonify({'error': 'HOD must be assigned to a department'}), 400
             if effective_role == 'staff' and (effective_faculty is None or effective_dept is None):
-                rbac_engine.dispose()
                 return jsonify({'error': 'Staff must be assigned to a faculty and a department'}), 400
             if effective_role == 'dean' and effective_faculty is not None:
                 conflict = pd.read_sql_query(
@@ -555,7 +544,6 @@ def admin_update_user(user_id):
                     conn, params={'fid': effective_faculty, 'uid': user_id}
                 )
                 if not conflict.empty:
-                    rbac_engine.dispose()
                     return jsonify({'error': 'This faculty already has a dean assigned'}), 400
             if effective_role == 'hod' and effective_dept is not None:
                 conflict = pd.read_sql_query(
@@ -563,7 +551,6 @@ def admin_update_user(user_id):
                     conn, params={'did': effective_dept, 'uid': user_id}
                 )
                 if not conflict.empty:
-                    rbac_engine.dispose()
                     return jsonify({'error': 'This department already has an HOD assigned'}), 400
             conn.execute(text(f"UPDATE app_users SET {', '.join(updates)} WHERE id = :uid"), params)
             conn.commit()
@@ -585,7 +572,6 @@ def admin_update_user(user_id):
                     'faculty_id': int(r['faculty_id']) if pd.notna(r.get('faculty_id')) else None,
                     'department_id': int(r['department_id']) if pd.notna(r.get('department_id')) else None,
                 })
-        rbac_engine.dispose()
         return jsonify({'message': 'User updated', 'id': user_id}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -597,15 +583,13 @@ def admin_delete_user(user_id):
     if err is not None:
         return err
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         with rbac_engine.connect() as conn:
             result = conn.execute(text("DELETE FROM app_users WHERE id = :uid"), {'uid': user_id})
             conn.commit()
             if result.rowcount == 0:
-                rbac_engine.dispose()
                 return jsonify({'error': 'User not found'}), 404
-        rbac_engine.dispose()
         _sync_dim_app_user('delete', user_id)
         try:
             from export_user_snapshot import run_export_user_snapshot_async
@@ -630,7 +614,7 @@ def admin_reset_app_user_password():
     if len(new_password) < 6:
         return jsonify({'error': 'New password must be at least 6 characters'}), 400
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         with rbac_engine.connect() as conn:
             check = pd.read_sql_query(
@@ -638,7 +622,6 @@ def admin_reset_app_user_password():
                 conn, params={'uname': username.lower()}
             )
             if check.empty:
-                rbac_engine.dispose()
                 return jsonify({'error': 'App user not found'}), 404
             uid = int(check.iloc[0]['id'])
             conn.execute(
@@ -646,7 +629,6 @@ def admin_reset_app_user_password():
                 {'ph': generate_password_hash(new_password, method='pbkdf2:sha256'), 'uid': uid}
             )
             conn.commit()
-        rbac_engine.dispose()
         try:
             from export_user_snapshot import run_export_user_snapshot_async
             run_export_user_snapshot_async()
@@ -697,7 +679,7 @@ def admin_create_user():
             _ensure_ucu_rbac_database()
         except Exception:
             pass
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         password_hash = generate_password_hash(password, method='pbkdf2:sha256')
         with rbac_engine.connect() as conn:
@@ -713,7 +695,6 @@ def admin_create_user():
                 params={'uname': username},
             )
             if not dup.empty:
-                rbac_engine.dispose()
                 return jsonify({'error': 'Username already exists'}), 409
 
             try:
@@ -746,7 +727,6 @@ def admin_create_user():
             row = r.fetchone()
             new_id = int(row[0]) if row and row[0] is not None else None
             conn.commit()
-        rbac_engine.dispose()
         if new_id:
             _sync_dim_app_user('insert', new_id, {
                 'username': username, 'role': role, 'full_name': full_name,
@@ -766,26 +746,24 @@ def admin_create_user():
 
 def _faculty_ids_with_dean():
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         df = pd.read_sql_query(
             "SELECT DISTINCT faculty_id FROM app_users WHERE role = 'dean' AND faculty_id IS NOT NULL",
             rbac_engine
         )
-        rbac_engine.dispose()
         return {int(r['faculty_id']) for _, r in df.iterrows() if pd.notna(r['faculty_id'])}
     except Exception:
         return set()
 
 def _department_ids_with_hod():
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         df = pd.read_sql_query(
             "SELECT DISTINCT department_id FROM app_users WHERE role = 'hod' AND department_id IS NOT NULL",
             rbac_engine
         )
-        rbac_engine.dispose()
         return {int(r['department_id']) for _, r in df.iterrows() if pd.notna(r['department_id'])}
     except Exception:
         return set()
@@ -806,7 +784,6 @@ def admin_list_faculties():
             "SELECT faculty_id, faculty_name FROM dim_faculty ORDER BY faculty_name",
             engine
         )
-        engine.dispose()
         records = df.to_dict('records') if not df.empty else []
         if for_role == 'dean':
             assigned = _faculty_ids_with_dean()
@@ -838,7 +815,6 @@ def admin_list_departments():
                 "SELECT department_id, department_name, faculty_id FROM dim_department ORDER BY department_name",
                 engine
             )
-        engine.dispose()
         records = df.to_dict('records') if not df.empty else []
         if for_role == 'hod':
             assigned = _department_ids_with_hod()
@@ -873,7 +849,6 @@ def hod_department_courses():
             WHERE dp.department_id = :dept_id
             ORDER BY dc.course_name
         """), engine, params={'dept_id': dept_id})
-        engine.dispose()
         courses = [{'course_code': r['course_code'], 'course_name': str(r['course_name']) if pd.notna(r['course_name']) else r['course_code']} for _, r in df.iterrows()]
         return jsonify({'courses': courses})
     except Exception as e:
@@ -887,14 +862,13 @@ def hod_staff_in_department():
         return err
     dept_id = get_jwt().get('department_id')
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         df = pd.read_sql_query(text("""
             SELECT id, username, full_name, role, department_id
             FROM app_users WHERE role = 'staff' AND department_id = :dept_id
             ORDER BY full_name, username
         """), rbac_engine, params={'dept_id': dept_id})
-        rbac_engine.dispose()
         staff = [{'id': int(r['id']), 'username': str(r['username']), 'full_name': str(r['full_name']) if pd.notna(r['full_name']) else str(r['username'])} for _, r in df.iterrows()]
         return jsonify({'staff': staff})
     except Exception as e:
@@ -908,14 +882,12 @@ def hod_get_staff_assignments(staff_id):
         return err
     dept_id = get_jwt().get('department_id')
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         check = pd.read_sql_query(text("SELECT id FROM app_users WHERE id = :uid AND role = 'staff' AND department_id = :dept_id"), rbac_engine, params={'uid': staff_id, 'dept_id': dept_id})
         if check.empty:
-            rbac_engine.dispose()
             return jsonify({'error': 'Staff not found in your department'}), 404
         df = pd.read_sql_query(text("SELECT course_code FROM staff_course_assignments WHERE app_user_id = :uid"), rbac_engine, params={'uid': staff_id})
-        rbac_engine.dispose()
         course_codes = [str(r['course_code']) for _, r in df.iterrows() if pd.notna(r['course_code'])]
         return jsonify({'course_codes': course_codes})
     except Exception as e:
@@ -934,12 +906,11 @@ def hod_set_staff_assignments(staff_id):
         course_codes = [course_codes]
     course_codes = list(course_codes) if course_codes else []
     try:
-        rbac_engine = create_engine(RBAC_CONN_STRING)
+        rbac_engine = get_rbac_engine()
         _ensure_app_users_table(rbac_engine)
         with rbac_engine.connect() as conn:
             check = pd.read_sql_query(text("SELECT id FROM app_users WHERE id = :uid AND role = 'staff' AND department_id = :dept_id"), conn, params={'uid': staff_id, 'dept_id': dept_id})
             if check.empty:
-                rbac_engine.dispose()
                 return jsonify({'error': 'Staff not found in your department'}), 404
             conn.execute(text("DELETE FROM staff_course_assignments WHERE app_user_id = :uid"), {'uid': staff_id})
             for cc in course_codes:
@@ -947,7 +918,6 @@ def hod_set_staff_assignments(staff_id):
                 if cc:
                     conn.execute(text("INSERT IGNORE INTO staff_course_assignments (app_user_id, course_code) VALUES (:uid, :cc)"), {'uid': staff_id, 'cc': cc})
             conn.commit()
-        rbac_engine.dispose()
         return jsonify({'message': 'Assignments updated', 'staff_id': staff_id})
     except Exception as e:
         return jsonify({'error': str(e)}), 500

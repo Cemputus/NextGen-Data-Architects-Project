@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, text
 
 from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME
 from api.auth import _ensure_ucu_rbac_database, RBAC_DB_NAME
+from db_engines import get_engine, get_rbac_engine
 
 dashboards_bp = Blueprint("dashboards", __name__, url_prefix="/api/dashboards")
 
@@ -194,7 +195,7 @@ def _ensure_dashboard_tables(engine):
 
 def _get_engine():
   _ensure_ucu_rbac_database()
-  engine = create_engine(_get_rbac_conn_string())
+  engine = get_rbac_engine()
   _ensure_dashboard_tables(engine)
   return engine
 
@@ -288,8 +289,6 @@ def list_dashboards():
         dashboards = _load_dashboards_for_user(engine, username, role)
     return jsonify({"dashboards": dashboards}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 dashboard_manager_bp = Blueprint("dashboard_manager", __name__, url_prefix="/api/dashboard-manager")
@@ -378,8 +377,6 @@ def get_current_dashboards():
 
     return jsonify({"roles": result_payload}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"roles": _safe_payload(all_roles), "error": str(e)}), 200
 
 @dashboard_manager_bp.route("/custom", methods=["GET"])
@@ -437,8 +434,6 @@ def get_custom_dashboards():
 
     return jsonify({"dashboards": dashboards}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 @dashboard_manager_bp.route("/swap", methods=["POST"])
@@ -491,8 +486,6 @@ def swap_dashboard():
 
     return jsonify({"ok": True}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 @dashboard_manager_bp.route("/remove-current", methods=["POST"])
@@ -521,8 +514,6 @@ def remove_current_dashboard():
       conn.commit()
     return jsonify({"ok": True}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 @dashboards_bp.route("", methods=["POST"])
@@ -600,8 +591,6 @@ def create_dashboard():
     created = next((d for d in dashboards if d["id"] == dash_id), None)
     return jsonify({"dashboard": created}), 201
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 @dashboards_bp.route("/<dash_id>", methods=["PUT"])
@@ -690,8 +679,6 @@ def update_dashboard(dash_id):
     updated = next((d for d in dashboards if d["id"] == dash_id), None)
     return jsonify({"dashboard": updated}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 @dashboards_bp.route("/<dash_id>", methods=["GET"])
@@ -707,8 +694,6 @@ def get_dashboard(dash_id):
         return jsonify({"dashboard": d}), 200
     return jsonify({"error": "Dashboard not found or access denied."}), 403
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 @dashboards_bp.route("/current", methods=["GET"])
@@ -757,8 +742,6 @@ def get_current_dashboard_for_role():
       }
     return jsonify({"dashboard": dash}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 @dashboards_bp.route("/<dash_id>", methods=["DELETE"])
@@ -794,8 +777,6 @@ def delete_dashboard(dash_id):
       conn.commit()
     return jsonify({"ok": True}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 page_config_bp = Blueprint("page_config", __name__, url_prefix="/api/page-config")
@@ -851,8 +832,6 @@ def list_page_configs():
       pages.sort(key=lambda x: x["page_key"])
     return jsonify({"pages": pages}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 @page_config_bp.route("/<page_key>", methods=["GET"])
@@ -886,8 +865,6 @@ def get_page_config(page_key):
         "updated_by_username": row.get("updated_by_username"),
       }), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 @page_config_bp.route("/<page_key>", methods=["PUT"])
@@ -923,8 +900,6 @@ def update_page_config(page_key):
       conn.commit()
     return jsonify({"page_key": page_key, "ok": True}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500
 
 @page_config_bp.route("/<page_key>", methods=["DELETE"])
@@ -944,6 +919,4 @@ def delete_page_config(page_key):
       conn.commit()
     return jsonify({"page_key": page_key, "ok": True}), 200
   except Exception as e:
-    if engine is not None:
-      engine.dispose()
     return jsonify({"error": str(e)}), 500

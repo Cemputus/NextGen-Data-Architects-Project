@@ -4,14 +4,15 @@ from sqlalchemy import create_engine, text
 import pandas as pd
 from rbac import Role, has_permission, Resource, Permission
 from config import DATA_WAREHOUSE_CONN_STRING, RBAC_DB_NAME, get_sqlalchemy_conn_string
+from db_engines import get_dw_engine, get_rbac_engine
 
 hod_bp = Blueprint('hod', __name__, url_prefix='/api/hod')
 
 def _get_rbac_engine():
-    return create_engine(get_sqlalchemy_conn_string(RBAC_DB_NAME))
+    return get_rbac_engine()
 
 def _get_dw_engine():
-    return create_engine(DATA_WAREHOUSE_CONN_STRING)
+    return get_dw_engine()
 
 @hod_bp.route('/staff-in-department', methods=['GET'])
 @jwt_required()
@@ -31,7 +32,6 @@ def get_staff_in_department():
             text("SELECT id, username, full_name, role FROM app_users WHERE department_id = :did AND role = 'staff'"),
             rbac_engine, params={'did': dept_id}
         )
-        rbac_engine.dispose()
         
         return jsonify({'staff': df.to_dict('records')}), 200
     except Exception as e:
@@ -51,7 +51,6 @@ def get_department_courses():
             text("SELECT course_code, course_name FROM dim_course WHERE department_id = :did"),
             dw_engine, params={'did': dept_id}
         )
-        dw_engine.dispose()
         
         return jsonify({'courses': df.to_dict('records')}), 200
     except Exception as e:
@@ -66,7 +65,6 @@ def get_staff_assignments(staff_id):
             text("SELECT course_code FROM staff_course_assignments WHERE app_user_id = :sid"),
             rbac_engine, params={'sid': staff_id}
         )
-        rbac_engine.dispose()
         
         return jsonify({'course_codes': df['course_code'].tolist()}), 200
     except Exception as e:
@@ -90,7 +88,6 @@ def update_staff_assignments(staff_id):
                         {'sid': staff_id, 'code': code}
                     )
             conn.commit()
-        rbac_engine.dispose()
         
         return jsonify({'message': 'Assignments updated successfully'}), 200
     except Exception as e:

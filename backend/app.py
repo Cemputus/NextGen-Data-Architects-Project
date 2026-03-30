@@ -1782,7 +1782,7 @@ def get_outstanding_by_faculty_program():
 
         claims = get_jwt()
         filters = request.args.to_dict()
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
 
         raw_limit = filters.get('limit', None)
         try:
@@ -2641,7 +2641,7 @@ def get_payment_trends():
         except:
             role = Role.FINANCE
         
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         filters = request.args.to_dict()
         
         where_clauses = []
@@ -2929,7 +2929,7 @@ def get_tuition_defaulters():
         except Exception:
             role = Role.FINANCE
 
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         filters = request.args.to_dict()
 
         def _int_or_none(v):
@@ -3551,7 +3551,7 @@ def generate_report():
         import traceback
         print(f"Error generating PDF: {e}")
         print(traceback.format_exc())
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         stats_query = """
         SELECT 
@@ -3581,8 +3581,6 @@ def generate_report():
         GROUP BY letter_grade
         """
         grades = pd.read_sql_query(grade_query, engine).to_dict('records')
-        
-        engine.dispose()
         
         return jsonify({
             'stats': stats,

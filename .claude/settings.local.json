@@ -14,7 +14,10 @@
       "Bash(python -c \"import sys; sys.path.insert\\(0, ''.''\\); import ast; ast.parse\\(open\\(''api/user_mgmt.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''api/hr.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")",
       "Bash(python3:*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Bash(done)"
     ]
   }
 }

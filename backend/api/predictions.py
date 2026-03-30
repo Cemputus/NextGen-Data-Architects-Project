@@ -26,6 +26,7 @@ except ImportError:
     enhanced_predictor = None
     print("Enhanced predictions module not available")
 from config import DATA_WAREHOUSE_CONN_STRING
+from db_engines import get_dw_engine
 from api.prediction_formatting import (
     build_prediction_payload,
     enrich_model_prediction_block,
@@ -383,7 +384,7 @@ def predict_scenario():
             return jsonify({'error': 'Student not found'}), 404
         student_id = resolved
         
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         query = text("""
         SELECT 
             ds.student_id,
@@ -419,7 +420,6 @@ def predict_scenario():
         """)
         
         student_features = pd.read_sql_query(query, engine, params={'student_id': student_id})
-        engine.dispose()
         
         if student_features.empty:
             return jsonify({'error': 'Student data not found'}), 404
@@ -582,7 +582,7 @@ def batch_predict():
         model_type = data.get('model_type', 'ensemble')
         filters = data.get('filters', {})
         
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         if user_scope['role'] == Role.STAFF:
             query = text("""
@@ -615,7 +615,6 @@ def batch_predict():
             allowed_students = pd.read_sql_query(query, engine, params={'faculty_id': user_scope['faculty_id']})
             student_ids = [s for s in student_ids if s in allowed_students['student_id'].tolist()]
         
-        engine.dispose()
         
         results = []
         for student_id in student_ids:
@@ -834,7 +833,7 @@ def predict_tuition_attendance_performance():
         if denied is not None:
             return denied
 
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         query = text("""
         SELECT 
             ds.student_id,
@@ -879,7 +878,6 @@ def predict_tuition_attendance_performance():
         """)
         
         student_data = pd.read_sql_query(query, engine, params={'student_id': resolved})
-        engine.dispose()
         
         if student_data.empty:
             return jsonify({'error': 'Student not found'}), 404
@@ -963,11 +961,11 @@ def predict_enrollment_trend():
         department_id = data.get('department_id')
         faculty_id = data.get('faculty_id')
         
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         try:
             pass
         finally:
-            engine.dispose()
+            pass
         return jsonify({
             'message': 'Enrollment trend prediction',
             'year': year,

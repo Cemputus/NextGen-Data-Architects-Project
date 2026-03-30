@@ -11,6 +11,7 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 from config import DATA_WAREHOUSE_CONN_STRING
+from db_engines import get_dw_engine
 from rbac import Role, Resource, Permission, has_permission
 
 try:
@@ -53,7 +54,7 @@ def export_excel():
         filters = request.args.to_dict() if request.method == 'GET' else request.get_json().get('filters', {})
         export_type = request.args.get('type', 'dashboard') if request.method == 'GET' else request.get_json().get('type', 'dashboard')
         
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         
         if export_type == 'dashboard':
             query = """
@@ -109,7 +110,6 @@ def export_excel():
                 grade_df.to_excel(writer, sheet_name='Grade Distribution', index=False)
             
             output.seek(0)
-            engine.dispose()
             if audit_log:
                 audit_log('export_excel', 'export', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id=export_type, status='success')
             return send_file(
@@ -147,7 +147,6 @@ def export_excel():
                 df.to_excel(writer, sheet_name='FEX Analytics', index=False)
             
             output.seek(0)
-            engine.dispose()
             if audit_log:
                 audit_log('export_excel', 'export', username=claims.get('username') or claims.get('access_number') or '', role_name=claims.get('role') or '', resource_id='fex', status='success')
             return send_file(
@@ -160,7 +159,7 @@ def export_excel():
         else:
             if engine is not None:
                 try:
-                    engine.dispose()
+                    pass
                 except Exception:
                     pass
             return jsonify({'error': 'Invalid export type'}), 400
@@ -171,7 +170,7 @@ def export_excel():
         print(traceback.format_exc())
         if engine is not None:
             try:
-                engine.dispose()
+                pass
             except Exception:
                 pass
         return jsonify({'error': str(e)}), 500

@@ -11,13 +11,14 @@ from sqlalchemy import create_engine, text
 
 from config import DATA_WAREHOUSE_CONN_STRING, DATA_WAREHOUSE_NAME
 from api.auth import _ensure_ucu_rbac_database, _ensure_app_users_table, RBAC_DB_NAME
+from db_engines import get_engine, get_dw_engine, get_rbac_engine
 
 nextgen_query_bp = Blueprint("nextgen_query", __name__, url_prefix="/api/query")
 
 def _get_rbac_engine():
     _ensure_ucu_rbac_database()
     conn_str = DATA_WAREHOUSE_CONN_STRING.replace(DATA_WAREHOUSE_NAME, RBAC_DB_NAME)
-    return create_engine(conn_str)
+    return get_engine(conn_str)
 
 def _ensure_assigned_viz_table(engine):
     with engine.connect() as conn:
@@ -182,7 +183,7 @@ def execute_query():
     engine = None
     start = time.time()
     try:
-        engine = create_engine(DATA_WAREHOUSE_CONN_STRING)
+        engine = get_dw_engine()
         with engine.connect() as conn:
             try:
                 conn.execute(text("SET statement_timeout = 8000"))
@@ -192,16 +193,12 @@ def execute_query():
             df = pd.read_sql_query(text(safe_sql), conn)
             rows_affected = None
     except Exception as e:
-        if engine is not None:
-            engine.dispose()
         err_msg = str(e)
         if "timeout" in err_msg.lower() or "statement_timeout" in err_msg.lower() or "canceling statement" in err_msg.lower():
             err_msg = "Query timed out after 8 seconds. Try narrowing your query or adding a LIMIT."
         return jsonify({"error": err_msg}), 400
     finally:
         elapsed = int((time.time() - start) * 1000)
-        if engine is not None:
-            engine.dispose()
 
     frame = _build_response_frame(df)
     frame["elapsed_ms"] = elapsed
@@ -242,7 +239,6 @@ def get_assignment_target_options():
                     "role": (row.get("role") or "").strip(),
                     "full_name": (row.get("full_name") or "").strip(),
                 })
-        engine.dispose()
     except Exception:
         users = []
 
@@ -329,13 +325,9 @@ def create_assigned_visualization():
                     },
                 )
                 conn.commit()
-            engine.dispose()
         except Exception as e:
             if engine:
-                try:
-                    engine.dispose()
-                except Exception:
-                    pass
+                pass
             return jsonify({"error": str(e)}), 500
 
         if target_type == "dashboard":
@@ -382,7 +374,6 @@ def reshare_visualization():
             )
             row = result.mappings().fetchone()
             if not row:
-                engine.dispose()
                 return jsonify({"error": "Visualization not found."}), 404
             parent = dict(row)
 
@@ -391,7 +382,6 @@ def reshare_visualization():
         role_ok = pt == "role" and pv == role
         user_ok = pt == "user" and pv == username.lower()
         if not (role_ok or user_ok):
-            engine.dispose()
             return jsonify({"error": "You can only reshare visualizations that were shared with you."}), 403
 
         target_val_lower = target_value.strip().lower()
@@ -409,7 +399,6 @@ def reshare_visualization():
                 {"vid": viz_id, "tt": target_type, "tv": target_val_lower},
             ).mappings().fetchone()
             if existing:
-                engine.dispose()
                 return jsonify({"error": "This chart is already shared with that " + ("role" if target_type == "role" else "user") + ". Choose a different recipient."}), 400
 
         snap = parent.get("result_snapshot")
@@ -452,7 +441,6 @@ def reshare_visualization():
                 },
             )
             conn.commit()
-        engine.dispose()
         return jsonify({"id": new_id, "message": "Visualization reshared successfully."}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -473,10 +461,7 @@ def get_assigned_visualizations_for_me():
         except Exception:
             pass
         if engine:
-            try:
-                engine.dispose()
-            except Exception:
-                pass
+            pass
         return jsonify({"visualizations": [], "warning": "Assigned visualizations temporarily unavailable"}), 200
     try:
         with engine.connect() as conn:
@@ -495,7 +480,6 @@ def get_assigned_visualizations_for_me():
                 {"role": role, "username": username.lower()},
             )
             rows = result.mappings().fetchall()
-        engine.dispose()
     except Exception as e:
         try:
             import traceback
@@ -504,10 +488,7 @@ def get_assigned_visualizations_for_me():
         except Exception:
             pass
         if engine:
-            try:
-                engine.dispose()
-            except Exception:
-                pass
+            pass
         return jsonify({"visualizations": [], "warning": "Assigned visualizations temporarily unavailable"}), 200
 
     out = []
@@ -567,10 +548,7 @@ def list_saved_visualizations():
                 {"username": username},
             )
             rows = result.mappings().fetchall()
-        engine.dispose()
     except Exception as e:
-        if engine:
-            engine.dispose()
         return jsonify({"error": str(e), "visualizations": []}), 500
     out = []
     for r in rows:
@@ -637,10 +615,7 @@ def list_assigned_visualizations():
                     ),
                 )
             rows = result.mappings().fetchall()
-        engine.dispose()
     except Exception as e:
-        if engine:
-            engine.dispose()
         return jsonify({"error": str(e), "visualizations": []}), 500
 
     out = []
@@ -691,7 +666,6 @@ def delete_assigned_visualization(viz_id):
                 {"id": viz_id},
             ).mappings().fetchone()
             if not row:
-                engine.dispose()
                 return jsonify({"error": "Visualization not found."}), 404
             creator = (row.get("created_by_username") or "").strip()
             reshared_by = (row.get("reshared_by_username") or "").strip()
@@ -701,15 +675,11 @@ def delete_assigned_visualization(viz_id):
                 or reshared_by == username
             )
             if not allowed:
-                engine.dispose()
                 return jsonify({"error": "You can only delete visualizations you created or reshared."}), 403
             result = conn.execute(text("DELETE FROM assigned_query_visualizations WHERE id = :id"), {"id": viz_id})
             conn.commit()
             deleted = result.rowcount
-        engine.dispose()
     except Exception as e:
-        if engine:
-            engine.dispose()
         return jsonify({"error": str(e)}), 500
 
     if deleted == 0:
@@ -739,12 +709,10 @@ def update_assigned_visualization_content(viz_id):
                 {"id": viz_id},
             ).mappings().fetchone()
             if not row:
-                engine.dispose()
                 return jsonify({"error": "Visualization not found."}), 404
             creator = (row.get("created_by_username") or "").strip()
             reshared_by = (row.get("reshared_by_username") or "").strip()
             if creator != username and reshared_by != username and role not in ("analyst", "sysadmin"):
-                engine.dispose()
                 return jsonify({"error": "You can only update visualizations you created or reshared."}), 403
 
             snapshot_json = None
@@ -782,11 +750,8 @@ def update_assigned_visualization_content(viz_id):
                     {"id": viz_id, "title": title},
                 )
             conn.commit()
-        engine.dispose()
         return jsonify({"message": "Visualization updated.", "id": viz_id}), 200
     except Exception as e:
-        if engine:
-            engine.dispose()
         return jsonify({"error": str(e)}), 500
 
 @nextgen_query_bp.route("/assigned-visualizations/<viz_id>", methods=["PATCH"])
@@ -813,12 +778,10 @@ def update_assigned_visualization_metadata(viz_id):
                 {"id": viz_id},
             ).mappings().fetchone()
             if not row:
-                engine.dispose()
                 return jsonify({"error": "Visualization not found."}), 404
             creator = (row.get("created_by_username") or "").strip()
             reshared_by = (row.get("reshared_by_username") or "").strip()
             if creator != username and reshared_by != username and role not in ("analyst", "sysadmin"):
-                engine.dispose()
                 return jsonify({"error": "You can only update visualizations you created or reshared."}), 403
             updates = []
             params = {"id": viz_id}
@@ -832,7 +795,6 @@ def update_assigned_visualization_metadata(viz_id):
                 updates.append("tags = :tags")
                 params["tags"] = tags
             if not updates:
-                engine.dispose()
                 return jsonify({"message": "Nothing to update."}), 200
             updates.append("updated_at = CURRENT_TIMESTAMP")
             conn.execute(
@@ -840,11 +802,8 @@ def update_assigned_visualization_metadata(viz_id):
                 params,
             )
             conn.commit()
-        engine.dispose()
         return jsonify({"message": "Visualization metadata updated."}), 200
     except Exception as e:
-        if engine:
-            engine.dispose()
         return jsonify({"error": str(e)}), 500
 
 def _can_reply_to_feedback(conn, viz_id: str, username: str) -> bool:
@@ -879,11 +838,9 @@ def post_viz_feedback(viz_id):
                 {"id": viz_id},
             ).mappings().fetchone()
             if not viz:
-                engine.dispose()
                 return jsonify({"error": "Visualization not found."}), 404
             pt, pv = (viz.get("target_type") or "").strip().lower(), (viz.get("target_value") or "").strip().lower()
             if not ((pt == "role" and pv == role) or (pt == "user" and pv == username.lower())):
-                engine.dispose()
                 return jsonify({"error": "You can only submit feedback on visualizations shared with you."}), 403
             fid = str(uuid.uuid4())[:24]
             conn.execute(
@@ -893,11 +850,8 @@ def post_viz_feedback(viz_id):
                 {"id": fid, "viz_id": viz_id, "author": username, "msg": message},
             )
             conn.commit()
-        engine.dispose()
         return jsonify({"id": fid, "message": "Feedback added."}), 201
     except Exception as e:
-        if engine:
-            engine.dispose()
         return jsonify({"error": str(e)}), 500
 
 @nextgen_query_bp.route("/assigned-visualizations/<viz_id>/feedback", methods=["GET"])
@@ -942,8 +896,6 @@ def get_viz_feedback(viz_id):
                 })
             return jsonify({"feedback": out}), 200
     except Exception as e:
-        if engine:
-            engine.dispose()
         return jsonify({"error": str(e)}), 500
 
 @nextgen_query_bp.route("/assigned-visualizations/feedback/<feedback_id>/reply", methods=["POST"])
@@ -965,11 +917,9 @@ def reply_to_feedback(feedback_id):
                 {"id": feedback_id},
             ).mappings().fetchone()
             if not fb:
-                engine.dispose()
                 return jsonify({"error": "Feedback not found."}), 404
             viz_id = fb["viz_id"]
             if not _can_reply_to_feedback(conn, viz_id, username):
-                engine.dispose()
                 return jsonify({"error": "Only the chart creator or person who shared it can reply."}), 403
             rid = str(uuid.uuid4())[:24]
             conn.execute(
@@ -979,11 +929,8 @@ def reply_to_feedback(feedback_id):
                 {"id": rid, "fid": feedback_id, "author": username, "msg": message},
             )
             conn.commit()
-        engine.dispose()
         return jsonify({"id": rid, "message": "Reply added."}), 201
     except Exception as e:
-        if engine:
-            engine.dispose()
         return jsonify({"error": str(e)}), 500
 
 @nextgen_query_bp.route("/assigned-visualizations/my-shared", methods=["GET"])
@@ -1058,6 +1005,4 @@ def get_my_shared_visualizations():
                 })
             return jsonify({"visualizations": out}), 200
     except Exception as e:
-        if engine:
-            engine.dispose()
         return jsonify({"error": str(e)}), 500
