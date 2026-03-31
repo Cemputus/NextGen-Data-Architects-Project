@@ -418,8 +418,16 @@ class MultiModelPredictor:
             s.nationality,
             s.high_school,
             s.high_school_district,
-            EXTRACT(YEAR FROM s.admission_date) AS admission_year,
-            (EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM s.admission_date))::int AS years_at_university,
+            CASE
+                WHEN (s.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                    THEN EXTRACT(YEAR FROM (s.admission_date::text)::date)
+                ELSE NULL
+            END AS admission_year,
+            CASE
+                WHEN (s.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                    THEN (EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM (s.admission_date::text)::date))::int
+                ELSE 0
+            END AS years_at_university,
             s.program_id,
             s.year_of_study,
             COALESCE(att.total_attendance_hours, 0) AS total_attendance_hours,
