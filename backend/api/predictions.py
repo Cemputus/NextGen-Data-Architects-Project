@@ -386,37 +386,76 @@ def predict_scenario():
         
         engine = get_dw_engine()
         query = text("""
-        SELECT 
-            ds.student_id,
-            COALESCE(SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END), 0) as total_paid,
-            COALESCE(SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END), 0) as total_pending,
-            COALESCE(SUM(fp.amount), 0) as total_required,
-            CASE 
-                WHEN SUM(fp.amount) > 0 
-                THEN SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) / SUM(fp.amount) * 100
-                ELSE 0 
-            END as payment_completion_rate,
-            COUNT(CASE WHEN fp.status = 'Completed' THEN 1 END) as completed_payments,
-            COUNT(CASE WHEN fp.status = 'Pending' THEN 1 END) as pending_payments,
-            CURRENT_DATE - MAX(CASE WHEN fp.status = 'Completed' THEN TO_DATE(fp.date_key, 'YYYYMMDD') ELSE NULL END) as days_since_last_payment,
-            CASE 
-                WHEN SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END) > 500000 
-                THEN 1 ELSE 0 
-            END as has_significant_balance,
-            COALESCE(SUM(fa.total_hours), 0) as total_attendance_hours,
-            COALESCE(SUM(fa.days_present), 0) as total_days_present,
-            COALESCE(COUNT(DISTINCT fa.course_code), 0) as courses_attended,
-            CASE 
-                WHEN COUNT(fa.attendance_id) > 0 
-                THEN (SUM(fa.days_present) / COUNT(fa.attendance_id)) * 100
-                ELSE 0 
-            END as attendance_rate,
-            AVG(fa.total_hours) as avg_hours_per_course
-        FROM dim_student ds
-        LEFT JOIN fact_payment fp ON ds.student_id = fp.student_id
-        LEFT JOIN fact_attendance fa ON ds.student_id = fa.student_id
-        WHERE ds.student_id = :student_id
-        GROUP BY ds.student_id
+        WITH
+        s AS (
+            SELECT ds.student_id
+            FROM dim_student ds
+            WHERE ds.student_id = :student_id
+        ),
+        pay AS (
+            SELECT
+                fp.student_id,
+                COALESCE(SUM(CASE WHEN fp.status IN ('Completed','SUCCESS','Paid') THEN fp.amount ELSE 0 END), 0) AS total_paid,
+                COALESCE(SUM(CASE WHEN fp.status IN ('Pending','FAILED') THEN fp.amount ELSE 0 END), 0) AS total_pending,
+                COALESCE(SUM(fp.amount), 0) AS total_required,
+                CASE
+                    WHEN COALESCE(SUM(fp.amount), 0) > 0
+                        THEN COALESCE(SUM(CASE WHEN fp.status IN ('Completed','SUCCESS','Paid') THEN fp.amount ELSE 0 END), 0)::numeric
+                             / COALESCE(SUM(fp.amount), 0)::numeric * 100
+                    ELSE 0
+                END AS payment_completion_rate,
+                COUNT(*) FILTER (WHERE fp.status IN ('Completed','SUCCESS','Paid')) AS completed_payments,
+                COUNT(*) FILTER (WHERE fp.status IN ('Pending','FAILED')) AS pending_payments,
+                CURRENT_DATE - MAX(
+                    CASE
+                        WHEN fp.status IN ('Completed','SUCCESS','Paid')
+                            THEN TO_DATE(fp.date_key, 'YYYYMMDD')
+                        ELSE NULL
+                    END
+                ) AS days_since_last_payment,
+                CASE
+                    WHEN COALESCE(SUM(CASE WHEN fp.status IN ('Pending','FAILED') THEN fp.amount ELSE 0 END), 0) > 500000
+                        THEN 1
+                    ELSE 0
+                END AS has_significant_balance
+            FROM fact_payment fp
+            WHERE fp.student_id = :student_id
+            GROUP BY fp.student_id
+        ),
+        att AS (
+            SELECT
+                fa.student_id,
+                COALESCE(SUM(fa.total_hours), 0) AS total_attendance_hours,
+                COALESCE(SUM(fa.days_present), 0) AS total_days_present,
+                COALESCE(COUNT(DISTINCT fa.course_code), 0) AS courses_attended,
+                CASE
+                    WHEN COUNT(*) > 0
+                        THEN (SUM(fa.days_present)::numeric / COUNT(*)::numeric) * 100
+                    ELSE 0
+                END AS attendance_rate,
+                COALESCE(AVG(fa.total_hours), 0) AS avg_hours_per_course
+            FROM fact_attendance fa
+            WHERE fa.student_id = :student_id
+            GROUP BY fa.student_id
+        )
+        SELECT
+            s.student_id,
+            COALESCE(pay.total_paid, 0) AS total_paid,
+            COALESCE(pay.total_pending, 0) AS total_pending,
+            COALESCE(pay.total_required, 0) AS total_required,
+            COALESCE(pay.payment_completion_rate, 0) AS payment_completion_rate,
+            COALESCE(pay.completed_payments, 0) AS completed_payments,
+            COALESCE(pay.pending_payments, 0) AS pending_payments,
+            pay.days_since_last_payment,
+            COALESCE(pay.has_significant_balance, 0) AS has_significant_balance,
+            COALESCE(att.total_attendance_hours, 0) AS total_attendance_hours,
+            COALESCE(att.total_days_present, 0) AS total_days_present,
+            COALESCE(att.courses_attended, 0) AS courses_attended,
+            COALESCE(att.attendance_rate, 0) AS attendance_rate,
+            COALESCE(att.avg_hours_per_course, 0) AS avg_hours_per_course
+        FROM s
+        LEFT JOIN pay ON pay.student_id = s.student_id
+        LEFT JOIN att ON att.student_id = s.student_id
         """)
         
         student_features = pd.read_sql_query(query, engine, params={'student_id': student_id})

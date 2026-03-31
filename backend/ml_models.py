@@ -331,66 +331,124 @@ class MultiModelPredictor:
     def predict(self, student_id, model_type='ensemble', scenario_override=None, scenario_mode=False):
         engine = get_dw_engine()
         
+        # Important: do NOT multi-join fact tables directly (attendance × payments × enrollments × grades)
+        # because it explodes row counts and triggers statement timeouts. Aggregate each fact first, then join.
         query = text("""
-        SELECT 
-            ds.student_id,
-            ds.gender,
-            ds.nationality,
-            ds.high_school,
-            ds.high_school_district,
-            CASE
-                WHEN (ds.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
-                THEN EXTRACT(YEAR FROM (ds.admission_date::text)::date)
-                ELSE NULL
-            END as admission_year,
-            CASE
-                WHEN (ds.admission_date::text) ~ '^\\d{4}-\\d{2}-\\d{2}$'
-                THEN EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM (ds.admission_date::text)::date)
-                ELSE 0
-            END as years_at_university,
-            ds.program_id,
-            ds.year_of_study,
-            COALESCE(SUM(fa.total_hours), 0) as total_attendance_hours,
-            COALESCE(SUM(fa.days_present), 0) as total_days_present,
-            COALESCE(COUNT(DISTINCT fa.course_code), 0) as courses_attended,
-            COALESCE(AVG(fa.total_hours), 0) as avg_hours_per_course,
-            COALESCE(COUNT(*), 0) as total_attendance_records,
-            CASE 
-                WHEN COUNT(*) > 0 
-                THEN (SUM(fa.days_present) / COUNT(*)) * 100
-                ELSE 0 
-            END as attendance_rate,
-            COALESCE(SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END), 0) as total_paid,
-            COALESCE(SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END), 0) as total_pending,
-            COALESCE(SUM(fp.amount), 0) as total_required,
-            COALESCE(COUNT(CASE WHEN fp.status = 'Completed' THEN 1 END), 0) as payment_count,
-            COALESCE(AVG(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END), 0) as avg_payment,
-            CASE 
-                WHEN SUM(fp.amount) > 0 
-                THEN SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) / SUM(fp.amount) * 100
-                ELSE 0 
-            END as payment_completion_rate,
-            CASE 
-                WHEN SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END) > 500000 
-                THEN 1 ELSE 0 
-            END as has_significant_balance,
-            COALESCE(COUNT(DISTINCT fe.course_code), 0) as total_enrollments,
-            COALESCE(COUNT(DISTINCT fe.semester_id), 0) as semesters_enrolled,
-            COALESCE(AVG(dc.credits), 0) as avg_course_credits,
-            COALESCE(SUM(dc.credits), 0) as total_credits,
-            COALESCE(COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END), 0) as missed_exams,
-            COALESCE(COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END), 0) as failed_exams,
-            COALESCE(COUNT(CASE WHEN fg.exam_status = 'FCW' THEN 1 END), 0) as failed_coursework,
-            COALESCE(AVG(fg.coursework_score), 0) as avg_coursework_score,
-            COALESCE(AVG(fg.exam_score), 0) as avg_exam_score
-        FROM dim_student ds
-        LEFT JOIN fact_attendance fa ON ds.student_id = fa.student_id
-        LEFT JOIN fact_payment fp ON ds.student_id = fp.student_id
-        LEFT JOIN fact_enrollment fe ON ds.student_id = fe.student_id
-        LEFT JOIN dim_course dc ON fe.course_code = dc.course_code
-        LEFT JOIN fact_grade fg ON ds.student_id = fg.student_id
-        WHERE ds.student_id = :student_id
-        GROUP BY ds.student_id, ds.gender, ds.nationality, ds.high_school, ds.high_school_district, ds.admission_date, ds.program_id, ds.year_of_study
+        WITH
+        s AS (
+            SELECT
+                ds.student_id,
+                ds.gender,
+                ds.nationality,
+                ds.high_school,
+                ds.high_school_district,
+                ds.admission_date,
+                ds.program_id,
+                ds.year_of_study
+            FROM dim_student ds
+            WHERE ds.student_id = :student_id
+        ),
+        att AS (
+            SELECT
+                fa.student_id,
+                COALESCE(SUM(fa.total_hours), 0) AS total_attendance_hours,
+                COALESCE(SUM(fa.days_present), 0) AS total_days_present,
+                COALESCE(COUNT(DISTINCT fa.course_code), 0) AS courses_attended,
+                COALESCE(AVG(fa.total_hours), 0) AS avg_hours_per_course,
+                COUNT(*) AS total_attendance_records,
+                CASE
+                    WHEN COUNT(*) > 0
+                        THEN (SUM(fa.days_present)::numeric / COUNT(*)::numeric) * 100
+                    ELSE 0
+                END AS attendance_rate
+            FROM fact_attendance fa
+            WHERE fa.student_id = :student_id
+            GROUP BY fa.student_id
+        ),
+        pay AS (
+            SELECT
+                fp.student_id,
+                COALESCE(SUM(CASE WHEN fp.status IN ('Completed','SUCCESS','Paid') THEN fp.amount ELSE 0 END), 0) AS total_paid,
+                COALESCE(SUM(CASE WHEN fp.status IN ('Pending','FAILED') THEN fp.amount ELSE 0 END), 0) AS total_pending,
+                COALESCE(SUM(fp.amount), 0) AS total_required,
+                COALESCE(COUNT(*) FILTER (WHERE fp.status IN ('Completed','SUCCESS','Paid')), 0) AS payment_count,
+                COALESCE(AVG(fp.amount) FILTER (WHERE fp.status IN ('Completed','SUCCESS','Paid')), 0) AS avg_payment,
+                CASE
+                    WHEN COALESCE(SUM(fp.amount), 0) > 0
+                        THEN COALESCE(SUM(CASE WHEN fp.status IN ('Completed','SUCCESS','Paid') THEN fp.amount ELSE 0 END), 0)::numeric
+                             / COALESCE(SUM(fp.amount), 0)::numeric * 100
+                    ELSE 0
+                END AS payment_completion_rate,
+                CASE
+                    WHEN COALESCE(SUM(CASE WHEN fp.status IN ('Pending','FAILED') THEN fp.amount ELSE 0 END), 0) > 500000
+                        THEN 1
+                    ELSE 0
+                END AS has_significant_balance
+            FROM fact_payment fp
+            WHERE fp.student_id = :student_id
+            GROUP BY fp.student_id
+        ),
+        enr AS (
+            SELECT
+                fe.student_id,
+                COALESCE(COUNT(DISTINCT fe.course_code), 0) AS total_enrollments,
+                COALESCE(COUNT(DISTINCT fe.semester_id), 0) AS semesters_enrolled,
+                COALESCE(AVG(dc.credits), 0) AS avg_course_credits,
+                COALESCE(SUM(dc.credits), 0) AS total_credits
+            FROM fact_enrollment fe
+            LEFT JOIN dim_course dc ON dc.course_code = fe.course_code
+            WHERE fe.student_id = :student_id
+            GROUP BY fe.student_id
+        ),
+        gr AS (
+            SELECT
+                fg.student_id,
+                COALESCE(COUNT(*) FILTER (WHERE fg.exam_status = 'MEX'), 0) AS missed_exams,
+                COALESCE(COUNT(*) FILTER (WHERE fg.exam_status = 'FEX'), 0) AS failed_exams,
+                COALESCE(COUNT(*) FILTER (WHERE fg.exam_status = 'FCW'), 0) AS failed_coursework,
+                COALESCE(AVG(fg.coursework_score), 0) AS avg_coursework_score,
+                COALESCE(AVG(fg.exam_score), 0) AS avg_exam_score
+            FROM fact_grade fg
+            WHERE fg.student_id = :student_id
+            GROUP BY fg.student_id
+        )
+        SELECT
+            s.student_id,
+            s.gender,
+            s.nationality,
+            s.high_school,
+            s.high_school_district,
+            EXTRACT(YEAR FROM s.admission_date) AS admission_year,
+            (EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM s.admission_date))::int AS years_at_university,
+            s.program_id,
+            s.year_of_study,
+            COALESCE(att.total_attendance_hours, 0) AS total_attendance_hours,
+            COALESCE(att.total_days_present, 0) AS total_days_present,
+            COALESCE(att.courses_attended, 0) AS courses_attended,
+            COALESCE(att.avg_hours_per_course, 0) AS avg_hours_per_course,
+            COALESCE(att.total_attendance_records, 0) AS total_attendance_records,
+            COALESCE(att.attendance_rate, 0) AS attendance_rate,
+            COALESCE(pay.total_paid, 0) AS total_paid,
+            COALESCE(pay.total_pending, 0) AS total_pending,
+            COALESCE(pay.total_required, 0) AS total_required,
+            COALESCE(pay.payment_count, 0) AS payment_count,
+            COALESCE(pay.avg_payment, 0) AS avg_payment,
+            COALESCE(pay.payment_completion_rate, 0) AS payment_completion_rate,
+            COALESCE(pay.has_significant_balance, 0) AS has_significant_balance,
+            COALESCE(enr.total_enrollments, 0) AS total_enrollments,
+            COALESCE(enr.semesters_enrolled, 0) AS semesters_enrolled,
+            COALESCE(enr.avg_course_credits, 0) AS avg_course_credits,
+            COALESCE(enr.total_credits, 0) AS total_credits,
+            COALESCE(gr.missed_exams, 0) AS missed_exams,
+            COALESCE(gr.failed_exams, 0) AS failed_exams,
+            COALESCE(gr.failed_coursework, 0) AS failed_coursework,
+            COALESCE(gr.avg_coursework_score, 0) AS avg_coursework_score,
+            COALESCE(gr.avg_exam_score, 0) AS avg_exam_score
+        FROM s
+        LEFT JOIN att ON att.student_id = s.student_id
+        LEFT JOIN pay ON pay.student_id = s.student_id
+        LEFT JOIN enr ON enr.student_id = s.student_id
+        LEFT JOIN gr  ON gr.student_id  = s.student_id
         """)
         
         student_data = pd.read_sql_query(query, engine, params={'student_id': student_id})
