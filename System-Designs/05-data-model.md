@@ -121,16 +121,32 @@ erDiagram
     }
 ```
 
-### Star Schema Relationships (Dimensions + Facts)
-| Relationship | Join verb | Join keys (source → target) | Connection type |
-|---|---|---|---|
-| `dim_faculty` → `dim_department` | has | `dim_department.faculty_id` → `dim_faculty.faculty_id` | FK (declared) |
-| `dim_department` → `dim_program` | offers | `dim_program.department_id` → `dim_department.department_id` | FK (declared) |
-| `dim_student` → `dim_program` | studies in | `dim_student.program_id` → `dim_program.program_id` | Logical (no FK declared) |
-| `fact_enrollment` → dimensions | enrolls | `fact_enrollment.student_id` → `dim_student.student_id`<br/>`fact_enrollment.course_code` → `dim_course.course_code`<br/>`fact_enrollment.date_key` → `dim_time.date_key`<br/>`fact_enrollment.semester_id` → `dim_semester.semester_id` | Fact foreign keys (star joins) |
-| `fact_attendance` → dimensions | attends | `fact_attendance.student_id` → `dim_student.student_id`<br/>`fact_attendance.course_code` → `dim_course.course_code`<br/>`fact_attendance.date_key` → `dim_time.date_key` | Fact foreign keys (star joins) |
-| `fact_payment` → dimensions | pays | `fact_payment.student_id` → `dim_student.student_id`<br/>`fact_payment.date_key` → `dim_time.date_key`<br/>`fact_payment.semester_id` → `dim_semester.semester_id` | Fact foreign keys (star joins) |
-| `fact_grade` → dimensions | receives | `fact_grade.student_id` → `dim_student.student_id`<br/>`fact_grade.course_code` → `dim_course.course_code`<br/>`fact_grade.date_key` → `dim_time.date_key`<br/>`fact_grade.semester_id` → `dim_semester.semester_id` | Fact foreign keys (star joins) |
+### Star schema — full relationship registry (dimensions + facts)
+
+One row per **logical connection** in [`create_data_warehouse.sql`](../backend/sql/create_data_warehouse.sql). *Declared FK* = `FOREIGN KEY` in DDL; *logical* = used in analytics/views but not enforced as FK.
+
+| # | Source | Target | Cardinality | Join keys (fact/dim → parent dim) | Connection |
+|---|--------|--------|-------------|-----------------------------------|------------|
+| D1 | `dim_department` | `dim_faculty` | N:1 | `dim_department.faculty_id` → `dim_faculty.faculty_id` | Declared FK |
+| D2 | `dim_program` | `dim_department` | N:1 | `dim_program.department_id` → `dim_department.department_id` | Declared FK |
+| D3 | `dim_student` | `dim_program` | N:1 (expected) | `dim_student.program_id` → `dim_program.program_id` | Logical only (no FK in DDL) |
+| D4 | `dim_course` | `dim_department` | — | `dim_course.department` (name) vs `dim_department.department_name` | No FK; optional **name** match in queries |
+| F1 | `fact_enrollment` | `dim_student` | N:1 | `fact_enrollment.student_id` → `dim_student.student_id` | Declared FK |
+| F2 | `fact_enrollment` | `dim_course` | N:1 | `fact_enrollment.course_code` → `dim_course.course_code` | Declared FK |
+| F3 | `fact_enrollment` | `dim_time` | N:1 | `fact_enrollment.date_key` → `dim_time.date_key` | Declared FK |
+| F4 | `fact_enrollment` | `dim_semester` | N:1 | `fact_enrollment.semester_id` → `dim_semester.semester_id` | Declared FK |
+| F5 | `fact_attendance` | `dim_student` | N:1 | `fact_attendance.student_id` → `dim_student.student_id` | Declared FK |
+| F6 | `fact_attendance` | `dim_course` | N:1 | `fact_attendance.course_code` → `dim_course.course_code` | Declared FK |
+| F7 | `fact_attendance` | `dim_time` | N:1 | `fact_attendance.date_key` → `dim_time.date_key` | Declared FK |
+| F8 | `fact_payment` | `dim_student` | N:1 | `fact_payment.student_id` → `dim_student.student_id` | Declared FK |
+| F9 | `fact_payment` | `dim_time` | N:1 | `fact_payment.date_key` → `dim_time.date_key` | Declared FK |
+| F10 | `fact_payment` | `dim_semester` | N:1 | `fact_payment.semester_id` → `dim_semester.semester_id` | Declared FK |
+| F11 | `fact_grade` | `dim_student` | N:1 | `fact_grade.student_id` → `dim_student.student_id` | Declared FK |
+| F12 | `fact_grade` | `dim_course` | N:1 | `fact_grade.course_code` → `dim_course.course_code` | Declared FK |
+| F13 | `fact_grade` | `dim_time` | N:1 | `fact_grade.date_key` → `dim_time.date_key` | Declared FK |
+| F14 | `fact_grade` | `dim_semester` | N:1 | `fact_grade.semester_id` → `dim_semester.semester_id` | Declared FK |
+
+**Path summary (read upwards):** `dim_student` → program → department → faculty. Facts always join to **`dim_time`** where dated; **`dim_semester`** joins enrollment, payment, and grade facts only.
 
 **Warehouse bridge:** **`dim_app_user`** mirrors application users for analytics that join operational identity to facts (created in [`backend/app.py`](../backend/app.py)).
 
