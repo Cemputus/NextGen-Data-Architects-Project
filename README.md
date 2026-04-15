@@ -79,13 +79,13 @@ The diagrams below provide complementary views of the same architecture: **syste
 
 ### 1. System context
 
-High-level system boundary: actors (students, staff, admins, external systems) and the UCU NextGen platform as a single system versus external dependencies.
+This view defines the platform boundary: institutional users and external providers interact with NextGen as one system, clarifying ownership of identity, analytics, ETL operations, and reporting responsibilities.
 
 <img src="readme-images/01-system-context.png" alt="System context diagram — actors and external systems" width="920" />
 
 ### 2. Logical architecture
 
-Logical tiers and deployment-style view (presentation, API/application services, data & integration, hosting split aligned with Vercel + Render + PostgreSQL).
+This view maps internal layers and deployment responsibilities: React handles presentation, Flask exposes secured domain APIs, and PostgreSQL serves warehouse and application data for role-scoped analytics.
 
 <img src="readme-images/02-logical-architecture.png" alt="Logical architecture — tiers and major components" width="920" />
 
@@ -93,13 +93,13 @@ Logical tiers and deployment-style view (presentation, API/application services,
 
 #### Level 0 — context flow
 
-Top-level data flow between external entities and the platform (requests, responses, batch/analytics paths).
+This level shows end-to-end movement of operational requests, authentication checks, ETL inputs, and analytics outputs across external actors and core platform processes.
 
 <img src="readme-images/04-dfd-level-0.png" alt="DFD Level 0 — context-level data flow" width="920" />
 
 #### Level 1 — main processes
 
-Decomposition into main processes (e.g. analytics, ETL, authentication, reporting) and data stores as used in [System-Designs/04-data-flow-diagrams.md](System-Designs/04-data-flow-diagrams.md).
+This level decomposes the platform into executable workflows (authentication, analytics, ETL, exports, and reporting) and shows how those workflows read from and write to shared data stores, as detailed in [System-Designs/04-data-flow-diagrams.md](System-Designs/04-data-flow-diagrams.md).
 
 <img src="readme-images/04-dfd-level-1-main-processes.png" alt="DFD Level 1 — main processes" width="920" />
 
