@@ -25,53 +25,92 @@ class EnhancedPredictor:
     def prepare_tuition_attendance_features(self):
         engine = get_dw_engine()
         
+        # Avoid multi-joining fact tables directly; aggregate first to prevent row explosion/timeouts.
         query = """
-        SELECT 
+        WITH
+        pay AS (
+            SELECT
+                fp.student_id,
+                COALESCE(SUM(CASE WHEN fp.status IN ('Completed','SUCCESS','Paid') THEN fp.amount ELSE 0 END), 0) AS total_paid,
+                COALESCE(SUM(CASE WHEN fp.status IN ('Pending','FAILED') THEN fp.amount ELSE 0 END), 0) AS total_pending,
+                COALESCE(SUM(fp.amount), 0) AS total_required,
+                CASE
+                    WHEN COALESCE(SUM(fp.amount), 0) > 0
+                        THEN COALESCE(SUM(CASE WHEN fp.status IN ('Completed','SUCCESS','Paid') THEN fp.amount ELSE 0 END), 0)::numeric
+                             / COALESCE(SUM(fp.amount), 0)::numeric * 100
+                    ELSE 0
+                END AS payment_completion_rate,
+                COUNT(*) FILTER (WHERE fp.status IN ('Completed','SUCCESS','Paid')) AS completed_payments,
+                COUNT(*) FILTER (WHERE fp.status IN ('Pending','FAILED')) AS pending_payments,
+                CURRENT_DATE - MAX(
+                    CASE
+                        WHEN fp.status IN ('Completed','SUCCESS','Paid')
+                            THEN TO_DATE(fp.date_key, 'YYYYMMDD')
+                        ELSE NULL
+                    END
+                ) AS days_since_last_payment,
+                CASE
+                    WHEN COALESCE(SUM(CASE WHEN fp.status IN ('Pending','FAILED') THEN fp.amount ELSE 0 END), 0) > 500000
+                        THEN 1
+                    ELSE 0
+                END AS has_significant_balance
+            FROM fact_payment fp
+            GROUP BY fp.student_id
+        ),
+        att AS (
+            SELECT
+                fa.student_id,
+                COALESCE(SUM(fa.total_hours), 0) AS total_attendance_hours,
+                COALESCE(SUM(fa.days_present), 0) AS total_days_present,
+                COALESCE(COUNT(DISTINCT fa.course_code), 0) AS courses_attended,
+                CASE
+                    WHEN COUNT(*) > 0
+                        THEN (SUM(fa.days_present)::numeric / COUNT(*)::numeric) * 100
+                    ELSE 0
+                END AS attendance_rate,
+                COALESCE(AVG(fa.total_hours), 0) AS avg_hours_per_course
+            FROM fact_attendance fa
+            GROUP BY fa.student_id
+        ),
+        gr AS (
+            SELECT
+                fg.student_id,
+                AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) AS avg_grade,
+                COUNT(*) FILTER (WHERE fg.exam_status = 'Completed') AS completed_exams,
+                COUNT(*) FILTER (WHERE fg.exam_status = 'MEX') AS missed_exams,
+                COUNT(*) FILTER (WHERE fg.exam_status = 'FEX') AS failed_exams
+            FROM fact_grade fg
+            GROUP BY fg.student_id
+        )
+        SELECT
             ds.student_id,
-            -- Tuition Features
-            COALESCE(SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END), 0) as total_paid,
-            COALESCE(SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END), 0) as total_pending,
-            COALESCE(SUM(fp.amount), 0) as total_required,
-            CASE 
-                WHEN SUM(fp.amount) > 0 
-                THEN SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) / SUM(fp.amount) * 100
-                ELSE 0 
-            END as payment_completion_rate,
-            COUNT(CASE WHEN fp.status = 'Completed' THEN 1 END) as completed_payments,
-            COUNT(CASE WHEN fp.status = 'Pending' THEN 1 END) as pending_payments,
-            CURRENT_DATE - MAX(CASE WHEN fp.status = 'Completed' THEN TO_DATE(fp.date_key, 'YYYYMMDD') ELSE NULL END) as days_since_last_payment,
-            CASE 
-                WHEN SUM(CASE WHEN fp.status = 'Pending' THEN fp.amount ELSE 0 END) > 500000 
-                THEN 1 ELSE 0 
-            END as has_significant_balance,
-            -- Attendance Features
-            COALESCE(SUM(fa.total_hours), 0) as total_attendance_hours,
-            COALESCE(SUM(fa.days_present), 0) as total_days_present,
-            COALESCE(COUNT(DISTINCT fa.course_code), 0) as courses_attended,
-            CASE 
-                WHEN COUNT(fa.attendance_id) > 0 
-                THEN (SUM(fa.days_present) / COUNT(fa.attendance_id)) * 100
-                ELSE 0 
-            END as attendance_rate,
-            AVG(fa.total_hours) as avg_hours_per_course,
-            -- Combined Features
-            CASE 
-                WHEN COUNT(fa.attendance_id) > 0 AND SUM(fp.amount) > 0
-                THEN ((SUM(fa.days_present) / COUNT(fa.attendance_id)) * 100) * 
-                     (SUM(CASE WHEN fp.status = 'Completed' THEN fp.amount ELSE 0 END) / SUM(fp.amount) * 100) / 100
-                ELSE 0 
-            END as attendance_payment_score,
-            -- Target: Performance
-            AVG(CASE WHEN fg.exam_status = 'Completed' THEN fg.grade ELSE NULL END) as avg_grade,
-            COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) as completed_exams,
-            COUNT(CASE WHEN fg.exam_status = 'MEX' THEN 1 END) as missed_exams,
-            COUNT(CASE WHEN fg.exam_status = 'FEX' THEN 1 END) as failed_exams
+            COALESCE(pay.total_paid, 0) AS total_paid,
+            COALESCE(pay.total_pending, 0) AS total_pending,
+            COALESCE(pay.total_required, 0) AS total_required,
+            COALESCE(pay.payment_completion_rate, 0) AS payment_completion_rate,
+            COALESCE(pay.completed_payments, 0) AS completed_payments,
+            COALESCE(pay.pending_payments, 0) AS pending_payments,
+            pay.days_since_last_payment,
+            COALESCE(pay.has_significant_balance, 0) AS has_significant_balance,
+            COALESCE(att.total_attendance_hours, 0) AS total_attendance_hours,
+            COALESCE(att.total_days_present, 0) AS total_days_present,
+            COALESCE(att.courses_attended, 0) AS courses_attended,
+            COALESCE(att.attendance_rate, 0) AS attendance_rate,
+            COALESCE(att.avg_hours_per_course, 0) AS avg_hours_per_course,
+            CASE
+                WHEN COALESCE(att.courses_attended, 0) > 0 AND COALESCE(pay.total_required, 0) > 0
+                    THEN (COALESCE(att.attendance_rate, 0) * COALESCE(pay.payment_completion_rate, 0)) / 100
+                ELSE 0
+            END AS attendance_payment_score,
+            gr.avg_grade,
+            gr.completed_exams,
+            gr.missed_exams,
+            gr.failed_exams
         FROM dim_student ds
-        LEFT JOIN fact_payment fp ON ds.student_id = fp.student_id
-        LEFT JOIN fact_attendance fa ON ds.student_id = fa.student_id
-        LEFT JOIN fact_grade fg ON ds.student_id = fg.student_id
-        GROUP BY ds.student_id
-        HAVING COUNT(CASE WHEN fg.exam_status = 'Completed' THEN 1 END) > 0
+        LEFT JOIN pay ON pay.student_id = ds.student_id
+        LEFT JOIN att ON att.student_id = ds.student_id
+        LEFT JOIN gr  ON gr.student_id  = ds.student_id
+        WHERE COALESCE(gr.completed_exams, 0) > 0
         """
         
         df = pd.read_sql_query(text(query), engine)
