@@ -22,5 +22,6 @@ Professional design views for the **UCU NextGen Analytics & Prediction Platform*
 | [01-system-context](./01-system-context.md) | [System context PNG](../readme-images/01-system-context.png) |
 | [02-architecture](./02-architecture.md) | [Logical architecture PNG](../readme-images/02-logical-architecture.png) |
 | [04-data-flow-diagrams](./04-data-flow-diagrams.md) | [DFD Level 0 PNG](../readme-images/04-dfd-level-0.png), [DFD Level 1 PNG](../readme-images/04-dfd-level-1-main-processes.png) |
+| [09-etl-data-warehouse-erd](./09-etl-data-warehouse-erd.md) | [ETL + warehouse ERD PNG](../readme-images/05-erd-etl-data-warehouse-ucu_datawarehouse.png) |
 
 **Source of truth:** behaviour and names are derived from the codebase (`backend/`, `frontend/`, `render.yaml`, `backend/rbac.py`), not from this folder alone.
