@@ -71,11 +71,11 @@ Idle handling, token lifetime, and `DISABLE_SESSION_EXPIRY` alignment are docume
 
 ## Architecture
 
-Diagram PNGs live in **[`readme-images/`](readme-images/)** at the **repository root** (next to this file) with short ASCII filenames so **local Markdown previews** (VS Code / Cursor) can load them. Narrative text remains in [System-Designs/01-system-context.md](System-Designs/01-system-context.md), [System-Designs/02-architecture.md](System-Designs/02-architecture.md), and [System-Designs/04-data-flow-diagrams.md](System-Designs/04-data-flow-diagrams.md).
+The platform is designed as a role-aware analytics system with clear separation between presentation, API/services, and data layers. Users interact through a React SPA, business and security logic are enforced in Flask APIs (JWT + RBAC), and analytical workloads are served from a PostgreSQL warehouse populated by a medallion ETL pipeline (bronze → silver → gold).
 
-**If images still do not show in preview:** open the Command Palette (`Ctrl+Shift+P`) → **Markdown: Change Preview Security Settings** → choose **Disable** (or **Allow insecure content**). Ensure the **folder** opened in the editor is the repo root (`NextGen-Data-Architects-Project`), not a parent path.
+The diagrams below provide complementary views of the same architecture: **system context** (actors and boundaries), **logical architecture** (application and data tiers), and **DFD views** (operational data movement through core processes). Detailed design narratives remain in [System-Designs/01-system-context.md](System-Designs/01-system-context.md), [System-Designs/02-architecture.md](System-Designs/02-architecture.md), and [System-Designs/04-data-flow-diagrams.md](System-Designs/04-data-flow-diagrams.md).
 
-**All four figures** (HTML `<img>` for best preview compatibility; GitHub renders these too):
+**Architecture figures:**
 
 ### 1. System context
 
